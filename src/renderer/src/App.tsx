@@ -13,6 +13,7 @@ import { TrendDisplay } from './displays/TrendDisplay'
 import { ExplorerDisplay } from './displays/ExplorerDisplay'
 import { ControlStudioDisplay } from './displays/ControlStudioDisplay'
 import { BatchDisplay } from './displays/BatchDisplay'
+import { SfcDisplay } from './displays/SfcDisplay'
 
 export function App(): JSX.Element {
   const tick = useStore((s) => s.tick)
@@ -54,6 +55,7 @@ export function App(): JSX.Element {
           {display === 'explorer' && <ExplorerDisplay />}
           {display === 'studio' && <ControlStudioDisplay />}
           {display === 'batch' && <BatchDisplay />}
+          {display === 'sfc' && <SfcDisplay />}
           <FaceplateHost />
         </div>
       </div>

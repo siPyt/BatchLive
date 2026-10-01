@@ -14,6 +14,7 @@ import type {
 import { buildInitialPlant, makeModule, type NewModuleSpec } from './plant'
 import { stepPlant } from './simulate'
 import { advanceBatch, commandBatch, makeBatch, type BatchRuntime, type BatchCommand } from './batch'
+import { advanceSfcs, makeSampleSfc, type SfcDef, type SfcStep } from './sfc'
 
 const TREND_SECONDS = 600 // 10 minutes of history
 const TREND_HZ = 2
@@ -22,6 +23,7 @@ interface StoreState extends PlantState {
   trend: TrendPoint[]
   rev: number
   batch: BatchRuntime
+  sfcs: Record<string, SfcDef>
   // operator actions
   setMode: (tag: string, mode: ControlMode) => void
   setSetpoint: (tag: string, sp: number) => void
@@ -47,6 +49,10 @@ interface StoreState extends PlantState {
   batchCommand: (cmd: BatchCommand) => void
   createModule: (spec: NewModuleSpec) => void
   deleteModule: (tag: string) => void
+  createSfc: (name: string, area: string) => void
+  deleteSfc: (name: string) => void
+  setSfcSteps: (name: string, steps: SfcStep[]) => void
+  sfcCommand: (name: string, cmd: 'run' | 'hold' | 'reset') => void
 }
 
 const initial = buildInitialPlant()
@@ -56,13 +62,15 @@ export const useStore = create<StoreState>((set, get) => ({
   trend: [],
   rev: 0,
   batch: makeBatch(),
+  sfcs: { 'STARTUP-T101': makeSampleSfc() },
 
   tick: (dt: number) => {
     const s = get()
     if (!s.running) return
     // Advance the batch first so phase actions set modes/SPs/commands before physics.
     const { modules: cmdModules, batch } = advanceBatch(s, dt, s.time + dt * 1000 * s.speed)
-    const next = stepPlant({ ...s, modules: cmdModules }, dt)
+    const { modules: sfcModules, sfcs } = advanceSfcs(s, cmdModules, dt)
+    const next = stepPlant({ ...s, modules: sfcModules }, dt)
     // Sample trend data.
     const trend = s.trend
     const last = trend[trend.length - 1]
@@ -88,7 +96,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const cutoff = next.time - TREND_SECONDS * 1000
       newTrend = [...trend, point].filter((p) => p.t >= cutoff)
     }
-    set({ ...next, trend: newTrend, batch, rev: s.rev + 1 })
+    set({ ...next, trend: newTrend, batch, sfcs, rev: s.rev + 1 })
   },
 
   setMode: (tag, mode) =>
@@ -208,6 +216,44 @@ export const useStore = create<StoreState>((set, get) => ({
       const modules = { ...s.modules }
       delete modules[tag]
       return { modules, alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
+    }),
+
+  createSfc: (name, area) =>
+    set((s) => {
+      const key = name.trim().toUpperCase()
+      if (!key || s.sfcs[key]) return {}
+      const sfc: SfcDef = { name: key, area, steps: [], status: 'READY', active: 0, elapsed: 0 }
+      return { sfcs: { ...s.sfcs, [key]: sfc }, rev: s.rev + 1 }
+    }),
+
+  deleteSfc: (name) =>
+    set((s) => {
+      if (!s.sfcs[name]) return {}
+      const sfcs = { ...s.sfcs }
+      delete sfcs[name]
+      return { sfcs, rev: s.rev + 1 }
+    }),
+
+  setSfcSteps: (name, steps) =>
+    set((s) => {
+      const sfc = s.sfcs[name]
+      if (!sfc) return {}
+      // Editing resets the run so the chart starts clean.
+      return {
+        sfcs: { ...s.sfcs, [name]: { ...sfc, steps, status: 'READY', active: 0, elapsed: 0 } },
+        rev: s.rev + 1
+      }
+    }),
+
+  sfcCommand: (name, cmd) =>
+    set((s) => {
+      const sfc = s.sfcs[name]
+      if (!sfc) return {}
+      let next = sfc
+      if (cmd === 'run') next = { ...sfc, status: 'RUNNING' }
+      else if (cmd === 'hold') next = { ...sfc, status: sfc.status === 'RUNNING' ? 'HELD' : sfc.status }
+      else if (cmd === 'reset') next = { ...sfc, status: 'READY', active: 0, elapsed: 0 }
+      return { sfcs: { ...s.sfcs, [name]: next }, rev: s.rev + 1 }
     })
 }))
 

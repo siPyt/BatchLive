@@ -1275,6 +1275,208 @@ button {
 }
 
 /* ------------------------------------------------------------------ */
+/* SFC editor                                                          */
+/* ------------------------------------------------------------------ */
+.display.sfc {
+  display: flex;
+  padding: 0;
+}
+.sfc-list {
+  width: 230px;
+  min-width: 230px;
+  border-right: 1px solid var(--dv-border);
+  background: var(--dv-bg-2);
+  overflow: auto;
+}
+.sfc-newinput {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid var(--dv-border);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color: var(--dv-text);
+}
+.sfc-listitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--dv-text-dim);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+.sfc-listitem:hover {
+  background: var(--dv-bg-3);
+}
+.sfc-listitem.sel {
+  background: var(--dv-bg-3);
+  color: var(--dv-text);
+  border-left-color: var(--dv-accent);
+}
+.sfc-ico {
+  color: var(--dv-accent-2);
+}
+.sfc-dot {
+  margin-left: auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.sfc-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sfc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--dv-border);
+  background: var(--dv-bg-2);
+}
+.sfc-title {
+  font-weight: 800;
+  font-size: 14px;
+}
+.sfc-area {
+  color: var(--dv-text-dim);
+  font-size: 12px;
+}
+.sfc-status {
+  color: #000;
+  font-weight: 800;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.sfc-canvas {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.sfc-stepwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.sfc-step {
+  background: #fff;
+  border: 1.5px solid var(--dv-border-light);
+  border-radius: 4px;
+  min-width: 320px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.sfc-step.active {
+  border-color: var(--dv-run);
+  box-shadow: 0 0 0 2px var(--dv-run) inset;
+}
+.sfc-step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--dv-border);
+  background: var(--dv-panel);
+}
+.sfc-step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--dv-accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: 11px;
+}
+.sfc-stepname {
+  flex: 1;
+  background: #fff;
+  border: 1px solid var(--dv-border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dv-text);
+}
+.sfc-step-head b {
+  flex: 1;
+  color: var(--dv-text);
+}
+.sfc-x {
+  background: transparent;
+  border: none;
+  color: var(--dv-text-mute);
+  font-size: 12px;
+  padding: 0 4px;
+}
+.sfc-x:hover {
+  color: var(--dv-critical);
+}
+.sfc-actions {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--dv-text-dim);
+}
+.sfc-add {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px dashed var(--dv-border);
+  border-radius: 3px;
+  color: var(--dv-accent);
+  font-size: 11px;
+  padding: 2px 8px;
+}
+.sfc-trans {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 40px;
+  padding: 2px 0;
+  min-height: 34px;
+}
+.sfc-trans-bar {
+  width: 2px;
+  height: 34px;
+  background: var(--dv-pipe);
+}
+.sfc-trans-txt {
+  font-size: 12px;
+  color: var(--dv-text-mute);
+  font-weight: 600;
+}
+.sfc-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.sfc-trans-edit {
+  background: var(--dv-panel);
+  border: 1px solid var(--dv-border);
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+.sfc-trans-arrow,
+.sfc-trans-edit .sfc-trans-arrow {
+  color: var(--dv-pipe-active);
+  font-weight: 800;
+}
+
+/* ------------------------------------------------------------------ */
 /* Control Studio                                                      */
 /* ------------------------------------------------------------------ */
 .display.studio {

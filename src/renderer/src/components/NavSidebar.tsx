@@ -22,7 +22,8 @@ const TOOLS: NavNode[] = [
 
 const ENGINEERING: NavNode[] = [
   { id: 'explorer', label: 'DeltaV Explorer', ico: '▦' },
-  { id: 'studio', label: 'Control Studio', ico: '⬓' }
+  { id: 'studio', label: 'Control Studio', ico: '⬓' },
+  { id: 'sfc', label: 'SFC Charts', ico: '⇵' }
 ]
 
 export function NavSidebar(): JSX.Element {

@@ -10,6 +10,7 @@ export type DisplayId =
   | 'explorer'
   | 'studio'
   | 'batch'
+  | 'sfc'
 
 export interface OpenFaceplate {
   tag: string
