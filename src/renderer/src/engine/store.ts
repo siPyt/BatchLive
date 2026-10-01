@@ -11,6 +11,7 @@ import type {
 } from './types'
 import { buildInitialPlant } from './plant'
 import { stepPlant } from './simulate'
+import { advanceBatch, commandBatch, makeBatch, type BatchRuntime, type BatchCommand } from './batch'
 
 const TREND_SECONDS = 600 // 10 minutes of history
 const TREND_HZ = 2
@@ -18,6 +19,7 @@ const TREND_HZ = 2
 interface StoreState extends PlantState {
   trend: TrendPoint[]
   rev: number
+  batch: BatchRuntime
   // operator actions
   setMode: (tag: string, mode: ControlMode) => void
   setSetpoint: (tag: string, sp: number) => void
@@ -35,6 +37,7 @@ interface StoreState extends PlantState {
   setRunning: (r: boolean) => void
   setSpeed: (s: number) => void
   tick: (dt: number) => void
+  batchCommand: (cmd: BatchCommand) => void
 }
 
 const initial = buildInitialPlant()
@@ -43,11 +46,14 @@ export const useStore = create<StoreState>((set, get) => ({
   ...initial,
   trend: [],
   rev: 0,
+  batch: makeBatch(),
 
   tick: (dt: number) => {
     const s = get()
     if (!s.running) return
-    const next = stepPlant(s, dt)
+    // Advance the batch first so phase actions set modes/SPs/commands before physics.
+    const { modules: cmdModules, batch } = advanceBatch(s, dt, s.time + dt * 1000 * s.speed)
+    const next = stepPlant({ ...s, modules: cmdModules }, dt)
     // Sample trend data.
     const trend = s.trend
     const last = trend[trend.length - 1]
@@ -73,7 +79,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const cutoff = next.time - TREND_SECONDS * 1000
       newTrend = [...trend, point].filter((p) => p.t >= cutoff)
     }
-    set({ ...next, trend: newTrend, rev: s.rev + 1 })
+    set({ ...next, trend: newTrend, batch, rev: s.rev + 1 })
   },
 
   setMode: (tag, mode) =>
@@ -167,7 +173,10 @@ export const useStore = create<StoreState>((set, get) => ({
     })),
 
   setRunning: (r) => set({ running: r }),
-  setSpeed: (speed) => set({ speed })
+  setSpeed: (speed) => set({ speed }),
+
+  batchCommand: (cmd) =>
+    set((s) => ({ batch: commandBatch(s.batch, cmd, s.time), rev: s.rev + 1 }))
 }))
 
 function mutateModule(

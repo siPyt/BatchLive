@@ -1190,3 +1190,221 @@ button {
   font-size: 18px;
   line-height: 1;
 }
+
+/* ------------------------------------------------------------------ */
+/* Batch Operator Interface                                            */
+/* ------------------------------------------------------------------ */
+.display.batch {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--dv-border);
+  background: var(--dv-bg-2);
+  flex-wrap: wrap;
+}
+.batch-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.batch-id {
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.batch-recipe {
+  color: var(--dv-accent-2);
+  font-weight: 700;
+  font-size: 12px;
+}
+.batch-unit {
+  color: var(--dv-text-dim);
+  font-size: 12px;
+}
+.batch-status {
+  color: #000;
+  font-weight: 800;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+.batch-cmd {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 3px;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  background: var(--dv-panel);
+  border: 1px solid var(--dv-border);
+  color: var(--dv-text);
+}
+.batch-cmd:hover:not(:disabled) {
+  border-color: var(--dv-border-light);
+  background: var(--dv-panel-2);
+}
+.batch-cmd:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.batch-cmd.start:not(:disabled) {
+  background: #1f7a34;
+  border-color: #2ea043;
+  color: #fff;
+}
+.batch-cmd.hold:not(:disabled) {
+  background: #9a7a10;
+  border-color: #f2c313;
+  color: #fff;
+}
+.batch-cmd.abort:not(:disabled) {
+  background: #8f1b20;
+  border-color: #e8232c;
+  color: #fff;
+}
+.batch-body {
+  flex: 1;
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  overflow: auto;
+}
+.batch-procedure {
+  width: 42%;
+  min-width: 340px;
+}
+.batch-active {
+  flex: 1;
+}
+.batch-panel-head {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--dv-text-mute);
+  margin-bottom: 8px;
+}
+.batch-op {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--dv-panel);
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+.batch-op.active {
+  border-color: var(--dv-accent);
+  box-shadow: 0 0 0 1px var(--dv-accent) inset;
+}
+.batch-op-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--dv-bg-3);
+  color: var(--dv-text-dim);
+  font-weight: 800;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.batch-op.active .batch-op-num {
+  background: var(--dv-accent);
+  color: #fff;
+}
+.batch-op-main {
+  display: flex;
+  flex-direction: column;
+}
+.batch-op-main b {
+  color: #fff;
+  font-size: 13px;
+}
+.batch-op-desc {
+  color: var(--dv-text-mute);
+  font-size: 11px;
+}
+.batch-op-state {
+  margin-left: auto;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+.batch-phase-card {
+  background: var(--dv-panel);
+  border: 1px solid var(--dv-border-light);
+  border-radius: 5px;
+  padding: 14px;
+}
+.batch-phase-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.batch-phase-top b {
+  font-size: 18px;
+  color: #fff;
+}
+.batch-phase-state {
+  color: #000;
+  font-weight: 800;
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+.batch-phase-desc {
+  color: var(--dv-text-dim);
+  font-size: 12px;
+  margin: 4px 0 12px;
+}
+.batch-phase-rows {
+  display: flex;
+  gap: 28px;
+}
+.batch-phase-rows > div {
+  display: flex;
+  flex-direction: column;
+}
+.batch-phase-rows .k {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--dv-text-mute);
+}
+.batch-phase-rows .v {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--dv-text);
+  font-variant-numeric: tabular-nums;
+}
+.batch-log {
+  background: #0e1216;
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+  max-height: 260px;
+  overflow: auto;
+}
+.batch-log-row {
+  display: flex;
+  gap: 10px;
+  padding: 4px 10px;
+  font-size: 11px;
+  border-bottom: 1px solid #1a2026;
+}
+.batch-log-t {
+  color: var(--dv-text-mute);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.batch-log-txt {
+  color: var(--dv-text-dim);
+}

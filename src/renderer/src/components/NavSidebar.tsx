@@ -16,7 +16,8 @@ const DISPLAYS: NavNode[] = [
 
 const TOOLS: NavNode[] = [
   { id: 'trend', label: 'Trends', ico: '📈' },
-  { id: 'alarms', label: 'Alarm List', ico: '🔔' }
+  { id: 'alarms', label: 'Alarm List', ico: '🔔' },
+  { id: 'batch', label: 'Batch Operator', ico: '⚙' }
 ]
 
 const ENGINEERING: NavNode[] = [

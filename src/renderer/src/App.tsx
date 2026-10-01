@@ -12,6 +12,7 @@ import { AlarmSummary } from './displays/AlarmSummary'
 import { TrendDisplay } from './displays/TrendDisplay'
 import { ExplorerDisplay } from './displays/ExplorerDisplay'
 import { ControlStudioDisplay } from './displays/ControlStudioDisplay'
+import { BatchDisplay } from './displays/BatchDisplay'
 
 export function App(): JSX.Element {
   const tick = useStore((s) => s.tick)
@@ -52,6 +53,7 @@ export function App(): JSX.Element {
           {display === 'trend' && <TrendDisplay />}
           {display === 'explorer' && <ExplorerDisplay />}
           {display === 'studio' && <ControlStudioDisplay />}
+          {display === 'batch' && <BatchDisplay />}
           <FaceplateHost />
         </div>
       </div>

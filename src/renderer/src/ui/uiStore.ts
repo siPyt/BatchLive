@@ -9,6 +9,7 @@ export type DisplayId =
   | 'trend'
   | 'explorer'
   | 'studio'
+  | 'batch'
 
 export interface OpenFaceplate {
   tag: string
