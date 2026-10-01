@@ -11,6 +11,7 @@ export type DisplayId =
   | 'studio'
   | 'batch'
   | 'sfc'
+  | 'builder'
 
 export interface OpenFaceplate {
   tag: string
