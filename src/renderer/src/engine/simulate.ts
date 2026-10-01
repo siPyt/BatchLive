@@ -35,9 +35,6 @@ function computePid(m: PidModule, dt: number): number {
   const ePct = (errEu / span) * 100
 
   const pTerm = m.gain * ePct
-  // Integral (reset) with simple anti-windup clamp.
-  m._integral += (m.gain / Math.max(m.reset, 0.5)) * ePct * dt
-  m._integral = clamp(m._integral, -120, 120)
 
   // Derivative on measurement, first-order filtered (Tf = ALPHA * RATE).
   let dTerm = 0
@@ -53,12 +50,16 @@ function computePid(m: PidModule, dt: number): number {
   }
   m._prevPv = m.pv
 
-  const out = clamp(pTerm + m._integral + dTerm, 0, 100)
-  // Back-calculate integral if the output saturated (stop windup).
-  if (out <= 0 || out >= 100) {
-    m._integral = clamp(out - pTerm - dTerm, -120, 120)
+  // Conditional-integration anti-windup: integrate only when it does not push
+  // an already-saturated output further into its limit.
+  const fixed = pTerm + dTerm
+  const pre = clamp(fixed + m._integral, 0, 100)
+  const saturated = (pre >= 100 && ePct > 0) || (pre <= 0 && ePct < 0)
+  if (!saturated) {
+    m._integral += (m.gain / Math.max(m.reset, 0.5)) * ePct * dt
+    m._integral = clamp(m._integral, -100, 100)
   }
-  return out
+  return clamp(fixed + m._integral, 0, 100)
 }
 
 /** Evaluate analog alarm limits and reconcile with the active alarm list. */
@@ -194,7 +195,7 @@ export function stepPlant(prev: PlantState, dtReal: number): PlantState {
 
   // --- Header pressure: product flow builds it, PIC relief bleeds it ----
   pic.out = computePid(pic, dt)
-  const relief = (pic.out / 100) * 3.2 + (xv201.open ? 4 : 0)
+  const relief = (pic.out / 100) * 12 + (xv201.open ? 4 : 0)
   proc.headerPressure += (proc.productFlow * 0.08 + 1.2 - relief) * dt * 4
   proc.headerPressure = clamp(proc.headerPressure + noise(0.5), 0, 500)
 
@@ -211,7 +212,7 @@ export function stepPlant(prev: PlantState, dtReal: number): PlantState {
   tic.pv = proc.reactorTemp
   pic.pv = proc.headerPressure
   at301.pv = proc.reactorConc
-  ti101.pv = clamp(ti101.pv + noise(0.08), 28, 70)
+  ti101.pv = clamp(ti101.pv + (32 - ti101.pv) * 0.02 + noise(0.05), 28, 70)
   lsh101.state = proc.feedTankLevel >= 85
 
   // --- Alarm evaluation -------------------------------------------------

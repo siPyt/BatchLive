@@ -19,10 +19,14 @@ export interface OpenFaceplate {
 
 interface UiState {
   display: DisplayId
+  history: DisplayId[]
+  histIndex: number
   faceplates: OpenFaceplate[]
   selectedTag: string | null
   studioTag: string | null
   navigate: (d: DisplayId) => void
+  back: () => void
+  forward: () => void
   openFaceplate: (tag: string, x?: number, y?: number) => void
   closeFaceplate: (tag: string) => void
   moveFaceplate: (tag: string, x: number, y: number) => void
@@ -34,11 +38,29 @@ let cascade = 0
 
 export const useUi = create<UiState>((set, get) => ({
   display: 'overview',
+  history: ['overview'],
+  histIndex: 0,
   faceplates: [],
   selectedTag: null,
   studioTag: null,
 
-  navigate: (display) => set({ display }),
+  navigate: (display) =>
+    set((s) => {
+      if (display === s.display) return {}
+      const history = s.history.slice(0, s.histIndex + 1)
+      history.push(display)
+      return { display, history, histIndex: history.length - 1 }
+    }),
+
+  back: () =>
+    set((s) => (s.histIndex > 0 ? { histIndex: s.histIndex - 1, display: s.history[s.histIndex - 1] } : {})),
+
+  forward: () =>
+    set((s) =>
+      s.histIndex < s.history.length - 1
+        ? { histIndex: s.histIndex + 1, display: s.history[s.histIndex + 1] }
+        : {}
+    ),
 
   openFaceplate: (tag, x, y) => {
     const existing = get().faceplates.find((f) => f.tag === tag)
@@ -65,5 +87,15 @@ export const useUi = create<UiState>((set, get) => ({
 
   select: (selectedTag) => set({ selectedTag }),
 
-  openStudio: (tag) => set({ studioTag: tag, selectedTag: tag, display: 'studio' })
+  openStudio: (tag) =>
+    set((s) => {
+      const history = s.display === 'studio' ? s.history : s.history.slice(0, s.histIndex + 1).concat('studio')
+      return {
+        studioTag: tag,
+        selectedTag: tag,
+        display: 'studio',
+        history,
+        histIndex: history.length - 1
+      }
+    })
 }))

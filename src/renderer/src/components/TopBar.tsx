@@ -19,6 +19,10 @@ export function TopBar(): JSX.Element {
   const setSpeed = useStore((s) => s.setSpeed)
   const display = useUi((s) => s.display)
   const navigate = useUi((s) => s.navigate)
+  const back = useUi((s) => s.back)
+  const forward = useUi((s) => s.forward)
+  const histIndex = useUi((s) => s.histIndex)
+  const histLen = useUi((s) => s.history.length)
 
   const current = NAV.find((n) => n.id === display)
 
@@ -27,6 +31,23 @@ export function TopBar(): JSX.Element {
       <div className="brand">
         <span className="logo">BL</span>
         <span>BatchLive</span>
+      </div>
+
+      <div className="nav-arrows">
+        <button className="navarrow" onClick={back} disabled={histIndex <= 0} title="Back">
+          ◀
+        </button>
+        <button
+          className="navarrow"
+          onClick={forward}
+          disabled={histIndex >= histLen - 1}
+          title="Forward"
+        >
+          ▶
+        </button>
+        <button className="navarrow" onClick={() => navigate('overview')} title="Home display">
+          ⌂
+        </button>
       </div>
 
       {NAV.map((n) => (
@@ -40,7 +61,7 @@ export function TopBar(): JSX.Element {
       ))}
 
       <span className="crumbs" style={{ marginLeft: 10 }}>
-        Plant / <b>{current?.label}</b>
+        REACTOR_CELL / <b>{current?.label ?? 'Engineering'}</b>
       </span>
 
       <div className="spacer" />

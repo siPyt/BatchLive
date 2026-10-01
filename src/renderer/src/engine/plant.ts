@@ -11,7 +11,7 @@ import type {
 
 // Helper builders keep the plant definition compact and readable.
 function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>): PidModule {
-  return {
+  const m: PidModule = {
     type: 'PID',
     mode: 'AUTO',
     pv: 0,
@@ -30,6 +30,12 @@ function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'ar
     alarms: [],
     ...p
   }
+  // Bumpless startup: begin at setpoint and hold the configured output so the
+  // integrator does not have to wind up from zero on the first scan.
+  m.pv = m.sp
+  m._prevPv = m.sp
+  m._integral = m.out
+  return m
 }
 
 /**
