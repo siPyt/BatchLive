@@ -1095,6 +1095,42 @@ button {
   color: var(--dv-text-mute);
   font-size: 10px;
 }
+.exp-alm-cfg {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.exp-alm-cfg th {
+  text-align: left;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--dv-text-mute);
+  padding: 2px 6px;
+  font-weight: 600;
+}
+.exp-alm-cfg td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--dv-bg-3);
+}
+.exp-alm-input {
+  width: 72px;
+  background: #ffffff;
+  border: 1px solid var(--dv-border);
+  color: var(--dv-text);
+  border-radius: 3px;
+  padding: 2px 5px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.exp-alm-select {
+  background: #ffffff;
+  border: 1px solid var(--dv-border);
+  color: var(--dv-text);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
 
 /* ------------------------------------------------------------------ */
 /* Control Studio                                                      */

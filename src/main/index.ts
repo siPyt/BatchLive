@@ -3,6 +3,9 @@ import { join } from 'path'
 
 const isDev = !app.isPackaged
 
+// Windows taskbar needs an .ico; other platforms use the PNG.
+const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
+
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1600,
@@ -10,10 +13,10 @@ function createWindow(): void {
     minWidth: 1180,
     minHeight: 720,
     show: false,
-    backgroundColor: '#0d1b33',
+    backgroundColor: '#c8ccd2',
     title: 'BatchLive',
     autoHideMenuBar: true,
-    icon: join(__dirname, '../../build/icon.png'),
+    icon: join(__dirname, `../../build/${iconFile}`),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

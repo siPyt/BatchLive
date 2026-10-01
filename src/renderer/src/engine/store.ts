@@ -7,7 +7,9 @@ import type {
   ValveModule,
   DiscreteOutput,
   TrendPoint,
-  AnyModule
+  AnyModule,
+  AlarmType,
+  AlarmPriority
 } from './types'
 import { buildInitialPlant } from './plant'
 import { stepPlant } from './simulate'
@@ -25,6 +27,11 @@ interface StoreState extends PlantState {
   setSetpoint: (tag: string, sp: number) => void
   setOutput: (tag: string, out: number) => void
   setTuning: (tag: string, t: { gain?: number; reset?: number; rate?: number }) => void
+  setAlarmLimit: (
+    tag: string,
+    type: AlarmType,
+    patch: { limit?: number; enabled?: boolean; priority?: AlarmPriority }
+  ) => void
   startMotor: (tag: string) => void
   stopMotor: (tag: string) => void
   openValve: (tag: string) => void
@@ -115,6 +122,15 @@ export const useStore = create<StoreState>((set, get) => ({
         if (t.reset !== undefined) p.reset = t.reset
         if (t.rate !== undefined) p.rate = t.rate
       }
+    }),
+
+  setAlarmLimit: (tag, type, patch) =>
+    mutateModule(set, get, tag, (m) => {
+      const lim = m.alarms.find((a) => a.type === type)
+      if (!lim) return
+      if (patch.limit !== undefined) lim.limit = patch.limit
+      if (patch.enabled !== undefined) lim.enabled = patch.enabled
+      if (patch.priority !== undefined) lim.priority = patch.priority
     }),
 
   startMotor: (tag) =>

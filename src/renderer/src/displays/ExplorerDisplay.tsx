@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt } from '../utils/format'
-import type { AnyModule } from '../engine/types'
+import type { AnyModule, AlarmPriority } from '../engine/types'
 
 // DeltaV Explorer-style system hierarchy: Process Cell > Area > Control Modules.
 
@@ -129,6 +129,7 @@ function ModuleProperties({
   onStudio: () => void
   onFaceplate: () => void
 }): JSX.Element {
+  const setAlarmLimit = useStore((s) => s.setAlarmLimit)
   const rows: [string, string][] = [
     ['Tag', m.tag],
     ['Description', m.description],
@@ -194,14 +195,58 @@ function ModuleProperties({
         {m.alarms.length === 0 ? (
           <div className="exp-empty sm">No alarms configured</div>
         ) : (
-          m.alarms.map((a) => (
-            <div key={a.type} className="exp-alm-row">
-              <span className={'prio-chip ' + a.priority.toLowerCase()} />
-              <span className="exp-alm-type">{a.label}</span>
-              <span className="exp-alm-lim">{a.limit !== undefined ? fmt(a.limit, 0) : '—'}</span>
-              <span className="exp-alm-pri">{a.priority}</span>
-            </div>
-          ))
+          <table className="exp-alm-cfg">
+            <thead>
+              <tr>
+                <th>En</th>
+                <th>Condition</th>
+                <th>Limit</th>
+                <th>Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              {m.alarms.map((a) => (
+                <tr key={a.type}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={a.enabled}
+                      onChange={(e) => setAlarmLimit(m.tag, a.type, { enabled: e.target.checked })}
+                    />
+                  </td>
+                  <td>
+                    <span className={'prio-chip ' + a.priority.toLowerCase()} />
+                    {a.label}
+                  </td>
+                  <td>
+                    {a.limit !== undefined ? (
+                      <input
+                        className="exp-alm-input"
+                        type="number"
+                        value={a.limit}
+                        onChange={(e) => setAlarmLimit(m.tag, a.type, { limit: Number(e.target.value) })}
+                      />
+                    ) : (
+                      <span style={{ color: 'var(--dv-text-mute)' }}>—</span>
+                    )}
+                  </td>
+                  <td>
+                    <select
+                      className="exp-alm-select"
+                      value={a.priority}
+                      onChange={(e) =>
+                        setAlarmLimit(m.tag, a.type, { priority: e.target.value as AlarmPriority })
+                      }
+                    >
+                      <option value="CRITICAL">CRITICAL</option>
+                      <option value="WARNING">WARNING</option>
+                      <option value="ADVISORY">ADVISORY</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
