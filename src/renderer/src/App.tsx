@@ -10,6 +10,8 @@ import { OverviewDisplay } from './displays/OverviewDisplay'
 import { AreaDisplay } from './displays/AreaDisplay'
 import { AlarmSummary } from './displays/AlarmSummary'
 import { TrendDisplay } from './displays/TrendDisplay'
+import { ExplorerDisplay } from './displays/ExplorerDisplay'
+import { ControlStudioDisplay } from './displays/ControlStudioDisplay'
 
 export function App(): JSX.Element {
   const tick = useStore((s) => s.tick)
@@ -48,6 +50,8 @@ export function App(): JSX.Element {
           {display === 'product' && <AreaDisplay area="PRODUCT" />}
           {display === 'alarms' && <AlarmSummary />}
           {display === 'trend' && <TrendDisplay />}
+          {display === 'explorer' && <ExplorerDisplay />}
+          {display === 'studio' && <ControlStudioDisplay />}
           <FaceplateHost />
         </div>
       </div>

@@ -1,6 +1,14 @@
 import { create } from 'zustand'
 
-export type DisplayId = 'overview' | 'feed' | 'reactor' | 'product' | 'alarms' | 'trend'
+export type DisplayId =
+  | 'overview'
+  | 'feed'
+  | 'reactor'
+  | 'product'
+  | 'alarms'
+  | 'trend'
+  | 'explorer'
+  | 'studio'
 
 export interface OpenFaceplate {
   tag: string
@@ -12,11 +20,13 @@ interface UiState {
   display: DisplayId
   faceplates: OpenFaceplate[]
   selectedTag: string | null
+  studioTag: string | null
   navigate: (d: DisplayId) => void
   openFaceplate: (tag: string, x?: number, y?: number) => void
   closeFaceplate: (tag: string) => void
   moveFaceplate: (tag: string, x: number, y: number) => void
   select: (tag: string | null) => void
+  openStudio: (tag: string) => void
 }
 
 let cascade = 0
@@ -25,6 +35,7 @@ export const useUi = create<UiState>((set, get) => ({
   display: 'overview',
   faceplates: [],
   selectedTag: null,
+  studioTag: null,
 
   navigate: (display) => set({ display }),
 
@@ -51,5 +62,7 @@ export const useUi = create<UiState>((set, get) => ({
       faceplates: s.faceplates.map((f) => (f.tag === tag ? { ...f, x, y } : f))
     })),
 
-  select: (selectedTag) => set({ selectedTag })
+  select: (selectedTag) => set({ selectedTag }),
+
+  openStudio: (tag) => set({ studioTag: tag, selectedTag: tag, display: 'studio' })
 }))

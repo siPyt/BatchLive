@@ -852,3 +852,341 @@ button {
 ::-webkit-scrollbar-thumb:hover {
   background: #566171;
 }
+
+/* ------------------------------------------------------------------ */
+/* DeltaV Explorer                                                     */
+/* ------------------------------------------------------------------ */
+.display.explorer {
+  display: flex;
+  padding: 0;
+}
+.explorer-tree {
+  width: 54%;
+  min-width: 420px;
+  overflow: auto;
+  border-right: 1px solid #000;
+  padding: 6px 0;
+  background: var(--dv-bg-2);
+}
+.explorer-detail {
+  flex: 1;
+  overflow: auto;
+  background: var(--dv-bg);
+}
+.exp-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--dv-text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.exp-node:hover {
+  background: var(--dv-bg-3);
+}
+.exp-node.sel {
+  background: var(--dv-select);
+  color: #fff;
+}
+.exp-caret {
+  width: 12px;
+  text-align: center;
+  color: var(--dv-text-mute);
+  flex-shrink: 0;
+}
+.exp-ico {
+  color: var(--dv-accent-2);
+}
+.exp-cell {
+  color: #fff;
+  font-size: 13px;
+}
+.exp-area {
+  padding-left: 22px;
+  color: var(--dv-text);
+  font-weight: 600;
+}
+.exp-mod {
+  padding-left: 40px;
+}
+.exp-sub {
+  color: var(--dv-text-mute);
+  font-size: 10px;
+  margin-left: 6px;
+}
+.exp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: #0e1114;
+  border: 1px solid var(--dv-border);
+  color: var(--dv-accent-2);
+  font-size: 9px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.exp-tag {
+  color: var(--dv-text);
+  min-width: 70px;
+}
+.exp-node.sel .exp-tag {
+  color: #fff;
+}
+.exp-desc {
+  color: var(--dv-text-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.exp-status {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 11px;
+  margin-left: auto;
+}
+.exp-alm {
+  font-size: 12px;
+  margin-left: 6px;
+}
+.exp-alm.critical {
+  color: var(--dv-critical);
+}
+.exp-alm.warning {
+  color: var(--dv-warning);
+}
+.exp-alm.advisory {
+  color: var(--dv-advisory);
+}
+.exp-empty {
+  padding: 40px 24px;
+  color: var(--dv-text-mute);
+  font-size: 13px;
+}
+.exp-empty.sm {
+  padding: 8px 0;
+  font-size: 12px;
+}
+.exp-props {
+  padding: 16px 20px;
+}
+.exp-props-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.exp-props-head b {
+  font-size: 17px;
+  color: #fff;
+}
+.exp-props-head span {
+  color: var(--dv-text-dim);
+  font-size: 12px;
+}
+.exp-props-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.exp-props-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.exp-props-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--dv-border);
+}
+.exp-props-table td.k {
+  color: var(--dv-text-mute);
+  width: 170px;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+.exp-props-table td.v {
+  color: var(--dv-text);
+  font-variant-numeric: tabular-nums;
+}
+.exp-props-alarms {
+  margin-top: 18px;
+}
+.exp-props-subhead {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--dv-text-mute);
+  margin-bottom: 6px;
+}
+.exp-alm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+.exp-alm-type {
+  min-width: 56px;
+  font-weight: 700;
+}
+.exp-alm-lim {
+  min-width: 60px;
+  color: var(--dv-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.exp-alm-pri {
+  color: var(--dv-text-mute);
+  font-size: 10px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Control Studio                                                      */
+/* ------------------------------------------------------------------ */
+.display.studio {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.studio-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--dv-border);
+  background: var(--dv-bg-2);
+}
+.studio-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.studio-desc {
+  color: var(--dv-text-dim);
+  font-size: 12px;
+}
+.studio-online {
+  color: var(--dv-ok);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+.studio-canvas {
+  flex: 1;
+  overflow: auto;
+  padding: 40px 24px;
+  background: var(--dv-bg);
+  background-image: radial-gradient(#2a323b 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.fb-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.fb-block {
+  background: var(--dv-panel);
+  border: 1px solid var(--dv-border-light);
+  border-radius: 4px;
+  min-width: 150px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.fb-block.pid {
+  min-width: 190px;
+  border-color: var(--dv-accent);
+}
+.fb-block.subdued {
+  opacity: 0.7;
+}
+.fb-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: linear-gradient(#3a434f, #2e353f);
+  border-bottom: 1px solid #000;
+  border-radius: 4px 4px 0 0;
+}
+.fb-head b {
+  color: #fff;
+  font-size: 12px;
+}
+.fb-type {
+  background: #0e1114;
+  border: 1px solid var(--dv-border);
+  color: var(--dv-accent-2);
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+.fb-mode {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 800;
+}
+.fb-ports {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.fb-port {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+}
+.fb-port-name {
+  color: var(--dv-text-mute);
+}
+.fb-port-val {
+  color: #7fe0a8;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.fb-modebar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 8px;
+}
+.fb-modebtn {
+  flex: 1;
+  height: 22px;
+  background: var(--dv-bg-3);
+  border: 1px solid var(--dv-border);
+  color: var(--dv-text-dim);
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.fb-modebtn.active {
+  background: var(--dv-select);
+  border-color: var(--dv-accent);
+  color: #fff;
+}
+.fb-modebtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.fb-wire {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--dv-pipe-active);
+  min-width: 56px;
+}
+.fb-wire-lbl {
+  font-size: 9px;
+  color: var(--dv-text-mute);
+}
+.fb-wire-arrow {
+  font-size: 18px;
+  line-height: 1;
+}
