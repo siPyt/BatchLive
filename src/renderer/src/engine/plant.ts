@@ -1,0 +1,295 @@
+import type {
+  PlantState,
+  PidModule,
+  AnalogIndicator,
+  MotorModule,
+  ValveModule,
+  DiscreteInput,
+  DiscreteOutput,
+  AnyModule
+} from './types'
+
+// Helper builders keep the plant definition compact and readable.
+function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>): PidModule {
+  return {
+    type: 'PID',
+    mode: 'AUTO',
+    pv: 0,
+    sp: 0,
+    out: 0,
+    pvMin: 0,
+    pvMax: 100,
+    decimals: 1,
+    gain: 1,
+    reset: 20,
+    rate: 0,
+    direct: false,
+    _integral: 0,
+    alarms: [],
+    ...p
+  }
+}
+
+/**
+ * The simulated plant: Feed system -> Reactor -> Product.
+ * Classic cascade: LIC-101 (reactor-feed-tank level) sets the remote SP of
+ * FIC-101 (feed flow) which throttles the feed valve.
+ */
+export function buildInitialPlant(): PlantState {
+  const modules: Record<string, AnyModule> = {}
+
+  const add = (m: AnyModule): void => {
+    modules[m.tag] = m
+  }
+
+  // --- Feed flow controller (slave of cascade) ---------------------------
+  add(
+    pid({
+      tag: 'FIC-101',
+      description: 'FEED FLOW TO REACTOR',
+      area: 'FEED',
+      unit: 'm3/h',
+      pvMin: 0,
+      pvMax: 120,
+      sp: 60,
+      out: 50,
+      mode: 'CAS',
+      casSource: 'LIC-101',
+      gain: 0.8,
+      reset: 8,
+      direct: false,
+      alarms: [
+        { type: 'HI', label: 'HI', priority: 'ADVISORY', limit: 110, enabled: true },
+        { type: 'LO', label: 'LO', priority: 'ADVISORY', limit: 8, enabled: true }
+      ]
+    })
+  )
+
+  // --- Feed tank level controller (master of cascade) --------------------
+  add(
+    pid({
+      tag: 'LIC-101',
+      description: 'FEED TANK LEVEL',
+      area: 'FEED',
+      unit: '%',
+      pvMin: 0,
+      pvMax: 100,
+      sp: 55,
+      out: 50,
+      mode: 'AUTO',
+      gain: 1.6,
+      reset: 30,
+      direct: false,
+      alarms: [
+        { type: 'HI_HI', label: 'HI HI', priority: 'CRITICAL', limit: 90, enabled: true },
+        { type: 'HI', label: 'HI', priority: 'WARNING', limit: 80, enabled: true },
+        { type: 'LO', label: 'LO', priority: 'WARNING', limit: 25, enabled: true },
+        { type: 'LO_LO', label: 'LO LO', priority: 'CRITICAL', limit: 15, enabled: true }
+      ]
+    })
+  )
+
+  // --- Reactor level controller -----------------------------------------
+  add(
+    pid({
+      tag: 'LIC-201',
+      description: 'REACTOR LEVEL',
+      area: 'REACTOR',
+      unit: '%',
+      pvMin: 0,
+      pvMax: 100,
+      sp: 50,
+      out: 45,
+      mode: 'AUTO',
+      gain: 1.2,
+      reset: 25,
+      direct: true,
+      alarms: [
+        { type: 'HI_HI', label: 'HI HI', priority: 'CRITICAL', limit: 90, enabled: true },
+        { type: 'HI', label: 'HI', priority: 'WARNING', limit: 80, enabled: true },
+        { type: 'LO', label: 'LO', priority: 'WARNING', limit: 20, enabled: true },
+        { type: 'LO_LO', label: 'LO LO', priority: 'CRITICAL', limit: 10, enabled: true }
+      ]
+    })
+  )
+
+  // --- Reactor temperature controller (steam) ---------------------------
+  add(
+    pid({
+      tag: 'TIC-201',
+      description: 'REACTOR TEMPERATURE',
+      area: 'REACTOR',
+      unit: 'degC',
+      pvMin: 0,
+      pvMax: 200,
+      decimals: 1,
+      sp: 85,
+      out: 40,
+      mode: 'AUTO',
+      gain: 2.2,
+      reset: 45,
+      rate: 2,
+      direct: false,
+      alarms: [
+        { type: 'HI_HI', label: 'HI HI', priority: 'CRITICAL', limit: 120, enabled: true },
+        { type: 'HI', label: 'HI', priority: 'WARNING', limit: 100, enabled: true },
+        { type: 'LO', label: 'LO', priority: 'ADVISORY', limit: 55, enabled: true }
+      ]
+    })
+  )
+
+  // --- Header pressure controller ---------------------------------------
+  add(
+    pid({
+      tag: 'PIC-301',
+      description: 'PRODUCT HEADER PRESSURE',
+      area: 'PRODUCT',
+      unit: 'kPa',
+      pvMin: 0,
+      pvMax: 500,
+      decimals: 0,
+      sp: 250,
+      out: 50,
+      mode: 'AUTO',
+      gain: 1.0,
+      reset: 12,
+      direct: true,
+      alarms: [
+        { type: 'HI_HI', label: 'HI HI', priority: 'CRITICAL', limit: 420, enabled: true },
+        { type: 'HI', label: 'HI', priority: 'WARNING', limit: 360, enabled: true },
+        { type: 'LO', label: 'LO', priority: 'ADVISORY', limit: 120, enabled: true }
+      ]
+    })
+  )
+
+  // --- Analog indicators -------------------------------------------------
+  const at301: AnalogIndicator = {
+    tag: 'AT-301',
+    type: 'AI',
+    description: 'PRODUCT CONCENTRATION',
+    area: 'PRODUCT',
+    pv: 96,
+    unit: '%',
+    pvMin: 0,
+    pvMax: 100,
+    decimals: 2,
+    alarms: [
+      { type: 'LO', label: 'LO', priority: 'WARNING', limit: 90, enabled: true },
+      { type: 'LO_LO', label: 'LO LO', priority: 'CRITICAL', limit: 85, enabled: true }
+    ]
+  }
+  add(at301)
+
+  const ti101: AnalogIndicator = {
+    tag: 'TI-101',
+    type: 'AI',
+    description: 'FEED TEMPERATURE',
+    area: 'FEED',
+    pv: 32,
+    unit: 'degC',
+    pvMin: 0,
+    pvMax: 120,
+    decimals: 1,
+    alarms: [{ type: 'HI', label: 'HI', priority: 'ADVISORY', limit: 60, enabled: true }]
+  }
+  add(ti101)
+
+  // --- Motors ------------------------------------------------------------
+  const p101: MotorModule = {
+    tag: 'P-101',
+    type: 'MOTOR',
+    description: 'FEED PUMP',
+    area: 'FEED',
+    running: true,
+    commanded: true,
+    fault: false,
+    interlock: false,
+    runtimeHrs: 1284.5,
+    alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }]
+  }
+  add(p101)
+
+  const p201: MotorModule = {
+    tag: 'P-201',
+    type: 'MOTOR',
+    description: 'PRODUCT PUMP',
+    area: 'PRODUCT',
+    running: true,
+    commanded: true,
+    fault: false,
+    interlock: false,
+    runtimeHrs: 902.1,
+    alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }]
+  }
+  add(p201)
+
+  // --- On/off valves -----------------------------------------------------
+  const xv101: ValveModule = {
+    tag: 'XV-101',
+    type: 'VALVE',
+    description: 'FEED ISOLATION VALVE',
+    area: 'FEED',
+    commandedOpen: true,
+    open: true,
+    fault: false,
+    interlock: false,
+    alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }]
+  }
+  add(xv101)
+
+  const xv201: ValveModule = {
+    tag: 'XV-201',
+    type: 'VALVE',
+    description: 'REACTOR VENT VALVE',
+    area: 'REACTOR',
+    commandedOpen: false,
+    open: false,
+    fault: false,
+    interlock: false,
+    alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'ADVISORY', enabled: true }]
+  }
+  add(xv201)
+
+  // --- Discrete devices --------------------------------------------------
+  const lsh101: DiscreteInput = {
+    tag: 'LSH-101',
+    type: 'DI',
+    description: 'FEED TANK HIGH LEVEL SWITCH',
+    area: 'FEED',
+    state: false,
+    activeDescriptor: 'HIGH',
+    inactiveDescriptor: 'NORMAL',
+    alarms: [{ type: 'HI', label: 'HIGH', priority: 'WARNING', enabled: true }]
+  }
+  add(lsh101)
+
+  const hs201: DiscreteOutput = {
+    tag: 'HS-201',
+    type: 'DO',
+    description: 'REACTOR AGITATOR',
+    area: 'REACTOR',
+    state: true,
+    commanded: true,
+    activeDescriptor: 'RUN',
+    inactiveDescriptor: 'STOP',
+    alarms: []
+  }
+  add(hs201)
+
+  return {
+    time: Date.now(),
+    running: true,
+    speed: 1,
+    modules,
+    alarms: [],
+    process: {
+      feedTankLevel: 55,
+      reactorLevel: 50,
+      reactorTemp: 85,
+      headerPressure: 250,
+      feedFlow: 60,
+      productFlow: 58,
+      reactorConc: 96
+    }
+  }
+}

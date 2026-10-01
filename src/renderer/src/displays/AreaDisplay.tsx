@@ -1,0 +1,144 @@
+import { useStore } from '../engine/store'
+import { useUi } from '../ui/uiStore'
+import { moduleAlarm, fmt, isPid } from '../utils/format'
+import type { AnyModule } from '../engine/types'
+
+const AREA_TITLE: Record<string, string> = {
+  FEED: 'FEED SYSTEM',
+  REACTOR: 'REACTOR',
+  PRODUCT: 'PRODUCT / HEADER'
+}
+
+export function AreaDisplay({ area }: { area: 'FEED' | 'REACTOR' | 'PRODUCT' }): JSX.Element {
+  const modules = useStore((s) => s.modules)
+  const list = Object.values(modules).filter((m) => m.area === area)
+
+  return (
+    <div className="display" style={{ padding: '48px 24px 24px' }}>
+      <div className="display-title">{AREA_TITLE[area]} — Detail</div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
+          gap: 14
+        }}
+      >
+        {list.map((m) => (
+          <ModuleCard key={m.tag} module={m} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ModuleCard({ module: m }: { module: AnyModule }): JSX.Element {
+  const alarms = useStore((s) => s.alarms)
+  const openFaceplate = useUi((s) => s.openFaceplate)
+  const alm = moduleAlarm(m.tag, alarms)
+  const border = alm
+    ? alm.priority === 'CRITICAL'
+      ? 'var(--dv-critical)'
+      : alm.priority === 'WARNING'
+        ? 'var(--dv-warning)'
+        : 'var(--dv-advisory)'
+    : 'var(--dv-border)'
+
+  return (
+    <div
+      onClick={() => openFaceplate(m.tag)}
+      style={{
+        background: 'var(--dv-panel)',
+        border: `1px solid ${border}`,
+        borderRadius: 5,
+        padding: 12,
+        cursor: 'pointer',
+        minHeight: 120,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <b style={{ fontSize: 15, color: '#fff' }}>{m.tag}</b>
+        {isPid(m) && <span className={'fp-status-pill'} style={{ background: 'transparent', color: modeTextColor(m.mode) }}>{m.mode}</span>}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--dv-text-mute)', textTransform: 'uppercase' }}>
+        {m.description}
+      </div>
+      <CardBody module={m} />
+      {alm && (
+        <div style={{ marginTop: 'auto', fontSize: 11, color: border, fontWeight: 700 }}>
+          ● {alm.label} ALARM
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CardBody({ module: m }: { module: AnyModule }): JSX.Element {
+  if (m.type === 'PID') {
+    return (
+      <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
+        <Stat label="PV" value={`${fmt(m.pv, m.decimals)}`} unit={m.unit} color="#7fe0a8" />
+        <Stat label="SP" value={`${fmt(m.sp, m.decimals)}`} unit={m.unit} color="#6ec1ff" />
+        <Stat label="OUT" value={`${fmt(m.out, 1)}`} unit="%" color="#f0c56b" />
+      </div>
+    )
+  }
+  if (m.type === 'AI') {
+    return (
+      <div style={{ marginTop: 4 }}>
+        <Stat label="PV" value={`${fmt(m.pv, m.decimals)}`} unit={m.unit} color="#7fe0a8" big />
+      </div>
+    )
+  }
+  if (m.type === 'MOTOR') {
+    const s = m.fault ? 'FAULT' : m.running ? 'RUNNING' : 'STOPPED'
+    const c = m.fault ? '#ff8a8f' : m.running ? '#6ee08a' : '#9fb0c0'
+    return (
+      <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: c }}>{s}</div>
+    )
+  }
+  if (m.type === 'VALVE') {
+    const s = m.fault ? 'FAULT' : m.open ? 'OPEN' : 'CLOSED'
+    const c = m.fault ? '#ff8a8f' : m.open ? '#6ee08a' : '#9fb0c0'
+    return <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: c }}>{s}</div>
+  }
+  // DI / DO
+  const state = m.state ? m.activeDescriptor : m.inactiveDescriptor
+  return (
+    <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: m.state ? '#6ee08a' : '#9fb0c0' }}>
+      {state}
+    </div>
+  )
+}
+
+function Stat({
+  label,
+  value,
+  unit,
+  color,
+  big
+}: {
+  label: string
+  value: string
+  unit: string
+  color: string
+  big?: boolean
+}): JSX.Element {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <span style={{ fontSize: 9, color: 'var(--dv-text-mute)' }}>{label}</span>
+      <span style={{ fontSize: big ? 22 : 15, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>
+        {value}
+        <span style={{ fontSize: 9, color: 'var(--dv-text-dim)', marginLeft: 2 }}>{unit}</span>
+      </span>
+    </div>
+  )
+}
+
+function modeTextColor(mode: string): string {
+  if (mode === 'MAN') return 'var(--mode-man)'
+  if (mode === 'AUTO') return 'var(--mode-auto)'
+  return 'var(--mode-cas)'
+}

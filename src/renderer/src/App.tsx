@@ -1,0 +1,57 @@
+import { useEffect, useRef } from 'react'
+import { useStore } from './engine/store'
+import { useUi } from './ui/uiStore'
+import { AlarmBanner } from './components/AlarmBanner'
+import { TopBar } from './components/TopBar'
+import { NavSidebar } from './components/NavSidebar'
+import { StatusBar } from './components/StatusBar'
+import { FaceplateHost } from './faceplates/FaceplateHost'
+import { OverviewDisplay } from './displays/OverviewDisplay'
+import { AreaDisplay } from './displays/AreaDisplay'
+import { AlarmSummary } from './displays/AlarmSummary'
+import { TrendDisplay } from './displays/TrendDisplay'
+
+export function App(): JSX.Element {
+  const tick = useStore((s) => s.tick)
+  const display = useUi((s) => s.display)
+  const last = useRef<number>(performance.now())
+
+  // Fixed-rate simulation loop (~10 Hz) decoupled from render.
+  useEffect(() => {
+    let raf = 0
+    let acc = 0
+    const STEP = 0.1 // seconds
+    const loop = (now: number): void => {
+      const dt = Math.min(0.5, (now - last.current) / 1000)
+      last.current = now
+      acc += dt
+      while (acc >= STEP) {
+        tick(STEP)
+        acc -= STEP
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [tick])
+
+  return (
+    <div className="app-shell">
+      <AlarmBanner />
+      <TopBar />
+      <div className="app-body">
+        <NavSidebar />
+        <div className="main-area">
+          {display === 'overview' && <OverviewDisplay />}
+          {display === 'feed' && <AreaDisplay area="FEED" />}
+          {display === 'reactor' && <AreaDisplay area="REACTOR" />}
+          {display === 'product' && <AreaDisplay area="PRODUCT" />}
+          {display === 'alarms' && <AlarmSummary />}
+          {display === 'trend' && <TrendDisplay />}
+          <FaceplateHost />
+        </div>
+      </div>
+      <StatusBar />
+    </div>
+  )
+}
