@@ -68,24 +68,25 @@ export function AlarmSummary(): JSX.Element {
 }
 
 function AlarmRow({ a, onAck, onOpen }: { a: ActiveAlarm; onAck: () => void; onOpen: () => void }): JSX.Element {
+  const cls = a.priority.toLowerCase() + (a.active ? '' : ' rtn') + (a.acknowledged ? '' : ' unack')
   return (
-    <tr className={a.acknowledged ? '' : 'unack'}>
-      <td style={{ color: 'var(--dv-text-dim)' }}>{clockString(a.time)}</td>
+    <tr className={cls}>
+      <td style={{ color: 'inherit', opacity: 0.85 }}>{clockString(a.time)}</td>
       <td>
         <span className={'prio-chip ' + a.priority.toLowerCase()} />
       </td>
       <td>
-        <a style={{ color: '#6ec1ff', cursor: 'pointer' }} onClick={onOpen}>
+        <a style={{ color: a.priority === 'WARNING' ? '#0a4a85' : '#fff', cursor: 'pointer', fontWeight: 700 }} onClick={onOpen}>
           {a.moduleTag}
         </a>
       </td>
       <td>{a.moduleDesc}</td>
       <td>{a.label}</td>
       <td>{a.unit ? `${a.value.toFixed(1)} ${a.unit}` : '—'}</td>
-      <td className={a.active ? 'state-active' : 'state-rtn'}>{a.active ? 'ACTIVE' : 'RTN'}</td>
+      <td style={{ fontWeight: 700 }}>{a.active ? 'ACTIVE' : 'RTN'}</td>
       <td>
         {a.acknowledged ? (
-          <span style={{ color: 'var(--dv-text-mute)' }}>ACK</span>
+          <span style={{ opacity: 0.75 }}>ACK</span>
         ) : (
           <button className="tbtn sm" onClick={onAck}>
             Ack

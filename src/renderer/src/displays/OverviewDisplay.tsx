@@ -20,7 +20,7 @@ export function OverviewDisplay(): JSX.Element {
   const prodActive = p201.running
 
   return (
-    <div className="display" style={{ background: 'radial-gradient(circle at 40% 20%, #222a32, #171b20)' }}>
+    <div className="display" style={{ background: 'radial-gradient(circle at 40% 20%, #d9dde2, #c6cbd1)' }}>
       <div className="display-title">PLANT OVERVIEW — Continuous Reactor Train</div>
 
       <svg width={1060} height={600} style={{ display: 'block', margin: '0 auto' }}>
@@ -58,8 +58,8 @@ export function OverviewDisplay(): JSX.Element {
         <Label x={445} y={250} text="STM" anchor="end" />
 
         {/* product header vessel */}
-        <rect x={820} y={120} width={60} height={160} rx={6} fill="#10151a" stroke="#56636f" strokeWidth={2} />
-        <text x={850} y={112} fill="#cdd9e3" fontSize={12} fontWeight={700} textAnchor="middle">
+        <rect x={820} y={120} width={60} height={160} rx={6} fill="#eef1f4" stroke="var(--dv-metal)" strokeWidth={2} />
+        <text x={850} y={112} fill="var(--dv-text)" fontSize={12} fontWeight={700} textAnchor="middle">
           HDR-301
         </text>
 

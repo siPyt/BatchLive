@@ -2,6 +2,7 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { fmt, modeColor } from '../utils/format'
 import type { AnyModule, PidModule, ControlMode } from '../engine/types'
+import type { ReactNode } from 'react'
 
 // Control Studio-style ONLINE function-block diagram for a single module.
 
@@ -22,19 +23,76 @@ export function ControlStudioDisplay(): JSX.Element {
 
   return (
     <div className="display studio">
-      <div className="studio-toolbar">
-        <span className="studio-title">Control Studio — {m.tag}</span>
-        <span className="studio-desc">{m.description}</span>
-        <span className="studio-online">● ONLINE</span>
-        <span style={{ flex: 1 }} />
-        <button className="tbtn sm" onClick={() => openFaceplate(m.tag)}>
-          Faceplate
-        </button>
-      </div>
+      <StudioRibbon tag={m.tag} onFaceplate={() => openFaceplate(m.tag)} />
       <div className="studio-canvas">
         <Diagram module={m} />
       </div>
     </div>
+  )
+}
+
+const RIBBON_TABS = ['File', 'Home', 'Diagram', 'View', 'Settings']
+
+function StudioRibbon({ tag, onFaceplate }: { tag: string; onFaceplate: () => void }): JSX.Element {
+  return (
+    <div className="ribbon">
+      <div className="ribbon-tabs">
+        {RIBBON_TABS.map((t) => (
+          <span key={t} className={'ribbon-tab' + (t === 'File' ? ' file' : t === 'View' ? ' active' : '')}>
+            {t}
+          </span>
+        ))}
+        <span className="ribbon-title">[REACTOR_CELL/{tag}] — Control Studio · ONLINE</span>
+      </div>
+      <div className="ribbon-body">
+        <RibbonGroup label="Diagram">
+          <RibbonBtn ic="▣" label="Show as FBD" active />
+          <RibbonBtn ic="⊟" label="Show as SFC" />
+          <RibbonBtn ic="✓" label="Verify" />
+        </RibbonGroup>
+        <RibbonGroup label="Windows">
+          <RibbonBtn ic="☰" label="Parameters" active />
+          <RibbonBtn ic="🔔" label="Alarm View" />
+          <RibbonBtn ic="▭" label="Status Bar" active />
+        </RibbonGroup>
+        <RibbonGroup label="Zoom">
+          <RibbonBtn ic="🔍" label="Zoom In" />
+          <RibbonBtn ic="⊖" label="Zoom Out" />
+        </RibbonGroup>
+        <RibbonGroup label="Module">
+          <RibbonBtn ic="▦" label="Faceplate" onClick={onFaceplate} />
+          <RibbonBtn ic="●" label="Online" active />
+        </RibbonGroup>
+      </div>
+    </div>
+  )
+}
+
+function RibbonGroup({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+  return (
+    <div className="ribbon-group">
+      <div className="ribbon-group-btns">{children}</div>
+      <div className="ribbon-group-label">{label}</div>
+    </div>
+  )
+}
+
+function RibbonBtn({
+  ic,
+  label,
+  active,
+  onClick
+}: {
+  ic: string
+  label: string
+  active?: boolean
+  onClick?: () => void
+}): JSX.Element {
+  return (
+    <button className={'ribbon-btn' + (active ? ' active' : '')} onClick={onClick}>
+      <span className="ic">{ic}</span>
+      {label}
+    </button>
   )
 }
 

@@ -49,7 +49,7 @@ export function ValueBox({ tag, x, y }: Props): JSX.Element | null {
       )}
       <span className="vb-tag">{tag}</span>
       {discreteText !== null ? (
-        <span className="vb-val" style={{ color: alm ? almColor(alm.priority) : '#9fb0c0', fontSize: 12 }}>
+        <span className="vb-val" style={{ color: alm ? almColor(alm.priority) : 'var(--dv-text-mute)', fontSize: 12 }}>
           {discreteText}
         </span>
       ) : (
@@ -65,7 +65,7 @@ export function ValueBox({ tag, x, y }: Props): JSX.Element | null {
 }
 
 function almColor(p: string): string {
-  if (p === 'CRITICAL') return '#ff6b70'
-  if (p === 'WARNING') return '#ffd84d'
-  return '#e79bef'
+  if (p === 'CRITICAL') return '#c0202a'
+  if (p === 'WARNING') return '#9a7a10'
+  return '#a32bb0'
 }

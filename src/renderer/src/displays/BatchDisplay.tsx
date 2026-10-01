@@ -16,7 +16,7 @@ const PHASE_STATE_COLOR: Record<PhaseState, string> = {
 }
 
 const STATUS_COLOR: Record<BatchStatus, string> = {
-  READY: 'var(--dv-text-dim)',
+  READY: '#9aa0a7',
   RUNNING: '#37b24d',
   HELD: '#f2c313',
   STOPPED: '#9fb0c0',

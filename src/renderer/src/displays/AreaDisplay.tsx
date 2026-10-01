@@ -59,7 +59,7 @@ function ModuleCard({ module: m }: { module: AnyModule }): JSX.Element {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <b style={{ fontSize: 15, color: '#fff' }}>{m.tag}</b>
+        <b style={{ fontSize: 15, color: 'var(--dv-text)' }}>{m.tag}</b>
         {isPid(m) && <span className={'fp-status-pill'} style={{ background: 'transparent', color: modeTextColor(m.mode) }}>{m.mode}</span>}
       </div>
       <div style={{ fontSize: 11, color: 'var(--dv-text-mute)', textTransform: 'uppercase' }}>
@@ -79,35 +79,35 @@ function CardBody({ module: m }: { module: AnyModule }): JSX.Element {
   if (m.type === 'PID') {
     return (
       <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
-        <Stat label="PV" value={`${fmt(m.pv, m.decimals)}`} unit={m.unit} color="#7fe0a8" />
-        <Stat label="SP" value={`${fmt(m.sp, m.decimals)}`} unit={m.unit} color="#6ec1ff" />
-        <Stat label="OUT" value={`${fmt(m.out, 1)}`} unit="%" color="#f0c56b" />
+        <Stat label="PV" value={`${fmt(m.pv, m.decimals)}`} unit={m.unit} color="var(--dv-pv)" />
+        <Stat label="SP" value={`${fmt(m.sp, m.decimals)}`} unit={m.unit} color="var(--dv-sp)" />
+        <Stat label="OUT" value={`${fmt(m.out, 1)}`} unit="%" color="var(--dv-out)" />
       </div>
     )
   }
   if (m.type === 'AI') {
     return (
       <div style={{ marginTop: 4 }}>
-        <Stat label="PV" value={`${fmt(m.pv, m.decimals)}`} unit={m.unit} color="#7fe0a8" big />
+        <Stat label="PV" value={`${fmt(m.pv, m.decimals)}`} unit={m.unit} color="var(--dv-pv)" big />
       </div>
     )
   }
   if (m.type === 'MOTOR') {
     const s = m.fault ? 'FAULT' : m.running ? 'RUNNING' : 'STOPPED'
-    const c = m.fault ? '#ff8a8f' : m.running ? '#6ee08a' : '#9fb0c0'
+    const c = m.fault ? '#c0202a' : m.running ? '#1f8a4c' : 'var(--dv-text-mute)'
     return (
       <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: c }}>{s}</div>
     )
   }
   if (m.type === 'VALVE') {
     const s = m.fault ? 'FAULT' : m.open ? 'OPEN' : 'CLOSED'
-    const c = m.fault ? '#ff8a8f' : m.open ? '#6ee08a' : '#9fb0c0'
+    const c = m.fault ? '#c0202a' : m.open ? '#1f8a4c' : 'var(--dv-text-mute)'
     return <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: c }}>{s}</div>
   }
   // DI / DO
   const state = m.state ? m.activeDescriptor : m.inactiveDescriptor
   return (
-    <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: m.state ? '#6ee08a' : '#9fb0c0' }}>
+    <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: m.state ? '#1f8a4c' : 'var(--dv-text-mute)' }}>
       {state}
     </div>
   )

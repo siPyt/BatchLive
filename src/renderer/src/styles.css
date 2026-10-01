@@ -1,38 +1,43 @@
 :root {
-  /* DeltaV Live-inspired industrial palette */
-  --dv-bg: #1b1f24;
-  --dv-bg-2: #22272e;
-  --dv-bg-3: #2b323b;
-  --dv-panel: #2e353f;
-  --dv-panel-2: #353d48;
-  --dv-border: #434d5a;
-  --dv-border-light: #566171;
-  --dv-text: #e6edf3;
-  --dv-text-dim: #9fb0c0;
-  --dv-text-mute: #6d7d8d;
-  --dv-accent: #00a3c4;
-  --dv-accent-2: #1aa7ec;
-  --dv-select: #0b5e86;
+  /* DeltaV Operate / Live L16 light theme (silver chrome, white canvases) */
+  --dv-bg: #c8ccd2;
+  --dv-bg-2: #d6dadf;
+  --dv-bg-3: #e4e7ea;
+  --dv-panel: #eceef1;
+  --dv-panel-2: #f6f7f9;
+  --dv-border: #a7acb3;
+  --dv-border-light: #c3c7cd;
+  --dv-text: #1b1f24;
+  --dv-text-dim: #3c444d;
+  --dv-text-mute: #727b85;
+  --dv-accent: #0a6cbf;
+  --dv-accent-2: #1a73c4;
+  --dv-select: #cfe2f6;
 
-  /* Alarm priority colors */
-  --dv-critical: #e8232c;
-  --dv-warning: #f2c313;
-  --dv-advisory: #cf4ad9;
-  --dv-ok: #37b24d;
+  /* Alarm priority colors (DeltaV standard: red / yellow / magenta) */
+  --dv-critical: #e00b22;
+  --dv-warning: #ffd21e;
+  --dv-advisory: #c23bd0;
+  --dv-ok: #2f9e44;
 
   /* Equipment / process colors */
   --dv-liquid: #2f8fd6;
   --dv-liquid-2: #1e6fb0;
-  --dv-pipe: #7d8b99;
-  --dv-pipe-active: #3f9bd6;
+  --dv-pipe: #7c8894;
+  --dv-pipe-active: #2f80c4;
   --dv-steam: #c94f3a;
   --dv-metal: #8a97a5;
-  --dv-run: #37b24d;
-  --dv-stop: #6d7d8d;
+  --dv-run: #2f9e44;
+  --dv-stop: #8a939d;
+
+  /* On-light value colors (PV green / SP blue / OUT amber) */
+  --dv-pv: #157a3a;
+  --dv-sp: #1766c0;
+  --dv-out: #b5731a;
 
   --mode-man: #d98c2b;
-  --mode-auto: #37b24d;
-  --mode-cas: #1aa7ec;
+  --mode-auto: #2f9e44;
+  --mode-cas: #1a73c4;
 
   font-family: 'Segoe UI', 'Roboto', system-ui, -apple-system, sans-serif;
   font-size: 13px;
@@ -91,8 +96,8 @@ button {
   display: flex;
   align-items: stretch;
   height: 46px;
-  background: #15181c;
-  border-bottom: 1px solid #000;
+  background: var(--dv-bg-2);
+  border-bottom: 1px solid var(--dv-border);
   flex-shrink: 0;
 }
 
@@ -101,7 +106,7 @@ button {
   align-items: center;
   gap: 2px;
   padding: 0 8px;
-  border-right: 1px solid #000;
+  border-right: 1px solid var(--dv-border);
 }
 
 .alarm-count {
@@ -197,7 +202,7 @@ button {
   align-items: center;
   gap: 4px;
   padding: 0 8px;
-  border-left: 1px solid #000;
+  border-left: 1px solid var(--dv-border);
 }
 
 /* ------------------------------------------------------------------ */
@@ -207,8 +212,8 @@ button {
   display: flex;
   align-items: center;
   height: 40px;
-  background: linear-gradient(#2e353f, #262c34);
-  border-bottom: 1px solid #000;
+  background: linear-gradient(#f2f4f6, #e2e5e9);
+  border-bottom: 1px solid var(--dv-border);
   padding: 0 8px;
   gap: 6px;
   flex-shrink: 0;
@@ -222,7 +227,7 @@ button {
   padding-right: 10px;
   margin-right: 4px;
   border-right: 1px solid var(--dv-border);
-  color: #fff;
+  color: var(--dv-text);
 }
 .topbar .brand .logo {
   width: 24px;
@@ -279,7 +284,7 @@ button {
 .tbtn.active {
   background: var(--dv-select);
   border-color: var(--dv-accent);
-  color: #fff;
+  color: #0a3d6b;
 }
 .tbtn.sm {
   height: 24px;
@@ -293,7 +298,7 @@ button {
 .nav-sidebar {
   width: 240px;
   background: var(--dv-bg-2);
-  border-right: 1px solid #000;
+  border-right: 1px solid var(--dv-border);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -320,7 +325,7 @@ button {
 }
 .nav-item.active {
   background: var(--dv-bg-3);
-  color: #fff;
+  color: var(--dv-text);
   border-left-color: var(--dv-accent);
 }
 .nav-item .ico {
@@ -360,8 +365,8 @@ button {
   display: flex;
   align-items: center;
   height: 24px;
-  background: #15181c;
-  border-top: 1px solid #000;
+  background: var(--dv-bg-2);
+  border-top: 1px solid var(--dv-border);
   padding: 0 10px;
   gap: 14px;
   font-size: 11px;
@@ -404,7 +409,7 @@ button {
 /* Dynamo value boxes on graphics */
 .valbox {
   position: absolute;
-  background: #0e1114;
+  background: #ffffff;
   border: 1px solid var(--dv-border);
   border-radius: 2px;
   padding: 2px 6px;
@@ -425,7 +430,7 @@ button {
 .valbox .vb-val {
   font-size: 14px;
   font-weight: 700;
-  color: #7fe0a8;
+  color: var(--dv-pv);
 }
 .valbox .vb-unit {
   font-size: 9px;
@@ -486,14 +491,14 @@ button {
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  background: linear-gradient(#3a434f, #2e353f);
-  border-bottom: 1px solid #000;
+  background: linear-gradient(#e9ebee, #dcdfe3);
+  border-bottom: 1px solid var(--dv-border);
   border-radius: 4px 4px 0 0;
   cursor: move;
 }
 .fp-header .fp-tag {
   font-weight: 800;
-  color: #fff;
+  color: var(--dv-text);
 }
 .fp-header .fp-desc {
   font-size: 10px;
@@ -539,13 +544,13 @@ button {
   font-size: 15px;
 }
 .fp-pv {
-  color: #7fe0a8;
+  color: var(--dv-pv);
 }
 .fp-sp {
-  color: #6ec1ff;
+  color: var(--dv-sp);
 }
 .fp-out {
-  color: #f0c56b;
+  color: var(--dv-out);
 }
 
 /* PID bargraph */
@@ -566,7 +571,7 @@ button {
   position: relative;
   width: 18px;
   height: 130px;
-  background: #0e1114;
+  background: #ffffff;
   border: 1px solid var(--dv-border);
   border-radius: 2px;
   overflow: hidden;
@@ -652,7 +657,7 @@ button {
 }
 .fp-numinput {
   width: 64px;
-  background: #0e1114;
+  background: #ffffff;
   border: 1px solid var(--dv-border);
   color: var(--dv-text);
   border-radius: 3px;
@@ -694,16 +699,16 @@ button {
   font-weight: 700;
 }
 .pill-run {
-  background: rgba(55, 178, 77, 0.18);
-  color: #6ee08a;
+  background: rgba(47, 158, 68, 0.16);
+  color: #1f8a4c;
 }
 .pill-stop {
-  background: rgba(109, 125, 141, 0.2);
-  color: #9fb0c0;
+  background: rgba(109, 125, 141, 0.18);
+  color: #5a6670;
 }
 .pill-fault {
-  background: rgba(232, 35, 44, 0.2);
-  color: #ff8a8f;
+  background: rgba(224, 11, 34, 0.14);
+  color: #c0202a;
 }
 
 .fp-tabs {
@@ -722,7 +727,7 @@ button {
   border-bottom: 2px solid transparent;
 }
 .fp-tab.active {
-  color: #fff;
+  color: var(--dv-accent);
   border-bottom-color: var(--dv-accent);
 }
 
@@ -744,7 +749,7 @@ button {
   letter-spacing: 0.5px;
   position: sticky;
   top: 0;
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid var(--dv-border);
 }
 .alarm-table td {
   padding: 6px 10px;
@@ -752,10 +757,30 @@ button {
   font-variant-numeric: tabular-nums;
 }
 .alarm-table tr:hover td {
-  background: var(--dv-bg-2);
+  filter: brightness(0.96);
 }
 .alarm-table tr.unack td {
   font-weight: 700;
+}
+/* DeltaV alarm list: solid priority-colored rows */
+.alarm-table tr.critical td {
+  background: var(--dv-critical);
+  color: #fff;
+}
+.alarm-table tr.warning td {
+  background: var(--dv-warning);
+  color: #1b1f24;
+}
+.alarm-table tr.advisory td {
+  background: var(--dv-advisory);
+  color: #fff;
+}
+.alarm-table tr.rtn td {
+  opacity: 0.55;
+}
+.alarm-table tr.critical td a,
+.alarm-table tr.advisory td a {
+  color: #fff;
 }
 .prio-chip {
   display: inline-block;
@@ -828,7 +853,7 @@ button {
 }
 
 .select-dark {
-  background: #0e1114;
+  background: #ffffff;
   color: var(--dv-text);
   border: 1px solid var(--dv-border);
   border-radius: 3px;
@@ -845,12 +870,12 @@ button {
   background: var(--dv-bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: #3f4954;
+  background: #b4b9bf;
   border-radius: 6px;
   border: 2px solid var(--dv-bg);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #566171;
+  background: #9aa0a7;
 }
 
 /* ------------------------------------------------------------------ */
@@ -864,7 +889,7 @@ button {
   width: 54%;
   min-width: 420px;
   overflow: auto;
-  border-right: 1px solid #000;
+  border-right: 1px solid var(--dv-border);
   padding: 6px 0;
   background: var(--dv-bg-2);
 }
@@ -889,7 +914,7 @@ button {
 }
 .exp-node.sel {
   background: var(--dv-select);
-  color: #fff;
+  color: var(--dv-text);
 }
 .exp-caret {
   width: 12px;
@@ -925,7 +950,7 @@ button {
   height: 15px;
   padding: 0 4px;
   border-radius: 2px;
-  background: #0e1114;
+  background: #ffffff;
   border: 1px solid var(--dv-border);
   color: var(--dv-accent-2);
   font-size: 9px;
@@ -937,7 +962,7 @@ button {
   min-width: 70px;
 }
 .exp-node.sel .exp-tag {
-  color: #fff;
+  color: var(--dv-text);
 }
 .exp-desc {
   color: var(--dv-text-mute);
@@ -1080,8 +1105,8 @@ button {
   flex: 1;
   overflow: auto;
   padding: 40px 24px;
-  background: var(--dv-bg);
-  background-image: radial-gradient(#2a323b 1px, transparent 1px);
+  background: #ffffff;
+  background-image: radial-gradient(#d4d8dd 1px, transparent 1px);
   background-size: 22px 22px;
 }
 .fb-row {
@@ -1109,16 +1134,16 @@ button {
   align-items: center;
   gap: 6px;
   padding: 5px 8px;
-  background: linear-gradient(#3a434f, #2e353f);
-  border-bottom: 1px solid #000;
+  background: linear-gradient(#e9ebee, #dcdfe3);
+  border-bottom: 1px solid var(--dv-border);
   border-radius: 4px 4px 0 0;
 }
 .fb-head b {
-  color: #fff;
+  color: var(--dv-text);
   font-size: 12px;
 }
 .fb-type {
-  background: #0e1114;
+  background: #ffffff;
   border: 1px solid var(--dv-border);
   color: var(--dv-accent-2);
   font-size: 9px;
@@ -1147,7 +1172,7 @@ button {
   color: var(--dv-text-mute);
 }
 .fb-port-val {
-  color: #7fe0a8;
+  color: var(--dv-pv);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1169,7 +1194,7 @@ button {
 .fb-modebtn.active {
   background: var(--dv-select);
   border-color: var(--dv-accent);
-  color: #fff;
+  color: #0a3d6b;
 }
 .fb-modebtn:disabled {
   opacity: 0.4;
@@ -1189,6 +1214,103 @@ button {
 .fb-wire-arrow {
   font-size: 18px;
   line-height: 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Control Studio ribbon                                               */
+/* ------------------------------------------------------------------ */
+.ribbon {
+  background: #f3f4f6;
+  border-bottom: 1px solid var(--dv-border);
+  flex-shrink: 0;
+}
+.ribbon-tabs {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  gap: 2px;
+  padding: 0 8px;
+  background: #e7e9ec;
+  border-bottom: 1px solid var(--dv-border);
+}
+.ribbon-tab {
+  padding: 5px 14px;
+  font-size: 12px;
+  color: var(--dv-text-dim);
+  border: 1px solid transparent;
+  border-bottom: none;
+}
+.ribbon-tab.active {
+  background: #f3f4f6;
+  border-color: var(--dv-border);
+  color: var(--dv-text);
+  font-weight: 600;
+  border-radius: 3px 3px 0 0;
+  position: relative;
+  top: 1px;
+}
+.ribbon-tab.file {
+  background: var(--dv-accent);
+  color: #fff;
+  border-radius: 2px;
+  font-weight: 700;
+}
+.ribbon-title {
+  margin-left: auto;
+  color: var(--dv-text-mute);
+  font-size: 11px;
+}
+.ribbon-body {
+  display: flex;
+  padding: 6px 2px;
+  min-height: 72px;
+}
+.ribbon-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 8px;
+  border-right: 1px solid var(--dv-border-light);
+}
+.ribbon-group-btns {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  align-items: center;
+}
+.ribbon-group-label {
+  font-size: 10px;
+  color: var(--dv-text-mute);
+  margin-top: 2px;
+}
+.ribbon-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 54px;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--dv-text-dim);
+  font-size: 10px;
+  line-height: 1.1;
+  text-align: center;
+}
+.ribbon-btn:hover {
+  background: #e2e8f0;
+  border-color: var(--dv-border-light);
+}
+.ribbon-btn.active {
+  background: #d3e5f7;
+  border-color: var(--dv-accent);
+  color: var(--dv-text);
+}
+.ribbon-btn .ic {
+  font-size: 17px;
+  line-height: 1;
+  color: var(--dv-accent);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1387,7 +1509,7 @@ button {
   font-variant-numeric: tabular-nums;
 }
 .batch-log {
-  background: #0e1216;
+  background: #ffffff;
   border: 1px solid var(--dv-border);
   border-radius: 4px;
   max-height: 260px;
@@ -1398,7 +1520,7 @@ button {
   gap: 10px;
   padding: 4px 10px;
   font-size: 11px;
-  border-bottom: 1px solid #1a2026;
+  border-bottom: 1px solid #e4e7ea;
 }
 .batch-log-t {
   color: var(--dv-text-mute);

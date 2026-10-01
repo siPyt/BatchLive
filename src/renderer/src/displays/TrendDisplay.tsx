@@ -74,14 +74,14 @@ export function TrendDisplay(): JSX.Element {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
-        <svg width={W} height={H} style={{ background: '#0e1216', border: '1px solid var(--dv-border)', borderRadius: 4 }}>
+        <svg width={W} height={H} style={{ background: '#ffffff', border: '1px solid var(--dv-border)', borderRadius: 4 }}>
           {/* horizontal gridlines (percent of each pen scale) */}
           {[0, 25, 50, 75, 100].map((pct) => {
             const y = PAD_T + (1 - pct / 100) * plotH
             return (
               <g key={pct}>
-                <line x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="#222b33" strokeWidth={1} />
-                <text x={PAD_L - 6} y={y + 3} fill="#6d7d8d" fontSize={9} textAnchor="end">
+                <line x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="#e4e7ea" strokeWidth={1} />
+                <text x={PAD_L - 6} y={y + 3} fill="#6b747d" fontSize={9} textAnchor="end">
                   {pct}%
                 </text>
               </g>
@@ -93,8 +93,8 @@ export function TrendDisplay(): JSX.Element {
             const secsAgo = Math.round(windowSec * (1 - f))
             return (
               <g key={f}>
-                <line x1={x} x2={x} y1={PAD_T} y2={H - PAD_B} stroke="#222b33" strokeWidth={1} />
-                <text x={x} y={H - PAD_B + 16} fill="#6d7d8d" fontSize={9} textAnchor="middle">
+                <line x1={x} x2={x} y1={PAD_T} y2={H - PAD_B} stroke="#e4e7ea" strokeWidth={1} />
+                <text x={x} y={H - PAD_B + 16} fill="#6b747d" fontSize={9} textAnchor="middle">
                   -{secsAgo}s
                 </text>
               </g>
@@ -114,7 +114,7 @@ export function TrendDisplay(): JSX.Element {
           })}
 
           {visible.length === 0 && (
-            <text x={W / 2} y={H / 2} fill="#6d7d8d" fontSize={13} textAnchor="middle">
+            <text x={W / 2} y={H / 2} fill="#6b747d" fontSize={13} textAnchor="middle">
               Collecting trend data…
             </text>
           )}

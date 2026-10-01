@@ -25,21 +25,21 @@ const TYPE_BADGE: Record<AnyModule['type'], string> = {
 function statusText(m: AnyModule): { text: string; color: string } {
   switch (m.type) {
     case 'PID':
-      return { text: `${fmt(m.pv, m.decimals)} ${m.unit} · ${m.mode}`, color: '#7fe0a8' }
+      return { text: `${fmt(m.pv, m.decimals)} ${m.unit} · ${m.mode}`, color: 'var(--dv-pv)' }
     case 'AI':
-      return { text: `${fmt(m.pv, m.decimals)} ${m.unit}`, color: '#7fe0a8' }
+      return { text: `${fmt(m.pv, m.decimals)} ${m.unit}`, color: 'var(--dv-pv)' }
     case 'MOTOR':
       return m.fault
-        ? { text: 'FAULT', color: '#ff8a8f' }
-        : { text: m.running ? 'RUNNING' : 'STOPPED', color: m.running ? '#6ee08a' : '#9fb0c0' }
+        ? { text: 'FAULT', color: '#c0202a' }
+        : { text: m.running ? 'RUNNING' : 'STOPPED', color: m.running ? '#1f8a4c' : 'var(--dv-text-mute)' }
     case 'VALVE':
       return m.fault
-        ? { text: 'FAULT', color: '#ff8a8f' }
-        : { text: m.open ? 'OPEN' : 'CLOSED', color: m.open ? '#6ee08a' : '#9fb0c0' }
+        ? { text: 'FAULT', color: '#c0202a' }
+        : { text: m.open ? 'OPEN' : 'CLOSED', color: m.open ? '#1f8a4c' : 'var(--dv-text-mute)' }
     default:
       return {
         text: m.state ? m.activeDescriptor : m.inactiveDescriptor,
-        color: m.state ? '#6ee08a' : '#9fb0c0'
+        color: m.state ? '#1f8a4c' : 'var(--dv-text-mute)'
       }
   }
 }
