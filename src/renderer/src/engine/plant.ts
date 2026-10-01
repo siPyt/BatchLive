@@ -6,10 +6,28 @@ import type {
   ValveModule,
   DiscreteInput,
   DiscreteOutput,
-  AnyModule
+  AnyModule,
+  ModuleType
 } from './types'
 
 // Helper builders keep the plant definition compact and readable.
+
+/** Tags wired into the hardcoded plant physics (cannot be deleted). */
+export const BUILTIN_TAGS = new Set([
+  'FIC-101',
+  'LIC-101',
+  'LIC-201',
+  'TIC-201',
+  'PIC-301',
+  'AT-301',
+  'TI-101',
+  'P-101',
+  'P-201',
+  'XV-101',
+  'XV-201',
+  'LSH-101',
+  'HS-201'
+])
 function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>): PidModule {
   const m: PidModule = {
     type: 'PID',
@@ -299,5 +317,105 @@ export function buildInitialPlant(): PlantState {
       productFlow: 58,
       reactorConc: 96
     }
+  }
+}
+
+export interface NewModuleSpec {
+  tag: string
+  type: ModuleType
+  description: string
+  area: string
+  unit?: string
+  pvMin?: number
+  pvMax?: number
+}
+
+/** Build a new control module from an operator/engineer spec (Explorer "New Module"). */
+export function makeModule(s: NewModuleSpec): AnyModule {
+  const unit = s.unit ?? ''
+  const pvMin = s.pvMin ?? 0
+  const pvMax = s.pvMax ?? 100
+  const mid = (pvMin + pvMax) / 2
+  switch (s.type) {
+    case 'PID':
+      return pid({
+        tag: s.tag,
+        description: s.description,
+        area: s.area,
+        unit,
+        pvMin,
+        pvMax,
+        sp: mid,
+        out: 50,
+        mode: 'AUTO',
+        gain: 1,
+        reset: 20,
+        direct: false,
+        alarms: [
+          { type: 'HI', label: 'HI', priority: 'WARNING', limit: pvMin + (pvMax - pvMin) * 0.9, enabled: true },
+          { type: 'LO', label: 'LO', priority: 'WARNING', limit: pvMin + (pvMax - pvMin) * 0.1, enabled: true }
+        ]
+      })
+    case 'AI':
+      return {
+        tag: s.tag,
+        type: 'AI',
+        description: s.description,
+        area: s.area,
+        pv: mid,
+        unit,
+        pvMin,
+        pvMax,
+        decimals: 1,
+        alarms: []
+      }
+    case 'MOTOR':
+      return {
+        tag: s.tag,
+        type: 'MOTOR',
+        description: s.description,
+        area: s.area,
+        running: false,
+        commanded: false,
+        fault: false,
+        interlock: false,
+        runtimeHrs: 0,
+        alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }]
+      }
+    case 'VALVE':
+      return {
+        tag: s.tag,
+        type: 'VALVE',
+        description: s.description,
+        area: s.area,
+        commandedOpen: false,
+        open: false,
+        fault: false,
+        interlock: false,
+        alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'ADVISORY', enabled: true }]
+      }
+    case 'DI':
+      return {
+        tag: s.tag,
+        type: 'DI',
+        description: s.description,
+        area: s.area,
+        state: false,
+        activeDescriptor: 'ACTIVE',
+        inactiveDescriptor: 'NORMAL',
+        alarms: []
+      }
+    case 'DO':
+      return {
+        tag: s.tag,
+        type: 'DO',
+        description: s.description,
+        area: s.area,
+        state: false,
+        commanded: false,
+        activeDescriptor: 'ON',
+        inactiveDescriptor: 'OFF',
+        alarms: []
+      }
   }
 }

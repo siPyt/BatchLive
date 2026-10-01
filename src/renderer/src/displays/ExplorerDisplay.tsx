@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt } from '../utils/format'
-import type { AnyModule, AlarmPriority } from '../engine/types'
+import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
+import type { AnyModule, AlarmPriority, ModuleType } from '../engine/types'
 
 // DeltaV Explorer-style system hierarchy: Process Cell > Area > Control Modules.
 
@@ -57,6 +58,7 @@ export function ExplorerDisplay(): JSX.Element {
     REACTOR: true,
     PRODUCT: true
   })
+  const [creating, setCreating] = useState(false)
 
   const toggle = (k: string): void => setOpen((o) => ({ ...o, [k]: !o[k] }))
   const list = Object.values(modules)
@@ -65,6 +67,12 @@ export function ExplorerDisplay(): JSX.Element {
   return (
     <div className="display explorer">
       <div className="explorer-tree">
+        <div className="exp-toolbar">
+          <button className="tbtn sm" onClick={() => setCreating((v) => !v)}>
+            {creating ? '✕ Cancel' : '＋ New Module'}
+          </button>
+        </div>
+        {creating && <NewModuleForm onDone={() => setCreating(false)} />}
         <div className="exp-node exp-cell" onClick={() => toggle('CELL')}>
           <span className="exp-caret">{open.CELL ? '▾' : '▸'}</span>
           <span className="exp-ico">▦</span>
@@ -130,6 +138,9 @@ function ModuleProperties({
   onFaceplate: () => void
 }): JSX.Element {
   const setAlarmLimit = useStore((s) => s.setAlarmLimit)
+  const deleteModule = useStore((s) => s.deleteModule)
+  const select = useUi((s) => s.select)
+  const builtin = BUILTIN_TAGS.has(m.tag)
   const rows: [string, string][] = [
     ['Tag', m.tag],
     ['Description', m.description],
@@ -178,6 +189,17 @@ function ModuleProperties({
           <button className="tbtn sm" onClick={onFaceplate}>
             Faceplate
           </button>
+          {!builtin && (
+            <button
+              className="tbtn sm danger"
+              onClick={() => {
+                deleteModule(m.tag)
+                select(null)
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       </div>
       <table className="exp-props-table">
@@ -248,6 +270,98 @@ function ModuleProperties({
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  )
+}
+
+function NewModuleForm({ onDone }: { onDone: () => void }): JSX.Element {
+  const createModule = useStore((s) => s.createModule)
+  const modules = useStore((s) => s.modules)
+  const select = useUi((s) => s.select)
+  const [tag, setTag] = useState('')
+  const [type, setType] = useState<ModuleType>('PID')
+  const [description, setDescription] = useState('')
+  const [area, setArea] = useState('REACTOR')
+  const [unit, setUnit] = useState('%')
+  const [pvMin, setPvMin] = useState(0)
+  const [pvMax, setPvMax] = useState(100)
+
+  const analog = type === 'PID' || type === 'AI'
+  const normTag = tag.trim().toUpperCase()
+  const exists = normTag.length > 0 && !!modules[normTag]
+  const valid = normTag.length > 0 && !exists
+
+  const submit = (): void => {
+    if (!valid) return
+    const spec: NewModuleSpec = {
+      tag: normTag,
+      type,
+      description: description.trim() || normTag,
+      area,
+      unit: analog ? unit : undefined,
+      pvMin: analog ? pvMin : undefined,
+      pvMax: analog ? pvMax : undefined
+    }
+    createModule(spec)
+    select(normTag)
+    onDone()
+  }
+
+  return (
+    <div className="exp-newmod">
+      <div className="exp-newmod-title">Create Control Module</div>
+      <label>
+        Tag
+        <input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="e.g. FIC-102" />
+      </label>
+      <label>
+        Type
+        <select value={type} onChange={(e) => setType(e.target.value as ModuleType)}>
+          <option value="PID">PID — Control Loop</option>
+          <option value="AI">AI — Indicator</option>
+          <option value="MOTOR">MOTOR</option>
+          <option value="VALVE">VALVE (on/off)</option>
+          <option value="DI">DI — Discrete Input</option>
+          <option value="DO">DO — Discrete Output</option>
+        </select>
+      </label>
+      <label>
+        Description
+        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" />
+      </label>
+      <label>
+        Area
+        <select value={area} onChange={(e) => setArea(e.target.value)}>
+          <option>FEED</option>
+          <option>REACTOR</option>
+          <option>PRODUCT</option>
+        </select>
+      </label>
+      {analog && (
+        <div className="exp-newmod-range">
+          <label>
+            Unit
+            <input value={unit} onChange={(e) => setUnit(e.target.value)} />
+          </label>
+          <label>
+            Min
+            <input type="number" value={pvMin} onChange={(e) => setPvMin(Number(e.target.value))} />
+          </label>
+          <label>
+            Max
+            <input type="number" value={pvMax} onChange={(e) => setPvMax(Number(e.target.value))} />
+          </label>
+        </div>
+      )}
+      {exists && <div className="exp-newmod-err">Tag already exists</div>}
+      <div className="exp-newmod-actions">
+        <button className="tbtn sm" disabled={!valid} onClick={submit}>
+          Create
+        </button>
+        <button className="tbtn sm" onClick={onDone}>
+          Cancel
+        </button>
       </div>
     </div>
   )

@@ -11,7 +11,7 @@ import type {
   AlarmType,
   AlarmPriority
 } from './types'
-import { buildInitialPlant } from './plant'
+import { buildInitialPlant, makeModule, type NewModuleSpec } from './plant'
 import { stepPlant } from './simulate'
 import { advanceBatch, commandBatch, makeBatch, type BatchRuntime, type BatchCommand } from './batch'
 
@@ -45,6 +45,8 @@ interface StoreState extends PlantState {
   setSpeed: (s: number) => void
   tick: (dt: number) => void
   batchCommand: (cmd: BatchCommand) => void
+  createModule: (spec: NewModuleSpec) => void
+  deleteModule: (tag: string) => void
 }
 
 const initial = buildInitialPlant()
@@ -192,7 +194,21 @@ export const useStore = create<StoreState>((set, get) => ({
   setSpeed: (speed) => set({ speed }),
 
   batchCommand: (cmd) =>
-    set((s) => ({ batch: commandBatch(s.batch, cmd, s.time), rev: s.rev + 1 }))
+    set((s) => ({ batch: commandBatch(s.batch, cmd, s.time), rev: s.rev + 1 })),
+
+  createModule: (spec) =>
+    set((s) => {
+      if (s.modules[spec.tag]) return {}
+      return { modules: { ...s.modules, [spec.tag]: makeModule(spec) }, rev: s.rev + 1 }
+    }),
+
+  deleteModule: (tag) =>
+    set((s) => {
+      if (!s.modules[tag]) return {}
+      const modules = { ...s.modules }
+      delete modules[tag]
+      return { modules, alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
+    })
 }))
 
 function mutateModule(

@@ -9,6 +9,7 @@ import type {
   AlarmLimit,
   AnyModule
 } from './types'
+import { BUILTIN_TAGS } from './plant'
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
 const noise = (amp: number): number => (Math.random() - 0.5) * 2 * amp
@@ -214,6 +215,28 @@ export function stepPlant(prev: PlantState, dtReal: number): PlantState {
   at301.pv = proc.reactorConc
   ti101.pv = clamp(ti101.pv + (32 - ti101.pv) * 0.02 + noise(0.05), 28, 70)
   lsh101.state = proc.feedTankLevel >= 85
+
+  // --- Generic simulation for operator-created modules -----------------
+  for (const tag of Object.keys(modules)) {
+    if (BUILTIN_TAGS.has(tag)) continue
+    const gm = modules[tag]
+    if (gm.type === 'PID') {
+      gm.out = computePid(gm, dt)
+      const gspan = gm.pvMax - gm.pvMin || 1
+      // Self-regulating first-order process: PV rises with controller output.
+      const target = gm.pvMin + (gm.out / 100) * gspan
+      gm.pv = clamp(gm.pv + (target - gm.pv) * clamp(dt / 4, 0, 1) + noise(gspan * 0.0015), gm.pvMin, gm.pvMax)
+    } else if (gm.type === 'AI') {
+      const gspan = gm.pvMax - gm.pvMin || 1
+      const mid = gm.pvMin + gspan / 2
+      gm.pv = clamp(gm.pv + (mid - gm.pv) * 0.01 + noise(gspan * 0.002), gm.pvMin, gm.pvMax)
+    } else if (gm.type === 'MOTOR') {
+      gm.running = gm.commanded && !gm.interlock
+      if (gm.running) gm.runtimeHrs += dt / 3600
+    } else if (gm.type === 'VALVE') {
+      gm.open = gm.commandedOpen && !gm.interlock
+    }
+  }
 
   // --- Alarm evaluation -------------------------------------------------
   const alarms = prev.alarms.map((a) => ({ ...a }))
