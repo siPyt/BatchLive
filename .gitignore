@@ -38,4 +38,4 @@ dist-installer/
 
 # Reference PDFs and extracted text (local only, not distributed)
 *.pdf
-pdf_text*.txt
+pdf_*.txt
