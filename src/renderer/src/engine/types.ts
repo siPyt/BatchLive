@@ -16,8 +16,8 @@ export type AlarmType =
   | 'HI'
   | 'LO'
   | 'LO_LO'
-  | 'DEV_HI'
-  | 'DEV_LO'
+  | 'DV_HI'
+  | 'DV_LO'
   | 'PVBAD'
   | 'FAIL'
   | 'INTERLOCK'
@@ -77,6 +77,9 @@ export interface PidModule {
   direct: boolean // true = direct acting (PV up -> OUT up)
   // internal integrator term
   _integral: number
+  // derivative-on-measurement state (DeltaV default STRUCTURE: D acts on PV)
+  _prevPv: number
+  _dFilt: number
   alarms: AlarmLimit[]
 }
 

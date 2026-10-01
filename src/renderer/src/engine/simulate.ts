@@ -13,10 +13,20 @@ import type {
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
 const noise = (amp: number): number => (Math.random() - 0.5) * 2 * amp
 
-/** Positional-form PID (DeltaV-style gain + reset/repeat + rate). */
+// DeltaV derivative filter factor (ALPHA), default 0.125 → Tf = ALPHA * RATE.
+const DERIV_ALPHA = 0.125
+
+/**
+ * DeltaV-style standard-form PID. Matches the default STRUCTURE
+ * "PI Action on Error, D Action on PV": proportional + integral act on error,
+ * derivative acts on the measurement (no derivative kick on SP changes).
+ * GAIN is dimensionless, RESET is seconds/repeat, RATE is derivative seconds.
+ */
 function computePid(m: PidModule, dt: number): number {
   if (m.mode === 'MAN' || m.mode === 'ROUT') {
-    // Operator holds the output directly.
+    // Operator holds the output directly; keep derivative state bumpless.
+    m._prevPv = m.pv
+    m._dFilt = 0
     return clamp(m.out, 0, 100)
   }
   const span = m.pvMax - m.pvMin || 1
@@ -28,10 +38,25 @@ function computePid(m: PidModule, dt: number): number {
   // Integral (reset) with simple anti-windup clamp.
   m._integral += (m.gain / Math.max(m.reset, 0.5)) * ePct * dt
   m._integral = clamp(m._integral, -120, 120)
-  const out = clamp(pTerm + m._integral, 0, 100)
+
+  // Derivative on measurement, first-order filtered (Tf = ALPHA * RATE).
+  let dTerm = 0
+  if (m.rate > 0 && dt > 0) {
+    const pvRatePct = (((m.pv - m._prevPv) / span) * 100) / dt
+    const tf = DERIV_ALPHA * m.rate
+    m._dFilt += (dt / (tf + dt)) * (pvRatePct - m._dFilt)
+    // Reverse acting: rising PV should lower OUT, so derivative opposes PV rate.
+    dTerm = -m.gain * m.rate * m._dFilt
+    if (m.direct) dTerm = -dTerm
+  } else {
+    m._dFilt = 0
+  }
+  m._prevPv = m.pv
+
+  const out = clamp(pTerm + m._integral + dTerm, 0, 100)
   // Back-calculate integral if the output saturated (stop windup).
   if (out <= 0 || out >= 100) {
-    m._integral = clamp(out - pTerm, -120, 120)
+    m._integral = clamp(out - pTerm - dTerm, -120, 120)
   }
   return out
 }
@@ -49,8 +74,8 @@ function evalAnalogAlarms(
   for (const lim of limits) {
     if (!lim.enabled || lim.limit === undefined) continue
     let tripped = false
-    if (lim.type === 'HI_HI' || lim.type === 'HI' || lim.type === 'DEV_HI') tripped = pv >= lim.limit
-    if (lim.type === 'LO' || lim.type === 'LO_LO' || lim.type === 'DEV_LO') tripped = pv <= lim.limit
+    if (lim.type === 'HI_HI' || lim.type === 'HI' || lim.type === 'DV_HI') tripped = pv >= lim.limit
+    if (lim.type === 'LO' || lim.type === 'LO_LO' || lim.type === 'DV_LO') tripped = pv <= lim.limit
     reconcile(existing, tag, desc, lim, tripped, pv, unit, now)
   }
 }

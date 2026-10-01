@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
-import { priorityRank, clockString } from '../utils/format'
+import { compareAlarmRank, clockString } from '../utils/format'
 import type { ActiveAlarm, AlarmPriority } from '../engine/types'
 
 type Filter = 'ALL' | AlarmPriority | 'UNACK'
@@ -17,13 +17,7 @@ export function AlarmSummary(): JSX.Element {
   if (filter === 'UNACK') rows = rows.filter((a) => !a.acknowledged)
   else if (filter !== 'ALL') rows = rows.filter((a) => a.priority === filter)
 
-  rows.sort((a, b) => {
-    if (a.active !== b.active) return a.active ? -1 : 1
-    if (a.acknowledged !== b.acknowledged) return a.acknowledged ? 1 : -1
-    const pr = priorityRank(b.priority) - priorityRank(a.priority)
-    if (pr !== 0) return pr
-    return b.time - a.time
-  })
+  rows.sort(compareAlarmRank)
 
   const unack = alarms.filter((a) => !a.acknowledged).length
 

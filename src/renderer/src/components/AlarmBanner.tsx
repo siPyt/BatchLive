@@ -1,15 +1,6 @@
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
-import { priorityRank } from '../utils/format'
-import type { ActiveAlarm } from '../engine/types'
-
-function sortAlarms(a: ActiveAlarm, b: ActiveAlarm): number {
-  // Unacknowledged first, then priority, then newest.
-  if (a.acknowledged !== b.acknowledged) return a.acknowledged ? 1 : -1
-  const pr = priorityRank(b.priority) - priorityRank(a.priority)
-  if (pr !== 0) return pr
-  return b.time - a.time
-}
+import { compareAlarmRank } from '../utils/format'
 
 export function AlarmBanner(): JSX.Element {
   const alarms = useStore((s) => s.alarms)
@@ -26,7 +17,7 @@ export function AlarmBanner(): JSX.Element {
   }
   const unackCount = alarms.filter((a) => !a.acknowledged).length
 
-  const tiles = [...alarms].sort(sortAlarms).slice(0, 6)
+  const tiles = [...alarms].sort(compareAlarmRank).slice(0, 6)
 
   return (
     <div className="alarm-banner">

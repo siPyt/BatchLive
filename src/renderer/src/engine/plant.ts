@@ -25,6 +25,8 @@ function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'ar
     rate: 0,
     direct: false,
     _integral: 0,
+    _prevPv: 0,
+    _dFilt: 0,
     alarms: [],
     ...p
   }

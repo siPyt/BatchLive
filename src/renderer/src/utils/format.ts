@@ -4,14 +4,30 @@ export function fmt(value: number, decimals: number): string {
   return value.toFixed(decimals)
 }
 
+// DeltaV default alarm priority numeric values (CRITICAL 15 / WARNING 11 / ADVISORY 7).
 const PRIO_RANK: Record<AlarmPriority, number> = {
-  CRITICAL: 3,
-  WARNING: 2,
-  ADVISORY: 1
+  CRITICAL: 15,
+  WARNING: 11,
+  ADVISORY: 7
 }
 
 export function priorityRank(p: AlarmPriority): number {
   return PRIO_RANK[p]
+}
+
+/**
+ * DeltaV alarm ranking (Operate course, "DeltaV Alarm Ranking"):
+ * 1) unacknowledged before acknowledged
+ * 2) active before inactive
+ * 3) higher priority value first
+ * 4) newer (more recent) time first
+ */
+export function compareAlarmRank(a: ActiveAlarm, b: ActiveAlarm): number {
+  if (a.acknowledged !== b.acknowledged) return a.acknowledged ? 1 : -1
+  if (a.active !== b.active) return a.active ? -1 : 1
+  const pr = PRIO_RANK[b.priority] - PRIO_RANK[a.priority]
+  if (pr !== 0) return pr
+  return b.time - a.time
 }
 
 /** Highest-priority ACTIVE alarm for a given module tag, or null. */

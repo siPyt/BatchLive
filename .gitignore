@@ -35,3 +35,7 @@ dist-installer/
 *.tsbuildinfo
 *.log
 .DS_Store
+
+# Reference PDFs and extracted text (local only, not distributed)
+*.pdf
+pdf_text*.txt
