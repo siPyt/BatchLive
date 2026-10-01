@@ -24,9 +24,122 @@ export function ControlStudioDisplay(): JSX.Element {
   return (
     <div className="display studio">
       <StudioRibbon tag={m.tag} onFaceplate={() => openFaceplate(m.tag)} />
-      <div className="studio-canvas">
-        <Diagram module={m} />
+      <div className="studio-main">
+        <HierarchyView module={m} />
+        <div className="studio-center">
+          <div className="studio-canvas">
+            <Diagram module={m} />
+          </div>
+          <ParameterView module={m} />
+        </div>
+        <PaletteView />
       </div>
+    </div>
+  )
+}
+
+function blocksOf(m: AnyModule): { name: string; type: string }[] {
+  if (m.type === 'PID')
+    return [
+      { name: `${m.tag}/PV`, type: 'AI' },
+      { name: m.tag, type: 'PID' },
+      { name: `${m.tag}/OUT`, type: 'AO' }
+    ]
+  if (m.type === 'MOTOR' || m.type === 'VALVE') return [{ name: m.tag, type: 'DC' }]
+  return [{ name: m.tag, type: m.type }]
+}
+
+function HierarchyView({ module: m }: { module: AnyModule }): JSX.Element {
+  return (
+    <div className="studio-pane studio-hier">
+      <div className="studio-tree">
+        <div className="studio-tree-root">
+          <span className="exp-ico">▦</span> {m.tag}
+        </div>
+        {blocksOf(m).map((b) => (
+          <div key={b.name} className="studio-tree-node">
+            <span className="fb-type">{b.type}</span>
+            {b.name}
+          </div>
+        ))}
+      </div>
+      <div className="studio-pane-label">Hierarchy View</div>
+    </div>
+  )
+}
+
+function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
+  const rows: [string, string][] = []
+  if (m.type === 'PID') {
+    rows.push(
+      ['MODE.TARGET', m.mode],
+      ['PV.CV', `${fmt(m.pv, m.decimals)} ${m.unit}`],
+      ['SP.CV', `${fmt(m.sp, m.decimals)} ${m.unit}`],
+      ['OUT.CV', `${fmt(m.out, 1)} %`],
+      ['GAIN', `${m.gain}`],
+      ['RESET', `${m.reset} s/rpt`],
+      ['RATE', `${m.rate} s`]
+    )
+  } else if (m.type === 'AI') {
+    rows.push(['PV.CV', `${fmt(m.pv, m.decimals)} ${m.unit}`], ['PV_FTIME', '2 s'])
+  } else if (m.type === 'MOTOR') {
+    rows.push(['SP_D.CV', m.commanded ? '1' : '0'], ['PV_D.CV', m.running ? '1' : '0'], ['INTERLOCK', m.interlock ? '1' : '0'])
+  } else if (m.type === 'VALVE') {
+    rows.push(['SP_D.CV', m.commandedOpen ? '1' : '0'], ['PV_D.CV', m.open ? '1' : '0'], ['INTERLOCK', m.interlock ? '1' : '0'])
+  } else {
+    rows.push(['OUT_D.CV', m.state ? '1' : '0'])
+  }
+
+  return (
+    <div className="studio-pane studio-params">
+      <table className="studio-param-table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Value</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([k, v]) => (
+            <tr key={k}>
+              <td>{k}</td>
+              <td className="pv">{v}</td>
+              <td className="good">Good</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="studio-pane-label">Parameter View — {m.tag}</div>
+    </div>
+  )
+}
+
+const PALETTE = [
+  { group: 'I/O', items: ['AI', 'AO', 'DI', 'DO'] },
+  { group: 'Control', items: ['PID', 'DC', 'RATIO', 'BG'] },
+  { group: 'Logic', items: ['AND', 'OR', 'NOT', 'CND'] },
+  { group: 'Math', items: ['ADD', 'MUL', 'CALC', 'INT'] },
+  { group: 'SFC', items: ['STEP', 'TRAN', 'TERM'] }
+]
+
+function PaletteView(): JSX.Element {
+  return (
+    <div className="studio-pane studio-palette">
+      <div className="studio-palette-body">
+        {PALETTE.map((g) => (
+          <div key={g.group} className="studio-pal-group">
+            <div className="studio-pal-head">{g.group}</div>
+            {g.items.map((i) => (
+              <div key={i} className="studio-pal-item" draggable title={`${i} function block`}>
+                <span className="fb-type">{i}</span>
+                <span>{i} block</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="studio-pane-label">Palette · All Function Blocks</div>
     </div>
   )
 }

@@ -40,8 +40,8 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
           </div>
 
           <div className="fp-bars">
-            <Bar label="OUT" cls="out" pct={m.out} value={m.out} decimals={1} unit="%" />
-            <Bar label="PV" cls="pv" pct={pvPct} value={m.pv} decimals={m.decimals} spPct={spPct} unit={m.unit} />
+            <Bar label="OUT" cls="out" pct={m.out} value={m.out} decimals={1} unit="%" min={0} max={100} />
+            <Bar label="PV" cls="pv" pct={pvPct} value={m.pv} decimals={m.decimals} spPct={spPct} unit={m.unit} min={m.pvMin} max={m.pvMax} />
           </div>
 
           <div className="fp-moderow">
@@ -140,7 +140,8 @@ function Bar({
   decimals,
   spPct,
   unit,
-  hideFill
+  min,
+  max
 }: {
   label: string
   cls: string
@@ -149,17 +150,26 @@ function Bar({
   decimals: number
   spPct?: number
   unit?: string
-  hideFill?: boolean
+  min: number
+  max: number
 }): JSX.Element {
   const clamped = Math.max(0, Math.min(100, pct))
+  const mid = (min + max) / 2
   return (
     <div className="fp-bar">
       <span className="bar-num">{fmt(value, decimals)}</span>
-      <div className="track">
-        {!hideFill && <div className={'fill ' + cls} style={{ height: clamped + '%' }} />}
-        {spPct !== undefined && (
-          <div className="sp-marker" style={{ bottom: Math.max(0, Math.min(100, spPct)) + '%' }} />
-        )}
+      <div className="fp-bar-row">
+        <div className="fp-scale">
+          <span>{fmt(max, 0)}</span>
+          <span>{fmt(mid, 0)}</span>
+          <span>{fmt(min, 0)}</span>
+        </div>
+        <div className="track">
+          <div className={'fill ' + cls} style={{ height: clamped + '%' }} />
+          {spPct !== undefined && (
+            <div className="sp-marker" style={{ bottom: Math.max(0, Math.min(100, spPct)) + '%' }} />
+          )}
+        </div>
       </div>
       <span className="bar-lbl">
         {label}

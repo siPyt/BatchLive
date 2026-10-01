@@ -37,6 +37,15 @@ export function NavSidebar(): JSX.Element {
 
   return (
     <div className="nav-sidebar">
+      <div className="nav-section">Training</div>
+      <div
+        className={'nav-item' + (display === 'workshops' ? ' active' : '')}
+        onClick={() => navigate('workshops')}
+      >
+        <span className="ico">🎓</span>
+        DV-09 Workshops
+      </div>
+
       <div className="nav-section">Displays</div>
       {DISPLAYS.map((n) => (
         <div

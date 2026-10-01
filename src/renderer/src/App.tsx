@@ -15,6 +15,7 @@ import { ControlStudioDisplay } from './displays/ControlStudioDisplay'
 import { BatchDisplay } from './displays/BatchDisplay'
 import { SfcDisplay } from './displays/SfcDisplay'
 import { DisplayBuilder } from './displays/DisplayBuilder'
+import { WorkshopsDisplay } from './displays/WorkshopsDisplay'
 
 export function App(): JSX.Element {
   const tick = useStore((s) => s.tick)
@@ -58,6 +59,7 @@ export function App(): JSX.Element {
           {display === 'batch' && <BatchDisplay />}
           {display === 'sfc' && <SfcDisplay />}
           {display === 'builder' && <DisplayBuilder />}
+          {display === 'workshops' && <WorkshopsDisplay />}
           <FaceplateHost />
         </div>
       </div>

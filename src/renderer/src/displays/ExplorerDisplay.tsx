@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt } from '../utils/format'
@@ -48,6 +48,7 @@ function statusText(m: AnyModule): { text: string; color: string } {
 export function ExplorerDisplay(): JSX.Element {
   const modules = useStore((s) => s.modules)
   const alarms = useStore((s) => s.alarms)
+  const deleteModule = useStore((s) => s.deleteModule)
   const selectedTag = useUi((s) => s.selectedTag)
   const select = useUi((s) => s.select)
   const openStudio = useUi((s) => s.openStudio)
@@ -58,7 +59,19 @@ export function ExplorerDisplay(): JSX.Element {
     REACTOR: true,
     PRODUCT: true
   })
-  const [creating, setCreating] = useState(false)
+  const [createArea, setCreateArea] = useState<string | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; kind: 'area' | 'module'; target: string } | null>(null)
+
+  useEffect(() => {
+    if (!menu) return
+    const close = (): void => setMenu(null)
+    window.addEventListener('mousedown', close)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [menu])
 
   const toggle = (k: string): void => setOpen((o) => ({ ...o, [k]: !o[k] }))
   const list = Object.values(modules)
@@ -68,11 +81,12 @@ export function ExplorerDisplay(): JSX.Element {
     <div className="display explorer">
       <div className="explorer-tree">
         <div className="exp-toolbar">
-          <button className="tbtn sm" onClick={() => setCreating((v) => !v)}>
-            {creating ? '✕ Cancel' : '＋ New Module'}
+          <button className="tbtn sm" onClick={() => setCreateArea((v) => (v ? null : 'FEED'))}>
+            {createArea ? '✕ Cancel' : '＋ New Module'}
           </button>
+          <span className="exp-hint">right-click an Area → New ▸ Control Module</span>
         </div>
-        {creating && <NewModuleForm onDone={() => setCreating(false)} />}
+        {createArea && <NewModuleForm initialArea={createArea} onDone={() => setCreateArea(null)} />}
         <div className="exp-node exp-cell" onClick={() => toggle('CELL')}>
           <span className="exp-caret">{open.CELL ? '▾' : '▸'}</span>
           <span className="exp-ico">▦</span>
@@ -84,7 +98,14 @@ export function ExplorerDisplay(): JSX.Element {
             const mods = list.filter((m) => m.area === area)
             return (
               <div key={area}>
-                <div className="exp-node exp-area" onClick={() => toggle(area)}>
+                <div
+                  className="exp-node exp-area"
+                  onClick={() => toggle(area)}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    setMenu({ x: e.clientX, y: e.clientY, kind: 'area', target: area })
+                  }}
+                >
                   <span className="exp-caret">{open[area] ? '▾' : '▸'}</span>
                   <span className="exp-ico">▧</span>
                   {AREA_LABEL[area]}
@@ -100,6 +121,11 @@ export function ExplorerDisplay(): JSX.Element {
                         className={'exp-node exp-mod' + (selectedTag === m.tag ? ' sel' : '')}
                         onClick={() => select(m.tag)}
                         onDoubleClick={() => openStudio(m.tag)}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          select(m.tag)
+                          setMenu({ x: e.clientX, y: e.clientY, kind: 'module', target: m.tag })
+                        }}
                       >
                         <span className="exp-caret" />
                         <span className="exp-badge">{TYPE_BADGE[m.type]}</span>
@@ -124,6 +150,60 @@ export function ExplorerDisplay(): JSX.Element {
           <ModuleProperties module={selected} onStudio={() => openStudio(selected.tag)} onFaceplate={() => openFaceplate(selected.tag)} />
         )}
       </div>
+
+      {menu && (
+        <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
+          {menu.kind === 'area' ? (
+            <>
+              <div className="ctx-label">{menu.target}</div>
+              <div className="ctx-parent">New ▸</div>
+              <button
+                className="ctx-item ctx-sub"
+                onClick={() => {
+                  setCreateArea(menu.target)
+                  setMenu(null)
+                }}
+              >
+                Control Module…
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="ctx-label">{menu.target}</div>
+              <button
+                className="ctx-item"
+                onClick={() => {
+                  openStudio(menu.target)
+                  setMenu(null)
+                }}
+              >
+                Open with Control Studio
+              </button>
+              <button
+                className="ctx-item"
+                onClick={() => {
+                  openFaceplate(menu.target)
+                  setMenu(null)
+                }}
+              >
+                Open Faceplate
+              </button>
+              {!BUILTIN_TAGS.has(menu.target) && (
+                <button
+                  className="ctx-item danger"
+                  onClick={() => {
+                    deleteModule(menu.target)
+                    select(null)
+                    setMenu(null)
+                  }}
+                >
+                  Delete
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -275,14 +355,14 @@ function ModuleProperties({
   )
 }
 
-function NewModuleForm({ onDone }: { onDone: () => void }): JSX.Element {
+function NewModuleForm({ onDone, initialArea }: { onDone: () => void; initialArea: string }): JSX.Element {
   const createModule = useStore((s) => s.createModule)
   const modules = useStore((s) => s.modules)
   const select = useUi((s) => s.select)
   const [tag, setTag] = useState('')
   const [type, setType] = useState<ModuleType>('PID')
   const [description, setDescription] = useState('')
-  const [area, setArea] = useState('REACTOR')
+  const [area, setArea] = useState(initialArea)
   const [unit, setUnit] = useState('%')
   const [pvMin, setPvMin] = useState(0)
   const [pvMax, setPvMax] = useState(100)
