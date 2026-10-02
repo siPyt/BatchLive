@@ -16,8 +16,10 @@ const DISPLAYS: NavNode[] = [
 
 const PHARMA: NavNode[] = [
   { id: 'wfi', label: 'WFI Generation', ico: '💧' },
-  { id: 'autoclave', label: 'Autoclave (Sterilizer)', ico: '♨' },
-  { id: 'lyo', label: 'Lyophilizer', ico: '❄' }
+  { id: 'autoclave', label: 'Autoclaves (x2)', ico: '♨' },
+  { id: 'lyo', label: 'Lyophilizers (x2)', ico: '❄' },
+  { id: 'cip', label: 'CIP Skids (x3)', ico: '🧼' },
+  { id: 'tcu', label: 'TCUs (x3)', ico: '🌡' }
 ]
 
 const TOOLS: NavNode[] = [

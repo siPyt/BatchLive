@@ -14,7 +14,7 @@ import type {
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { stepPlant } from './simulate'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
-import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, type SfcDef, type SfcStep } from './sfc'
+import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
 import { makeDefaultEquipment, makeBlankEquipment, type EquipmentModule } from './equipment'
 import { makeDefaultHardware, makeBlankHardware, type HardwareState } from './hardware'
@@ -94,13 +94,27 @@ interface StoreState extends PlantState {
 
 const initial = buildInitialPlant()
 
+/** Seeds every built-in SFC: reactor startup, both autoclaves, both lyos, all 3 CIP skids. */
+function makeDefaultSfcs(): Record<string, SfcDef> {
+  return {
+    'STARTUP-T101': makeSampleSfc(),
+    'STERILIZE-AC1': makeAutoclaveSfc(),
+    'STERILIZE-AC2': makeAutoclaveSfc({ name: 'STERILIZE-AC2', tic: 'TIC-511', pic: 'PIC-511', xv: 'XV-511' }),
+    'LYO-CYCLE-1': makeLyoSfc(),
+    'LYO-CYCLE-2': makeLyoSfc({ name: 'LYO-CYCLE-2', tic: 'TIC-611', pic: 'PIC-611', xv: 'XV-611' }),
+    'CIP-CYCLE-1': makeCipSfc({ name: 'CIP-CYCLE-1', tic: 'TIC-701', fic: 'FIC-701', p: 'P-701', xvSupply: 'XV-701', xvReturn: 'XV-702' }),
+    'CIP-CYCLE-2': makeCipSfc({ name: 'CIP-CYCLE-2', tic: 'TIC-711', fic: 'FIC-711', p: 'P-711', xvSupply: 'XV-711', xvReturn: 'XV-712' }),
+    'CIP-CYCLE-3': makeCipSfc({ name: 'CIP-CYCLE-3', tic: 'TIC-721', fic: 'FIC-721', p: 'P-721', xvSupply: 'XV-721', xvReturn: 'XV-722' })
+  }
+}
+
 export const useStore = create<StoreState>((set, get) => ({
   ...initial,
   trend: [],
   rev: 0,
   batch: makeBatch(),
   phases: makeDefaultPhases(),
-  sfcs: { 'STARTUP-T101': makeSampleSfc(), 'STERILIZE-AC1': makeAutoclaveSfc(), 'LYO-CYCLE-1': makeLyoSfc() },
+  sfcs: makeDefaultSfcs(),
   equipment: makeDefaultEquipment(),
   hardware: makeDefaultHardware(),
   hornSilenced: false,
@@ -498,7 +512,7 @@ export const useStore = create<StoreState>((set, get) => ({
       trend: [],
       batch: makeBatch(),
       phases: makeDefaultPhases(),
-      sfcs: kind === 'blank' ? {} : { 'STARTUP-T101': makeSampleSfc(), 'STERILIZE-AC1': makeAutoclaveSfc(), 'LYO-CYCLE-1': makeLyoSfc() },
+      sfcs: kind === 'blank' ? {} : makeDefaultSfcs(),
       equipment: kind === 'blank' ? makeBlankEquipment() : makeDefaultEquipment(),
       hardware: kind === 'blank' ? makeBlankHardware() : makeDefaultHardware(),
       rev: get().rev + 1

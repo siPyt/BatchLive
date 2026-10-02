@@ -18,6 +18,8 @@ export type DisplayId =
   | 'wfi'
   | 'autoclave'
   | 'lyo'
+  | 'cip'
+  | 'tcu'
 
 export interface OpenFaceplate {
   tag: string

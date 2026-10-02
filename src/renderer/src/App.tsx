@@ -77,6 +77,8 @@ export function App(): JSX.Element {
           {display === 'wfi' && <AreaDisplay area="WFI" />}
           {display === 'autoclave' && <AreaDisplay area="AUTOCLAVE" />}
           {display === 'lyo' && <AreaDisplay area="LYO" />}
+          {display === 'cip' && <AreaDisplay area="CIP" />}
+          {display === 'tcu' && <AreaDisplay area="TCU" />}
           {display === 'alarms' && <AlarmSummary />}
           {display === 'trend' && <TrendDisplay />}
           {display === 'explorer' && <ExplorerDisplay />}

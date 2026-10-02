@@ -44,6 +44,11 @@ export function SfcDisplay(): JSX.Element {
             <option>FEED</option>
             <option>REACTOR</option>
             <option>PRODUCT</option>
+            <option>WFI</option>
+            <option>AUTOCLAVE</option>
+            <option>LYO</option>
+            <option>CIP</option>
+            <option>TCU</option>
           </select>
           <button
             className="tbtn sm"

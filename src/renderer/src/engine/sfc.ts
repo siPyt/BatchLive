@@ -198,10 +198,13 @@ export function makeSampleSfc(): SfcDef {
   }
 }
 
-/** Autoclave 1 sterilization cycle: pre-vacuum pulse, steam-up, hold, exhaust, dry. */
-export function makeAutoclaveSfc(): SfcDef {
+/** Autoclave sterilization cycle: pre-vacuum pulse, steam-up, hold, exhaust, dry. */
+export function makeAutoclaveSfc(
+  cfg: { name?: string; tic?: string; pic?: string; xv?: string } = {}
+): SfcDef {
+  const { name = 'STERILIZE-AC1', tic = 'TIC-501', pic = 'PIC-501', xv = 'XV-501' } = cfg
   return {
-    name: 'STERILIZE-AC1',
+    name,
     area: 'AUTOCLAVE',
     status: 'READY',
     active: 0,
@@ -217,28 +220,28 @@ export function makeAutoclaveSfc(): SfcDef {
         id: newStep('').id,
         name: 'VACUUM PULSE',
         actions: [
-          { kind: 'mode', tag: 'PIC-501', mode: 'AUTO' },
-          { kind: 'sp', tag: 'PIC-501', value: -80 }
+          { kind: 'mode', tag: pic, mode: 'AUTO' },
+          { kind: 'sp', tag: pic, value: -80 }
         ],
-        transition: { kind: 'pv', tag: 'PIC-501', op: '<=', value: -75 }
+        transition: { kind: 'pv', tag: pic, op: '<=', value: -75 }
       },
       {
         id: newStep('').id,
         name: 'STEAM UP TO 121C',
         actions: [
-          { kind: 'mode', tag: 'TIC-501', mode: 'AUTO' },
-          { kind: 'sp', tag: 'TIC-501', value: 121 },
-          { kind: 'mode', tag: 'PIC-501', mode: 'AUTO' },
-          { kind: 'sp', tag: 'PIC-501', value: 120 }
+          { kind: 'mode', tag: tic, mode: 'AUTO' },
+          { kind: 'sp', tag: tic, value: 121 },
+          { kind: 'mode', tag: pic, mode: 'AUTO' },
+          { kind: 'sp', tag: pic, value: 120 }
         ],
-        transition: { kind: 'pv', tag: 'TIC-501', op: '>=', value: 121 }
+        transition: { kind: 'pv', tag: tic, op: '>=', value: 121 }
       },
       {
         id: newStep('').id,
         name: 'STERILIZE HOLD (121C)',
         actions: [
-          { kind: 'mode', tag: 'TIC-501', mode: 'AUTO' },
-          { kind: 'sp', tag: 'TIC-501', value: 121 }
+          { kind: 'mode', tag: tic, mode: 'AUTO' },
+          { kind: 'sp', tag: tic, value: 121 }
         ],
         transition: { kind: 'timer', seconds: 20 }
       },
@@ -246,21 +249,21 @@ export function makeAutoclaveSfc(): SfcDef {
         id: newStep('').id,
         name: 'EXHAUST',
         actions: [
-          { kind: 'mode', tag: 'TIC-501', mode: 'MAN' },
-          { kind: 'out', tag: 'TIC-501', value: 18 },
-          { kind: 'mode', tag: 'PIC-501', mode: 'AUTO' },
-          { kind: 'sp', tag: 'PIC-501', value: 0 },
-          { kind: 'valve', tag: 'XV-501', open: true }
+          { kind: 'mode', tag: tic, mode: 'MAN' },
+          { kind: 'out', tag: tic, value: 18 },
+          { kind: 'mode', tag: pic, mode: 'AUTO' },
+          { kind: 'sp', tag: pic, value: 0 },
+          { kind: 'valve', tag: xv, open: true }
         ],
-        transition: { kind: 'pv', tag: 'PIC-501', op: '<=', value: 5 }
+        transition: { kind: 'pv', tag: pic, op: '<=', value: 5 }
       },
       {
         id: newStep('').id,
         name: 'VACUUM DRY',
         actions: [
-          { kind: 'mode', tag: 'PIC-501', mode: 'AUTO' },
-          { kind: 'sp', tag: 'PIC-501', value: -50 },
-          { kind: 'valve', tag: 'XV-501', open: false }
+          { kind: 'mode', tag: pic, mode: 'AUTO' },
+          { kind: 'sp', tag: pic, value: -50 },
+          { kind: 'valve', tag: xv, open: false }
         ],
         transition: { kind: 'timer', seconds: 10 }
       }
@@ -268,10 +271,11 @@ export function makeAutoclaveSfc(): SfcDef {
   }
 }
 
-/** Lyophilizer 1 cycle: freeze, primary dry (deep vacuum + heat), secondary dry, unload. */
-export function makeLyoSfc(): SfcDef {
+/** Lyophilizer cycle: freeze, primary dry (deep vacuum + heat), secondary dry, unload. */
+export function makeLyoSfc(cfg: { name?: string; tic?: string; pic?: string; xv?: string } = {}): SfcDef {
+  const { name = 'LYO-CYCLE-1', tic = 'TIC-601', pic = 'PIC-601', xv = 'XV-601' } = cfg
   return {
-    name: 'LYO-CYCLE-1',
+    name,
     area: 'LYO',
     status: 'READY',
     active: 0,
@@ -287,36 +291,106 @@ export function makeLyoSfc(): SfcDef {
         id: newStep('').id,
         name: 'FREEZING',
         actions: [
-          { kind: 'mode', tag: 'TIC-601', mode: 'AUTO' },
-          { kind: 'sp', tag: 'TIC-601', value: -40 }
+          { kind: 'mode', tag: tic, mode: 'AUTO' },
+          { kind: 'sp', tag: tic, value: -40 }
         ],
-        transition: { kind: 'pv', tag: 'TIC-601', op: '<=', value: -35 }
+        transition: { kind: 'pv', tag: tic, op: '<=', value: -35 }
       },
       {
         id: newStep('').id,
         name: 'PRIMARY DRYING',
         actions: [
-          { kind: 'mode', tag: 'PIC-601', mode: 'AUTO' },
-          { kind: 'sp', tag: 'PIC-601', value: 100 },
-          { kind: 'mode', tag: 'TIC-601', mode: 'AUTO' },
-          { kind: 'sp', tag: 'TIC-601', value: -20 },
-          { kind: 'valve', tag: 'XV-601', open: true }
+          { kind: 'mode', tag: pic, mode: 'AUTO' },
+          { kind: 'sp', tag: pic, value: 100 },
+          { kind: 'mode', tag: tic, mode: 'AUTO' },
+          { kind: 'sp', tag: tic, value: -20 },
+          { kind: 'valve', tag: xv, open: true }
         ],
-        transition: { kind: 'pv', tag: 'PIC-601', op: '<=', value: 110 }
+        transition: { kind: 'pv', tag: pic, op: '<=', value: 110 }
       },
       {
         id: newStep('').id,
         name: 'SECONDARY DRYING',
         actions: [
-          { kind: 'mode', tag: 'TIC-601', mode: 'AUTO' },
-          { kind: 'sp', tag: 'TIC-601', value: 25 }
+          { kind: 'mode', tag: tic, mode: 'AUTO' },
+          { kind: 'sp', tag: tic, value: 25 }
         ],
         transition: { kind: 'timer', seconds: 15 }
       },
       {
         id: newStep('').id,
         name: 'UNLOAD',
-        actions: [{ kind: 'valve', tag: 'XV-601', open: false }],
+        actions: [{ kind: 'valve', tag: xv, open: false }],
+        transition: { kind: 'timer', seconds: 5 }
+      }
+    ]
+  }
+}
+
+/** CIP (Clean-In-Place) cycle: pre-rinse, caustic wash, intermediate rinse, acid rinse, drain. */
+export function makeCipSfc(cfg: {
+  name: string
+  tic: string
+  fic: string
+  p: string
+  xvSupply: string
+  xvReturn: string
+}): SfcDef {
+  const { name, tic, fic, p, xvSupply, xvReturn } = cfg
+  return {
+    name,
+    area: 'CIP',
+    status: 'READY',
+    active: 0,
+    elapsed: 0,
+    steps: [
+      {
+        id: newStep('').id,
+        name: 'PRE-RINSE',
+        actions: [
+          { kind: 'valve', tag: xvSupply, open: true },
+          { kind: 'valve', tag: xvReturn, open: true },
+          { kind: 'motor', tag: p, run: true },
+          { kind: 'mode', tag: fic, mode: 'AUTO' },
+          { kind: 'sp', tag: fic, value: 20 },
+          { kind: 'mode', tag: tic, mode: 'AUTO' },
+          { kind: 'sp', tag: tic, value: 25 }
+        ],
+        transition: { kind: 'timer', seconds: 8 }
+      },
+      {
+        id: newStep('').id,
+        name: 'CAUSTIC WASH HEAT-UP',
+        actions: [{ kind: 'sp', tag: tic, value: 75 }],
+        transition: { kind: 'pv', tag: tic, op: '>=', value: 70 }
+      },
+      {
+        id: newStep('').id,
+        name: 'CAUSTIC RECIRC HOLD',
+        actions: [],
+        transition: { kind: 'timer', seconds: 15 }
+      },
+      {
+        id: newStep('').id,
+        name: 'INTERMEDIATE RINSE',
+        actions: [{ kind: 'sp', tag: tic, value: 25 }],
+        transition: { kind: 'timer', seconds: 8 }
+      },
+      {
+        id: newStep('').id,
+        name: 'ACID RINSE',
+        actions: [{ kind: 'sp', tag: tic, value: 40 }],
+        transition: { kind: 'timer', seconds: 8 }
+      },
+      {
+        id: newStep('').id,
+        name: 'FINAL RINSE / DRAIN',
+        actions: [
+          { kind: 'sp', tag: tic, value: 25 },
+          { kind: 'valve', tag: xvSupply, open: false },
+          { kind: 'valve', tag: xvReturn, open: false },
+          { kind: 'motor', tag: p, run: false }
+        ],
         transition: { kind: 'timer', seconds: 5 }
       }
     ]

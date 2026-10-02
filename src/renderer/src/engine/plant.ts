@@ -33,24 +33,69 @@ export const CUSTOM_PHYSICS_TAGS = new Set([
 /** Tags that belong to the default project baseline and cannot be deleted. */
 export const BUILTIN_TAGS = new Set([
   ...CUSTOM_PHYSICS_TAGS,
-  // WFI Generation & Distribution Loop (generic closed-loop simulation)
+  // WFI Generation & Distribution Loop (2 stills, generic closed-loop simulation)
   'TIC-401',
+  'FI-401',
   'LIC-401',
   'PIC-401',
   'AT-401',
   'TI-402',
   'P-401',
   'XV-401',
-  // Autoclave 1 (steam sterilizer) — driven by the STERILIZE-AC1 SFC
+  'TIC-411',
+  'FI-411',
+  'P-402',
+  'XV-411',
+  // Autoclave 1 & 2 (steam sterilizers) — driven by STERILIZE-AC1/AC2 SFCs
   'TIC-501',
   'PIC-501',
   'XV-501',
   'DI-501',
-  // Lyophilizer 1 (freeze dryer) — driven by the LYO-CYCLE-1 SFC
+  'TIC-511',
+  'PIC-511',
+  'XV-511',
+  'DI-511',
+  // Lyophilizer 1 & 2 (freeze dryers) — driven by LYO-CYCLE-1/2 SFCs
   'TIC-601',
   'PIC-601',
   'AT-601',
-  'XV-601'
+  'XV-601',
+  'TIC-611',
+  'PIC-611',
+  'AT-611',
+  'XV-611',
+  // CIP Skids 1-3 (Clean-In-Place) — driven by CIP-CYCLE-1/2/3 SFCs
+  'TIC-701',
+  'FIC-701',
+  'AT-701',
+  'P-701',
+  'XV-701',
+  'XV-702',
+  'TIC-711',
+  'FIC-711',
+  'AT-711',
+  'P-711',
+  'XV-711',
+  'XV-712',
+  'TIC-721',
+  'FIC-721',
+  'AT-721',
+  'P-721',
+  'XV-721',
+  'XV-722',
+  // TCUs (Temperature Control Units) — continuously-running utility skids
+  'TIC-801',
+  'FIC-801',
+  'P-801',
+  'HS-801',
+  'TIC-811',
+  'FIC-811',
+  'P-811',
+  'HS-811',
+  'TIC-821',
+  'FIC-821',
+  'P-821',
+  'HS-821'
 ])
 function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>): PidModule {
   const m: PidModule = {
@@ -414,18 +459,18 @@ export function buildInitialPlant(): PlantState {
   add(hs201)
 
   // =========================================================================
-  // GMP Pharma Factory additions — WFI, Autoclave, Lyophilizer.
-  // These run on the generic closed-loop/device-control engine (no bespoke
-  // physics needed): PID modules self-regulate toward a setpoint-proportional
-  // target, and Motor/Valve modules follow the Device Control block already
-  // used by the reactor train.
+  // GMP Pharma Factory additions — WFI (2 stills), Autoclaves (x2), Lyophilizers
+  // (x2), CIP skids (x3), and TCUs (x3). These run on the generic closed-loop
+  // /device-control engine (no bespoke physics needed): PID modules
+  // self-regulate toward a setpoint-proportional target, and Motor/Valve
+  // modules follow the Device Control block already used by the reactor train.
   // =========================================================================
 
   // --- WFI (Water For Injection) generation & distribution loop ----------
   add(
     pid({
       tag: 'TIC-401',
-      description: 'WFI STILL/VCD TEMPERATURE',
+      description: 'WFI STILL 1 VCD TEMPERATURE',
       area: 'WFI',
       unit: 'degC',
       pvMax: 140,
@@ -435,6 +480,41 @@ export function buildInitialPlant(): PlantState {
       gain: 1.5,
       reset: 15,
       direct: false
+    })
+  )
+  add(
+    ai({
+      tag: 'FI-401',
+      description: 'WFI STILL 1 STEAM FLOW',
+      area: 'WFI',
+      unit: 'kg/h',
+      pvMax: 500,
+      pv: 320
+    })
+  )
+  add(
+    pid({
+      tag: 'TIC-411',
+      description: 'WFI STILL 2 VCD TEMPERATURE',
+      area: 'WFI',
+      unit: 'degC',
+      pvMax: 140,
+      sp: 128,
+      out: 55,
+      mode: 'AUTO',
+      gain: 1.5,
+      reset: 15,
+      direct: false
+    })
+  )
+  add(
+    ai({
+      tag: 'FI-411',
+      description: 'WFI STILL 2 STEAM FLOW',
+      area: 'WFI',
+      unit: 'kg/h',
+      pvMax: 500,
+      pv: 310
     })
   )
   add(
@@ -489,14 +569,16 @@ export function buildInitialPlant(): PlantState {
       alarms: [{ type: 'LO', label: 'LO (COLD LOOP)', priority: 'WARNING', limit: 65, enabled: true }]
     })
   )
-  add(motor({ tag: 'P-401', description: 'WFI DISTRIBUTION PUMP', area: 'WFI', running: true, commanded: true }))
+  add(motor({ tag: 'P-401', description: 'WFI DISTRIBUTION PUMP 1', area: 'WFI', running: true, commanded: true }))
+  add(motor({ tag: 'P-402', description: 'WFI DISTRIBUTION PUMP 2 (STANDBY)', area: 'WFI' }))
   add(valve({ tag: 'XV-401', description: 'WFI LOOP SAMPLE VALVE', area: 'WFI' }))
+  add(valve({ tag: 'XV-411', description: 'WFI STILL 2 OUTLET VALVE', area: 'WFI', open: true, commandedOpen: true }))
 
   // --- Autoclave 1 (steam sterilizer) — cycle run from SFC STERILIZE-AC1 --
   add(
     pid({
       tag: 'TIC-501',
-      description: 'AUTOCLAVE CHAMBER TEMPERATURE',
+      description: 'AUTOCLAVE 1 CHAMBER TEMPERATURE',
       area: 'AUTOCLAVE',
       unit: 'degC',
       pvMax: 140,
@@ -511,7 +593,7 @@ export function buildInitialPlant(): PlantState {
   add(
     pid({
       tag: 'PIC-501',
-      description: 'AUTOCLAVE CHAMBER PRESSURE',
+      description: 'AUTOCLAVE 1 CHAMBER PRESSURE',
       area: 'AUTOCLAVE',
       unit: 'kPa',
       pvMin: -100,
@@ -524,11 +606,55 @@ export function buildInitialPlant(): PlantState {
       direct: false
     })
   )
-  add(valve({ tag: 'XV-501', description: 'CHAMBER DRAIN / EXHAUST VALVE', area: 'AUTOCLAVE' }))
+  add(valve({ tag: 'XV-501', description: 'AC-1 CHAMBER DRAIN / EXHAUST VALVE', area: 'AUTOCLAVE' }))
   add({
     tag: 'DI-501',
     type: 'DI',
-    description: 'CHAMBER DOOR CLOSED INTERLOCK',
+    description: 'AC-1 CHAMBER DOOR CLOSED INTERLOCK',
+    area: 'AUTOCLAVE',
+    state: true,
+    activeDescriptor: 'CLOSED',
+    inactiveDescriptor: 'OPEN',
+    alarms: [{ type: 'LO', label: 'DOOR OPEN', priority: 'WARNING', enabled: true }]
+  })
+
+  // --- Autoclave 2 (steam sterilizer) — cycle run from SFC STERILIZE-AC2 --
+  add(
+    pid({
+      tag: 'TIC-511',
+      description: 'AUTOCLAVE 2 CHAMBER TEMPERATURE',
+      area: 'AUTOCLAVE',
+      unit: 'degC',
+      pvMax: 140,
+      sp: 25,
+      out: 18,
+      mode: 'MAN',
+      gain: 2.0,
+      reset: 8,
+      direct: false
+    })
+  )
+  add(
+    pid({
+      tag: 'PIC-511',
+      description: 'AUTOCLAVE 2 CHAMBER PRESSURE',
+      area: 'AUTOCLAVE',
+      unit: 'kPa',
+      pvMin: -100,
+      pvMax: 300,
+      sp: 0,
+      out: 25,
+      mode: 'MAN',
+      gain: 1.5,
+      reset: 8,
+      direct: false
+    })
+  )
+  add(valve({ tag: 'XV-511', description: 'AC-2 CHAMBER DRAIN / EXHAUST VALVE', area: 'AUTOCLAVE' }))
+  add({
+    tag: 'DI-511',
+    type: 'DI',
+    description: 'AC-2 CHAMBER DOOR CLOSED INTERLOCK',
     area: 'AUTOCLAVE',
     state: true,
     activeDescriptor: 'CLOSED',
@@ -540,7 +666,7 @@ export function buildInitialPlant(): PlantState {
   add(
     pid({
       tag: 'TIC-601',
-      description: 'LYO SHELF TEMPERATURE',
+      description: 'LYO 1 SHELF TEMPERATURE',
       area: 'LYO',
       unit: 'degC',
       pvMin: -50,
@@ -556,7 +682,7 @@ export function buildInitialPlant(): PlantState {
   add(
     pid({
       tag: 'PIC-601',
-      description: 'LYO CHAMBER VACUUM',
+      description: 'LYO 1 CHAMBER VACUUM',
       area: 'LYO',
       unit: 'mTorr',
       pvMax: 1000,
@@ -571,7 +697,7 @@ export function buildInitialPlant(): PlantState {
   add(
     ai({
       tag: 'AT-601',
-      description: 'LYO PRODUCT TEMPERATURE (RTD PROBE)',
+      description: 'LYO 1 PRODUCT TEMPERATURE (RTD PROBE)',
       area: 'LYO',
       unit: 'degC',
       pvMin: -60,
@@ -579,7 +705,152 @@ export function buildInitialPlant(): PlantState {
       pv: 20
     })
   )
-  add(valve({ tag: 'XV-601', description: 'CHAMBER ISOLATION VALVE', area: 'LYO' }))
+  add(valve({ tag: 'XV-601', description: 'LYO 1 CHAMBER ISOLATION VALVE', area: 'LYO' }))
+
+  // --- Lyophilizer 2 (freeze dryer) — cycle run from SFC LYO-CYCLE-2 ------
+  add(
+    pid({
+      tag: 'TIC-611',
+      description: 'LYO 2 SHELF TEMPERATURE',
+      area: 'LYO',
+      unit: 'degC',
+      pvMin: -50,
+      pvMax: 50,
+      sp: 20,
+      out: 70,
+      mode: 'MAN',
+      gain: 1.8,
+      reset: 10,
+      direct: false
+    })
+  )
+  add(
+    pid({
+      tag: 'PIC-611',
+      description: 'LYO 2 CHAMBER VACUUM',
+      area: 'LYO',
+      unit: 'mTorr',
+      pvMax: 1000,
+      sp: 1000,
+      out: 100,
+      mode: 'MAN',
+      gain: 1.0,
+      reset: 10,
+      direct: true
+    })
+  )
+  add(
+    ai({
+      tag: 'AT-611',
+      description: 'LYO 2 PRODUCT TEMPERATURE (RTD PROBE)',
+      area: 'LYO',
+      unit: 'degC',
+      pvMin: -60,
+      pvMax: 50,
+      pv: 20
+    })
+  )
+  add(valve({ tag: 'XV-611', description: 'LYO 2 CHAMBER ISOLATION VALVE', area: 'LYO' }))
+
+  // --- CIP Skids (Clean-In-Place) — cycles run from CIP-CYCLE-1/2/3 SFCs ---
+  const cipSkid = (n: 1 | 2 | 3, tic: string, fic: string, at: string, p: string, xvS: string, xvR: string, serves: string): void => {
+    add(
+      pid({
+        tag: tic,
+        description: `CIP-${n} SUPPLY TEMPERATURE (${serves})`,
+        area: 'CIP',
+        unit: 'degC',
+        pvMax: 100,
+        sp: 25,
+        out: 20,
+        mode: 'MAN',
+        gain: 1.4,
+        reset: 12,
+        direct: false
+      })
+    )
+    add(
+      pid({
+        tag: fic,
+        description: `CIP-${n} SUPPLY FLOW`,
+        area: 'CIP',
+        unit: 'm3/h',
+        pvMax: 40,
+        sp: 0,
+        out: 0,
+        mode: 'MAN',
+        gain: 0.9,
+        reset: 8,
+        direct: false
+      })
+    )
+    add(
+      ai({
+        tag: at,
+        description: `CIP-${n} RETURN CONDUCTIVITY (RINSE VERIFY)`,
+        area: 'CIP',
+        unit: 'uS/cm',
+        pvMax: 2000,
+        pv: 1500
+      })
+    )
+    add(motor({ tag: p, description: `CIP-${n} SUPPLY PUMP`, area: 'CIP' }))
+    add(valve({ tag: xvS, description: `CIP-${n} SUPPLY VALVE (TO ${serves})`, area: 'CIP' }))
+    add(valve({ tag: xvR, description: `CIP-${n} RETURN/DIVERT VALVE`, area: 'CIP' }))
+  }
+  cipSkid(1, 'TIC-701', 'FIC-701', 'AT-701', 'P-701', 'XV-701', 'XV-702', 'REACTOR TRAIN')
+  cipSkid(2, 'TIC-711', 'FIC-711', 'AT-711', 'P-711', 'XV-711', 'XV-712', 'WFI/AUTOCLAVE/LYO')
+  cipSkid(3, 'TIC-721', 'FIC-721', 'AT-721', 'P-721', 'XV-721', 'XV-722', 'PRODUCT/FILLING')
+
+  // --- TCUs (Temperature Control Units) — continuously-running utility skids
+  const tcu = (n: 1 | 2 | 3, tic: string, fic: string, p: string, hs: string, serves: string, spDefault: number): void => {
+    add(
+      pid({
+        tag: tic,
+        description: `TCU-${n} SUPPLY TEMPERATURE (${serves})`,
+        area: 'TCU',
+        unit: 'degC',
+        pvMin: -20,
+        pvMax: 150,
+        sp: spDefault,
+        out: 50,
+        mode: 'AUTO',
+        gain: 1.6,
+        reset: 12,
+        direct: false
+      })
+    )
+    add(
+      pid({
+        tag: fic,
+        description: `TCU-${n} COOLANT/GLYCOL FLOW`,
+        area: 'TCU',
+        unit: 'm3/h',
+        pvMax: 30,
+        sp: 18,
+        out: 55,
+        mode: 'AUTO',
+        gain: 1.0,
+        reset: 10,
+        direct: false
+      })
+    )
+    add(motor({ tag: p, description: `TCU-${n} CIRCULATION PUMP`, area: 'TCU', running: true, commanded: true }))
+    add({
+      tag: hs,
+      type: 'DO',
+      description: `TCU-${n} ELECTRIC HEATER STAGE`,
+      area: 'TCU',
+      state: true,
+      commanded: true,
+      activeDescriptor: 'ON',
+      inactiveDescriptor: 'OFF',
+      alarms: []
+    })
+  }
+  tcu(1, 'TIC-801', 'FIC-801', 'P-801', 'HS-801', 'REACTOR JACKET', 85)
+  tcu(2, 'TIC-811', 'FIC-811', 'P-811', 'HS-811', 'LYO-1 SHELVES', -40)
+  tcu(3, 'TIC-821', 'FIC-821', 'P-821', 'HS-821', 'LYO-2 SHELVES', -40)
 
   // --- Equipment Module membership (ISA-88 physical hierarchy) -----------
   for (const [tag, em] of Object.entries(DEFAULT_MEMBERSHIP)) {
