@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import type { PidModule, ControlMode, AlarmPriority } from '../engine/types'
-import { fmt } from '../utils/format'
+import { fmt, modeColor } from '../utils/format'
 
 const MODES: ControlMode[] = ['MAN', 'AUTO', 'CAS']
 type Tab = 'operate' | 'tune' | 'alarm' | 'trend'
@@ -12,14 +12,16 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const setSetpoint = useStore((s) => s.setSetpoint)
   const setOutput = useStore((s) => s.setOutput)
   const setTuning = useStore((s) => s.setTuning)
+  const setCasHealthy = useStore((s) => s.setCasHealthy)
   const [tab, setTab] = useState<Tab>('operate')
 
   if (!m) return null
   const span = m.pvMax - m.pvMin || 1
   const pvPct = ((m.pv - m.pvMin) / span) * 100
   const spPct = ((m.sp - m.pvMin) / span) * 100
-  const spEditable = m.mode === 'AUTO'
-  const outEditable = m.mode === 'MAN' || m.mode === 'ROUT'
+  const shed = m.actualMode !== m.mode
+  const spEditable = m.actualMode === 'AUTO'
+  const outEditable = m.actualMode === 'MAN' || m.actualMode === 'ROUT'
 
   return (
     <div className="fp-body">
@@ -47,8 +49,10 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
           <div className="fp-moderow">
             <span className="fp-label">Mode</span>
             <span className="fp-modeind">
-              Tgt <b>{m.mode}</b> · Act <b>{m.mode}</b>
+              Tgt <b style={{ color: modeColor(m.mode) }}>{m.mode}</b> · Act{' '}
+              <b style={{ color: modeColor(m.actualMode) }}>{m.actualMode}</b>
             </span>
+            {shed && <span style={{ color: 'var(--dv-critical)', fontWeight: 700, marginLeft: 6 }}>SHED</span>}
           </div>
 
           <div className="fp-modes">
@@ -111,6 +115,14 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
               {fmt(m.pvMin, 0)} – {fmt(m.pvMax, 0)} {m.unit}
             </span>
           </div>
+          {m.casSource && (
+            <div className="fp-row">
+              <span className="fp-label">CAS_IN_D (SHED_OPT=Auto)</span>
+              <button className="fp-btn" onClick={() => setCasHealthy(tag, !m.casHealthy)}>
+                {m.casHealthy ? 'Force Cascade Fail' : 'Restore Cascade'}
+              </button>
+            </div>
+          )}
         </>
       )}
 

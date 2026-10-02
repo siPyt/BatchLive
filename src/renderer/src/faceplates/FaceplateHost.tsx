@@ -6,6 +6,7 @@ import { MotorFaceplate } from './MotorFaceplate'
 import { ValveFaceplate } from './ValveFaceplate'
 import { AiFaceplate } from './AiFaceplate'
 import { DiscreteFaceplate } from './DiscreteFaceplate'
+import { PEN_TAGS } from '../displays/TrendDisplay'
 
 /** Renders every open faceplate window. */
 export function FaceplateHost(): JSX.Element {
@@ -24,6 +25,10 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
   const close = useUi((s) => s.closeFaceplate)
   const move = useUi((s) => s.moveFaceplate)
   const select = useUi((s) => s.select)
+  const openStudio = useUi((s) => s.openStudio)
+  const focusExplorer = useUi((s) => s.focusExplorer)
+  const focusTrend = useUi((s) => s.focusTrend)
+  const focusAlarms = useUi((s) => s.focusAlarms)
   const drag = useRef<{ dx: number; dy: number } | null>(null)
 
   useEffect(() => {
@@ -79,6 +84,24 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
         </button>
       </div>
       {body}
+      <div className="fp-links">
+        <button className="fp-link-btn" onClick={() => openStudio(tag)} title="Open with Control Studio">
+          ⌁ Studio
+        </button>
+        <button className="fp-link-btn" onClick={() => focusExplorer(tag)} title="Locate in DeltaV Explorer">
+          ▦ Explorer
+        </button>
+        {PEN_TAGS.has(tag) && (
+          <button className="fp-link-btn" onClick={() => focusTrend(tag)} title="Open Historian Trend">
+            📈 Trend
+          </button>
+        )}
+        {m.alarms.length > 0 && (
+          <button className="fp-link-btn" onClick={() => focusAlarms(tag)} title="Open Alarm List">
+            ⚠ Alarms
+          </button>
+        )}
+      </div>
     </div>
   )
 }

@@ -5,6 +5,8 @@ import { AlarmBanner } from './components/AlarmBanner'
 import { TopBar } from './components/TopBar'
 import { NavSidebar } from './components/NavSidebar'
 import { StatusBar } from './components/StatusBar'
+import { FlexLockOverlay } from './components/FlexLockOverlay'
+import { AccessDeniedToast } from './components/AccessDeniedToast'
 import { FaceplateHost } from './faceplates/FaceplateHost'
 import { OverviewDisplay } from './displays/OverviewDisplay'
 import { AreaDisplay } from './displays/AreaDisplay'
@@ -16,6 +18,8 @@ import { BatchDisplay } from './displays/BatchDisplay'
 import { SfcDisplay } from './displays/SfcDisplay'
 import { DisplayBuilder } from './displays/DisplayBuilder'
 import { WorkshopsDisplay } from './displays/WorkshopsDisplay'
+import { UserManagerDisplay } from './displays/UserManagerDisplay'
+import { PhysicalNetworkDisplay } from './displays/PhysicalNetworkDisplay'
 
 export function App(): JSX.Element {
   const tick = useStore((s) => s.tick)
@@ -60,10 +64,14 @@ export function App(): JSX.Element {
           {display === 'sfc' && <SfcDisplay />}
           {display === 'builder' && <DisplayBuilder />}
           {display === 'workshops' && <WorkshopsDisplay />}
+          {display === 'users' && <UserManagerDisplay />}
+          {display === 'hardware' && <PhysicalNetworkDisplay />}
           <FaceplateHost />
         </div>
       </div>
       <StatusBar />
+      <AccessDeniedToast />
+      <FlexLockOverlay />
     </div>
   )
 }

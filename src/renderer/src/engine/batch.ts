@@ -1,10 +1,13 @@
-import type { PlantState, AnyModule, PidModule, ControlMode } from './types'
+import type { PlantState, AnyModule } from './types'
+import { evalCondition, applyAction, type SfcStep } from './sfc'
 
 // ---------------------------------------------------------------------------
 // DeltaV Batch (ISA-88) layer.
 // Physical:  Process Cell > Unit > Phase.
 // Procedural: Procedure > Operation > Phase (simplified to one operation here).
-// Phase logic is a sequential function chart (steps + transitions) per phase.
+// Phase logic is a sequential function chart (steps + transitions) per phase —
+// reuses the same SfcStep/SfcAction/SfcCondition engine as Control Studio SFCs,
+// since a DeltaV Phase Class Module's logic IS an SFC.
 // ---------------------------------------------------------------------------
 
 export type PhaseState =
@@ -23,27 +26,12 @@ export type BatchStatus = 'READY' | 'RUNNING' | 'HELD' | 'STOPPED' | 'ABORTED' |
 
 export type BatchCommand = 'START' | 'HOLD' | 'RESTART' | 'STOP' | 'ABORT' | 'RESET'
 
-/** One action applied while a step is active (idempotent — re-applied each scan). */
-type PhaseAction =
-  | { kind: 'mode'; tag: string; mode: ControlMode }
-  | { kind: 'sp'; tag: string; value: number }
-  | { kind: 'out'; tag: string; value: number }
-  | { kind: 'motor'; tag: string; run: boolean }
-  | { kind: 'valve'; tag: string; open: boolean }
-  | { kind: 'do'; tag: string; on: boolean }
-
-interface PhaseStep {
-  name: string
-  actions: PhaseAction[]
-  /** Transition condition to advance to the next step. */
-  until: (p: PlantState, elapsed: number) => boolean
-}
-
 export interface PhaseDef {
   name: string
   description: string
   unit: string
-  steps: PhaseStep[]
+  /** Phase logic, editable in the Batch Operator "Phase Logic" panel. */
+  steps: SfcStep[]
 }
 
 export interface BatchEvent {
@@ -78,101 +66,86 @@ export const PROCEDURE: string[] = ['CHARGE', 'HEAT', 'REACT', 'DISCHARGE']
 export const RECIPE_NAME = 'REACT_A'
 export const BATCH_UNIT = 'REACTOR'
 
-export const PHASES: Record<string, PhaseDef> = {
-  CHARGE: {
-    name: 'CHARGE',
-    description: 'Charge reactor from feed system',
-    unit: BATCH_UNIT,
-    steps: [
-      {
-        name: 'OPEN_FEED',
-        actions: [
-          { kind: 'do', tag: 'HS-201', on: true },
-          { kind: 'motor', tag: 'P-201', run: false },
-          { kind: 'valve', tag: 'XV-101', open: true },
-          { kind: 'motor', tag: 'P-101', run: true }
-        ],
-        until: (p) => p.process.reactorLevel >= 80
-      }
-    ]
-  },
-  HEAT: {
-    name: 'HEAT',
-    description: 'Heat reactor to reaction temperature',
-    unit: BATCH_UNIT,
-    steps: [
-      {
-        name: 'STOP_FEED',
-        actions: [
-          { kind: 'motor', tag: 'P-101', run: false },
-          { kind: 'valve', tag: 'XV-101', open: false },
-          { kind: 'do', tag: 'HS-201', on: true },
-          { kind: 'mode', tag: 'TIC-201', mode: 'AUTO' },
-          { kind: 'sp', tag: 'TIC-201', value: 92 }
-        ],
-        until: (p) => p.process.reactorTemp >= 90
-      }
-    ]
-  },
-  REACT: {
-    name: 'REACT',
-    description: 'Hold at reaction temperature (soak)',
-    unit: BATCH_UNIT,
-    steps: [
-      {
-        name: 'SOAK',
-        actions: [
-          { kind: 'mode', tag: 'TIC-201', mode: 'AUTO' },
-          { kind: 'sp', tag: 'TIC-201', value: 92 },
-          { kind: 'do', tag: 'HS-201', on: true }
-        ],
-        until: (_p, elapsed) => elapsed >= 30
-      }
-    ]
-  },
-  DISCHARGE: {
-    name: 'DISCHARGE',
-    description: 'Discharge reactor to product header',
-    unit: BATCH_UNIT,
-    steps: [
-      {
-        name: 'PUMP_OUT',
-        actions: [
-          { kind: 'mode', tag: 'TIC-201', mode: 'MAN' },
-          { kind: 'out', tag: 'TIC-201', value: 0 },
-          { kind: 'mode', tag: 'LIC-201', mode: 'MAN' },
-          { kind: 'out', tag: 'LIC-201', value: 100 },
-          { kind: 'motor', tag: 'P-201', run: true },
-          { kind: 'do', tag: 'HS-201', on: false }
-        ],
-        until: (p) => p.process.reactorLevel <= 10
-      }
-    ]
-  }
-}
-
-const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
-
-function applyAction(m: AnyModule, a: PhaseAction): void {
-  if ((a.kind === 'mode' || a.kind === 'sp' || a.kind === 'out') && m.type === 'PID') {
-    const p = m as PidModule
-    if (a.kind === 'mode') {
-      p.mode = a.mode
-      if (a.mode === 'MAN') p._integral = p.out
-    } else if (a.kind === 'sp') {
-      p.sp = clamp(a.value, p.pvMin, p.pvMax)
-    } else if (a.kind === 'out') {
-      if (p.mode === 'MAN' || p.mode === 'ROUT') p.out = clamp(a.value, 0, 100)
+/** Fresh copy of the default phase logic — call once per plant/store instance. */
+export function makeDefaultPhases(): Record<string, PhaseDef> {
+  return {
+    CHARGE: {
+      name: 'CHARGE',
+      description: 'Charge reactor from feed system',
+      unit: BATCH_UNIT,
+      steps: [
+        {
+          id: 'charge-1',
+          name: 'OPEN_FEED',
+          actions: [
+            { kind: 'do', tag: 'HS-201', on: true },
+            { kind: 'motor', tag: 'P-201', run: false },
+            { kind: 'valve', tag: 'XV-101', open: true },
+            { kind: 'motor', tag: 'P-101', run: true }
+          ],
+          transition: { kind: 'pv', tag: 'LIC-201', op: '>=', value: 80 }
+        }
+      ]
+    },
+    HEAT: {
+      name: 'HEAT',
+      description: 'Heat reactor to reaction temperature',
+      unit: BATCH_UNIT,
+      steps: [
+        {
+          id: 'heat-1',
+          name: 'STOP_FEED',
+          actions: [
+            { kind: 'motor', tag: 'P-101', run: false },
+            { kind: 'valve', tag: 'XV-101', open: false },
+            { kind: 'do', tag: 'HS-201', on: true },
+            { kind: 'mode', tag: 'TIC-201', mode: 'AUTO' },
+            { kind: 'sp', tag: 'TIC-201', value: 92 }
+          ],
+          transition: { kind: 'pv', tag: 'TIC-201', op: '>=', value: 90 }
+        }
+      ]
+    },
+    REACT: {
+      name: 'REACT',
+      description: 'Hold at reaction temperature (soak)',
+      unit: BATCH_UNIT,
+      steps: [
+        {
+          id: 'react-1',
+          name: 'SOAK',
+          actions: [
+            { kind: 'mode', tag: 'TIC-201', mode: 'AUTO' },
+            { kind: 'sp', tag: 'TIC-201', value: 92 },
+            { kind: 'do', tag: 'HS-201', on: true }
+          ],
+          transition: { kind: 'timer', seconds: 30 }
+        }
+      ]
+    },
+    DISCHARGE: {
+      name: 'DISCHARGE',
+      description: 'Discharge reactor to product header',
+      unit: BATCH_UNIT,
+      steps: [
+        {
+          id: 'discharge-1',
+          name: 'PUMP_OUT',
+          actions: [
+            { kind: 'mode', tag: 'TIC-201', mode: 'MAN' },
+            { kind: 'out', tag: 'TIC-201', value: 0 },
+            { kind: 'mode', tag: 'LIC-201', mode: 'MAN' },
+            { kind: 'out', tag: 'LIC-201', value: 100 },
+            { kind: 'motor', tag: 'P-201', run: true },
+            { kind: 'do', tag: 'HS-201', on: false }
+          ],
+          transition: { kind: 'pv', tag: 'LIC-201', op: '<=', value: 10 }
+        }
+      ]
     }
-  } else if (a.kind === 'motor' && m.type === 'MOTOR') {
-    m.commanded = a.run
-  } else if (a.kind === 'valve' && m.type === 'VALVE') {
-    m.commandedOpen = a.open
-  } else if (a.kind === 'do' && m.type === 'DO') {
-    m.commanded = a.on
-    m.state = a.on
   }
 }
+
 
 export function makeBatch(): BatchRuntime {
   return {
@@ -186,8 +159,8 @@ export function makeBatch(): BatchRuntime {
   }
 }
 
-function newPhaseRuntime(name: string): BatchPhaseRuntime {
-  const def = PHASES[name]
+function newPhaseRuntime(phases: Record<string, PhaseDef>, name: string): BatchPhaseRuntime {
+  const def = phases[name]
   return {
     name,
     description: def.description,
@@ -203,14 +176,19 @@ function log(b: BatchRuntime, now: number, text: string): void {
 }
 
 /** Apply a single operator command to the batch; returns a new runtime. */
-export function commandBatch(prev: BatchRuntime, cmd: BatchCommand, now: number): BatchRuntime {
+export function commandBatch(
+  prev: BatchRuntime,
+  cmd: BatchCommand,
+  now: number,
+  phases: Record<string, PhaseDef>
+): BatchRuntime {
   const b: BatchRuntime = { ...prev, log: prev.log, phase: prev.phase ? { ...prev.phase } : null }
   switch (cmd) {
     case 'START':
       if (b.status === 'READY') {
         b.status = 'RUNNING'
         b.opIndex = 0
-        b.phase = newPhaseRuntime(PROCEDURE[0])
+        b.phase = newPhaseRuntime(phases, PROCEDURE[0])
         log(b, now, `Batch ${b.id} started · recipe ${b.recipe}`)
       } else if (b.status === 'HELD' && b.phase) {
         b.status = 'RUNNING'
@@ -262,7 +240,7 @@ export function commandBatch(prev: BatchRuntime, cmd: BatchCommand, now: number)
  * and the updated batch runtime.
  */
 export function advanceBatch(
-  state: PlantState & { batch: BatchRuntime },
+  state: PlantState & { batch: BatchRuntime; phases: Record<string, PhaseDef> },
   dt: number,
   now: number
 ): { modules: Record<string, AnyModule>; batch: BatchRuntime } {
@@ -276,7 +254,7 @@ export function advanceBatch(
   for (const k of Object.keys(state.modules)) modules[k] = { ...state.modules[k] }
 
   const phase = { ...b.phase }
-  const def = PHASES[phase.name]
+  const def = state.phases[phase.name]
   const step = def.steps[phase.step]
 
   // Apply the current step's actions (idempotent).
@@ -288,7 +266,7 @@ export function advanceBatch(
   phase.elapsed += dt
   const nextBatch: BatchRuntime = { ...b, phase, log: b.log }
 
-  if (step.until(state, phase.elapsed)) {
+  if (evalCondition(step.transition, state, phase.elapsed)) {
     if (phase.step < def.steps.length - 1) {
       phase.step += 1
       phase.stepName = def.steps[phase.step].name
@@ -300,7 +278,7 @@ export function advanceBatch(
       const nextOp = b.opIndex + 1
       if (nextOp < PROCEDURE.length) {
         nextBatch.opIndex = nextOp
-        nextBatch.phase = newPhaseRuntime(PROCEDURE[nextOp])
+        nextBatch.phase = newPhaseRuntime(state.phases, PROCEDURE[nextOp])
         log(nextBatch, now, `Phase ${PROCEDURE[nextOp]} running`)
       } else {
         nextBatch.status = 'COMPLETE'

@@ -40,3 +40,5 @@ dist-installer/
 *.pdf
 pdf_*.txt
 pdf_img/
+pdf_extracted/
+extract_pdfs.py

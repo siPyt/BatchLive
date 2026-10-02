@@ -7,9 +7,11 @@ import type {
   DiscreteInput,
   ActiveAlarm,
   AlarmLimit,
-  AnyModule
+  AnyModule,
+  DcState
 } from './types'
 import { BUILTIN_TAGS } from './plant'
+import { advanceControllers, computeBadTags, type HardwareState } from './hardware'
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
 const noise = (amp: number): number => (Math.random() - 0.5) * 2 * amp
@@ -18,13 +20,26 @@ const noise = (amp: number): number => (Math.random() - 0.5) * 2 * amp
 const DERIV_ALPHA = 0.125
 
 /**
+ * Resolve a PID block's actual (executing) mode from its target mode.
+ * Mirrors DeltaV's SHED_OPT "Shed with Return": a Cas/RCas target sheds to
+ * Auto while the remote cascade connection (casHealthy) is unhealthy, and
+ * climbs back to Cas automatically as soon as the connection is restored —
+ * the target mode itself never changes.
+ */
+function resolveActualMode(m: PidModule): PidModule['mode'] {
+  if ((m.mode === 'CAS' || m.mode === 'RCAS') && !m.casHealthy) return 'AUTO'
+  return m.mode
+}
+
+/**
  * DeltaV-style standard-form PID. Matches the default STRUCTURE
  * "PI Action on Error, D Action on PV": proportional + integral act on error,
  * derivative acts on the measurement (no derivative kick on SP changes).
  * GAIN is dimensionless, RESET is seconds/repeat, RATE is derivative seconds.
  */
 function computePid(m: PidModule, dt: number): number {
-  if (m.mode === 'MAN' || m.mode === 'ROUT') {
+  m.actualMode = resolveActualMode(m)
+  if (m.actualMode === 'MAN' || m.actualMode === 'ROUT') {
     // Operator holds the output directly; keep derivative state bumpless.
     m._prevPv = m.pv
     m._dFilt = 0
@@ -126,10 +141,119 @@ function reconcile(
 }
 
 /**
+ * Core of the DeltaV Device Control (DC1) function block: resolves DC_STATE
+ * from a commanded setpoint (desired Active/Passive), confirming the
+ * transition after `confirmTimeSec` (TRAVEL_TIMER), and honoring the
+ * Permissive, Interlock, and Reset Required device options.
+ */
+interface DcIo {
+  desired: boolean // SP_D: true = Active, false = Passive
+  confirmed: boolean // FV_D / PV_D: true = Active, false = Passive
+  interlock: boolean // INTERLOCK_D tripped (true = trip condition active)
+  permissiveOk: boolean // PERMISSIVE_D
+  permissiveRequired: boolean
+  resetRequired: boolean
+  locked: boolean
+  fault: boolean // simulated stuck/failed field device (manual "Inject Fault")
+  confirmTimeSec: number
+  travelTimer: number
+  dcState: DcState
+}
+
+function stepDeviceControl(io: DcIo, dt: number): void {
+  // SHUTDOWN_D / tripped INTERLOCK_D forces and holds the Passive state.
+  if (io.interlock) {
+    io.confirmed = false
+    io.dcState = 'SHUTDOWN'
+    io.travelTimer = 0
+    if (io.resetRequired) io.locked = true
+    return
+  }
+  // Reset Required device option: stays Locked (Passive) until an explicit Reset.
+  if (io.locked) {
+    io.confirmed = false
+    io.dcState = 'LOCKED'
+    return
+  }
+  // Permissive device option: blocks a Passive -> Active transition only.
+  const wantsActive = io.desired
+  const blockedByPermissive = wantsActive && !io.confirmed && io.permissiveRequired && !io.permissiveOk
+  const target = blockedByPermissive ? false : wantsActive
+
+  if (io.fault) {
+    // A stuck/failed field device never confirms the commanded state.
+    io.dcState = target ? 'FAILED_ACTIVE' : 'FAILED_PASSIVE'
+    io.travelTimer += dt
+    return
+  }
+
+  if (target === io.confirmed) {
+    io.dcState = io.confirmed ? 'CONFIRMED_ACTIVE' : 'CONFIRMED_PASSIVE'
+    io.travelTimer = 0
+    return
+  }
+
+  // In transit (Going to Active / Going to Passive) for the travel/confirm time.
+  io.dcState = target ? 'GOING_ACTIVE' : 'GOING_PASSIVE'
+  io.travelTimer += dt
+  if (io.travelTimer >= io.confirmTimeSec) {
+    io.confirmed = target
+    io.dcState = target ? 'CONFIRMED_ACTIVE' : 'CONFIRMED_PASSIVE'
+    io.travelTimer = 0
+  }
+}
+
+function applyMotorDC(m: MotorModule, dt: number): void {
+  const io: DcIo = {
+    desired: m.commanded,
+    confirmed: m.running,
+    interlock: m.interlock,
+    permissiveOk: m.permissiveOk,
+    permissiveRequired: m.permissiveRequired,
+    resetRequired: m.resetRequired,
+    locked: m.locked,
+    fault: m.fault,
+    confirmTimeSec: m.confirmTimeSec,
+    travelTimer: m.travelTimer,
+    dcState: m.dcState
+  }
+  stepDeviceControl(io, dt)
+  m.running = io.confirmed
+  m.locked = io.locked
+  m.travelTimer = io.travelTimer
+  m.dcState = io.dcState
+  if (m.running) m.runtimeHrs += dt / 3600
+}
+
+function applyValveDC(m: ValveModule, dt: number): void {
+  const io: DcIo = {
+    desired: m.commandedOpen,
+    confirmed: m.open,
+    interlock: m.interlock,
+    permissiveOk: m.permissiveOk,
+    permissiveRequired: m.permissiveRequired,
+    resetRequired: m.resetRequired,
+    locked: m.locked,
+    fault: m.fault,
+    confirmTimeSec: m.confirmTimeSec,
+    travelTimer: m.travelTimer,
+    dcState: m.dcState
+  }
+  stepDeviceControl(io, dt)
+  m.open = io.confirmed
+  m.locked = io.locked
+  m.travelTimer = io.travelTimer
+  m.dcState = io.dcState
+}
+
+/**
  * Advance the plant by dt seconds. Returns a NEW PlantState (fresh references)
  * so React/zustand subscribers re-render.
  */
-export function stepPlant(prev: PlantState, dtReal: number): PlantState {
+export function stepPlant(
+  prev: PlantState & { hardware: HardwareState },
+  dtReal: number
+): PlantState & { hardware: HardwareState } {
   const dt = dtReal * prev.speed
   const now = prev.time + dt * 1000
   const proc = { ...prev.process }
@@ -153,16 +277,16 @@ export function stepPlant(prev: PlantState, dtReal: number): PlantState {
   const ti101 = modules['TI-101'] as AnalogIndicator
   const lsh101 = modules['LSH-101'] as DiscreteInput
 
-  // --- Discrete device actuation ---------------------------------------
-  p101.running = p101.commanded && !p101.interlock
-  p201.running = p201.commanded && !p201.interlock
-  xv101.open = xv101.commandedOpen && !xv101.interlock
-  xv201.open = xv201.commandedOpen && !xv201.interlock
+  // --- Discrete device actuation (DeltaV Device Control / DC1 block) ---
+  applyMotorDC(p101, dt)
+  applyMotorDC(p201, dt)
+  applyValveDC(xv101, dt)
+  applyValveDC(xv201, dt)
 
   // --- Cascade: LIC-101 (master) sets remote SP of FIC-101 (slave) ------
   const lic101Out = computePid(lic101, dt)
   lic101.out = lic101Out
-  if (fic.mode === 'CAS' || fic.mode === 'RCAS') {
+  if (fic.actualMode === 'CAS' || fic.actualMode === 'RCAS') {
     fic.sp = (lic101Out / 100) * fic.pvMax
   }
   const ficOut = computePid(fic, dt)
@@ -231,11 +355,24 @@ export function stepPlant(prev: PlantState, dtReal: number): PlantState {
       const mid = gm.pvMin + gspan / 2
       gm.pv = clamp(gm.pv + (mid - gm.pv) * 0.01 + noise(gspan * 0.002), gm.pvMin, gm.pvMax)
     } else if (gm.type === 'MOTOR') {
-      gm.running = gm.commanded && !gm.interlock
-      if (gm.running) gm.runtimeHrs += dt / 3600
+      applyMotorDC(gm, dt)
     } else if (gm.type === 'VALVE') {
-      gm.open = gm.commandedOpen && !gm.interlock
+      applyValveDC(gm, dt)
     }
+  }
+
+  // --- Physical Network: CHARM/controller I/O faults propagate to modules
+  const { badPvTags, badCmdTags } = computeBadTags(prev.hardware)
+  for (const tag of badPvTags) {
+    const m = modules[tag]
+    const prevM = prev.modules[tag]
+    if (m && prevM && (m.type === 'PID' || m.type === 'AI') && 'pv' in prevM) {
+      m.pv = prevM.pv // Bad I/O: freeze at the last known-good value.
+    }
+  }
+  for (const tag of badCmdTags) {
+    const m = modules[tag]
+    if (m && (m.type === 'MOTOR' || m.type === 'VALVE')) m.fault = true
   }
 
   // --- Alarm evaluation -------------------------------------------------
@@ -244,8 +381,12 @@ export function stepPlant(prev: PlantState, dtReal: number): PlantState {
     const m = modules[tag]
     if (m.type === 'PID') {
       evalAnalogAlarms(m.tag, m.description, m.pv, m.unit, m.alarms, alarms, now)
+      const pvbad = m.alarms.find((a) => a.type === 'PVBAD')
+      if (pvbad) reconcile(alarms, m.tag, m.description, pvbad, badPvTags.has(m.tag), m.pv, m.unit, now)
     } else if (m.type === 'AI') {
       evalAnalogAlarms(m.tag, m.description, m.pv, m.unit, m.alarms, alarms, now)
+      const pvbad = m.alarms.find((a) => a.type === 'PVBAD')
+      if (pvbad) reconcile(alarms, m.tag, m.description, pvbad, badPvTags.has(m.tag), m.pv, m.unit, now)
     } else if (m.type === 'MOTOR') {
       const fail = m.alarms.find((a) => a.type === 'FAIL')
       if (fail) reconcile(alarms, m.tag, m.description, fail, m.fault, 0, '', now)
@@ -258,15 +399,12 @@ export function stepPlant(prev: PlantState, dtReal: number): PlantState {
     }
   }
 
-  // Motor runtime accumulation.
-  if (p101.running) p101.runtimeHrs += dt / 3600
-  if (p201.running) p201.runtimeHrs += dt / 3600
-
   return {
     ...prev,
     time: now,
     modules,
     alarms,
-    process: proc
+    process: proc,
+    hardware: { ...prev.hardware, controllers: advanceControllers(prev.hardware.controllers, dt) }
   }
 }

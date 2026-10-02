@@ -22,10 +22,13 @@ const TOOLS: NavNode[] = [
 
 const ENGINEERING: NavNode[] = [
   { id: 'explorer', label: 'DeltaV Explorer', ico: '▦' },
+  { id: 'hardware', label: 'Physical Network', ico: '🖧' },
   { id: 'studio', label: 'Control Studio', ico: '⬓' },
   { id: 'sfc', label: 'SFC Charts', ico: '⇵' },
   { id: 'builder', label: 'Display Builder', ico: '▤' }
 ]
+
+const UTILITIES: NavNode[] = [{ id: 'users', label: 'User Manager', ico: '🔑' }]
 
 export function NavSidebar(): JSX.Element {
   const display = useUi((s) => s.display)
@@ -72,6 +75,18 @@ export function NavSidebar(): JSX.Element {
 
       <div className="nav-section">Engineering</div>
       {ENGINEERING.map((n) => (
+        <div
+          key={n.id}
+          className={'nav-item' + (display === n.id ? ' active' : '')}
+          onClick={() => navigate(n.id)}
+        >
+          <span className="ico">{n.ico}</span>
+          {n.label}
+        </div>
+      ))}
+
+      <div className="nav-section">Utilities</div>
+      {UTILITIES.map((n) => (
         <div
           key={n.id}
           className={'nav-item' + (display === n.id ? ' active' : '')}

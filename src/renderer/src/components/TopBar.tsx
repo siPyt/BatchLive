@@ -1,5 +1,6 @@
 import { useStore } from '../engine/store'
 import { useUi, type DisplayId } from '../ui/uiStore'
+import { useSecurity } from '../engine/security'
 import { clockString, dateString } from '../utils/format'
 
 const NAV: { id: DisplayId; label: string }[] = [
@@ -23,6 +24,10 @@ export function TopBar(): JSX.Element {
   const forward = useUi((s) => s.forward)
   const histIndex = useUi((s) => s.histIndex)
   const histLen = useUi((s) => s.history.length)
+  const currentUser = useSecurity((s) => s.currentUser)
+  const users = useSecurity((s) => s.users)
+  const lockWorkstation = useSecurity((s) => s.lockWorkstation)
+  const fullName = users.find((u) => u.name === currentUser)?.fullName ?? currentUser
 
   const current = NAV.find((n) => n.id === display)
 
@@ -91,7 +96,10 @@ export function TopBar(): JSX.Element {
       </div>
       <div className="user">
         <span>👤</span>
-        <span>OPERATOR</span>
+        <span>{fullName}</span>
+        <button className="navarrow" onClick={lockWorkstation} title="Lock Workstation (FlexLock)" style={{ marginLeft: 6 }}>
+          🔒
+        </button>
       </div>
     </div>
   )

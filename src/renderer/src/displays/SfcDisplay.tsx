@@ -187,13 +187,13 @@ function tagsOf(modules: Record<string, AnyModule>, type: AnyModule['type']): st
     .filter((m) => m.type === type)
     .map((m) => m.tag)
 }
-function firstTag(modules: Record<string, AnyModule>, type: AnyModule['type']): string {
+export function firstTag(modules: Record<string, AnyModule>, type: AnyModule['type']): string {
   return tagsOf(modules, type)[0] ?? ''
 }
 
 const ACTION_KINDS: SfcAction['kind'][] = ['mode', 'sp', 'out', 'motor', 'valve', 'do']
 
-function ActionEditor({
+export function ActionEditor({
   action,
   modules,
   onChange,
@@ -272,7 +272,7 @@ function ActionEditor({
 const COND_KINDS: SfcCondition['kind'][] = ['always', 'timer', 'pv', 'out', 'motorRunning', 'valveOpen']
 const OPS: CompareOp[] = ['>', '<', '>=', '<=']
 
-function TransitionEditor({
+export function TransitionEditor({
   cond,
   modules,
   onChange

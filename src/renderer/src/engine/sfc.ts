@@ -91,7 +91,7 @@ export function describeCondition(c: SfcCondition): string {
   }
 }
 
-function evalCondition(c: SfcCondition, state: PlantState, elapsed: number): boolean {
+export function evalCondition(c: SfcCondition, state: PlantState, elapsed: number): boolean {
   const m = 'tag' in c ? (state.modules[c.tag] as AnyModule | undefined) : undefined
   switch (c.kind) {
     case 'always':
@@ -109,7 +109,7 @@ function evalCondition(c: SfcCondition, state: PlantState, elapsed: number): boo
   }
 }
 
-function applyAction(m: AnyModule, a: SfcAction): void {
+export function applyAction(m: AnyModule, a: SfcAction): void {
   if ((a.kind === 'mode' || a.kind === 'sp' || a.kind === 'out') && m.type === 'PID') {
     const p = m as PidModule
     if (a.kind === 'mode') {

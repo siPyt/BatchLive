@@ -5,7 +5,8 @@ import { moduleAlarm, fmt } from '../utils/format'
 import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
 import type { AnyModule, AlarmPriority, ModuleType } from '../engine/types'
 
-// DeltaV Explorer-style system hierarchy: Process Cell > Area > Control Modules.
+// DeltaV Explorer-style system hierarchy:
+// Process Cell > Area > Unit (Equipment Module) > Control Module.
 
 const AREAS = ['FEED', 'REACTOR', 'PRODUCT'] as const
 const AREA_LABEL: Record<string, string> = {
@@ -48,7 +49,9 @@ function statusText(m: AnyModule): { text: string; color: string } {
 export function ExplorerDisplay(): JSX.Element {
   const modules = useStore((s) => s.modules)
   const alarms = useStore((s) => s.alarms)
+  const equipment = useStore((s) => s.equipment)
   const deleteModule = useStore((s) => s.deleteModule)
+  const deleteEquipmentModule = useStore((s) => s.deleteEquipmentModule)
   const selectedTag = useUi((s) => s.selectedTag)
   const select = useUi((s) => s.select)
   const openStudio = useUi((s) => s.openStudio)
@@ -60,7 +63,11 @@ export function ExplorerDisplay(): JSX.Element {
     PRODUCT: true
   })
   const [createArea, setCreateArea] = useState<string | null>(null)
-  const [menu, setMenu] = useState<{ x: number; y: number; kind: 'area' | 'module'; target: string } | null>(null)
+  const [createEmArea, setCreateEmArea] = useState<string | null>(null)
+  const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
+  const [menu, setMenu] = useState<
+    { x: number; y: number; kind: 'area' | 'module' | 'em'; target: string } | null
+  >(null)
 
   useEffect(() => {
     if (!menu) return
@@ -77,6 +84,33 @@ export function ExplorerDisplay(): JSX.Element {
   const list = Object.values(modules)
   const selected = selectedTag ? modules[selectedTag] : undefined
 
+  const renderModuleRow = (m: AnyModule, nested: boolean): JSX.Element => {
+    const alm = moduleAlarm(m.tag, alarms)
+    const st = statusText(m)
+    return (
+      <div
+        key={m.tag}
+        className={'exp-node exp-mod' + (nested ? ' nested' : '') + (selectedTag === m.tag ? ' sel' : '')}
+        onClick={() => select(m.tag)}
+        onDoubleClick={() => openStudio(m.tag)}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          select(m.tag)
+          setMenu({ x: e.clientX, y: e.clientY, kind: 'module', target: m.tag })
+        }}
+      >
+        <span className="exp-caret" />
+        <span className="exp-badge">{TYPE_BADGE[m.type]}</span>
+        <b className="exp-tag">{m.tag}</b>
+        <span className="exp-desc">{m.description}</span>
+        <span className="exp-status" style={{ color: st.color }}>
+          {st.text}
+        </span>
+        {alm && <span className={'exp-alm ' + alm.priority.toLowerCase()}>●</span>}
+      </div>
+    )
+  }
+
   return (
     <div className="display explorer">
       <div className="explorer-tree">
@@ -84,9 +118,21 @@ export function ExplorerDisplay(): JSX.Element {
           <button className="tbtn sm" onClick={() => setCreateArea((v) => (v ? null : 'FEED'))}>
             {createArea ? '✕ Cancel' : '＋ New Module'}
           </button>
-          <span className="exp-hint">right-click an Area → New ▸ Control Module</span>
+          <span className="exp-hint">right-click an Area → New ▸ Control Module / Equipment Module</span>
         </div>
-        {createArea && <NewModuleForm initialArea={createArea} onDone={() => setCreateArea(null)} />}
+        {createArea && (
+          <NewModuleForm
+            initialArea={createArea}
+            initialEquipment={newModuleEm}
+            onDone={() => {
+              setCreateArea(null)
+              setNewModuleEm(undefined)
+            }}
+          />
+        )}
+        {createEmArea && (
+          <NewEquipmentModuleForm initialArea={createEmArea} onDone={() => setCreateEmArea(null)} />
+        )}
         <div className="exp-node exp-cell" onClick={() => toggle('CELL')}>
           <span className="exp-caret">{open.CELL ? '▾' : '▸'}</span>
           <span className="exp-ico">▦</span>
@@ -96,6 +142,8 @@ export function ExplorerDisplay(): JSX.Element {
         {open.CELL &&
           AREAS.map((area) => {
             const mods = list.filter((m) => m.area === area)
+            const ems = Object.values(equipment).filter((em) => em.area === area)
+            const unassigned = mods.filter((m) => !m.equipmentModule || !equipment[m.equipmentModule])
             return (
               <div key={area}>
                 <div
@@ -111,33 +159,45 @@ export function ExplorerDisplay(): JSX.Element {
                   {AREA_LABEL[area]}
                   <span className="exp-sub">{mods.length} modules</span>
                 </div>
-                {open[area] &&
-                  mods.map((m) => {
-                    const alm = moduleAlarm(m.tag, alarms)
-                    const st = statusText(m)
-                    return (
-                      <div
-                        key={m.tag}
-                        className={'exp-node exp-mod' + (selectedTag === m.tag ? ' sel' : '')}
-                        onClick={() => select(m.tag)}
-                        onDoubleClick={() => openStudio(m.tag)}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          select(m.tag)
-                          setMenu({ x: e.clientX, y: e.clientY, kind: 'module', target: m.tag })
-                        }}
-                      >
-                        <span className="exp-caret" />
-                        <span className="exp-badge">{TYPE_BADGE[m.type]}</span>
-                        <b className="exp-tag">{m.tag}</b>
-                        <span className="exp-desc">{m.description}</span>
-                        <span className="exp-status" style={{ color: st.color }}>
-                          {st.text}
-                        </span>
-                        {alm && <span className={'exp-alm ' + alm.priority.toLowerCase()}>●</span>}
+                {open[area] && (
+                  <>
+                    {ems.map((em) => {
+                      const emKey = `EM:${em.tag}`
+                      const emMods = mods.filter((m) => m.equipmentModule === em.tag)
+                      return (
+                        <div key={em.tag}>
+                          <div
+                            className="exp-node exp-em"
+                            onClick={() => toggle(emKey)}
+                            onContextMenu={(e) => {
+                              e.preventDefault()
+                              setMenu({ x: e.clientX, y: e.clientY, kind: 'em', target: em.tag })
+                            }}
+                          >
+                            <span className="exp-caret">{open[emKey] ? '▾' : '▸'}</span>
+                            <span className="exp-ico">◧</span>
+                            {em.tag}
+                            <span className="exp-sub">
+                              {em.description} · {emMods.length} modules
+                            </span>
+                          </div>
+                          {open[emKey] && emMods.map((m) => renderModuleRow(m, true))}
+                        </div>
+                      )
+                    })}
+                    {unassigned.length > 0 && (
+                      <div>
+                        <div className="exp-node exp-em unassigned">
+                          <span className="exp-caret">▾</span>
+                          <span className="exp-ico">◧</span>
+                          (Unassigned)
+                          <span className="exp-sub">{unassigned.length} modules</span>
+                        </div>
+                        {unassigned.map((m) => renderModuleRow(m, true))}
                       </div>
-                    )
-                  })}
+                    )}
+                  </>
+                )}
               </div>
             )
           })}
@@ -160,11 +220,45 @@ export function ExplorerDisplay(): JSX.Element {
               <button
                 className="ctx-item ctx-sub"
                 onClick={() => {
+                  setNewModuleEm(undefined)
                   setCreateArea(menu.target)
                   setMenu(null)
                 }}
               >
                 Control Module…
+              </button>
+              <button
+                className="ctx-item ctx-sub"
+                onClick={() => {
+                  setCreateEmArea(menu.target)
+                  setMenu(null)
+                }}
+              >
+                Equipment Module…
+              </button>
+            </>
+          ) : menu.kind === 'em' ? (
+            <>
+              <div className="ctx-label">{menu.target}</div>
+              <button
+                className="ctx-item"
+                onClick={() => {
+                  const em = equipment[menu.target]
+                  setNewModuleEm(menu.target)
+                  setCreateArea(em?.area ?? 'FEED')
+                  setMenu(null)
+                }}
+              >
+                New ▸ Control Module…
+              </button>
+              <button
+                className="ctx-item danger"
+                onClick={() => {
+                  deleteEquipmentModule(menu.target)
+                  setMenu(null)
+                }}
+              >
+                Delete Equipment Module
               </button>
             </>
           ) : (
@@ -219,8 +313,11 @@ function ModuleProperties({
 }): JSX.Element {
   const setAlarmLimit = useStore((s) => s.setAlarmLimit)
   const deleteModule = useStore((s) => s.deleteModule)
+  const equipment = useStore((s) => s.equipment)
+  const setModuleEquipment = useStore((s) => s.setModuleEquipment)
   const select = useUi((s) => s.select)
   const builtin = BUILTIN_TAGS.has(m.tag)
+  const emsInArea = Object.values(equipment).filter((em) => em.area === m.area)
   const rows: [string, string][] = [
     ['Tag', m.tag],
     ['Description', m.description],
@@ -281,6 +378,21 @@ function ModuleProperties({
             </button>
           )}
         </div>
+      </div>
+      <div className="fp-row" style={{ padding: '4px 12px' }}>
+        <span className="fp-label">Equipment Module</span>
+        <select
+          className="exp-alm-select"
+          value={m.equipmentModule ?? ''}
+          onChange={(e) => setModuleEquipment(m.tag, e.target.value || null)}
+        >
+          <option value="">(Unassigned)</option>
+          {emsInArea.map((em) => (
+            <option key={em.tag} value={em.tag}>
+              {em.tag}
+            </option>
+          ))}
+        </select>
       </div>
       <table className="exp-props-table">
         <tbody>
@@ -355,14 +467,24 @@ function ModuleProperties({
   )
 }
 
-function NewModuleForm({ onDone, initialArea }: { onDone: () => void; initialArea: string }): JSX.Element {
+function NewModuleForm({
+  onDone,
+  initialArea,
+  initialEquipment
+}: {
+  onDone: () => void
+  initialArea: string
+  initialEquipment?: string
+}): JSX.Element {
   const createModule = useStore((s) => s.createModule)
   const modules = useStore((s) => s.modules)
+  const equipment = useStore((s) => s.equipment)
   const select = useUi((s) => s.select)
   const [tag, setTag] = useState('')
   const [type, setType] = useState<ModuleType>('PID')
   const [description, setDescription] = useState('')
   const [area, setArea] = useState(initialArea)
+  const [em, setEm] = useState(initialEquipment ?? '')
   const [unit, setUnit] = useState('%')
   const [pvMin, setPvMin] = useState(0)
   const [pvMax, setPvMax] = useState(100)
@@ -371,6 +493,7 @@ function NewModuleForm({ onDone, initialArea }: { onDone: () => void; initialAre
   const normTag = tag.trim().toUpperCase()
   const exists = normTag.length > 0 && !!modules[normTag]
   const valid = normTag.length > 0 && !exists
+  const emsInArea = Object.values(equipment).filter((e) => e.area === area)
 
   const submit = (): void => {
     if (!valid) return
@@ -379,6 +502,7 @@ function NewModuleForm({ onDone, initialArea }: { onDone: () => void; initialAre
       type,
       description: description.trim() || normTag,
       area,
+      equipmentModule: em || undefined,
       unit: analog ? unit : undefined,
       pvMin: analog ? pvMin : undefined,
       pvMax: analog ? pvMax : undefined
@@ -412,10 +536,27 @@ function NewModuleForm({ onDone, initialArea }: { onDone: () => void; initialAre
       </label>
       <label>
         Area
-        <select value={area} onChange={(e) => setArea(e.target.value)}>
+        <select
+          value={area}
+          onChange={(e) => {
+            setArea(e.target.value)
+            setEm('')
+          }}
+        >
           <option>FEED</option>
           <option>REACTOR</option>
           <option>PRODUCT</option>
+        </select>
+      </label>
+      <label>
+        Equipment Module
+        <select value={em} onChange={(e) => setEm(e.target.value)}>
+          <option value="">(Unassigned)</option>
+          {emsInArea.map((e) => (
+            <option key={e.tag} value={e.tag}>
+              {e.tag}
+            </option>
+          ))}
         </select>
       </label>
       {analog && (
@@ -437,6 +578,62 @@ function NewModuleForm({ onDone, initialArea }: { onDone: () => void; initialAre
       {exists && <div className="exp-newmod-err">Tag already exists</div>}
       <div className="exp-newmod-actions">
         <button className="tbtn sm" disabled={!valid} onClick={submit}>
+          Create
+        </button>
+        <button className="tbtn sm" onClick={onDone}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function NewEquipmentModuleForm({
+  onDone,
+  initialArea
+}: {
+  onDone: () => void
+  initialArea: string
+}): JSX.Element {
+  const createEquipmentModule = useStore((s) => s.createEquipmentModule)
+  const equipment = useStore((s) => s.equipment)
+  const [tag, setTag] = useState('')
+  const [description, setDescription] = useState('')
+  const [area, setArea] = useState(initialArea)
+
+  const normTag = tag.trim().toUpperCase()
+  const exists = normTag.length > 0 && !!equipment[normTag]
+  const valid = normTag.length > 0 && !exists
+
+  return (
+    <div className="exp-newmod">
+      <div className="exp-newmod-title">Create Equipment Module</div>
+      <label>
+        Tag
+        <input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="e.g. EM-FEED-DOSING" />
+      </label>
+      <label>
+        Description
+        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" />
+      </label>
+      <label>
+        Area
+        <select value={area} onChange={(e) => setArea(e.target.value)}>
+          <option>FEED</option>
+          <option>REACTOR</option>
+          <option>PRODUCT</option>
+        </select>
+      </label>
+      {exists && <div className="exp-newmod-err">Tag already exists</div>}
+      <div className="exp-newmod-actions">
+        <button
+          className="tbtn sm"
+          disabled={!valid}
+          onClick={() => {
+            createEquipmentModule(normTag, description.trim() || normTag, area)
+            onDone()
+          }}
+        >
           Create
         </button>
         <button className="tbtn sm" onClick={onDone}>

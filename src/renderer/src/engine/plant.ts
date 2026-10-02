@@ -9,6 +9,7 @@ import type {
   AnyModule,
   ModuleType
 } from './types'
+import { DEFAULT_MEMBERSHIP } from './equipment'
 
 // Helper builders keep the plant definition compact and readable.
 
@@ -32,6 +33,7 @@ function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'ar
   const m: PidModule = {
     type: 'PID',
     mode: 'AUTO',
+    actualMode: 'AUTO',
     pv: 0,
     sp: 0,
     out: 0,
@@ -41,6 +43,7 @@ function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'ar
     gain: 1,
     reset: 20,
     rate: 0,
+    casHealthy: true,
     direct: false,
     _integral: 0,
     _prevPv: 0,
@@ -53,6 +56,28 @@ function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'ar
   m.pv = m.sp
   m._prevPv = m.sp
   m._integral = m.out
+  m.actualMode = m.mode
+  // Every PID has an implicit AI (PV) and AO (OUT) function block, each of
+  // which can go Bad on an I/O (CHARM) fault.
+  if (!m.alarms.some((a) => a.type === 'PVBAD')) {
+    m.alarms = [...m.alarms, { type: 'PVBAD', label: 'PV BAD', priority: 'CRITICAL', enabled: true }]
+  }
+  return m
+}
+
+function ai(p: Partial<AnalogIndicator> & Pick<AnalogIndicator, 'tag' | 'description' | 'area' | 'unit'>): AnalogIndicator {
+  const m: AnalogIndicator = {
+    type: 'AI',
+    pv: 0,
+    pvMin: 0,
+    pvMax: 100,
+    decimals: 1,
+    alarms: [],
+    ...p
+  }
+  if (!m.alarms.some((a) => a.type === 'PVBAD')) {
+    m.alarms = [...m.alarms, { type: 'PVBAD', label: 'PV BAD', priority: 'CRITICAL', enabled: true }]
+  }
   return m
 }
 
@@ -189,35 +214,29 @@ export function buildInitialPlant(): PlantState {
   )
 
   // --- Analog indicators -------------------------------------------------
-  const at301: AnalogIndicator = {
+  const at301 = ai({
     tag: 'AT-301',
-    type: 'AI',
     description: 'PRODUCT CONCENTRATION',
     area: 'PRODUCT',
-    pv: 96,
     unit: '%',
-    pvMin: 0,
-    pvMax: 100,
+    pv: 96,
     decimals: 2,
     alarms: [
       { type: 'LO', label: 'LO', priority: 'WARNING', limit: 90, enabled: true },
       { type: 'LO_LO', label: 'LO LO', priority: 'CRITICAL', limit: 85, enabled: true }
     ]
-  }
+  })
   add(at301)
 
-  const ti101: AnalogIndicator = {
+  const ti101 = ai({
     tag: 'TI-101',
-    type: 'AI',
     description: 'FEED TEMPERATURE',
     area: 'FEED',
     pv: 32,
     unit: 'degC',
-    pvMin: 0,
     pvMax: 120,
-    decimals: 1,
     alarms: [{ type: 'HI', label: 'HI', priority: 'ADVISORY', limit: 60, enabled: true }]
-  }
+  })
   add(ti101)
 
   // --- Motors ------------------------------------------------------------
@@ -230,6 +249,13 @@ export function buildInitialPlant(): PlantState {
     commanded: true,
     fault: false,
     interlock: false,
+    permissiveOk: true,
+    permissiveRequired: false,
+    resetRequired: true,
+    locked: false,
+    confirmTimeSec: 2,
+    travelTimer: 0,
+    dcState: 'CONFIRMED_ACTIVE',
     runtimeHrs: 1284.5,
     alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }]
   }
@@ -244,6 +270,13 @@ export function buildInitialPlant(): PlantState {
     commanded: true,
     fault: false,
     interlock: false,
+    permissiveOk: true,
+    permissiveRequired: false,
+    resetRequired: true,
+    locked: false,
+    confirmTimeSec: 2,
+    travelTimer: 0,
+    dcState: 'CONFIRMED_ACTIVE',
     runtimeHrs: 902.1,
     alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }]
   }
@@ -259,6 +292,13 @@ export function buildInitialPlant(): PlantState {
     open: true,
     fault: false,
     interlock: false,
+    permissiveOk: true,
+    permissiveRequired: false,
+    resetRequired: true,
+    locked: false,
+    confirmTimeSec: 5,
+    travelTimer: 0,
+    dcState: 'CONFIRMED_ACTIVE',
     alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }]
   }
   add(xv101)
@@ -272,6 +312,13 @@ export function buildInitialPlant(): PlantState {
     open: false,
     fault: false,
     interlock: false,
+    permissiveOk: true,
+    permissiveRequired: false,
+    resetRequired: true,
+    locked: false,
+    confirmTimeSec: 5,
+    travelTimer: 0,
+    dcState: 'CONFIRMED_PASSIVE',
     alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'ADVISORY', enabled: true }]
   }
   add(xv201)
@@ -302,6 +349,11 @@ export function buildInitialPlant(): PlantState {
   }
   add(hs201)
 
+  // --- Equipment Module membership (ISA-88 physical hierarchy) -----------
+  for (const [tag, em] of Object.entries(DEFAULT_MEMBERSHIP)) {
+    if (modules[tag]) modules[tag].equipmentModule = em
+  }
+
   return {
     time: Date.now(),
     running: true,
@@ -325,6 +377,8 @@ export interface NewModuleSpec {
   type: ModuleType
   description: string
   area: string
+  /** Equipment Module to assign this Control Module to, if any. */
+  equipmentModule?: string
   unit?: string
   pvMin?: number
   pvMax?: number
@@ -342,6 +396,7 @@ export function makeModule(s: NewModuleSpec): AnyModule {
         tag: s.tag,
         description: s.description,
         area: s.area,
+        equipmentModule: s.equipmentModule,
         unit,
         pvMin,
         pvMax,
@@ -357,28 +412,34 @@ export function makeModule(s: NewModuleSpec): AnyModule {
         ]
       })
     case 'AI':
-      return {
+      return ai({
         tag: s.tag,
-        type: 'AI',
         description: s.description,
         area: s.area,
+        equipmentModule: s.equipmentModule,
         pv: mid,
         unit,
         pvMin,
-        pvMax,
-        decimals: 1,
-        alarms: []
-      }
+        pvMax
+      })
     case 'MOTOR':
       return {
         tag: s.tag,
         type: 'MOTOR',
         description: s.description,
         area: s.area,
+        equipmentModule: s.equipmentModule,
         running: false,
         commanded: false,
         fault: false,
         interlock: false,
+        permissiveOk: true,
+        permissiveRequired: false,
+        resetRequired: true,
+        locked: false,
+        confirmTimeSec: 2,
+        travelTimer: 0,
+        dcState: 'CONFIRMED_PASSIVE',
         runtimeHrs: 0,
         alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }]
       }
@@ -388,10 +449,18 @@ export function makeModule(s: NewModuleSpec): AnyModule {
         type: 'VALVE',
         description: s.description,
         area: s.area,
+        equipmentModule: s.equipmentModule,
         commandedOpen: false,
         open: false,
         fault: false,
         interlock: false,
+        permissiveOk: true,
+        permissiveRequired: false,
+        resetRequired: true,
+        locked: false,
+        confirmTimeSec: 5,
+        travelTimer: 0,
+        dcState: 'CONFIRMED_PASSIVE',
         alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'ADVISORY', enabled: true }]
       }
     case 'DI':
@@ -400,6 +469,7 @@ export function makeModule(s: NewModuleSpec): AnyModule {
         type: 'DI',
         description: s.description,
         area: s.area,
+        equipmentModule: s.equipmentModule,
         state: false,
         activeDescriptor: 'ACTIVE',
         inactiveDescriptor: 'NORMAL',
@@ -411,6 +481,7 @@ export function makeModule(s: NewModuleSpec): AnyModule {
         type: 'DO',
         description: s.description,
         area: s.area,
+        equipmentModule: s.equipmentModule,
         state: false,
         commanded: false,
         activeDescriptor: 'ON',

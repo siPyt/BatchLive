@@ -551,6 +551,29 @@ button {
   flex-direction: column;
   gap: 8px;
 }
+.fp-links {
+  display: flex;
+  gap: 4px;
+  padding: 5px 8px;
+  border-top: 1px solid var(--dv-border);
+  background: var(--dv-bg-3);
+  border-radius: 0 0 4px 4px;
+}
+.fp-link-btn {
+  flex: 1;
+  background: var(--dv-panel-2);
+  border: 1px solid var(--dv-border);
+  color: var(--dv-text-dim);
+  border-radius: 3px;
+  font-size: 10px;
+  padding: 4px 2px;
+  white-space: nowrap;
+}
+.fp-link-btn:hover {
+  background: var(--dv-select);
+  color: var(--dv-text);
+  border-color: var(--dv-accent);
+}
 .fp-row {
   display: flex;
   justify-content: space-between;
@@ -1078,7 +1101,7 @@ button {
   color: var(--dv-accent-2);
 }
 .exp-cell {
-  color: #fff;
+  color: var(--dv-text);
   font-size: 13px;
 }
 .exp-area {
@@ -1086,8 +1109,22 @@ button {
   color: var(--dv-text);
   font-weight: 600;
 }
+.exp-em {
+  padding-left: 40px;
+  color: var(--dv-text-dim);
+  font-weight: 600;
+}
+.exp-em.unassigned {
+  color: var(--dv-text-mute);
+  font-weight: 400;
+  font-style: italic;
+  cursor: default;
+}
 .exp-mod {
   padding-left: 40px;
+}
+.exp-mod.nested {
+  padding-left: 58px;
 }
 .exp-sub {
   color: var(--dv-text-mute);
@@ -1161,7 +1198,7 @@ button {
 }
 .exp-props-head b {
   font-size: 17px;
-  color: #fff;
+  color: var(--dv-text);
 }
 .exp-props-head span {
   color: var(--dv-text-dim);
@@ -1379,6 +1416,78 @@ button {
 }
 .tbtn.danger:hover {
   background: #962318;
+}
+
+/* ------------------------------------------------------------------ */
+/* FlexLock / Access Denied                                             */
+/* ------------------------------------------------------------------ */
+.flexlock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(10, 14, 20, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.flexlock-box {
+  width: 280px;
+  background: var(--dv-panel);
+  border: 1px solid var(--dv-border-light);
+  border-radius: 6px;
+  padding: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.flexlock-title {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--dv-text);
+  margin-bottom: 4px;
+}
+.flexlock-sub {
+  font-size: 11px;
+  color: var(--dv-text-dim);
+  margin-bottom: 12px;
+}
+.flexlock-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--dv-text-mute);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.flexlock-field input {
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 5px 7px;
+  border: 1px solid var(--dv-border);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--dv-text);
+}
+.flexlock-error {
+  color: var(--dv-critical);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.denied-toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  background: var(--dv-critical);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2227,7 +2336,7 @@ button {
 }
 .batch-id {
   font-weight: 800;
-  color: #fff;
+  color: var(--dv-text);
   font-variant-numeric: tabular-nums;
 }
 .batch-recipe {
@@ -2311,10 +2420,15 @@ button {
   border: 1px solid var(--dv-border);
   border-radius: 4px;
   margin-bottom: 6px;
+  cursor: pointer;
 }
 .batch-op.active {
   border-color: var(--dv-accent);
   box-shadow: 0 0 0 1px var(--dv-accent) inset;
+}
+.batch-op.editing {
+  border-color: var(--dv-accent-2);
+  background: var(--dv-select);
 }
 .batch-op-num {
   display: flex;
@@ -2338,7 +2452,7 @@ button {
   flex-direction: column;
 }
 .batch-op-main b {
-  color: #fff;
+  color: var(--dv-text);
   font-size: 13px;
 }
 .batch-op-desc {
@@ -2420,4 +2534,16 @@ button {
 }
 .batch-log-txt {
   color: var(--dv-text-dim);
+}
+.batch-phase-editor {
+  flex-shrink: 0;
+  max-height: 46%;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--dv-border);
+  background: var(--dv-bg-2);
+  overflow: hidden;
+}
+.batch-phase-editor .sfc-canvas {
+  overflow: auto;
 }

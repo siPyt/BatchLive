@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { compareAlarmRank, clockString } from '../utils/format'
@@ -12,8 +12,18 @@ export function AlarmSummary(): JSX.Element {
   const ackAll = useStore((s) => s.ackAll)
   const openFaceplate = useUi((s) => s.openFaceplate)
   const [filter, setFilter] = useState<Filter>('ALL')
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+
+  const alarmFocusTag = useUi((s) => s.alarmFocusTag)
+  const clearAlarmFocus = useUi((s) => s.clearAlarmFocus)
+  useEffect(() => {
+    if (!alarmFocusTag) return
+    setTagFilter(alarmFocusTag)
+    clearAlarmFocus()
+  }, [alarmFocusTag, clearAlarmFocus])
 
   let rows = [...alarms]
+  if (tagFilter) rows = rows.filter((a) => a.moduleTag === tagFilter)
   if (filter === 'UNACK') rows = rows.filter((a) => !a.acknowledged)
   else if (filter !== 'ALL') rows = rows.filter((a) => a.priority === filter)
 
@@ -36,6 +46,11 @@ export function AlarmSummary(): JSX.Element {
             {f}
           </button>
         ))}
+        {tagFilter && (
+          <button className="tbtn sm active" onClick={() => setTagFilter(null)}>
+            Tag: {tagFilter} ✕
+          </button>
+        )}
         <span style={{ flex: 1 }} />
         <button className="tbtn sm" onClick={ackAll} disabled={unack === 0}>
           Acknowledge All ({unack})

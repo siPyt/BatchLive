@@ -1,6 +1,6 @@
 import { useStore } from '../engine/store'
 import type { MotorModule } from '../engine/types'
-import { fmt } from '../utils/format'
+import { dcStateInfo, fmt } from '../utils/format'
 
 export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as MotorModule | undefined
@@ -8,53 +8,55 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const stopMotor = useStore((s) => s.stopMotor)
   const toggleInterlock = useStore((s) => s.toggleInterlock)
   const injectFault = useStore((s) => s.injectFault)
+  const resetDevice = useStore((s) => s.resetDevice)
+  const setPermissive = useStore((s) => s.setPermissive)
+  const setDeviceOptions = useStore((s) => s.setDeviceOptions)
   if (!m) return null
 
-  const status = m.fault ? 'FAULT' : m.running ? 'RUNNING' : 'STOPPED'
-  const pill = m.fault ? 'pill-fault' : m.running ? 'pill-run' : 'pill-stop'
+  const { label: stateLabel, color: stateColor } = dcStateInfo(m.dcState)
+  const transiting = m.dcState === 'GOING_ACTIVE' || m.dcState === 'GOING_PASSIVE'
+  const startDisabled = m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.running)
 
   return (
     <div className="fp-body">
       <div className="fp-row">
-        <span className="fp-label">Status</span>
-        <span className={'fp-status-pill ' + pill}>
-          <span
-            className="dot"
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: m.fault ? 'var(--dv-critical)' : m.running ? 'var(--dv-run)' : 'var(--dv-stop)'
-            }}
-          />
-          {status}
+        <span className="fp-label">DC_STATE</span>
+        <span className="fp-status-pill" style={{ background: stateColor, color: '#fff' }}>
+          {stateLabel}
         </span>
       </div>
+      {transiting && (
+        <div className="fp-row">
+          <span className="fp-label">Travel timer</span>
+          <span style={{ color: 'var(--dv-text-dim)' }}>
+            {fmt(m.travelTimer, 1)} / {fmt(m.confirmTimeSec, 1)} s
+          </span>
+        </div>
+      )}
 
       <div className="fp-row">
-        <button
-          className={'fp-btn run' + (m.commanded ? ' active' : '')}
-          disabled={m.interlock}
-          onClick={() => startMotor(tag)}
-        >
+        <button className={'fp-btn run' + (m.commanded ? ' active' : '')} disabled={startDisabled} onClick={() => startMotor(tag)}>
           START
         </button>
-        <button
-          className={'fp-btn stop' + (!m.commanded ? ' active' : '')}
-          onClick={() => stopMotor(tag)}
-        >
+        <button className={'fp-btn stop' + (!m.commanded ? ' active' : '')} onClick={() => stopMotor(tag)}>
           STOP
         </button>
       </div>
 
       <div className="fp-row">
-        <span className="fp-label">Command</span>
-        <span style={{ color: 'var(--dv-text-dim)' }}>{m.commanded ? 'START' : 'STOP'}</span>
+        <span className="fp-label">Command (SP_D)</span>
+        <span style={{ color: 'var(--dv-text-dim)' }}>{m.commanded ? 'ACTIVE' : 'PASSIVE'}</span>
       </div>
       <div className="fp-row">
         <span className="fp-label">Interlock</span>
         <span style={{ color: m.interlock ? 'var(--dv-critical)' : 'var(--dv-text-dim)', fontWeight: 700 }}>
           {m.interlock ? 'TRIPPED' : 'CLEAR'}
+        </span>
+      </div>
+      <div className="fp-row">
+        <span className="fp-label">Permissive</span>
+        <span style={{ color: m.permissiveOk ? 'var(--dv-text-dim)' : 'var(--dv-critical)', fontWeight: 700 }}>
+          {m.permissiveRequired ? (m.permissiveOk ? 'OK' : 'NOT MET') : 'n/a'}
         </span>
       </div>
       <div className="fp-row">
@@ -64,12 +66,52 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
 
       <div className="fp-row" style={{ marginTop: 4 }}>
         <button className="fp-btn" onClick={() => toggleInterlock(tag)}>
-          {m.interlock ? 'Reset Interlock' : 'Force Interlock'}
+          {m.interlock ? 'Clear Interlock' : 'Force Interlock'}
         </button>
         <button className="fp-btn" onClick={() => injectFault(tag)}>
           {m.fault ? 'Clear Fault' : 'Inject Fault'}
         </button>
       </div>
+      {m.locked && (
+        <div className="fp-row">
+          <button
+            className="fp-btn"
+            style={{ borderColor: 'var(--dv-critical)', color: 'var(--dv-critical)' }}
+            onClick={() => resetDevice(tag)}
+          >
+            RESET (RESET_D)
+          </button>
+        </div>
+      )}
+
+      <div className="fp-row" style={{ marginTop: 8, borderTop: '1px solid var(--dv-border)', paddingTop: 6 }}>
+        <span className="fp-label">Device Options</span>
+      </div>
+      <div className="fp-row">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--dv-text-dim)' }}>
+          <input
+            type="checkbox"
+            checked={m.permissiveRequired}
+            onChange={(e) => setDeviceOptions(tag, { permissiveRequired: e.target.checked })}
+          />
+          Permissive
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--dv-text-dim)' }}>
+          <input
+            type="checkbox"
+            checked={m.resetRequired}
+            onChange={(e) => setDeviceOptions(tag, { resetRequired: e.target.checked })}
+          />
+          Reset Required
+        </label>
+      </div>
+      {m.permissiveRequired && (
+        <div className="fp-row">
+          <button className="fp-btn" onClick={() => setPermissive(tag, !m.permissiveOk)}>
+            {m.permissiveOk ? 'Clear Permissive (PERMISSIVE_D)' : 'Set Permissive (PERMISSIVE_D)'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

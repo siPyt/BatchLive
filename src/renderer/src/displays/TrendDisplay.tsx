@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
+import { useUi } from '../ui/uiStore'
 import type { TrendPoint } from '../engine/types'
 
 interface Pen {
@@ -20,6 +21,9 @@ const PENS: Pen[] = [
   { key: 'AT-301.PV', label: 'AT-301 Concentration', color: '#e0d040', min: 0, max: 100, unit: '%' }
 ]
 
+/** Tags with a configured historian pen — faceplates only show a Trend link for these. */
+export const PEN_TAGS = new Set(PENS.map((p) => p.key.split('.')[0]))
+
 const W = 1000
 const H = 460
 const PAD_L = 46
@@ -33,6 +37,17 @@ export function TrendDisplay(): JSX.Element {
     Object.fromEntries(PENS.map((p) => [p.key, true]))
   )
   const [windowSec, setWindowSec] = useState(300)
+
+  const trendFocusTag = useUi((s) => s.trendFocusTag)
+  const clearTrendFocus = useUi((s) => s.clearTrendFocus)
+  useEffect(() => {
+    if (!trendFocusTag) return
+    const key = `${trendFocusTag}.PV`
+    if (PENS.some((p) => p.key === key)) {
+      setEnabled(Object.fromEntries(PENS.map((p) => [p.key, p.key === key])))
+    }
+    clearTrendFocus()
+  }, [trendFocusTag, clearTrendFocus])
 
   const now = trend.length ? trend[trend.length - 1].t : Date.now()
   const from = now - windowSec * 1000

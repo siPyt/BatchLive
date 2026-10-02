@@ -13,6 +13,8 @@ export type DisplayId =
   | 'sfc'
   | 'builder'
   | 'workshops'
+  | 'users'
+  | 'hardware'
 
 export interface OpenFaceplate {
   tag: string
@@ -27,6 +29,10 @@ interface UiState {
   faceplates: OpenFaceplate[]
   selectedTag: string | null
   studioTag: string | null
+  /** Pen to isolate when the Trend display next mounts/updates; consumed then cleared. */
+  trendFocusTag: string | null
+  /** Module tag to filter the Alarm List to; consumed then cleared. */
+  alarmFocusTag: string | null
   navigate: (d: DisplayId) => void
   back: () => void
   forward: () => void
@@ -35,6 +41,14 @@ interface UiState {
   moveFaceplate: (tag: string, x: number, y: number) => void
   select: (tag: string | null) => void
   openStudio: (tag: string) => void
+  /** Faceplate "Explorer" link: jump to DeltaV Explorer with this module selected. */
+  focusExplorer: (tag: string) => void
+  /** Faceplate "Trend" link: jump to the Historian Trend with this tag's pen isolated. */
+  focusTrend: (tag: string) => void
+  /** Faceplate "Alarms" link: jump to the Alarm List filtered to this tag. */
+  focusAlarms: (tag: string) => void
+  clearTrendFocus: () => void
+  clearAlarmFocus: () => void
 }
 
 let cascade = 0
@@ -46,6 +60,8 @@ export const useUi = create<UiState>((set, get) => ({
   faceplates: [],
   selectedTag: null,
   studioTag: null,
+  trendFocusTag: null,
+  alarmFocusTag: null,
 
   navigate: (display) =>
     set((s) => {
@@ -100,5 +116,23 @@ export const useUi = create<UiState>((set, get) => ({
         history,
         histIndex: history.length - 1
       }
-    })
+    }),
+
+  focusExplorer: (tag) => {
+    set({ selectedTag: tag })
+    get().navigate('explorer')
+  },
+
+  focusTrend: (tag) => {
+    set({ trendFocusTag: tag })
+    get().navigate('trend')
+  },
+
+  focusAlarms: (tag) => {
+    set({ alarmFocusTag: tag })
+    get().navigate('alarms')
+  },
+
+  clearTrendFocus: () => set({ trendFocusTag: null }),
+  clearAlarmFocus: () => set({ alarmFocusTag: null })
 }))

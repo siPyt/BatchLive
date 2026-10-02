@@ -1,4 +1,4 @@
-import type { AnyModule, ActiveAlarm, AlarmPriority, PidModule } from '../engine/types'
+import type { AnyModule, ActiveAlarm, AlarmPriority, PidModule, DcState } from '../engine/types'
 
 export function fmt(value: number, decimals: number): string {
   return value.toFixed(decimals)
@@ -70,4 +70,28 @@ export function clockString(t: number): string {
 export function dateString(t: number): string {
   const d = new Date(t)
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' })
+}
+
+/** Operator-facing label + color for a Device Control (DC1) block's DC_STATE. */
+export function dcStateInfo(state: DcState): { label: string; color: string } {
+  switch (state) {
+    case 'CONFIRMED_ACTIVE':
+      return { label: 'ACTIVE', color: 'var(--dv-run)' }
+    case 'CONFIRMED_PASSIVE':
+      return { label: 'PASSIVE', color: 'var(--dv-stop)' }
+    case 'GOING_ACTIVE':
+      return { label: 'GOING TO ACTIVE', color: 'var(--mode-man)' }
+    case 'GOING_PASSIVE':
+      return { label: 'GOING TO PASSIVE', color: 'var(--mode-man)' }
+    case 'FAILED_ACTIVE':
+      return { label: 'FAILED ACTIVE', color: 'var(--dv-critical)' }
+    case 'FAILED_PASSIVE':
+      return { label: 'FAILED PASSIVE', color: 'var(--dv-critical)' }
+    case 'SHUTDOWN':
+      return { label: 'SHUTDOWN/INTERLOCKED', color: 'var(--dv-critical)' }
+    case 'LOCKED':
+      return { label: 'LOCKED', color: 'var(--dv-critical)' }
+    default:
+      return { label: state, color: 'var(--dv-text-mute)' }
+  }
 }
