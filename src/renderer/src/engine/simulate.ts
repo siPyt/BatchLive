@@ -268,7 +268,9 @@ function stepDeviceControl(io: DcIo, dt: number): void {
   }
 }
 
-function applyMotorDC(m: MotorModule, dt: number): void {
+function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyModule>): void {
+  if (m.interlockSource) m.interlock = readModuleValue(modules[m.interlockSource]) !== 0
+  if (m.commandSource) m.commanded = readModuleValue(modules[m.commandSource]) !== 0
   const io: DcIo = {
     desired: m.commanded,
     confirmed: m.running,
@@ -290,7 +292,9 @@ function applyMotorDC(m: MotorModule, dt: number): void {
   if (m.running) m.runtimeHrs += dt / 3600
 }
 
-function applyValveDC(m: ValveModule, dt: number): void {
+function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyModule>): void {
+  if (m.interlockSource) m.interlock = readModuleValue(modules[m.interlockSource]) !== 0
+  if (m.commandSource) m.commandedOpen = readModuleValue(modules[m.commandSource]) !== 0
   const io: DcIo = {
     desired: m.commandedOpen,
     confirmed: m.open,
@@ -668,10 +672,10 @@ export function stepPlant(
   const lsh101 = modules['LSH-101'] as DiscreteInput
 
   // --- Discrete device actuation (DeltaV Device Control / DC1 block) ---
-  applyMotorDC(p101, dt)
-  applyMotorDC(p201, dt)
-  applyValveDC(xv101, dt)
-  applyValveDC(xv201, dt)
+  applyMotorDC(p101, dt, modules)
+  applyMotorDC(p201, dt, modules)
+  applyValveDC(xv101, dt, modules)
+  applyValveDC(xv201, dt, modules)
 
   // --- Cascade: LIC-101 (master) sets remote SP of FIC-101 (slave), via the
   // generic cascade/feedforward/tracking wrapper (same one every user PID uses) ---
@@ -742,9 +746,9 @@ export function stepPlant(
       const mid = gm.pvMin + gspan / 2
       gm.pv = clamp(gm.pv + (mid - gm.pv) * 0.01 + noise(gspan * 0.002), gm.pvMin, gm.pvMax)
     } else if (gm.type === 'MOTOR') {
-      applyMotorDC(gm, dt)
+      applyMotorDC(gm, dt, modules)
     } else if (gm.type === 'VALVE') {
-      applyValveDC(gm, dt)
+      applyValveDC(gm, dt, modules)
     } else if (gm.type === 'FB') {
       stepFunctionBlock(gm, modules, dt)
     }

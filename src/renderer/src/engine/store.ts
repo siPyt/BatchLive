@@ -82,6 +82,10 @@ interface StoreState extends PlantState {
   setPermissive: (tag: string, ok: boolean) => void
   /** Device options: Permissive / Reset Required, as configured in Control Studio. */
   setDeviceOptions: (tag: string, opts: { permissiveRequired?: boolean; resetRequired?: boolean }) => void
+  /** Wire a logic/alarm tag to automatically drive a MOTOR/VALVE's INTERLOCK_D every scan (the missing link between an FB trip and real equipment). */
+  setInterlockSource: (tag: string, source: string | undefined) => void
+  /** Wire a logic/alarm tag to automatically drive a MOTOR/VALVE's SP_D (commanded) every scan, overriding manual Start/Stop or Open/Close. */
+  setCommandSource: (tag: string, source: string | undefined) => void
   /** CAS_IN_D connection health; false sheds a Cas/RCas PID to Auto. */
   setCasHealthy: (tag: string, healthy: boolean) => void
   /** Fail a controller leg (primary, or both legs if not redundant) — bound I/O goes Bad. */
@@ -422,6 +426,22 @@ export const useStore = create<StoreState>((set, get) => ({
       if (opts.resetRequired !== undefined) d.resetRequired = opts.resetRequired
     })
     get().logEvent('CONFIGURE', tag, `Device options changed: ${JSON.stringify(opts)}`)
+  },
+
+  setInterlockSource: (tag, source) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Wire interlock source ${tag}`)) return
+    mutateModule(set, get, tag, (m) => {
+      if (m.type === 'MOTOR' || m.type === 'VALVE') m.interlockSource = source
+    })
+    get().logEvent('CONFIGURE', tag, `INTERLOCK_SOURCE set to ${source ?? '(none)'}`)
+  },
+
+  setCommandSource: (tag, source) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Wire command source ${tag}`)) return
+    mutateModule(set, get, tag, (m) => {
+      if (m.type === 'MOTOR' || m.type === 'VALVE') m.commandSource = source
+    })
+    get().logEvent('CONFIGURE', tag, `COMMAND_SOURCE set to ${source ?? '(none)'}`)
   },
 
   setCasHealthy: (tag, healthy) => {

@@ -4,7 +4,7 @@ import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
 import { FB_NEEDS_IN2 } from '../engine/fb'
-import type { AnyModule, FbBlockType, FunctionBlockModule, PidModule, ControlMode } from '../engine/types'
+import type { AnyModule, FbBlockType, FunctionBlockModule, PidModule, ControlMode, MotorModule, ValveModule } from '../engine/types'
 import type { ReactNode } from 'react'
 
 // Control Studio: a real Function Block Diagram node editor (drag, wire,
@@ -38,6 +38,8 @@ export function ControlStudioDisplay(): JSX.Element {
       if ((mm.in1.kind === 'ref' && mm.in1.tag === m.tag) || (mm.in2.kind === 'ref' && mm.in2.tag === m.tag)) neighborTags.add(t)
     } else if (mm.type === 'PID') {
       if (mm.casSource === m.tag || mm.ffSource === m.tag || mm.trackSource === m.tag || mm.trackValueSource === m.tag) neighborTags.add(t)
+    } else if (mm.type === 'MOTOR' || mm.type === 'VALVE') {
+      if (mm.interlockSource === m.tag || mm.commandSource === m.tag) neighborTags.add(t)
     }
   }
   if (m.type === 'FB') {
@@ -48,6 +50,9 @@ export function ControlStudioDisplay(): JSX.Element {
     if (m.ffSource) neighborTags.add(m.ffSource)
     if (m.trackSource) neighborTags.add(m.trackSource)
     if (m.trackValueSource) neighborTags.add(m.trackValueSource)
+  } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
+    if (m.interlockSource) neighborTags.add(m.interlockSource)
+    if (m.commandSource) neighborTags.add(m.commandSource)
   }
   const visibleTags = [m.tag, ...Array.from(neighborTags).sort()]
 
@@ -122,6 +127,8 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
   const setCasSource = useStore((s) => s.setCasSource)
   const setFeedforward = useStore((s) => s.setFeedforward)
   const setTracking = useStore((s) => s.setTracking)
+  const setInterlockSource = useStore((s) => s.setInterlockSource)
+  const setCommandSource = useStore((s) => s.setCommandSource)
   const setMode = useStore((s) => s.setMode)
   const modules = useStore((s) => s.modules)
   const setFbInput = useStore((s) => s.setFbInput)
@@ -213,6 +220,14 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
               setCasSource={setCasSource}
               setFeedforward={setFeedforward}
               setTracking={setTracking}
+            />
+          )}
+          {(m.type === 'MOTOR' || m.type === 'VALVE') && (
+            <DeviceWiringRows
+              m={m}
+              tags={Object.keys(modules).filter((t) => t !== m.tag).sort()}
+              setInterlockSource={setInterlockSource}
+              setCommandSource={setCommandSource}
             />
           )}
         </tbody>
@@ -391,6 +406,55 @@ function FbWireRow({
       </td>
       <td className="good">Good</td>
     </tr>
+  )
+}
+
+/** The glue that makes an interlock strategy actually DO something: wire any
+ * logic/alarm tag's live boolean output to INTERLOCK_SOURCE or COMMAND_SOURCE
+ * on a MOTOR/VALVE, so an OR/latch/comparator block can automatically trip,
+ * close, or open real equipment every scan \u2014 not just display a number. */
+function DeviceWiringRows({
+  m,
+  tags,
+  setInterlockSource,
+  setCommandSource
+}: {
+  m: MotorModule | ValveModule
+  tags: string[]
+  setInterlockSource: (tag: string, source: string | undefined) => void
+  setCommandSource: (tag: string, source: string | undefined) => void
+}): JSX.Element {
+  return (
+    <>
+      <tr>
+        <td>INTERLOCK_SOURCE</td>
+        <td className="pv">
+          <select className="fb-select" value={m.interlockSource ?? ''} onChange={(e) => setInterlockSource(m.tag, e.target.value || undefined)}>
+            <option value="">(manual only)</option>
+            {tags.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td className="good">Good</td>
+      </tr>
+      <tr>
+        <td>COMMAND_SOURCE</td>
+        <td className="pv">
+          <select className="fb-select" value={m.commandSource ?? ''} onChange={(e) => setCommandSource(m.tag, e.target.value || undefined)}>
+            <option value="">(manual only)</option>
+            {tags.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td className="good">Good</td>
+      </tr>
+    </>
   )
 }
 

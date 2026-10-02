@@ -1,7 +1,8 @@
 import { useStore } from '../engine/store'
 import type { ReactNode } from 'react'
-import { Tank, Pump, GateValve, Pipe, Label, InstrumentTap } from '../components/Graphics'
+import { Tank, Pump, GateValve, Pipe, Label, InstrumentTap, OffPageArrow } from '../components/Graphics'
 import { ValueBox } from '../components/ValueBox'
+import { durationString } from '../utils/format'
 import type { PidModule, ValveModule, DiscreteInput, MotorModule, DiscreteOutput } from '../engine/types'
 
 /** P&ID mimic diagrams for the GMP pharma areas, in the same visual language
@@ -83,15 +84,29 @@ function StillVessel({
 
 export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Element | null {
   const modules = useStore((s) => s.modules)
+  const time = useStore((s) => s.time)
   const tic401 = modules['TIC-401'] as PidModule
   const tic411 = modules['TIC-411'] as PidModule
   const xv411 = modules['XV-411'] as ValveModule
   const xv401 = modules['XV-401'] as ValveModule
+  const xv422 = modules['XV-422'] as ValveModule
   const p401 = modules['P-401'] as MotorModule
   const p402 = modules['P-402'] as MotorModule
   const pcv401 = modules['PCV-401'] as ValveModule
   const proc = useStore((s) => s.modules['LIC-401'] as PidModule)
-  if (!tic401 || !tic411 || !xv411 || !xv401 || !p401 || !p402 || !pcv401) return null
+  if (!tic401 || !tic411 || !xv411 || !xv401 || !p401 || !p402 || !pcv401 || !xv422) return null
+
+  // Sani Schedule panel: a recurring 24h sanitization cycle with a 10-minute
+  // active window, computed from the plant clock — the same "Time Until Next
+  // Sani / Time Since Last Sani / Sani Time Remaining" triad shown on the real
+  // DeltaV WFI Storage Tank and Loop graphic.
+  const SANI_INTERVAL_S = 24 * 3600
+  const SANI_DURATION_S = 10 * 60
+  const cyclePos = (time / 1000) % SANI_INTERVAL_S
+  const inSani = cyclePos > SANI_INTERVAL_S - SANI_DURATION_S
+  const untilNextS = inSani ? 0 : SANI_INTERVAL_S - SANI_DURATION_S - cyclePos
+  const sinceLastS = inSani ? 0 : cyclePos
+  const remainingS = inSani ? SANI_INTERVAL_S - cyclePos : 0
 
   return (
     <Wrap height={360} embedded={embedded}>
@@ -149,6 +164,39 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
       <GateValve x={700} y={20} open={pcv401.open} tag="PCV-401" interlock={pcv401.interlock} />
       <Label x={945} y={250} text="POINT-OF-USE SUPPLY" anchor="end" />
 
+      {/* sanitary OOS dump: branches off the return header, opens automatically on an OOS trip */}
+      <Pipe d="M820,20 V29" width={3} />
+      <GateValve x={820} y={40} open={xv422.open} tag="XV-422" interlock={xv422.interlock} />
+      <Pipe d="M820,51 V60 H1010" width={3} />
+      <OffPageArrow x={1010} y={60} angle={0} />
+      <Label x={1005} y={50} text="TO DRAIN" anchor="end" />
+
+      {/* Sani Schedule panel — clear whitespace above LIC-401, between the stills and the tank nozzle */}
+      <g>
+        <rect x={460} y={8} width={220} height={56} rx={3} fill="var(--dv-faceplate-header, #3a434c)" />
+        <text x={570} y={20} fill="#ffffff" fontSize={9} fontWeight={800} textAnchor="middle" letterSpacing={0.4}>
+          SANI SCHEDULE
+        </text>
+        <text x={468} y={32} fill="#cfd4da" fontSize={8}>
+          Time Until Next Sani
+        </text>
+        <text x={672} y={32} fill="#ffffff" fontSize={8} fontWeight={700} textAnchor="end">
+          {durationString(untilNextS)}
+        </text>
+        <text x={468} y={43} fill="#cfd4da" fontSize={8}>
+          Time Since Last Sani
+        </text>
+        <text x={672} y={43} fill="#ffffff" fontSize={8} fontWeight={700} textAnchor="end">
+          {durationString(sinceLastS)}
+        </text>
+        <text x={468} y={54} fill="#cfd4da" fontSize={8}>
+          Sani Time Remaining
+        </text>
+        <text x={672} y={54} fill={inSani ? '#ffce45' : '#ffffff'} fontSize={8} fontWeight={700} textAnchor="end">
+          {inSani ? durationString(remainingS) : '--:--:--'}
+        </text>
+      </g>
+
       <InstrumentTap tapX={650} tapY={200} toX={600} toY={225} />
       <InstrumentTap tapX={790} tapY={200} toX={800} toY={235} />
       <InstrumentTap tapX={830} tapY={20} toX={830} toY={45} />
@@ -160,6 +208,7 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
       <ValueBox tag="LIC-401" x={460} y={70} />
       <ValueBox tag="PIC-401" x={565} y={225} />
       <ValueBox tag="AT-401" x={765} y={235} />
+      <ValueBox tag="AT-402" x={885} y={235} />
       <ValueBox tag="TI-402" x={795} y={45} />
     </Wrap>
   )

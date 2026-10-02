@@ -40,12 +40,22 @@ export const BUILTIN_TAGS = new Set([
   'SIC-201',
   'II-201',
   'PSV-201',
-  // Agitator overload protection strategy: 2x CMP -> OR -> OND debounce -> MLTX selector -> SIC-201 cascade
+  // Agitator Overload Protection & Override Control Strategy (two-tier SIS-style
+  // scheme: warning + latched trip, arbitrated by cascaded MIN-select Control Selectors)
   'PT201-HIALM',
+  'PT201-HIHIALM',
   'II201-OLALM',
+  'II201-HHALM',
+  'AGIT-WARN-OR',
   'AGIT-TRIP-OR',
   'AGIT-TRIP-DLY',
-  'SIC-201-SEL',
+  'AGIT-TRIP-LATCH',
+  'AGIT-TRIP-CTR',
+  'AGIT-WARN-LIM',
+  'AGIT-TRIP-LIM',
+  'AGIT-OR-SEL1',
+  'AGIT-OR-SEL2',
+  'HS-202',
   // WFI Generation & Distribution Loop (2 stills, generic closed-loop simulation)
   'TIC-401',
   'FI-401',
@@ -60,6 +70,14 @@ export const BUILTIN_TAGS = new Set([
   'P-402',
   'XV-411',
   'PCV-401',
+  // WFI Sanitary Dump Interlock: 2x CMP (conductivity/TOC) -> OR -> 3s debounce ->
+  // closes PCV-401 (return) and opens XV-422 (divert-to-drain) automatically
+  'AT-402',
+  'XV-422',
+  'WFI-COND-ALM',
+  'WFI-TOC-ALM',
+  'WFI-OOS-OR',
+  'WFI-OOS-DLY',
   // Autoclave 1 & 2 (steam sterilizers) — driven by STERILIZE-AC1/AC2 SFCs
   'TIC-501',
   'PIC-501',
@@ -499,7 +517,7 @@ export function buildInitialPlant(): PlantState {
       sp: 150,
       out: 50,
       mode: 'CAS',
-      casSource: 'SIC-201-SEL',
+      casSource: 'AGIT-OR-SEL2',
       gain: 1.2,
       reset: 6,
       direct: false
@@ -520,16 +538,27 @@ export function buildInitialPlant(): PlantState {
   )
   add(valve({ tag: 'PSV-201', description: 'REACTOR HEADSPACE SAFETY RELIEF VALVE', area: 'REACTOR' }))
 
-  // --- Agitator overload protection: a real multi-block interlock/override/cascade
-  // strategy, not a toy example. Two independent alarms (headspace overpressure,
-  // motor overload) OR together, debounce for 3s so a brief transient doesn't trip
-  // it, then an MLTX selector forces SIC-201's cascaded SP down to a safe 50 RPM
-  // until both conditions clear — SIC-201 runs this cascade live by default. ---
+  // --- Agitator Overload Protection & Override Control Strategy -----------
+  // A real two-tier safety-instrumented override scheme, not a toy example:
+  //   Tier 1 (WARNING): either sensor crosses its warning limit -> OR -> an
+  //     MLTX turns that into a 100 RPM speed CEILING (else: 999 = unlimited).
+  //   Tier 2 (TRIP): either sensor crosses its higher trip limit -> OR -> 3s
+  //     debounce (OND) -> SR latch (requires an operator RESET pushbutton,
+  //     it does NOT just clear itself when the condition goes away) -> an
+  //     MLTX turns the latched trip into a 25 RPM creep-speed ceiling.
+  //   Arbitration: two cascaded Control Selectors (CTLSL, MIN-select) pick
+  //     whichever of {150 RPM normal demand, warning ceiling, trip ceiling}
+  //     is most restrictive — the authentic DeltaV override pattern (an
+  //     override always wins by being numerically more restrictive, not by
+  //     an explicit if/else switch).
+  //   A Counter (CTR) tallies how many times the trip has latched, as a
+  //     maintenance/diagnostic record.
+  // SIC-201 cascades from the final arbitrated demand (AGIT-OR-SEL2) live.
   add(
     fb({
       tag: 'PT201-HIALM',
       fbType: 'CMP',
-      description: 'AGITATOR PROTECTION: HEADSPACE OVERPRESSURE ALARM',
+      description: 'AGITATOR PROTECTION: HEADSPACE PRESSURE WARNING',
       area: 'REACTOR',
       in1: { kind: 'ref', value: 0, tag: 'PT-201' },
       in2: { kind: 'const', value: 1.8 },
@@ -538,9 +567,20 @@ export function buildInitialPlant(): PlantState {
   )
   add(
     fb({
+      tag: 'PT201-HIHIALM',
+      fbType: 'CMP',
+      description: 'AGITATOR PROTECTION: HEADSPACE PRESSURE TRIP',
+      area: 'REACTOR',
+      in1: { kind: 'ref', value: 0, tag: 'PT-201' },
+      in2: { kind: 'const', value: 2.2 },
+      cmpOp: '>'
+    })
+  )
+  add(
+    fb({
       tag: 'II201-OLALM',
       fbType: 'CMP',
-      description: 'AGITATOR PROTECTION: MOTOR OVERLOAD ALARM',
+      description: 'AGITATOR PROTECTION: MOTOR OVERLOAD WARNING',
       area: 'REACTOR',
       in1: { kind: 'ref', value: 0, tag: 'II-201' },
       in2: { kind: 'const', value: 22 },
@@ -549,12 +589,33 @@ export function buildInitialPlant(): PlantState {
   )
   add(
     fb({
-      tag: 'AGIT-TRIP-OR',
+      tag: 'II201-HHALM',
+      fbType: 'CMP',
+      description: 'AGITATOR PROTECTION: MOTOR OVERLOAD TRIP',
+      area: 'REACTOR',
+      in1: { kind: 'ref', value: 0, tag: 'II-201' },
+      in2: { kind: 'const', value: 26 },
+      cmpOp: '>'
+    })
+  )
+  add(
+    fb({
+      tag: 'AGIT-WARN-OR',
       fbType: 'OR',
-      description: 'AGITATOR PROTECTION: OVERPRESSURE OR OVERLOAD',
+      description: 'AGITATOR PROTECTION: WARNING TIER (PRESSURE OR OVERLOAD)',
       area: 'REACTOR',
       in1: { kind: 'ref', value: 0, tag: 'PT201-HIALM' },
       in2: { kind: 'ref', value: 0, tag: 'II201-OLALM' }
+    })
+  )
+  add(
+    fb({
+      tag: 'AGIT-TRIP-OR',
+      fbType: 'OR',
+      description: 'AGITATOR PROTECTION: TRIP TIER (PRESSURE OR OVERLOAD)',
+      area: 'REACTOR',
+      in1: { kind: 'ref', value: 0, tag: 'PT201-HIHIALM' },
+      in2: { kind: 'ref', value: 0, tag: 'II201-HHALM' }
     })
   )
   add(
@@ -569,13 +630,67 @@ export function buildInitialPlant(): PlantState {
   )
   add(
     fb({
-      tag: 'SIC-201-SEL',
-      fbType: 'MLTX',
-      description: 'AGITATOR PROTECTION: NORMAL/OVERRIDE SPEED SELECTOR',
+      tag: 'AGIT-TRIP-LATCH',
+      fbType: 'SR',
+      description: 'AGITATOR PROTECTION: TRIP LATCH (REQUIRES MANUAL RESET)',
       area: 'REACTOR',
-      in1: { kind: 'const', value: 50 },
-      in2: { kind: 'ref', value: 0, tag: 'AGIT-TRIP-DLY' },
-      gain: 150
+      in1: { kind: 'ref', value: 0, tag: 'AGIT-TRIP-DLY' },
+      in2: { kind: 'ref', value: 0, tag: 'HS-202' }
+    })
+  )
+  add(
+    fb({
+      tag: 'AGIT-TRIP-CTR',
+      fbType: 'CTR',
+      description: 'AGITATOR PROTECTION: LIFETIME TRIP COUNT (DIAGNOSTIC)',
+      area: 'REACTOR',
+      in1: { kind: 'ref', value: 0, tag: 'AGIT-TRIP-LATCH' },
+      tripValue: 1,
+      countUp: true
+    })
+  )
+  add(
+    fb({
+      tag: 'AGIT-WARN-LIM',
+      fbType: 'MLTX',
+      description: 'AGITATOR PROTECTION: WARNING-TIER SPEED CEILING',
+      area: 'REACTOR',
+      in1: { kind: 'const', value: 100 },
+      in2: { kind: 'ref', value: 0, tag: 'AGIT-WARN-OR' },
+      gain: 999
+    })
+  )
+  add(
+    fb({
+      tag: 'AGIT-TRIP-LIM',
+      fbType: 'MLTX',
+      description: 'AGITATOR PROTECTION: TRIP-TIER SPEED CEILING',
+      area: 'REACTOR',
+      in1: { kind: 'const', value: 25 },
+      in2: { kind: 'ref', value: 0, tag: 'AGIT-TRIP-LATCH' },
+      gain: 999
+    })
+  )
+  add(
+    fb({
+      tag: 'AGIT-OR-SEL1',
+      fbType: 'CTLSL',
+      description: 'AGITATOR PROTECTION: ARBITRATE NORMAL VS WARNING CEILING (MIN)',
+      area: 'REACTOR',
+      in1: { kind: 'const', value: 150 },
+      in2: { kind: 'ref', value: 0, tag: 'AGIT-WARN-LIM' },
+      cmpOp: '<'
+    })
+  )
+  add(
+    fb({
+      tag: 'AGIT-OR-SEL2',
+      fbType: 'CTLSL',
+      description: 'AGITATOR PROTECTION: ARBITRATE VS TRIP CEILING (MIN) \u2014 FINAL DEMAND',
+      area: 'REACTOR',
+      in1: { kind: 'ref', value: 0, tag: 'AGIT-OR-SEL1' },
+      in2: { kind: 'ref', value: 0, tag: 'AGIT-TRIP-LIM' },
+      cmpOp: '<'
     })
   )
 
@@ -604,6 +719,19 @@ export function buildInitialPlant(): PlantState {
     alarms: []
   }
   add(hs201)
+
+  const hs202: DiscreteOutput = {
+    tag: 'HS-202',
+    type: 'DO',
+    description: 'AGITATOR TRIP RESET PUSHBUTTON',
+    area: 'REACTOR',
+    state: false,
+    commanded: false,
+    activeDescriptor: 'RESET',
+    inactiveDescriptor: 'NORMAL',
+    alarms: []
+  }
+  add(hs202)
 
   // =========================================================================
   // GMP Pharma Factory additions — WFI (2 stills), Autoclaves (x2), Lyophilizers
@@ -720,7 +848,85 @@ export function buildInitialPlant(): PlantState {
   add(motor({ tag: 'P-402', description: 'WFI DISTRIBUTION PUMP 2 (STANDBY)', area: 'WFI' }))
   add(valve({ tag: 'XV-401', description: 'WFI LOOP SAMPLE VALVE', area: 'WFI' }))
   add(valve({ tag: 'XV-411', description: 'WFI STILL 2 OUTLET VALVE', area: 'WFI', open: true, commandedOpen: true }))
-  add(valve({ tag: 'PCV-401', description: 'WFI LOOP RETURN BACKPRESSURE REGULATING VALVE', area: 'WFI', open: true, commandedOpen: true }))
+  add(
+    valve({
+      tag: 'PCV-401',
+      description: 'WFI LOOP RETURN BACKPRESSURE REGULATING VALVE',
+      area: 'WFI',
+      open: true,
+      commandedOpen: true,
+      interlockSource: 'WFI-OOS-DLY'
+    })
+  )
+
+  // --- WFI Sanitary Out-of-Spec Dump Interlock -----------------------------
+  // Return Conductivity > 1.1 uS/cm OR Return TOC > 500 ppb, debounced 3s so a
+  // brief air-bubble spike at the sensor doesn't false-trip, then automatically
+  // closes the return-to-tank path (PCV-401) and opens the divert-to-drain
+  // valve (XV-422) \u2014 using the generic INTERLOCK_SOURCE/COMMAND_SOURCE wiring,
+  // not a hardcoded one-off.
+  add(
+    ai({
+      tag: 'AT-402',
+      description: 'WFI RETURN TOC (USP <643>)',
+      area: 'WFI',
+      unit: 'ppb',
+      pv: 80,
+      pvMax: 1000,
+      decimals: 0,
+      alarms: [{ type: 'HI', label: 'HI', priority: 'CRITICAL', limit: 500, enabled: true }]
+    })
+  )
+  add(
+    valve({
+      tag: 'XV-422',
+      description: 'WFI DIVERT-TO-DRAIN VALVE (OOS DUMP)',
+      area: 'WFI',
+      commandSource: 'WFI-OOS-DLY'
+    })
+  )
+  add(
+    fb({
+      tag: 'WFI-COND-ALM',
+      fbType: 'CMP',
+      description: 'WFI OOS: RETURN CONDUCTIVITY HIGH',
+      area: 'WFI',
+      in1: { kind: 'ref', value: 0, tag: 'AT-401' },
+      in2: { kind: 'const', value: 1.1 },
+      cmpOp: '>'
+    })
+  )
+  add(
+    fb({
+      tag: 'WFI-TOC-ALM',
+      fbType: 'CMP',
+      description: 'WFI OOS: RETURN TOC HIGH',
+      area: 'WFI',
+      in1: { kind: 'ref', value: 0, tag: 'AT-402' },
+      in2: { kind: 'const', value: 500 },
+      cmpOp: '>'
+    })
+  )
+  add(
+    fb({
+      tag: 'WFI-OOS-OR',
+      fbType: 'OR',
+      description: 'WFI OOS: CONDUCTIVITY OR TOC OUT OF SPEC',
+      area: 'WFI',
+      in1: { kind: 'ref', value: 0, tag: 'WFI-COND-ALM' },
+      in2: { kind: 'ref', value: 0, tag: 'WFI-TOC-ALM' }
+    })
+  )
+  add(
+    fb({
+      tag: 'WFI-OOS-DLY',
+      fbType: 'OND',
+      description: 'WFI OOS: 3s DEBOUNCE BEFORE SANITARY DUMP',
+      area: 'WFI',
+      in1: { kind: 'ref', value: 0, tag: 'WFI-OOS-OR' },
+      delaySec: 3
+    })
+  )
 
   // --- Autoclave 1 (steam sterilizer) — cycle run from SFC STERILIZE-AC1 --
   add(

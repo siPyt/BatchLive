@@ -20,7 +20,7 @@ const CANVAS_W = 2200
 const CANVAS_H = 1400
 
 function nodeHeight(m: AnyModule): number {
-  const pins = m.type === 'FB' ? (FB_NEEDS_IN2[m.fbType] ? 2 : 1) : m.type === 'PID' ? 1 : 0
+  const pins = m.type === 'FB' ? (FB_NEEDS_IN2[m.fbType] ? 2 : 1) : m.type === 'PID' || m.type === 'MOTOR' || m.type === 'VALVE' ? 1 : 0
   return HEADER_H + ROW_H * 2 + pins * ROW_H + 6
 }
 
@@ -49,6 +49,7 @@ export function FbdCanvas({
   const modules = useStore((s) => s.modules)
   const setFbInput = useStore((s) => s.setFbInput)
   const setCasSource = useStore((s) => s.setCasSource)
+  const setInterlockSource = useStore((s) => s.setInterlockSource)
   const deleteModule = useStore((s) => s.deleteModule)
   const layout = useUi((s) => s.studioLayout)
   const setStudioLayout = useUi((s) => s.setStudioLayout)
@@ -104,6 +105,7 @@ export function FbdCanvas({
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return
       if (selectedWire) {
         if (selectedWire.which === 'cas') setCasSource(selectedWire.tag, undefined)
+        else if (selectedWire.which === 'ilk') setInterlockSource(selectedWire.tag, undefined)
         else setFbInput(selectedWire.tag, selectedWire.which as 'in1' | 'in2', { kind: 'const', value: 0 })
         setSelectedWire(null)
       } else if (selectedTag && !BUILTIN_TAGS.has(selectedTag)) {
@@ -112,10 +114,10 @@ export function FbdCanvas({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedWire, selectedTag, setFbInput, setCasSource, deleteModule])
+  }, [selectedWire, selectedTag, setFbInput, setCasSource, setInterlockSource, deleteModule])
 
-  // Build the wire list from every FB block's IN1/IN2 refs, and every PID's
-  // CAS_SOURCE, that point at a tag on this canvas.
+  // Build the wire list from every FB block's IN1/IN2 refs, every PID's
+  // CAS_SOURCE, and every MOTOR/VALVE's INTERLOCK_SOURCE that point at a tag on this canvas.
   const wires: Wire[] = []
   for (const tag of areaTags) {
     const m = modules[tag]
@@ -130,13 +132,15 @@ export function FbdCanvas({
       check('in2', m.in2)
     } else if (m.type === 'PID' && m.casSource && areaTags.includes(m.casSource)) {
       wires.push({ key: `${tag}.cas`, fromTag: m.casSource, toTag: tag, which: 'cas' })
+    } else if ((m.type === 'MOTOR' || m.type === 'VALVE') && m.interlockSource && areaTags.includes(m.interlockSource)) {
+      wires.push({ key: `${tag}.ilk`, fromTag: m.interlockSource, toTag: tag, which: 'ilk' })
     }
   }
 
   const pinPos = (tag: string, which: string): { x: number; y: number } => {
     const p = posOf(tag)
     if (which === 'out') return { x: p.x + NODE_W, y: p.y + HEADER_H + ROW_H + ROW_H / 2 }
-    const row = which === 'in1' || which === 'cas' ? 0 : 1
+    const row = which === 'in1' || which === 'cas' || which === 'ilk' ? 0 : 1
     return { x: p.x, y: p.y + HEADER_H + ROW_H * 2 + row * ROW_H + ROW_H / 2 }
   }
 
@@ -152,6 +156,7 @@ export function FbdCanvas({
     if (!wiring) return
     if (wiring.fromTag !== toTag) {
       if (which === 'cas') setCasSource(toTag, wiring.fromTag)
+      else if (which === 'ilk') setInterlockSource(toTag, wiring.fromTag)
       else setFbInput(toTag, which as 'in1' | 'in2', { kind: 'ref', value: 0, tag: wiring.fromTag })
     }
     setWiring(null)
@@ -221,7 +226,15 @@ export function FbdCanvas({
               selected={tag === selectedTag}
               onHeaderDown={(e) => beginDragNode(tag, e)}
               onOutDown={(e) => beginWire(tag, e)}
-              onIn1Up={m.type === 'FB' ? (e) => dropWire(tag, 'in1', e) : m.type === 'PID' ? (e) => dropWire(tag, 'cas', e) : undefined}
+              onIn1Up={
+                m.type === 'FB'
+                  ? (e) => dropWire(tag, 'in1', e)
+                  : m.type === 'PID'
+                    ? (e) => dropWire(tag, 'cas', e)
+                    : m.type === 'MOTOR' || m.type === 'VALVE'
+                      ? (e) => dropWire(tag, 'ilk', e)
+                      : undefined
+              }
               onIn2Up={m.type === 'FB' && FB_NEEDS_IN2[m.fbType] ? (e) => dropWire(tag, 'in2', e) : undefined}
             />
           )
@@ -264,7 +277,9 @@ function FbNode({
         : [{ label: 'IN1', up: onIn1Up }]
       : m.type === 'PID'
         ? [{ label: 'CAS_IN', up: onIn1Up }]
-        : []
+        : m.type === 'MOTOR' || m.type === 'VALVE'
+          ? [{ label: 'ILK', up: onIn1Up }]
+          : []
 
   return (
     <g transform={`translate(${x},${y})`}>
