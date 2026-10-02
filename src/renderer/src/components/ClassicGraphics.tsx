@@ -4,19 +4,17 @@ import { fmt, isPid } from '../utils/format'
 
 // Classic DeltaV Operate (pre-"DeltaV Live") graphic primitives: pale
 // gray-blue canvas, flat uncolored equipment, plain black-on-gray data
-// boxes. Deliberately a different, lower-saturation art style from the dark
-// DeltaV Live theme used everywhere else in this app — validated GMP sites
-// commonly keep process graphics this muted so alarm colors are the only
-// thing that stands out. Used only by the WFI Storage Tank & Loop display,
-// to match the real site reference screenshot.
+// boxes. Used across every plant area diagram for one consistent site
+// aesthetic (validated GMP sites commonly keep process graphics this muted
+// so alarm colors are the only thing that stands out).
 
-const PALE_BG = '#cdd6de'
-const PALE_EQUIP = '#aebdc9'
-const PALE_BORDER = '#5b7384'
-const PALE_PIPE = '#6b8296'
-const PALE_TEXT = '#17222b'
-const PALE_GREEN = '#4a9f4a'
-const PALE_RED = '#c0392b'
+export const PALE_BG = '#cdd6de'
+export const PALE_EQUIP = '#aebdc9'
+export const PALE_BORDER = '#5b7384'
+export const PALE_PIPE = '#6b8296'
+export const PALE_TEXT = '#17222b'
+export const PALE_GREEN = '#4a9f4a'
+export const PALE_RED = '#c0392b'
 
 /** Full-bleed pale background rectangle — call once behind everything else. */
 export function ClassicBackground({ w, h }: { w: number; h: number }): JSX.Element {
@@ -84,6 +82,68 @@ export function ClassicPump({ x, y, running, tag }: { x: number; y: number; runn
         M
       </text>
       <ClassicLabel x={x} y={y + 30} text={tag} />
+    </g>
+  )
+}
+
+/** Modulating control valve: a diamond body (shaded by % open) plus a plain
+ * pneumatic actuator dome on top — the automated counterpart to the H-icon
+ * hand valve, in the same flat classic style. */
+export function ClassicControlValve({ x, y, position, tag }: { x: number; y: number; position: number; tag: string }): JSX.Element {
+  const openFp = useUi((s) => s.openFaceplate)
+  const s = 10
+  const pct = Math.max(0, Math.min(100, position))
+  const fill = `rgb(${Math.round(190 - pct * 0.6)}, ${Math.round(205 - pct * 0.3)}, ${Math.round(214)})`
+  return (
+    <g style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
+      <polygon points={`${x - s},${y - s} ${x + s},${y + s} ${x + s},${y - s} ${x - s},${y + s}`} fill={fill} stroke={PALE_BORDER} strokeWidth={1.3} />
+      <line x1={x} y1={y} x2={x} y2={y - 13} stroke={PALE_BORDER} strokeWidth={1.8} />
+      <path d={`M ${x - 9},${y - 13} A 9 8 0 0 1 ${x + 9},${y - 13} Z`} fill="#eef1f3" stroke={PALE_BORDER} strokeWidth={1.3} />
+      <ClassicLabel x={x} y={y + s + 13} text={tag} />
+    </g>
+  )
+}
+
+/** Agitator/mixer drive motor mounted on a vessel roof — same flat classic
+ * palette, plain box + shaft lines, no mechanical housing detail. */
+export function ClassicAgitatorDrive({ x, y, running, tag }: { x: number; y: number; running: boolean; tag: string }): JSX.Element {
+  const openFp = useUi((s) => s.openFaceplate)
+  const fill = running ? PALE_GREEN : PALE_EQUIP
+  return (
+    <g transform={`translate(${x} ${y})`} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
+      <rect x={-13} y={-22} width={26} height={22} rx={2} fill="#dfe6ec" stroke={PALE_BORDER} strokeWidth={1.5} />
+      <line x1={-6} y1={-22} x2={-6} y2={0} stroke={PALE_BORDER} strokeWidth={1} />
+      <line x1={1} y1={-22} x2={1} y2={0} stroke={PALE_BORDER} strokeWidth={1} />
+      <rect x={-5} y={0} width={10} height={9} fill={fill} stroke={PALE_BORDER} strokeWidth={1.2} />
+      <text x={0} y={-27} fill={PALE_TEXT} fontSize={9} fontWeight={700} textAnchor="middle">
+        {tag}
+      </text>
+    </g>
+  )
+}
+
+/** Plain diamond permissive/interlock badge — matches the flat classic
+ * style (no colored diamond outline glow, just a thin bordered marker). */
+export function ClassicPermissiveFlag({ x, y, ok }: { x: number; y: number; ok: boolean }): JSX.Element {
+  const s = 9
+  const color = ok ? PALE_GREEN : PALE_RED
+  return (
+    <g>
+      <polygon points={`${x},${y - s} ${x + s},${y} ${x},${y + s} ${x - s},${y}`} fill="#eef1f3" stroke={color} strokeWidth={1.5} />
+      <text x={x} y={y + 3} fill={color} fontSize={6.5} fontWeight={800} textAnchor="middle">
+        {ok ? 'OK' : 'TRIP'}
+      </text>
+    </g>
+  )
+}
+
+/** Plain bordered rounded-rect vessel shell (no level fill) — for header
+ * vessels, chambers, and skid tanks drawn without a liquid-level readout. */
+export function ClassicVessel({ x, y, w, h, label }: { x: number; y: number; w: number; h: number; label?: string }): JSX.Element {
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx={6} fill="#dfe6ec" stroke={PALE_BORDER} strokeWidth={2} />
+      {label && <ClassicLabel x={x + w / 2} y={y - 8} text={label} />}
     </g>
   )
 }

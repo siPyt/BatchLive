@@ -1,8 +1,23 @@
 import { useStore } from '../engine/store'
 import type { ReactNode } from 'react'
-import { Pipe, Label, InstrumentTap, GateValve, Tank, Pump } from '../components/Graphics'
-import { ValueBox } from '../components/ValueBox'
-import { ClassicBackground, ClassicPipe, ClassicLabel, ClassicTank, ClassicValve, ClassicPump, ClassicHex, ClassicFlag, ClassicReadout, ClassicStatusWord, ClassicPanel } from '../components/ClassicGraphics'
+import { InstrumentTap } from '../components/Graphics'
+import {
+  ClassicBackground,
+  ClassicPipe,
+  ClassicLabel,
+  ClassicTank,
+  ClassicValve,
+  ClassicPump,
+  ClassicHex,
+  ClassicFlag,
+  ClassicReadout,
+  ClassicStatusWord,
+  ClassicPanel,
+  ClassicVessel,
+  PALE_BORDER,
+  PALE_GREEN,
+  PALE_RED
+} from '../components/ClassicGraphics'
 import { durationString } from '../utils/format'
 import type { PidModule, ValveModule, DiscreteInput, MotorModule, DiscreteOutput, AnalogIndicator } from '../engine/types'
 
@@ -228,25 +243,17 @@ function ChamberUnit({
   const doorClosed = di ? di.state : true
   return (
     <g>
-      <Label x={offsetX + 90} y={20} text={`AUTOCLAVE ${n}`} />
-      <rect x={offsetX} y={30} width={180} height={140} rx={8} fill="#eef1f4" stroke="var(--dv-metal)" strokeWidth={2} />
-      <rect
-        x={offsetX + 160}
-        y={40}
-        width={14}
-        height={120}
-        rx={3}
-        fill={doorClosed ? 'var(--dv-run)' : 'var(--dv-critical)'}
-        opacity={0.8}
-      />
-      <text x={offsetX + 90} y={105} fill="var(--dv-text-mute)" fontSize={10} textAnchor="middle">
+      <ClassicLabel x={offsetX + 90} y={20} text={`AUTOCLAVE ${n}`} />
+      <rect x={offsetX} y={30} width={180} height={140} rx={8} fill="#dfe6ec" stroke={PALE_BORDER} strokeWidth={2} />
+      <rect x={offsetX + 160} y={40} width={14} height={120} rx={3} fill={doorClosed ? PALE_GREEN : PALE_RED} opacity={0.85} />
+      <text x={offsetX + 90} y={105} fill="#3a4550" fontSize={10} textAnchor="middle">
         CHAMBER
       </text>
-      <Pipe d={`M${offsetX + 90},10 V30`} active={tic.out > 5} width={4} />
-      <GateValve x={offsetX + 90} y={195} open={xv.open} tag={xv.tag} interlock={xv.interlock} />
-      <Pipe d={`M${offsetX + 90},170 V185`} />
-      <ValueBox tag={tic.tag} x={offsetX - 10} y={60} />
-      <ValueBox tag={pic.tag} x={offsetX - 10} y={100} />
+      <ClassicPipe d={`M${offsetX + 90},10 V30`} width={4} />
+      <ClassicValve x={offsetX + 90} y={195} open={xv.open} tag={xv.tag} />
+      <ClassicPipe d={`M${offsetX + 90},170 V185`} />
+      <ClassicReadout tag={tic.tag} x={offsetX - 10} y={60} />
+      <ClassicReadout tag={pic.tag} x={offsetX - 10} y={100} />
     </g>
   )
 }
@@ -256,6 +263,7 @@ export function AutoclaveDiagram({ embedded }: { embedded?: boolean } = {}): JSX
   if (!modules['TIC-501'] || !modules['TIC-511']) return null
   return (
     <Wrap height={240} embedded={embedded}>
+      <ClassicBackground w={1040} h={240} />
       <ChamberUnit
         n={1}
         tic={modules['TIC-501'] as PidModule}
@@ -272,7 +280,7 @@ export function AutoclaveDiagram({ embedded }: { embedded?: boolean } = {}): JSX
         di={modules['DI-511'] as DiscreteInput}
         offsetX={560}
       />
-      <Label x={520} y={120} text="STEAM HEADER" anchor="middle" />
+      <ClassicLabel x={520} y={120} text="STEAM HEADER" anchor="middle" />
     </Wrap>
   )
 }
@@ -294,8 +302,8 @@ function LyoUnit({
 }): JSX.Element {
   return (
     <g>
-      <Label x={offsetX + 90} y={20} text={`LYOPHILIZER ${n}`} />
-      <rect x={offsetX} y={30} width={180} height={130} rx={8} fill="#eef1f4" stroke="var(--dv-metal)" strokeWidth={2} />
+      <ClassicLabel x={offsetX + 90} y={20} text={`LYOPHILIZER ${n}`} />
+      <rect x={offsetX} y={30} width={180} height={130} rx={8} fill="#dfe6ec" stroke={PALE_BORDER} strokeWidth={2} />
       {[0, 1, 2, 3].map((i) => (
         <rect
           key={i}
@@ -304,17 +312,17 @@ function LyoUnit({
           width={152}
           height={16}
           rx={2}
-          fill="var(--dv-liquid)"
+          fill="#7fa3bd"
           opacity={0.18 + (0.55 * Math.max(0, 50 - Math.abs(tic.pv - -40))) / 50}
         />
       ))}
-      <Pipe d={`M${offsetX + 90},10 V30`} active={pic.out > 5} width={4} />
-      <Label x={offsetX + 90} y={8} text="TO CONDENSER" anchor="middle" />
-      <GateValve x={offsetX + 90} y={185} open={xv.open} tag={xv.tag} interlock={xv.interlock} />
-      <Pipe d={`M${offsetX + 90},160 V175`} />
-      <ValueBox tag={tic.tag} x={offsetX - 10} y={50} />
-      <ValueBox tag={pic.tag} x={offsetX - 10} y={90} />
-      <ValueBox tag={at.tag} x={offsetX - 10} y={130} />
+      <ClassicPipe d={`M${offsetX + 90},10 V30`} width={4} />
+      <ClassicLabel x={offsetX + 90} y={8} text="TO CONDENSER" anchor="middle" />
+      <ClassicValve x={offsetX + 90} y={185} open={xv.open} tag={xv.tag} />
+      <ClassicPipe d={`M${offsetX + 90},160 V175`} />
+      <ClassicReadout tag={tic.tag} x={offsetX - 10} y={50} />
+      <ClassicReadout tag={pic.tag} x={offsetX - 10} y={90} />
+      <ClassicReadout tag={at.tag} x={offsetX - 10} y={130} />
     </g>
   )
 }
@@ -324,6 +332,7 @@ export function LyoDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
   if (!modules['TIC-601'] || !modules['TIC-611']) return null
   return (
     <Wrap height={230} embedded={embedded}>
+      <ClassicBackground w={1040} h={230} />
       <LyoUnit
         n={1}
         tic={modules['TIC-601'] as PidModule}
@@ -365,19 +374,19 @@ function CipUnit({
 }): JSX.Element {
   return (
     <g>
-      <Label x={offsetX + 60} y={20} text={`CIP SKID ${n}`} />
-      <Tank x={offsetX} y={30} w={80} h={100} level={60} label="" liquidColor="var(--dv-liquid)" />
-      <Pipe d={`M${offsetX + 40},130 V150`} />
-      <Pump x={offsetX + 40} y={170} running={p.running} tag={p.tag} />
-      <Pipe d={`M${offsetX + 40},190 V210 H${offsetX + 140}`} />
-      <GateValve x={offsetX + 140} y={210} open={xvS.open} tag={xvS.tag} interlock={xvS.interlock} />
-      <Label x={offsetX + 140} y={235} text="SUPPLY" anchor="middle" />
-      <Pipe d={`M${offsetX},60 H${offsetX - 20} V210 H${offsetX + 20}`} />
-      <GateValve x={offsetX - 20} y={130} open={xvR.open} tag={xvR.tag} interlock={xvR.interlock} />
-      <Label x={offsetX - 20} y={108} text="RETURN" anchor="middle" />
-      <ValueBox tag={tic.tag} x={offsetX + 90} y={30} />
-      <ValueBox tag={fic.tag} x={offsetX + 90} y={60} />
-      <ValueBox tag={at.tag} x={offsetX - 95} y={30} />
+      <ClassicLabel x={offsetX + 60} y={20} text={`CIP SKID ${n}`} />
+      <ClassicTank x={offsetX} y={30} w={80} h={100} level={60} label="" />
+      <ClassicPipe d={`M${offsetX + 40},130 V150`} />
+      <ClassicPump x={offsetX + 40} y={170} running={p.running} tag={p.tag} />
+      <ClassicPipe d={`M${offsetX + 40},190 V210 H${offsetX + 140}`} />
+      <ClassicValve x={offsetX + 140} y={210} open={xvS.open} tag={xvS.tag} />
+      <ClassicLabel x={offsetX + 140} y={235} text="SUPPLY" anchor="middle" />
+      <ClassicPipe d={`M${offsetX},60 H${offsetX - 20} V210 H${offsetX + 20}`} />
+      <ClassicValve x={offsetX - 20} y={130} open={xvR.open} tag={xvR.tag} />
+      <ClassicLabel x={offsetX - 20} y={108} text="RETURN" anchor="middle" />
+      <ClassicReadout tag={tic.tag} x={offsetX + 90} y={30} />
+      <ClassicReadout tag={fic.tag} x={offsetX + 90} y={60} />
+      <ClassicReadout tag={at.tag} x={offsetX - 95} y={30} />
     </g>
   )
 }
@@ -387,6 +396,7 @@ export function CipDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
   if (!modules['TIC-701'] || !modules['TIC-711'] || !modules['TIC-721']) return null
   return (
     <Wrap height={280} embedded={embedded}>
+      <ClassicBackground w={1040} h={280} />
       <CipUnit
         n={1}
         tic={modules['TIC-701'] as PidModule}
@@ -440,18 +450,18 @@ function TcuUnit({
 }): JSX.Element {
   return (
     <g>
-      <Label x={offsetX + 70} y={20} text={`TCU ${n}`} />
-      <rect x={offsetX} y={30} width={140} height={70} rx={6} fill="#eef1f4" stroke="var(--dv-metal)" strokeWidth={2} />
-      <rect x={offsetX + 55} y={44} width={30} height={20} rx={3} fill={hs.state ? 'var(--dv-critical)' : 'var(--dv-metal)'} opacity={0.75} />
-      <text x={offsetX + 70} y={78} fill="var(--dv-text-mute)" fontSize={9} textAnchor="middle">
+      <ClassicLabel x={offsetX + 70} y={20} text={`TCU ${n}`} />
+      <rect x={offsetX} y={30} width={140} height={70} rx={6} fill="#dfe6ec" stroke={PALE_BORDER} strokeWidth={2} />
+      <rect x={offsetX + 55} y={44} width={30} height={20} rx={3} fill={hs.state ? PALE_RED : '#8b97a0'} opacity={0.85} />
+      <text x={offsetX + 70} y={78} fill="#3a4550" fontSize={9} textAnchor="middle">
         HEATER
       </text>
-      <Pipe d={`M${offsetX + 70},100 V110`} />
-      <Pump x={offsetX + 70} y={130} running={p.running} tag={p.tag} />
-      <Pipe d={`M${offsetX + 70},150 V170`} />
-      <Label x={offsetX + 70} y={185} text={`TO ${serves}`} anchor="middle" />
-      <ValueBox tag={tic.tag} x={offsetX - 15} y={38} />
-      <ValueBox tag={fic.tag} x={offsetX + 95} y={38} />
+      <ClassicPipe d={`M${offsetX + 70},100 V110`} />
+      <ClassicPump x={offsetX + 70} y={130} running={p.running} tag={p.tag} />
+      <ClassicPipe d={`M${offsetX + 70},150 V170`} />
+      <ClassicLabel x={offsetX + 70} y={185} text={`TO ${serves}`} anchor="middle" />
+      <ClassicReadout tag={tic.tag} x={offsetX - 15} y={38} />
+      <ClassicReadout tag={fic.tag} x={offsetX + 95} y={38} />
     </g>
   )
 }
@@ -461,6 +471,7 @@ export function TcuDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
   if (!modules['TIC-801'] || !modules['TIC-811'] || !modules['TIC-821']) return null
   return (
     <Wrap height={230} embedded={embedded}>
+      <ClassicBackground w={1040} h={230} />
       <TcuUnit
         n={1}
         tic={modules['TIC-801'] as PidModule}
