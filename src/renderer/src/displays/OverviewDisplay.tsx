@@ -1,6 +1,8 @@
 import { useStore } from '../engine/store'
+import { useUi, type DisplayId } from '../ui/uiStore'
 import { Tank, Pump, GateValve, ControlValve, Pipe, FlowDot, Label } from '../components/Graphics'
 import { ValueBox } from '../components/ValueBox'
+import { fmt, isPid } from '../utils/format'
 import type { PidModule, MotorModule, ValveModule } from '../engine/types'
 
 export function OverviewDisplay(): JSX.Element {
@@ -83,6 +85,96 @@ export function OverviewDisplay(): JSX.Element {
       <ValueBox tag="AT-301" x={905} y={300} />
       <ValueBox tag="PIC-301" x={905} y={150} />
       <ValueBox tag="LSH-101" x={312} y={110} />
+
+      <FacilityOverview />
+    </div>
+  )
+}
+
+/** Factory-wide summary strip: the reactor train above is one P&ID mimic among
+ * several process areas — this links out to the rest of the GMP facility. */
+function FacilityOverview(): JSX.Element {
+  return (
+    <div style={{ maxWidth: 1060, margin: '18px auto 24px' }}>
+      <div className="display-title" style={{ fontSize: 13, marginBottom: 8 }}>
+        GMP PHARMA FACILITY — Other Process Areas
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+          gap: 10
+        }}
+      >
+        <AreaTile area="WFI" display="wfi" title="WFI Generation (x2 Stills)" ico="💧" tags={['TIC-401', 'LIC-401', 'AT-401']} />
+        <AreaTile area="AUTOCLAVE" display="autoclave" title="Autoclaves (x2)" ico="♨" tags={['TIC-501', 'TIC-511']} />
+        <AreaTile area="LYO" display="lyo" title="Lyophilizers (x2)" ico="❄" tags={['TIC-601', 'TIC-611']} />
+        <AreaTile area="CIP" display="cip" title="CIP Skids (x3)" ico="🧼" tags={['TIC-701', 'TIC-711', 'TIC-721']} />
+        <AreaTile area="TCU" display="tcu" title="TCUs (x3)" ico="🌡" tags={['TIC-801', 'TIC-811', 'TIC-821']} />
+      </div>
+    </div>
+  )
+}
+
+function AreaTile({
+  area,
+  display,
+  title,
+  ico,
+  tags
+}: {
+  area: string
+  display: DisplayId
+  title: string
+  ico: string
+  tags: string[]
+}): JSX.Element {
+  const modules = useStore((s) => s.modules)
+  const alarms = useStore((s) => s.alarms)
+  const navigate = useUi((s) => s.navigate)
+
+  const areaAlarms = alarms.filter((a) => a.active && modules[a.moduleTag]?.area === area)
+  const critical = areaAlarms.some((a) => a.priority === 'CRITICAL')
+  const warning = areaAlarms.some((a) => a.priority === 'WARNING')
+  const border = critical ? 'var(--dv-critical)' : warning ? 'var(--dv-warning)' : 'var(--dv-border)'
+
+  return (
+    <div
+      onClick={() => navigate(display)}
+      style={{
+        background: 'var(--dv-panel)',
+        border: `1px solid ${border}`,
+        borderRadius: 5,
+        padding: '8px 10px',
+        cursor: 'pointer'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 12, color: 'var(--dv-text)' }}>
+        <span>{ico}</span>
+        <span style={{ flex: 1 }}>{title}</span>
+        {areaAlarms.length > 0 && (
+          <span style={{ color: critical ? 'var(--dv-critical)' : 'var(--dv-warning)', fontSize: 11 }}>
+            {areaAlarms.length} alm
+          </span>
+        )}
+      </div>
+      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {tags.map((tag) => {
+          const m = modules[tag]
+          if (!m) return null
+          const value = isPid(m) || m.type === 'AI' ? m.pv : null
+          const decimals = isPid(m) || m.type === 'AI' ? m.decimals : 1
+          const unit = isPid(m) || m.type === 'AI' ? (m as PidModule).unit : ''
+          return (
+            <div key={tag} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--dv-text-dim)' }}>
+              <span>{tag}</span>
+              <span style={{ color: 'var(--dv-text)', fontWeight: 600 }}>
+                {value !== null ? `${fmt(value, decimals)} ${unit}` : '—'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
