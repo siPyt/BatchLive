@@ -10,7 +10,8 @@ import {
   Label,
   InstrumentTap,
   PermissiveFlag,
-  OffPageArrow
+  OffPageArrow,
+  AgitatorDrive
 } from '../components/Graphics'
 import { DeltaVCanvas, type DeltaVCanvasHandle } from '../components/DeltaVCanvas'
 import { ValueBox } from '../components/ValueBox'
@@ -21,7 +22,7 @@ import { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } from
 /** World-space origins for each plant area on the one shared coordinate
  * plane — a DCS spatial canvas, not stacked HTML page sections. */
 const AREAS = {
-  REACTOR: { x: 0, y: 0, cx: 530, cy: 300, scale: 0.9 },
+  REACTOR: { x: 0, y: 0, cx: 530, cy: 150, scale: 0.9 },
   WFI: { x: 0, y: 700, cx: 520, cy: 880, scale: 0.85 },
   AUTOCLAVE: { x: 1150, y: 0, cx: 1670, cy: 120, scale: 1 },
   LYO: { x: 1150, y: 320, cx: 1670, cy: 435, scale: 1 },
@@ -43,6 +44,7 @@ export function OverviewDisplay(): JSX.Element {
   const xv101 = modules['XV-101'] as ValveModule
   const xv201 = modules['XV-201'] as ValveModule
   const psv201 = modules['PSV-201'] as ValveModule
+  const sic201 = modules['SIC-201'] as PidModule
 
   const feedActive = p101.running && xv101.open
   const prodActive = p201.running
@@ -66,7 +68,7 @@ export function OverviewDisplay(): JSX.Element {
       {/* The entire plant lives on one continuous world-space coordinate
        * plane inside a single DeltaVCanvas — every area is just a <g>
        * translated to its own X/Y origin, not a separate HTML page section. */}
-      <DeltaVCanvas ref={canvasRef} initialX={AREAS.REACTOR.x + 40} initialY={AREAS.REACTOR.y + 20} initialScale={0.9}>
+      <DeltaVCanvas ref={canvasRef} initialX={AREAS.REACTOR.x + 40} initialY={AREAS.REACTOR.y + 173} initialScale={0.9}>
         {/* ================= REACTOR TRAIN ================= */}
         <g transform={`translate(${AREAS.REACTOR.x}, ${AREAS.REACTOR.y})`}>
           {/* ---------------- Piping ---------------- */}
@@ -126,11 +128,17 @@ export function OverviewDisplay(): JSX.Element {
             strokeDasharray="3,2"
           />
           <Label x={455} y={255} text="JACKET" anchor="end" />
-          {/* headspace safety relief valve, centered on the roof nozzle; the batch card floats above it with room to spare */}
+          {/* headspace safety relief valve, centered on the roof nozzle */}
           <GateValve x={530} y={185} open={psv201.open} tag="PSV-201" interlock={psv201.interlock} />
           <OffPageArrow x={530} y={125} angle={-90} />
           <Label x={545} y={120} text="TO FLARE" anchor="start" />
-          <BatchStatusCard x={445} y={40} w={170} batch={batch} />
+          {/* agitator drive mounted on the vessel roof, clear of the centerline relief nozzle */}
+          <AgitatorDrive x={560} y={250} running={sic201.pv > 1} tag="SIC-201" />
+          {/* dashed ISA-5.1 signal leaders: dynamo edge -> dogleg clear of the relief valve -> motor housing center */}
+          <path d="M412,-91 H560 V239" stroke="#555555" strokeDasharray="4,3" strokeWidth={1.2} fill="none" />
+          <path d="M412,-37 H560 V239" stroke="#555555" strokeDasharray="4,3" strokeWidth={1.2} fill="none" />
+          {/* batch header card: top-center in the clear gray space above everything else (pipes, dynamos, agitator) */}
+          <BatchStatusCard x={420} y={-170} w={220} batch={batch} />
 
           {/* product header vessel */}
           <rect x={820} y={120} width={60} height={160} rx={6} fill="var(--dv-panel-2)" stroke="var(--dv-border-light)" strokeWidth={2} />
@@ -148,8 +156,8 @@ export function OverviewDisplay(): JSX.Element {
           <ControlValve x={880} y={366} position={pic.out} tag="PIC-301" />
 
           {/* ---------------- Instrument taps / signal leaders ---------------- */}
-          <InstrumentTap tapX={75} tapY={70} toX={75} toY={44} />
-          <InstrumentTap tapX={220} tapY={70} toX={220} toY={44} />
+          <InstrumentTap tapX={75} tapY={70} toX={75} toY={-34} />
+          <InstrumentTap tapX={220} tapY={70} toX={220} toY={-34} />
           <InstrumentTap tapX={300} tapY={160} toX={330} toY={160} />
           <InstrumentTap tapX={300} tapY={210} toX={330} toY={210} />
           <InstrumentTap tapX={900} tapY={150} toX={905} toY={178} />
@@ -161,20 +169,22 @@ export function OverviewDisplay(): JSX.Element {
           <Label x={1000} y={145} text="PRODUCT" anchor="middle" />
 
           {/* ---------------- Dynamo value boxes ---------------- */}
-          <ValueBox tag="FIC-101" x={40} y={8} svg />
+          {/* FIC-101 / TI-101: lifted into the whitespace above the steam header so the pipe stays unbroken */}
+          <ValueBox tag="FIC-101" x={20} y={-70} svg />
           <ValueBox tag="LIC-101" x={335} y={195} svg />
-          <ValueBox tag="TI-101" x={185} y={8} svg />
+          <ValueBox tag="TI-101" x={150} y={-70} svg />
           <ValueBox tag="LIC-201" x={600} y={250} svg />
           <ValueBox tag="TIC-201" x={600} y={310} svg />
           <ValueBox tag="AT-301" x={905} y={178} svg />
           <ValueBox tag="PIC-301" x={940} y={361} svg />
           <ValueBox tag="LSH-101" x={335} y={140} svg />
           <ValueBox tag="PT-201" x={600} y={370} svg />
-          <text x={380} y={10} fill="var(--dv-text-mute)" fontSize={10} fontWeight={700} letterSpacing={0.5}>
+          {/* agitator instruments: stacked in clear whitespace left of the batch card, wired to the motor with dashed leaders */}
+          <text x={300} y={-120} fill="var(--dv-text-mute)" fontSize={10} fontWeight={700} letterSpacing={0.5}>
             AGITATOR DRIVE
           </text>
-          <ValueBox tag="SIC-201" x={380} y={16} svg />
-          <ValueBox tag="II-201" x={380} y={66} svg />
+          <ValueBox tag="SIC-201" x={300} y={-114} svg />
+          <ValueBox tag="II-201" x={300} y={-60} svg />
         </g>
 
         {/* ================= OTHER PLANT AREAS — same world, different X/Y origin ================= */}

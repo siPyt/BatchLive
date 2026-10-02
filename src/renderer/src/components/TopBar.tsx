@@ -95,7 +95,7 @@ export function TopBar(): JSX.Element {
     <div className="topbar">
       <div className="brand">
         <span className="logo">BL</span>
-        <span>BatchLive</span>
+        <span>BatchLive- Charles R. Freeman, software engineer</span>
       </div>
 
       <DropdownMenu

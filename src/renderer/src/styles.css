@@ -2430,6 +2430,97 @@ button {
   line-height: 1;
 }
 
+/* Inline click-to-edit CV controls within an FBD block's parameter list. */
+.fb-port.editable {
+  align-items: center;
+}
+.fb-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.fb-stepper button {
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+  background: var(--dv-bg-3);
+  border: 1px solid var(--dv-border);
+  color: var(--dv-text);
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0;
+}
+.fb-numinput {
+  width: 48px;
+  background: #ffffff;
+  border: 1px solid var(--dv-border);
+  color: var(--dv-text);
+  border-radius: 2px;
+  padding: 1px 3px;
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.fb-port-toggle {
+  margin-left: 6px;
+  height: 16px;
+  padding: 0 5px;
+  background: var(--dv-bg-3);
+  border: 1px solid var(--dv-border);
+  color: var(--dv-text-dim);
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 700;
+}
+.fb-block.dc {
+  min-width: 170px;
+}
+.fb-dcbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px 8px;
+}
+.fb-dcbtn {
+  flex: 1;
+  height: 24px;
+  border-radius: 3px;
+  border: 1px solid var(--dv-border);
+  background: var(--dv-bg-3);
+  color: var(--dv-text);
+  font-size: 10px;
+  font-weight: 800;
+}
+.fb-dcbtn.start {
+  background: #1e6b32;
+  border-color: #2b8a44;
+  color: #eafff0;
+}
+.fb-dcbtn.start:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.fb-dcbtn.stop {
+  background: #7a2026;
+  border-color: #a12c34;
+  color: #ffecec;
+}
+.fb-dcbtn.reset {
+  background: var(--mode-man);
+  border-color: var(--mode-man);
+  color: #1a1200;
+}
+.studio-param-btn {
+  background: var(--dv-bg-3);
+  border: 1px solid var(--dv-border);
+  color: var(--dv-pv);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
 /* ------------------------------------------------------------------ */
 /* Control Studio ribbon                                               */
 /* ------------------------------------------------------------------ */
