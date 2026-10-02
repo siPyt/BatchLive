@@ -1,9 +1,10 @@
 import { useStore } from '../engine/store'
 import type { ReactNode } from 'react'
-import { Tank, Pump, GateValve, Pipe, Label, InstrumentTap, OffPageArrow } from '../components/Graphics'
+import { Pipe, Label, InstrumentTap, GateValve, Tank, Pump } from '../components/Graphics'
 import { ValueBox } from '../components/ValueBox'
+import { ClassicBackground, ClassicPipe, ClassicLabel, ClassicTank, ClassicValve, ClassicPump, ClassicHex, ClassicFlag, ClassicReadout, ClassicStatusWord, ClassicPanel } from '../components/ClassicGraphics'
 import { durationString } from '../utils/format'
-import type { PidModule, ValveModule, DiscreteInput, MotorModule, DiscreteOutput } from '../engine/types'
+import type { PidModule, ValveModule, DiscreteInput, MotorModule, DiscreteOutput, AnalogIndicator } from '../engine/types'
 
 /** P&ID mimic diagrams for the GMP pharma areas, in the same visual language
  * as the reactor-train Plant Overview (Graphics.tsx symbols + ValueBox dynamos). */
@@ -24,7 +25,8 @@ function Wrap({ height, children, embedded }: { height: number; children: ReactN
 }
 
 /** A distillation-column-style vessel (VCD still): domed top, internal trays,
- * and a heat-jacket core that glows with the controller's heat output. */
+ * and a heat-jacket core that glows with the controller's heat output.
+ * Styled pale/flat to match the classic DeltaV Operate WFI graphic. */
 function StillVessel({
   x,
   y,
@@ -43,7 +45,7 @@ function StillVessel({
   const domeH = 18
   return (
     <g>
-      <Label x={x + w / 2} y={y - 8} text={label} />
+      <ClassicLabel x={x + w / 2} y={y - 8} text={label} />
       <path
         d={`M ${x},${y + domeH}
             Q ${x},${y} ${x + w / 2},${y}
@@ -53,8 +55,8 @@ function StillVessel({
             L ${x + 10},${y + h + 10}
             Q ${x},${y + h + 10} ${x},${y + h}
             Z`}
-        fill="var(--dv-panel-2)"
-        stroke="var(--dv-border-light)"
+        fill="#dfe6ec"
+        stroke="#5b7384"
         strokeWidth={2}
       />
       {[0.3, 0.5, 0.7].map((f) => (
@@ -64,7 +66,7 @@ function StillVessel({
           x2={x + w - 6}
           y1={y + domeH + f * (h - domeH)}
           y2={y + domeH + f * (h - domeH)}
-          stroke="var(--dv-border-light)"
+          stroke="#5b7384"
           strokeWidth={1}
           opacity={0.6}
         />
@@ -75,8 +77,8 @@ function StillVessel({
         width={12}
         height={h - domeH - 14}
         rx={4}
-        fill="var(--dv-energized)"
-        opacity={0.2 + heatFrac * 0.6}
+        fill="#c0392b"
+        opacity={0.15 + heatFrac * 0.55}
       />
     </g>
   )
@@ -93,6 +95,7 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
   const p401 = modules['P-401'] as MotorModule
   const p402 = modules['P-402'] as MotorModule
   const pcv401 = modules['PCV-401'] as ValveModule
+  const ti402 = modules['TI-402'] as AnalogIndicator
   const proc = useStore((s) => s.modules['LIC-401'] as PidModule)
   if (!tic401 || !tic411 || !xv411 || !xv401 || !p401 || !p402 || !pcv401 || !xv422) return null
 
@@ -108,108 +111,101 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
   const sinceLastS = inSani ? 0 : cyclePos
   const remainingS = inSani ? SANI_INTERVAL_S - cyclePos : 0
 
+  // Redundant loop-temperature-high switches (TAH011C-G on the real screen):
+  // five lettered trip points, all watching the same return temperature.
+  const tahTripped = (ti402?.pv ?? 0) > 85
+  const tahTags = ['TAH-402B', 'TAH-402C', 'TAH-402D', 'TAH-402E', 'TAH-402F']
+
   return (
-    <Wrap height={360} embedded={embedded}>
-      <StillVessel x={50} y={50} w={80} h={130} heatFrac={tic401.out / 100} label="STILL 1" />
-      <StillVessel x={170} y={50} w={80} h={130} heatFrac={tic411.out / 100} label="STILL 2" />
-      <GateValve x={290} y={205} open={xv411.open} tag="XV-411" interlock={xv411.interlock} />
+    <Wrap height={400} embedded={embedded}>
+      <ClassicBackground w={1040} h={400} />
+      {tahTags.map((t, i) => (
+        <ClassicStatusWord key={t} x={560 + i * 95} y={12} tag={t} tripped={tahTripped} />
+      ))}
+
+      <StillVessel x={50} y={60} w={80} h={130} heatFrac={tic401.out / 100} label="STILL 1" />
+      <StillVessel x={170} y={60} w={80} h={130} heatFrac={tic411.out / 100} label="STILL 2" />
+      <ClassicValve x={290} y={215} open={xv411.open} tag="XV-411" />
 
       {/* stills discharge into the WFI storage tank's side nozzle */}
-      <Pipe d="M90,190 V205 H340" />
-      <Pipe d="M210,190 V205 H272" />
-      <Pipe d="M308,205 H340" />
+      <ClassicPipe d="M90,200 V215 H340" />
+      <ClassicPipe d="M210,200 V215 H272" />
+      <ClassicPipe d="M308,215 H340" />
 
       {/* top spray-ball recirculation return */}
-      <Pipe d="M395,20 V70" />
-      <circle cx={395} cy={62} r={4} fill="var(--dv-metal)" />
-      <line x1={390} y1={66} x2={384} y2={72} stroke="var(--dv-pipe)" strokeWidth={1.5} />
-      <line x1={400} y1={66} x2={406} y2={72} stroke="var(--dv-pipe)" strokeWidth={1.5} />
+      <ClassicPipe d="M395,35 V80" />
+      <circle cx={395} cy={72} r={4} fill="#5b7384" />
+      <line x1={390} y1={76} x2={384} y2={82} stroke="#5b7384" strokeWidth={1.5} />
+      <line x1={400} y1={76} x2={406} y2={82} stroke="#5b7384" strokeWidth={1.5} />
 
-      <Tank x={340} y={70} w={110} h={150} level={proc?.pv ?? 0} label="TK-401 WFI STORAGE" />
+      <ClassicTank x={340} y={80} w={110} h={150} level={proc?.pv ?? 0} label="TK-401 WFI STORAGE" />
 
       {/* bottom suction header -> dual sanitary pumps (P-401 primary / P-402 standby) */}
-      <Pipe d="M395,220 V240 H680" />
-      <Pipe d="M560,240 V278" />
-      <Pipe d="M660,240 V278" />
-      <Pump x={560} y={260} running={p401.running} tag="P-401" />
-      <Pump x={660} y={260} running={p402.running} tag="P-402" />
+      <ClassicPipe d="M395,230 V250 H680" />
+      <ClassicPipe d="M560,250 V278" />
+      <ClassicPipe d="M660,250 V278" />
+      <ClassicPump x={560} y={260} running={p401.running} tag="P-401" />
+      <ClassicPump x={660} y={260} running={p402.running} tag="P-402" />
 
-      {/* discharge risers (check valves) merge into the distribution heat exchanger */}
-      <Pipe d="M573,236 V200" />
-      <Pipe d="M673,236 V200" />
-      <circle cx={573} cy={218} r={6} fill="none" stroke="var(--dv-metal)" strokeWidth={1.5} />
-      <line x1={570} y1={221} x2={576} y2={215} stroke="var(--dv-metal)" strokeWidth={1.3} />
-      <circle cx={673} cy={218} r={6} fill="none" stroke="var(--dv-metal)" strokeWidth={1.5} />
-      <line x1={670} y1={221} x2={676} y2={215} stroke="var(--dv-metal)" strokeWidth={1.3} />
-      <Pipe d="M573,200 H780" />
-
-      {/* HEX-401 distribution heat exchanger: shell + dished channel heads + tube lines */}
-      <rect x={800} y={185} width={110} height={30} fill="var(--dv-panel-2)" stroke="var(--dv-border-light)" strokeWidth={1.5} />
-      <path d="M 800,185 Q 790,200 800,215 Z" fill="var(--dv-panel-2)" stroke="var(--dv-border-light)" strokeWidth={1.5} />
-      <path d="M 910,185 Q 920,200 910,215 Z" fill="var(--dv-panel-2)" stroke="var(--dv-border-light)" strokeWidth={1.5} />
-      {[192, 200, 208].map((ty) => (
-        <line key={ty} x1={804} x2={906} y1={ty} y2={ty} stroke="var(--dv-border-light)" strokeWidth={1.2} strokeDasharray="3,3" />
-      ))}
-      <Label x={855} y={178} text="HEX-401" anchor="middle" />
-      <Pipe d="M780,200 H800" />
-      <Pipe d="M910,200 H950" />
+      {/* discharge risers merge into the distribution heat exchanger stages */}
+      <ClassicPipe d="M560,244 V200" />
+      <ClassicPipe d="M660,244 V200" />
+      <ClassicPipe d="M560,200 H640" />
+      <ClassicHex x={640} y={188} w={90} h={24} label="Trim Cooler" />
+      <ClassicPipe d="M730,200 H780" />
+      <ClassicHex x={780} y={188} w={90} h={24} label="Cooler" />
+      <ClassicPipe d="M870,200 H920" />
+      <ClassicHex x={920} y={188} w={90} h={24} label="Sani Htr" />
 
       {/* supply riser -> point-of-use drop (XV-401) -> return header -> PCV-401 -> spray ball */}
-      <Pipe d="M950,200 V130" />
-      <Pipe d="M950,130 H985" />
-      <GateValve x={985} y={130} open={xv401.open} tag="XV-401" interlock={xv401.interlock} />
-      <Label x={1000} y={135} text="POU" anchor="start" />
-      <Pipe d="M950,130 V20" />
-      <Pipe d="M950,20 H395" />
-      <GateValve x={700} y={20} open={pcv401.open} tag="PCV-401" interlock={pcv401.interlock} />
-      <Label x={945} y={250} text="POINT-OF-USE SUPPLY" anchor="end" />
+      <ClassicPipe d="M965,200 V130" />
+      <ClassicPipe d="M965,130 H1000" />
+      <ClassicValve x={1000} y={130} open={xv401.open} tag="XV-401" />
+      <ClassicLabel x={1010} y={108} text="POU" anchor="start" />
+      <ClassicPipe d="M965,130 V35" />
+      <ClassicPipe d="M965,35 H395" />
+      <ClassicValve x={700} y={35} open={pcv401.open} tag="PCV-401" />
+      <ClassicLabel x={960} y={260} text="POINT-OF-USE SUPPLY" anchor="end" />
 
       {/* sanitary OOS dump: branches off the return header, opens automatically on an OOS trip */}
-      <Pipe d="M820,20 V29" width={3} />
-      <GateValve x={820} y={40} open={xv422.open} tag="XV-422" interlock={xv422.interlock} />
-      <Pipe d="M820,51 V60 H1010" width={3} />
-      <OffPageArrow x={1010} y={60} angle={0} />
-      <Label x={1005} y={50} text="TO DRAIN" anchor="end" />
+      <ClassicPipe d="M820,35 V44" />
+      <ClassicValve x={820} y={55} open={xv422.open} tag="XV-422" />
+      <ClassicPipe d="M820,66 V75 H980" />
+      <ClassicFlag x={980} y={65} text="PW to Drain" />
 
-      {/* Sani Schedule panel — clear whitespace above LIC-401, between the stills and the tank nozzle */}
-      <g>
-        <rect x={460} y={8} width={220} height={56} rx={3} fill="var(--dv-faceplate-header, #3a434c)" />
-        <text x={570} y={20} fill="#ffffff" fontSize={9} fontWeight={800} textAnchor="middle" letterSpacing={0.4}>
-          SANI SCHEDULE
-        </text>
-        <text x={468} y={32} fill="#cfd4da" fontSize={8}>
-          Time Until Next Sani
-        </text>
-        <text x={672} y={32} fill="#ffffff" fontSize={8} fontWeight={700} textAnchor="end">
-          {durationString(untilNextS)}
-        </text>
-        <text x={468} y={43} fill="#cfd4da" fontSize={8}>
-          Time Since Last Sani
-        </text>
-        <text x={672} y={43} fill="#ffffff" fontSize={8} fontWeight={700} textAnchor="end">
-          {durationString(sinceLastS)}
-        </text>
-        <text x={468} y={54} fill="#cfd4da" fontSize={8}>
-          Sani Time Remaining
-        </text>
-        <text x={672} y={54} fill={inSani ? '#ffce45' : '#ffffff'} fontSize={8} fontWeight={700} textAnchor="end">
-          {inSani ? durationString(remainingS) : '--:--:--'}
-        </text>
-      </g>
+      {/* Sani Schedule panel — plain bordered box with a button, matching the real site graphic's chrome */}
+      <ClassicPanel
+        x={460}
+        y={30}
+        w={220}
+        h={78}
+        title="N1-WFI-SANI"
+        rows={[
+          ['Time Until Next Sani', durationString(untilNextS)],
+          ['Time Since Last Sani', durationString(sinceLastS)],
+          ['Sani Time Remaining', inSani ? durationString(remainingS) : '--:--:--']
+        ]}
+        button="Sani Schedule"
+      />
 
-      <InstrumentTap tapX={650} tapY={200} toX={600} toY={225} />
-      <InstrumentTap tapX={790} tapY={200} toX={800} toY={235} />
-      <InstrumentTap tapX={830} tapY={20} toX={830} toY={45} />
+      <ClassicFlag x={30} y={30} w={60} text="Glycol Supply" pointRight={false} />
+      <ClassicFlag x={30} y={300} w={60} text="Glycol Return" pointRight={false} />
+      <ClassicFlag x={1000} y={300} w={60} text="Plant Steam" />
+      <ClassicFlag x={1000} y={340} w={60} text="Plant Condensate" />
 
-      <ValueBox tag="TIC-401" x={45} y={195} />
-      <ValueBox tag="TIC-411" x={165} y={195} />
-      <ValueBox tag="FI-401" x={45} y={15} />
-      <ValueBox tag="FI-411" x={165} y={15} />
-      <ValueBox tag="LIC-401" x={460} y={70} />
-      <ValueBox tag="PIC-401" x={565} y={225} />
-      <ValueBox tag="AT-401" x={765} y={235} />
-      <ValueBox tag="AT-402" x={885} y={235} />
-      <ValueBox tag="TI-402" x={795} y={45} />
+      <InstrumentTap tapX={610} tapY={200} toX={600} toY={240} />
+      <InstrumentTap tapX={750} tapY={200} toX={760} toY={240} />
+      <InstrumentTap tapX={830} tapY={35} toX={830} toY={60} />
+
+      <ClassicReadout tag="TIC-401" x={40} y={205} />
+      <ClassicReadout tag="TIC-411" x={160} y={205} />
+      <ClassicReadout tag="FI-401" x={40} y={25} />
+      <ClassicReadout tag="FI-411" x={160} y={25} />
+      <ClassicReadout tag="LIC-401" x={340} y={238} />
+      <ClassicReadout tag="PIC-401" x={560} y={254} />
+      <ClassicReadout tag="AT-401" x={700} y={254} />
+      <ClassicReadout tag="AT-402" x={810} y={254} />
+      <ClassicReadout tag="TI-402" x={920} y={60} />
     </Wrap>
   )
 }
