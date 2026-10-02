@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 760" width="100%" height="100%" style="background-color: #DFDFDF; font-family: 'Segoe UI', -apple-system, sans-serif;">
+  <defs>
+    <style>
+      .sfc-line       { stroke: #2B2B2B; stroke-width: 2; fill: none; }
+      .sfc-line-active{ stroke: #007ACC; stroke-width: 2.5; fill: none; }
+      .sfc-step-box   { fill: #FFFFFF; stroke: #333333; stroke-width: 1.5; }
+      .sfc-step-active{ fill: #E6F3FA; stroke: #007ACC; stroke-width: 2.5; }
+      .sfc-trans-bar  { fill: #2B2B2B; }
+      .sfc-trans-true { fill: #2E6B4F; }
+      .step-title     { font-size: 11px; font-weight: 700; fill: #1A1A1A; text-anchor: middle; }
+      .step-timer     { font-family: 'Consolas', monospace; font-size: 10px; fill: #555555; text-anchor: middle; }
+      .trans-label    { font-family: 'Consolas', monospace; font-size: 10px; font-weight: 600; fill: #2B2B2B; }
+      .action-box     { fill: #F5F5F5; stroke: #707070; stroke-width: 1; }
+      .qual-box       { fill: #D9D9D9; stroke: #707070; stroke-width: 1; font-weight: bold; font-size: 10px; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <!-- DeltaV SFC Workspace Grid Background -->
+  <pattern id="sfc-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="0.8" fill="#BDBDBD" />
+  </pattern>
+  <rect width="100%" height="100%" fill="url(#sfc-grid)" />
+
+  <!-- ================= 1. INITIAL STEP: START ================= -->
+  <!-- Double-bordered Initial Step Box -->
+  <g id="step-INITIALIZE" transform="translate(200, 40)">
+    <rect x="-65" y="0" width="130" height="46" rx="1" class="sfc-step-box" />
+    <rect x="-60" y="4" width="120" height="38" rx="1" class="sfc-step-box" />
+    <text x="0" y="20" class="step-title">INITIALIZE</text>
+    <text x="0" y="34" class="step-timer">T: 00:00:00</text>
+  </g>
+
+  <!-- Flow to T1 -->
+  <line x1="200" y1="86" x2="200" y2="120" class="sfc-line" />
+
+  <!-- Transition 1 (T01) -->
+  <g id="trans-T01" transform="translate(200, 120)">
+    <rect x="-24" y="-2" width="48" height="4" class="sfc-trans-bar sfc-trans-true" />
+    <!-- Transition Logic Text -->
+    <text x="32" y="3" class="trans-label" style="fill: #2E6B4F;">T01: START_CMD.CV == TRUE</text>
+  </g>
+
+  <!-- Flow to Step 1 -->
+  <line x1="200" y1="122" x2="200" y2="160" class="sfc-line" />
+
+  <!-- ================= 2. STEP 1: OPEN_VALVES (COMPLETED) ================= -->
+  <g id="step-OPEN_VALVES" transform="translate(200, 160)">
+    <rect x="-60" y="0" width="120" height="46" rx="1" class="sfc-step-box" />
+    <text x="0" y="20" class="step-title">OPEN_VALVES</text>
+    <text x="0" y="34" class="step-timer">T: 00:00:15</text>
+    
+    <!-- Attached IEC Action Block (Qualifier N) -->
+    <g transform="translate(60, 6)">
+      <line x1="0" y1="17" x2="16" y2="17" class="sfc-line" />
+      <rect x="16" y="0" width="22" height="34" class="qual-box" />
+      <text x="27" y="21">N</text>
+      <rect x="38" y="0" width="160" height="34" class="action-box" />
+      <text x="44" y="15" font-size="9" font-weight="bold" fill="#333">XV-101/SET_PV.CV</text>
+      <text x="44" y="27" font-size="9" fill="#007ACC">OPEN</text>
+    </g>
+  </g>
+
+  <!-- Flow to T2 -->
+  <line x1="200" y1="206" x2="200" y2="250" class="sfc-line-active" />
+
+  <!-- Transition 2 (T02) - Evaluated TRUE -->
+  <g id="trans-T02" transform="translate(200, 250)">
+    <rect x="-24" y="-2" width="48" height="4" class="sfc-trans-bar sfc-trans-true" />
+    <text x="32" y="3" class="trans-label" style="fill: #2E6B4F;">T02: XV-101/ZSO.CV == 1</text>
+  </g>
+
+  <!-- Flow to Step 2 -->
+  <line x1="200" y1="252" x2="200" y2="290" class="sfc-line-active" />
+
+  <!-- ================= 3. STEP 2: START_FEED (ACTIVE ONLINE STEP) ================= -->
+  <g id="step-START_FEED" transform="translate(200, 290)">
+    <!-- Active Step Highlight -->
+    <rect x="-60" y="0" width="120" height="46" rx="1" class="sfc-step-active" />
+    <text x="0" y="20" class="step-title" style="fill: #007ACC;">START_FEED</text>
+    <text x="0" y="34" class="step-timer" style="fill: #007ACC; font-weight: bold;">T: 00:01:42</text>
+
+    <!-- Multiple Action Blocks (P and S Qualifiers) -->
+    <g transform="translate(60, 2)">
+      <line x1="0" y1="21" x2="16" y2="21" class="sfc-line-active" />
+      
+      <!-- Action 1: Pump Start Pulse -->
+      <g transform="translate(16, 0)">
+        <rect x="0" y="0" width="22" height="20" class="qual-box" />
+        <text x="11" y="14">P</text>
+        <rect x="22" y="0" width="170" height="20" class="action-box" />
+        <text x="26" y="14" font-size="9" font-weight="bold" fill="#333">P-101/START_CMD.CV := TRUE</text>
+      </g>
+      
+      <!-- Action 2: Flow Controller Setpoint -->
+      <g transform="translate(16, 22)">
+        <rect x="0" y="0" width="22" height="20" class="qual-box" />
+        <text x="11" y="14">S</text>
+        <rect x="22" y="0" width="170" height="20" class="action-box" />
+        <text x="26" y="14" font-size="9" font-weight="bold" fill="#333">FIC-101/SP.CV := 50.0 GPM</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Flow to T03 -->
+  <line x1="200" y1="336" x2="200" y2="385" class="sfc-line" />
+
+  <!-- Transition 3 (T03) - Pending / Not Satisfied -->
+  <g id="trans-T03" transform="translate(200, 385)">
+    <rect x="-24" y="-2" width="48" height="4" class="sfc-trans-bar" />
+    <text x="32" y="3" class="trans-label" style="fill: #555;">T03: FIC-101/PV.CV &gt; 48.0 AND P-101/RUNNING.CV</text>
+  </g>
+
+  <!-- Flow to Parallel Divergence -->
+  <line x1="200" y1="387" x2="200" y2="430" class="sfc-line" />
+
+  <!-- ================= 4. PARALLEL DIVERGENCE (AND-SPLIT) ================= -->
+  <!-- Double Horizontal Synchronization Bar -->
+  <line x1="80" y1="430" x2="320" y2="430" class="sfc-line" stroke-width="3" />
+  <line x1="80" y1="434" x2="320" y2="434" class="sfc-line" stroke-width="3" />
+
+  <!-- Left Branch Path -->
+  <line x1="120" y1="434" x2="120" y2="480" class="sfc-line" />
+  <g id="step-HEAT_REACT" transform="translate(120, 480)">
+    <rect x="-50" y="0" width="100" height="42" rx="1" class="sfc-step-box" />
+    <text x="0" y="18" class="step-title">HEAT_REACT</text>
+    <text x="0" y="31" class="step-timer">T: 00:00:00</text>
+  </g>
+
+  <!-- Right Branch Path -->
+  <line x1="280" y1="434" x2="280" y2="480" class="sfc-line" />
+  <g id="step-AGITATE" transform="translate(280, 480)">
+    <rect x="-50" y="0" width="100" height="42" rx="1" class="sfc-step-box" />
+    <text x="0" y="18" class="step-title">AGITATE</text>
+    <text x="0" y="31" class="step-timer">T: 00:00:00</text>
+  </g>
+</svg>

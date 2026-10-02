@@ -33,6 +33,11 @@ export const CUSTOM_PHYSICS_TAGS = new Set([
 /** Tags that belong to the default project baseline and cannot be deleted. */
 export const BUILTIN_TAGS = new Set([
   ...CUSTOM_PHYSICS_TAGS,
+  // Reactor headspace / agitator instrumentation (generic closed-loop simulation)
+  'PT-201',
+  'SIC-201',
+  'II-201',
+  'PSV-201',
   // WFI Generation & Distribution Loop (2 stills, generic closed-loop simulation)
   'TIC-401',
   'FI-401',
@@ -46,6 +51,7 @@ export const BUILTIN_TAGS = new Set([
   'FI-411',
   'P-402',
   'XV-411',
+  'PCV-401',
   // Autoclave 1 & 2 (steam sterilizers) — driven by STERILIZE-AC1/AC2 SFCs
   'TIC-501',
   'PIC-501',
@@ -432,6 +438,51 @@ export function buildInitialPlant(): PlantState {
   }
   add(xv201)
 
+  // --- Reactor headspace / agitator instrumentation (generic closed-loop simulation) ---
+  add(
+    ai({
+      tag: 'PT-201',
+      description: 'REACTOR HEADSPACE PRESSURE',
+      area: 'REACTOR',
+      unit: 'barg',
+      pv: 0.3,
+      pvMin: -0.2,
+      pvMax: 3,
+      decimals: 2,
+      alarms: [{ type: 'HI', label: 'HI', priority: 'WARNING', limit: 1.8, enabled: true }]
+    })
+  )
+  add(
+    pid({
+      tag: 'SIC-201',
+      description: 'REACTOR AGITATOR SPEED',
+      area: 'REACTOR',
+      unit: 'RPM',
+      pvMin: 0,
+      pvMax: 300,
+      sp: 150,
+      out: 50,
+      mode: 'AUTO',
+      gain: 1.2,
+      reset: 6,
+      direct: false
+    })
+  )
+  add(
+    ai({
+      tag: 'II-201',
+      description: 'REACTOR AGITATOR MOTOR CURRENT',
+      area: 'REACTOR',
+      unit: 'A',
+      pv: 8,
+      pvMin: 0,
+      pvMax: 30,
+      decimals: 1,
+      alarms: [{ type: 'HI', label: 'HI', priority: 'ADVISORY', limit: 22, enabled: true }]
+    })
+  )
+  add(valve({ tag: 'PSV-201', description: 'REACTOR HEADSPACE SAFETY RELIEF VALVE', area: 'REACTOR' }))
+
   // --- Discrete devices --------------------------------------------------
   const lsh101: DiscreteInput = {
     tag: 'LSH-101',
@@ -573,6 +624,7 @@ export function buildInitialPlant(): PlantState {
   add(motor({ tag: 'P-402', description: 'WFI DISTRIBUTION PUMP 2 (STANDBY)', area: 'WFI' }))
   add(valve({ tag: 'XV-401', description: 'WFI LOOP SAMPLE VALVE', area: 'WFI' }))
   add(valve({ tag: 'XV-411', description: 'WFI STILL 2 OUTLET VALVE', area: 'WFI', open: true, commandedOpen: true }))
+  add(valve({ tag: 'PCV-401', description: 'WFI LOOP RETURN BACKPRESSURE REGULATING VALVE', area: 'WFI', open: true, commandedOpen: true }))
 
   // --- Autoclave 1 (steam sterilizer) — cycle run from SFC STERILIZE-AC1 --
   add(

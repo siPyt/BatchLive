@@ -7,6 +7,7 @@ export type DisplayId =
   | 'product'
   | 'alarms'
   | 'trend'
+  | 'journal'
   | 'explorer'
   | 'studio'
   | 'batch'

@@ -39,6 +39,15 @@
   --dv-metal: #75849b; /* Equipment (pump/valve) outline (117,132,155) */
   --dv-run: #4caf50; /* Energized / Running / Open */
   --dv-stop: #b4b9c8; /* Discrete/Analog off color (180,185,200) silver-grey */
+  /* ISA-101: discrete equipment dynamos (pump/valve) read energized state as a
+     muted slate-cyan, never a high-saturation green or bright blue. */
+  --dv-energized: #6e7b8b;
+  --dv-energized-2: #57626f;
+  /* ISA-5.1 electrical/software signal leader line (dashed) from a process tap to its dynamo. */
+  --dv-instrument-line: #555555;
+  /* Passive structural equipment (vessel jackets) must read as neutral gray — never an alarm hue. */
+  --dv-jacket: #c8c8c8;
+  --dv-jacket-line: #707070;
 
   /* SFC step animation (IEC 61131-3) */
   --dv-sfc-active: #00e676;
@@ -50,9 +59,9 @@
   --dv-sp: #1766c0;
   --dv-out: #b5731a;
 
-  --mode-man: #d98c2b;
-  --mode-auto: #4caf50;
-  --mode-cas: #1a73c4;
+  --mode-man: #c87820;
+  --mode-auto: #4a6b82;
+  --mode-cas: #2e6b4f;
 
   font-family: 'Segoe UI', 'Roboto', system-ui, -apple-system, sans-serif;
   font-size: 13px;
@@ -446,6 +455,37 @@ button {
   letter-spacing: 0.5px;
 }
 
+/* Area quick-jump bar floating over the DeltaVCanvas spatial plane — camera
+ * navigation (pan/zoom to an area), never a separate scrolled HTML page. */
+.dv-area-jumpbar {
+  position: absolute;
+  top: 10px;
+  left: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(47, 53, 59, 0.9);
+  padding: 5px 8px;
+  border-radius: 4px;
+  pointer-events: auto;
+}
+.dv-area-jumpbar-title {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+.dv-area-jumpbar .tbtn {
+  background: #3a434c;
+  border-color: #5a6572;
+  color: #fff;
+}
+.dv-area-jumpbar .tbtn:hover {
+  background: #4a5562;
+}
+
 /* Dynamo value boxes on graphics */
 .valbox {
   position: absolute;
@@ -457,7 +497,7 @@ button {
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  min-width: 72px;
+  min-width: 96px;
 }
 .valbox:hover {
   border-color: var(--dv-accent);
@@ -477,6 +517,18 @@ button {
   color: var(--dv-text-dim);
   margin-left: 3px;
 }
+.valbox .vb-sp {
+  font-size: 8px;
+  color: var(--dv-text-mute);
+  margin-left: auto;
+  white-space: nowrap;
+}
+.valbox .vb-range {
+  width: 100%;
+  height: 7px;
+  margin-top: 2px;
+  display: block;
+}
 .valbox.alm-critical {
   border-color: var(--dv-critical);
 }
@@ -485,6 +537,10 @@ button {
 }
 .valbox.alm-advisory {
   border-color: var(--dv-advisory);
+}
+.valbox.vb-bad {
+  background: #ffd6d6;
+  border-color: var(--dv-bad);
 }
 .valbox .vb-mode {
   position: absolute;
@@ -1585,6 +1641,17 @@ button {
   padding: 2px 8px;
   border-radius: 3px;
 }
+.sfc-canvas-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+/* Stacked-card SFC styling — still used by the Batch Operator's embedded
+ * "Phase Logic" editor (BatchDisplay.tsx); the dedicated SFC Charts display
+ * uses the native vector .sfc-svg chart below instead. */
 .sfc-canvas {
   flex: 1;
   overflow: auto;
@@ -1648,19 +1715,141 @@ button {
   font-weight: 800;
   font-size: 11px;
 }
-.sfc-stepname {
-  flex: 1;
-  background: #fff;
-  border: 1px solid var(--dv-border);
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--dv-text);
-}
 .sfc-step-head b {
   flex: 1;
   color: var(--dv-text);
+}
+.sfc-trans {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 40px;
+  padding: 2px 0;
+  min-height: 34px;
+}
+.sfc-trans-bar {
+  width: 2px;
+  height: 34px;
+  background: var(--dv-pipe);
+}
+.sfc-trans-txt {
+  font-size: 12px;
+  color: var(--dv-text-mute);
+  font-weight: 600;
+}
+.sfc-svg {
+  display: block;
+  background: var(--dv-canvas-bg, #eaeaea);
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+}
+.sfc-svg .sfc-line {
+  stroke: #2b2b2b;
+  stroke-width: 2;
+  fill: none;
+}
+.sfc-svg .sfc-line-active {
+  stroke: #007acc;
+  stroke-width: 2.5;
+  fill: none;
+}
+.sfc-svg .sfc-step-box {
+  fill: #e8e8e8;
+  stroke: #404040;
+  stroke-width: 1.5;
+}
+.sfc-svg .sfc-step-active {
+  fill: #e6f3fa;
+  stroke: #007acc;
+  stroke-width: 2.5;
+}
+.sfc-svg .step-title {
+  font-size: 11px;
+  font-weight: 700;
+  fill: #1a1a1a;
+  text-anchor: middle;
+}
+.sfc-svg .step-timer {
+  font-family: 'Consolas', monospace;
+  font-size: 10px;
+  fill: #555;
+  text-anchor: middle;
+}
+.sfc-svg .trans-label {
+  font-family: 'Consolas', monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+.sfc-svg .sfc-trans-bar {
+  fill: #333333;
+}
+.sfc-svg .sfc-trans-true {
+  fill: #2e6b4f;
+}
+.sfc-svg .action-box {
+  fill: #f5f5f5;
+  stroke: #707070;
+  stroke-width: 1;
+}
+.sfc-svg .qual-box {
+  fill: #d9d9d9;
+  stroke: #707070;
+  stroke-width: 1;
+  font-weight: 800;
+  font-size: 10px;
+  text-anchor: middle;
+}
+.sfc-phase-tabs {
+  display: flex;
+  border: 1px solid var(--dv-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.sfc-tab {
+  background: var(--dv-panel);
+  border: none;
+  border-right: 1px solid var(--dv-border);
+  color: var(--dv-text-dim);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 12px;
+}
+.sfc-tab:last-child {
+  border-right: none;
+}
+.sfc-tab:hover:not(:disabled) {
+  background: var(--dv-panel-2);
+  color: var(--dv-text);
+}
+.sfc-tab:disabled {
+  opacity: 0.4;
+}
+.sfc-tab.danger:hover:not(:disabled) {
+  color: var(--dv-critical);
+}
+.sfc-props {
+  border-top: 1px solid var(--dv-border);
+  background: var(--dv-bg-2);
+  padding: 8px 12px;
+  max-height: 220px;
+  overflow: auto;
+  flex-shrink: 0;
+}
+.sfc-props-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sfc-props-section {
+  margin-bottom: 8px;
+}
+.sfc-props-label {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--dv-text-mute);
+  margin-bottom: 4px;
 }
 .sfc-x {
   background: transparent;
@@ -1689,24 +1878,6 @@ button {
   font-size: 11px;
   padding: 2px 8px;
 }
-.sfc-trans {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 40px;
-  padding: 2px 0;
-  min-height: 34px;
-}
-.sfc-trans-bar {
-  width: 2px;
-  height: 34px;
-  background: var(--dv-pipe);
-}
-.sfc-trans-txt {
-  font-size: 12px;
-  color: var(--dv-text-mute);
-  font-weight: 600;
-}
 .sfc-edit-row {
   display: flex;
   align-items: center;
@@ -1723,6 +1894,16 @@ button {
 .sfc-trans-edit .sfc-trans-arrow {
   color: var(--dv-pipe-active);
   font-weight: 800;
+}
+.sfc-stepname {
+  flex: 1;
+  background: #fff;
+  border: 1px solid var(--dv-border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dv-text);
 }
 
 /* ------------------------------------------------------------------ */

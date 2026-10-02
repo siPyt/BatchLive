@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useSecurity } from '../engine/security'
+import { useStore } from '../engine/store'
 
 // FlexLock: shown when the workstation is locked. The next user logs on
 // with their DeltaV username/password to return to the DeltaV desktop.
 export function FlexLockOverlay(): JSX.Element | null {
   const locked = useSecurity((s) => s.locked)
   const login = useSecurity((s) => s.login)
+  const logEvent = useStore((s) => s.logEvent)
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -14,6 +16,7 @@ export function FlexLockOverlay(): JSX.Element | null {
 
   function submit(): void {
     if (login(name, password)) {
+      logEvent('SECURITY', name.trim(), 'User logged on')
       setName('')
       setPassword('')
       setError(null)

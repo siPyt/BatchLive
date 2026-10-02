@@ -78,6 +78,15 @@ export function dateString(t: number): string {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' })
 }
 
+/** Elapsed seconds as HH:MM:SS, for S88 phase/step timers. */
+export function durationString(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  return [h, m, sec].map((v) => String(v).padStart(2, '0')).join(':')
+}
+
 /** Operator-facing label + color for a Device Control (DC1) block's DC_STATE. */
 export function dcStateInfo(state: DcState): { label: string; color: string } {
   switch (state) {

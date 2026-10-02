@@ -9,7 +9,9 @@ import type {
   TrendPoint,
   AnyModule,
   AlarmType,
-  AlarmPriority
+  AlarmPriority,
+  EventLogEntry,
+  EventCategory
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { stepPlant } from './simulate'
@@ -22,9 +24,14 @@ import { makeDefaultHardware, makeBlankHardware, type HardwareState } from './ha
 const TREND_SECONDS = 600 // 10 minutes of history
 const TREND_HZ = 2
 
+const EVENT_LOG_MAX = 2000
+
 interface StoreState extends PlantState {
   trend: TrendPoint[]
   rev: number
+  /** Alarm & Event Journal: 21 CFR Part 11 style audit trail of alarms + operator actions. */
+  eventLog: EventLogEntry[]
+  logEvent: (category: EventCategory, tag: string, description: string, priority?: AlarmPriority) => void
   batch: BatchRuntime
   /** Horn Silence: mutes audible alarm tone without acknowledging (F8). */
   hornSilenced: boolean
@@ -112,6 +119,19 @@ export const useStore = create<StoreState>((set, get) => ({
   ...initial,
   trend: [],
   rev: 0,
+  eventLog: [],
+  logEvent: (category, tag, description, priority) => {
+    const entry: EventLogEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      time: get().time,
+      category,
+      tag,
+      description,
+      user: useSecurity.getState().currentUser,
+      priority
+    }
+    set((s) => ({ eventLog: [...s.eventLog, entry].slice(-EVENT_LOG_MAX) }))
+  },
   batch: makeBatch(),
   phases: makeDefaultPhases(),
   sfcs: makeDefaultSfcs(),
@@ -132,35 +152,62 @@ export const useStore = create<StoreState>((set, get) => ({
     const shouldSample = !last || next.time - last.t >= 1000 / TREND_HZ
     let newTrend = trend
     if (shouldSample) {
-      const point: TrendPoint = {
-        t: next.time,
-        values: {
-          'FIC-101.PV': next.process.feedFlow,
-          'FIC-101.SP': (next.modules['FIC-101'] as PidModule).sp,
-          'LIC-101.PV': next.process.feedTankLevel,
-          'LIC-101.SP': (next.modules['LIC-101'] as PidModule).sp,
-          'LIC-201.PV': next.process.reactorLevel,
-          'LIC-201.SP': (next.modules['LIC-201'] as PidModule).sp,
-          'TIC-201.PV': next.process.reactorTemp,
-          'TIC-201.SP': (next.modules['TIC-201'] as PidModule).sp,
-          'PIC-301.PV': next.process.headerPressure,
-          'PIC-301.SP': (next.modules['PIC-301'] as PidModule).sp,
-          'AT-301.PV': next.process.reactorConc
+      // Sample every PID/AI module generically so any dynamo can render a sparkline, not just the reactor train.
+      const values: Record<string, number> = {}
+      for (const t of Object.keys(next.modules)) {
+        const gm = next.modules[t]
+        if (gm.type === 'PID') {
+          values[`${t}.PV`] = gm.pv
+          values[`${t}.SP`] = gm.sp
+        } else if (gm.type === 'AI') {
+          values[`${t}.PV`] = gm.pv
         }
       }
+      const point: TrendPoint = { t: next.time, values }
       const cutoff = next.time - TREND_SECONDS * 1000
       newTrend = [...trend, point].filter((p) => p.t >= cutoff)
     }
     // A brand-new active alarm re-sounds the horn even if it was silenced.
     const priorIds = new Set(s.alarms.map((a) => a.id))
     const hasNewAlarm = next.alarms.some((a) => a.active && !priorIds.has(a.id))
+    // Journal every alarm transition: newly active alarms and returns-to-normal.
+    const priorById = new Map(s.alarms.map((a) => [a.id, a]))
+    const nextById = new Map(next.alarms.map((a) => [a.id, a]))
+    const newEntries: EventLogEntry[] = []
+    for (const a of next.alarms) {
+      if (a.active && !priorById.get(a.id)?.active) {
+        newEntries.push({
+          id: `${a.id}-alm-${next.time}`,
+          time: next.time,
+          category: 'ALARM',
+          tag: a.moduleTag,
+          description: `${a.label} alarm — ${a.value}${a.unit ? ' ' + a.unit : ''}`,
+          user: 'SYSTEM',
+          priority: a.priority
+        })
+      }
+    }
+    for (const a of s.alarms) {
+      if (a.active && !nextById.get(a.id)?.active) {
+        newEntries.push({
+          id: `${a.id}-rtn-${next.time}`,
+          time: next.time,
+          category: 'RTN',
+          tag: a.moduleTag,
+          description: `${a.label} returned to normal`,
+          user: 'SYSTEM',
+          priority: a.priority
+        })
+      }
+    }
     set({
       ...next,
       trend: newTrend,
       batch,
       sfcs,
       rev: s.rev + 1,
-      hornSilenced: hasNewAlarm ? false : s.hornSilenced
+      hornSilenced: hasNewAlarm ? false : s.hornSilenced,
+      eventLog: newEntries.length ? [...s.eventLog, ...newEntries].slice(-EVENT_LOG_MAX) : s.eventLog
     })
   },
 
@@ -175,6 +222,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (mode === 'MAN') p._integral = p.out
       }
     })
+    get().logEvent('OPERATOR', tag, `Mode set to ${mode}`)
   },
 
   setSetpoint: (tag, sp) => {
@@ -185,6 +233,7 @@ export const useStore = create<StoreState>((set, get) => ({
         p.sp = Math.max(p.pvMin, Math.min(p.pvMax, sp))
       }
     })
+    get().logEvent('OPERATOR', tag, `SP set to ${sp}`)
   },
 
   setOutput: (tag, out) => {
@@ -195,6 +244,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (p.mode === 'MAN' || p.mode === 'ROUT') p.out = Math.max(0, Math.min(100, out))
       }
     })
+    get().logEvent('OPERATOR', tag, `OUT set to ${out}`)
   },
 
   setTuning: (tag, t) => {
@@ -207,6 +257,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (t.rate !== undefined) p.rate = t.rate
       }
     })
+    get().logEvent('CONFIGURE', tag, `Tuning changed: ${JSON.stringify(t)}`)
   },
 
   setAlarmLimit: (tag, type, patch) => {
@@ -218,6 +269,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (patch.enabled !== undefined) lim.enabled = patch.enabled
       if (patch.priority !== undefined) lim.priority = patch.priority
     })
+    get().logEvent('CONFIGURE', tag, `Alarm ${type} configured: ${JSON.stringify(patch)}`)
   },
 
   startMotor: (tag) => {
@@ -225,6 +277,7 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'MOTOR') (m as MotorModule).commanded = true
     })
+    get().logEvent('OPERATOR', tag, 'Start command issued')
   },
 
   stopMotor: (tag) => {
@@ -232,6 +285,7 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'MOTOR') (m as MotorModule).commanded = false
     })
+    get().logEvent('OPERATOR', tag, 'Stop command issued')
   },
 
   openValve: (tag) => {
@@ -239,6 +293,7 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'VALVE') (m as ValveModule).commandedOpen = true
     })
+    get().logEvent('OPERATOR', tag, 'Open command issued')
   },
 
   closeValve: (tag) => {
@@ -246,6 +301,7 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'VALVE') (m as ValveModule).commandedOpen = false
     })
+    get().logEvent('OPERATOR', tag, 'Close command issued')
   },
 
   toggleDO: (tag) => {
@@ -257,6 +313,7 @@ export const useStore = create<StoreState>((set, get) => ({
         d.state = d.commanded
       }
     })
+    get().logEvent('OPERATOR', tag, 'Discrete output toggled')
   },
 
   toggleInterlock: (tag) => {
@@ -265,6 +322,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (m.type === 'MOTOR') (m as MotorModule).interlock = !(m as MotorModule).interlock
       if (m.type === 'VALVE') (m as ValveModule).interlock = !(m as ValveModule).interlock
     })
+    get().logEvent('DIAGNOSTIC', tag, 'Interlock force-toggled')
   },
 
   injectFault: (tag) => {
@@ -273,6 +331,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (m.type === 'MOTOR') (m as MotorModule).fault = !(m as MotorModule).fault
       if (m.type === 'VALVE') (m as ValveModule).fault = !(m as ValveModule).fault
     })
+    get().logEvent('DIAGNOSTIC', tag, 'Fault injection toggled')
   },
 
   resetDevice: (tag) => {
@@ -280,6 +339,7 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'MOTOR' || m.type === 'VALVE') (m as MotorModule | ValveModule).locked = false
     })
+    get().logEvent('OPERATOR', tag, 'Device reset (RESET_D)')
   },
 
   setPermissive: (tag, ok) => {
@@ -287,6 +347,7 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'MOTOR' || m.type === 'VALVE') (m as MotorModule | ValveModule).permissiveOk = ok
     })
+    get().logEvent('DIAGNOSTIC', tag, `Permissive forced ${ok ? 'OK' : 'NOT OK'}`)
   },
 
   setDeviceOptions: (tag, opts) => {
@@ -297,6 +358,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (opts.permissiveRequired !== undefined) d.permissiveRequired = opts.permissiveRequired
       if (opts.resetRequired !== undefined) d.resetRequired = opts.resetRequired
     })
+    get().logEvent('CONFIGURE', tag, `Device options changed: ${JSON.stringify(opts)}`)
   },
 
   setCasHealthy: (tag, healthy) => {
@@ -304,6 +366,7 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') (m as PidModule).casHealthy = healthy
     })
+    get().logEvent('DIAGNOSTIC', tag, `Cascade connection forced ${healthy ? 'healthy' : 'unhealthy'}`)
   },
 
   failController: (tag) => {
@@ -318,6 +381,7 @@ export const useStore = create<StoreState>((set, get) => ({
         : { ...c, primary: 'FAILED' as const }
       return { hardware: { ...s.hardware, controllers: { ...s.hardware.controllers, [tag]: next } }, rev: s.rev + 1 }
     })
+    get().logEvent('DIAGNOSTIC', tag, 'Controller leg failed')
   },
 
   restoreController: (tag) => {
@@ -330,6 +394,7 @@ export const useStore = create<StoreState>((set, get) => ({
         : { ...c, primary: 'ACTIVE' as const }
       return { hardware: { ...s.hardware, controllers: { ...s.hardware.controllers, [tag]: next } }, rev: s.rev + 1 }
     })
+    get().logEvent('DIAGNOSTIC', tag, 'Controller restored')
   },
 
   pullCharm: (baseplateId, slot) => {
@@ -343,6 +408,7 @@ export const useStore = create<StoreState>((set, get) => ({
         rev: s.rev + 1
       }
     })
+    get().logEvent('DIAGNOSTIC', `${baseplateId}/${slot}`, 'CHARM pulled')
   },
 
   reinsertCharm: (baseplateId, slot) => {
@@ -356,40 +422,49 @@ export const useStore = create<StoreState>((set, get) => ({
         rev: s.rev + 1
       }
     })
+    get().logEvent('DIAGNOSTIC', `${baseplateId}/${slot}`, 'CHARM reinserted')
   },
 
   ackAlarm: (id) => {
     if (!useSecurity.getState().requireLock('ALARMS', 'Acknowledge alarm')) return
+    const target = get().alarms.find((a) => a.id === id)
     set((s) => ({
       alarms: s.alarms
         .map((a) => (a.id === id ? { ...a, acknowledged: true } : a))
         .filter((a) => a.active || !a.acknowledged),
       rev: s.rev + 1
     }))
+    if (target) get().logEvent('ACK', target.moduleTag, `${target.label} alarm acknowledged`, target.priority)
   },
 
   ackAll: () => {
     if (!useSecurity.getState().requireLock('ALARMS', 'Acknowledge All')) return
+    const count = get().alarms.filter((a) => !a.acknowledged).length
     set((s) => ({
       alarms: s.alarms.map((a) => ({ ...a, acknowledged: true })).filter((a) => a.active),
       rev: s.rev + 1
     }))
+    get().logEvent('ACK', '—', `Acknowledge All (${count} alarms)`)
   },
 
   shelveAlarm: (id, durationMin) => {
     if (!useSecurity.getState().requireLock('ALARMS', 'Shelve alarm')) return
+    const target = get().alarms.find((a) => a.id === id)
     set((s) => ({
       alarms: s.alarms.map((a) => (a.id === id ? { ...a, shelvedUntil: s.time + durationMin * 60000 } : a)),
       rev: s.rev + 1
     }))
+    if (target) get().logEvent('ACK', target.moduleTag, `${target.label} alarm shelved for ${durationMin} min`, target.priority)
   },
 
   unshelveAlarm: (id) => {
     if (!useSecurity.getState().requireLock('ALARMS', 'Unshelve alarm')) return
+    const target = get().alarms.find((a) => a.id === id)
     set((s) => ({
       alarms: s.alarms.map((a) => (a.id === id ? { ...a, shelvedUntil: undefined } : a)),
       rev: s.rev + 1
     }))
+    if (target) get().logEvent('ACK', target.moduleTag, `${target.label} alarm unshelved`, target.priority)
   },
 
   setRunning: (r) => set({ running: r }),
@@ -398,6 +473,7 @@ export const useStore = create<StoreState>((set, get) => ({
   batchCommand: (cmd) => {
     if (!useSecurity.getState().requireLock('BATCH_OPERATE', 'Batch command')) return
     set((s) => ({ batch: commandBatch(s.batch, cmd, s.time, s.phases), rev: s.rev + 1 }))
+    get().logEvent('BATCH', get().batch.id, `Batch command: ${cmd}`)
   },
 
   setPhaseSteps: (phaseName, steps) => {
@@ -407,6 +483,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!def) return {}
       return { phases: { ...s.phases, [phaseName]: { ...def, steps } }, rev: s.rev + 1 }
     })
+    get().logEvent('CONFIGURE', phaseName, 'Phase logic edited')
   },
 
   createModule: (spec) => {
@@ -415,6 +492,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (s.modules[spec.tag]) return {}
       return { modules: { ...s.modules, [spec.tag]: makeModule(spec) }, rev: s.rev + 1 }
     })
+    get().logEvent('CONFIGURE', spec.tag, 'Module created')
   },
 
   deleteModule: (tag) => {
@@ -425,6 +503,7 @@ export const useStore = create<StoreState>((set, get) => ({
       delete modules[tag]
       return { modules, alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
     })
+    get().logEvent('CONFIGURE', tag, 'Module deleted')
   },
 
   createEquipmentModule: (tag, description, area) => {
@@ -434,6 +513,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!key || s.equipment[key]) return {}
       return { equipment: { ...s.equipment, [key]: { tag: key, description, area } }, rev: s.rev + 1 }
     })
+    get().logEvent('CONFIGURE', tag, 'Equipment Module created')
   },
 
   deleteEquipmentModule: (tag) => {
@@ -449,6 +529,7 @@ export const useStore = create<StoreState>((set, get) => ({
       }
       return { equipment, modules, rev: s.rev + 1 }
     })
+    get().logEvent('CONFIGURE', tag, 'Equipment Module deleted')
   },
 
   setModuleEquipment: (moduleTag, emTag) => {
@@ -456,6 +537,7 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateModule(set, get, moduleTag, (m) => {
       m.equipmentModule = emTag ?? undefined
     })
+    get().logEvent('CONFIGURE', moduleTag, `Assigned to Equipment Module ${emTag ?? '(unassigned)'}`)
   },
 
   createSfc: (name, area) => {
@@ -466,6 +548,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const sfc: SfcDef = { name: key, area, steps: [], status: 'READY', active: 0, elapsed: 0 }
       return { sfcs: { ...s.sfcs, [key]: sfc }, rev: s.rev + 1 }
     })
+    get().logEvent('CONFIGURE', name, 'SFC created')
   },
 
   deleteSfc: (name) => {
@@ -476,6 +559,7 @@ export const useStore = create<StoreState>((set, get) => ({
       delete sfcs[name]
       return { sfcs, rev: s.rev + 1 }
     })
+    get().logEvent('CONFIGURE', name, 'SFC deleted')
   },
 
   setSfcSteps: (name, steps) => {
@@ -489,6 +573,7 @@ export const useStore = create<StoreState>((set, get) => ({
         rev: s.rev + 1
       }
     })
+    get().logEvent('CONFIGURE', name, 'SFC steps edited')
   },
 
   sfcCommand: (name, cmd) => {
@@ -502,6 +587,7 @@ export const useStore = create<StoreState>((set, get) => ({
       else if (cmd === 'reset') next = { ...sfc, status: 'READY', active: 0, elapsed: 0 }
       return { sfcs: { ...s.sfcs, [name]: next }, rev: s.rev + 1 }
     })
+    get().logEvent('BATCH', name, `SFC command: ${cmd}`)
   },
 
   newProject: (kind) => {
@@ -510,6 +596,7 @@ export const useStore = create<StoreState>((set, get) => ({
     set({
       ...base,
       trend: [],
+      eventLog: [],
       batch: makeBatch(),
       phases: makeDefaultPhases(),
       sfcs: kind === 'blank' ? {} : makeDefaultSfcs(),

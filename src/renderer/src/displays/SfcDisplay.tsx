@@ -3,6 +3,7 @@ import { useStore } from '../engine/store'
 import {
   describeAction,
   describeCondition,
+  evalCondition,
   newStep,
   type SfcDef,
   type SfcStep,
@@ -11,7 +12,7 @@ import {
   type CompareOp,
   type ActionQualifier
 } from '../engine/sfc'
-import type { AnyModule } from '../engine/types'
+import type { AnyModule, PlantState } from '../engine/types'
 
 const STATUS_COLOR: Record<SfcDef['status'], string> = {
   READY: '#9aa0a7',
@@ -88,6 +89,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
   const sfcCommand = useStore((s) => s.sfcCommand)
   const deleteSfc = useStore((s) => s.deleteSfc)
   const editable = sfc.status === 'READY' || sfc.status === 'COMPLETE'
+  const [selected, setSelected] = useState<number | null>(null)
 
   const update = (steps: SfcStep[]): void => setSfcSteps(sfc.name, steps)
   const setStep = (i: number, patch: Partial<SfcStep>): void =>
@@ -102,94 +104,235 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
           {sfc.status}
         </span>
         <span style={{ flex: 1 }} />
-        <button className="tbtn sm" disabled={sfc.status === 'RUNNING' || sfc.steps.length === 0} onClick={() => sfcCommand(sfc.name, 'run')}>
-          ▶ Run
-        </button>
-        <button className="tbtn sm" disabled={sfc.status !== 'RUNNING'} onClick={() => sfcCommand(sfc.name, 'hold')}>
-          ❚❚ Hold
-        </button>
-        <button className="tbtn sm" onClick={() => sfcCommand(sfc.name, 'reset')}>
-          ⟲ Reset
-        </button>
+        {/* S88 Phase Routine tabs — RUN/HOLD map to real engine commands; RESTART
+         * re-runs from the current state, STOP/ABORT reset (the engine does not
+         * yet distinguish a controlled stop from an abort). */}
+        <div className="sfc-phase-tabs">
+          <button className="sfc-tab" disabled={sfc.status === 'RUNNING' || sfc.steps.length === 0} onClick={() => sfcCommand(sfc.name, 'run')}>
+            RUN
+          </button>
+          <button className="sfc-tab" disabled={sfc.status !== 'RUNNING'} onClick={() => sfcCommand(sfc.name, 'hold')}>
+            HOLD
+          </button>
+          <button className="sfc-tab" disabled={sfc.status !== 'HELD'} onClick={() => sfcCommand(sfc.name, 'run')}>
+            RESTART
+          </button>
+          <button className="sfc-tab" disabled={sfc.status === 'READY'} onClick={() => sfcCommand(sfc.name, 'reset')}>
+            STOP
+          </button>
+          <button className="sfc-tab danger" disabled={sfc.status === 'READY'} onClick={() => sfcCommand(sfc.name, 'reset')}>
+            ABORT
+          </button>
+        </div>
         <button className="tbtn sm danger" onClick={() => deleteSfc(sfc.name)}>
           Delete
         </button>
       </div>
 
-      <div className="sfc-canvas">
-        {sfc.steps.length === 0 && <div className="exp-empty">No steps. Add the first step below.</div>}
-        {sfc.steps.map((step, i) => (
-          <div key={step.id} className="sfc-stepwrap">
-            <div
-              className={
-                'sfc-step' + (i === 0 ? ' initial' : '') + (sfc.status === 'RUNNING' && sfc.active === i ? ' active' : '')
-              }
-            >
-              <div className="sfc-step-head">
-                <span className="sfc-step-num">{i + 1}</span>
-                {editable ? (
-                  <input
-                    className="sfc-stepname"
-                    value={step.name}
-                    onChange={(e) => setStep(i, { name: e.target.value })}
-                  />
-                ) : (
-                  <b>{step.name}</b>
-                )}
-                {editable && (
-                  <button className="sfc-x" onClick={() => update(sfc.steps.filter((_, idx) => idx !== i))}>
-                    ✕
-                  </button>
-                )}
-              </div>
-              <div className="sfc-actions">
-                {step.actions.map((a, ai) => (
-                  <div key={ai} className="sfc-action">
-                    {editable ? (
-                      <ActionEditor
-                        action={a}
-                        modules={modules}
-                        onChange={(na) => setStep(i, { actions: step.actions.map((x, idx) => (idx === ai ? na : x)) })}
-                        onRemove={() => setStep(i, { actions: step.actions.filter((_, idx) => idx !== ai) })}
-                      />
-                    ) : (
-                      <span>• {describeAction(a)}</span>
-                    )}
-                  </div>
-                ))}
-                {editable && (
-                  <button
-                    className="sfc-add"
-                    onClick={() =>
-                      setStep(i, { actions: [...step.actions, { kind: 'valve', tag: firstTag(modules, 'VALVE'), open: true }] })
-                    }
-                  >
-                    + action
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="sfc-trans">
-              <span className="sfc-trans-bar" />
-              {editable ? (
-                <TransitionEditor cond={step.transition} modules={modules} onChange={(c) => setStep(i, { transition: c })} />
-              ) : (
-                <span className="sfc-trans-txt">⟶ {describeCondition(step.transition)}</span>
-              )}
-            </div>
-          </div>
-        ))}
-        {sfc.steps.length > 0 && sfc.status === 'COMPLETE' && <div className="sfc-terminal">O</div>}
+      <div className="sfc-canvas-wrap">
+        {sfc.steps.length === 0 ? (
+          <div className="exp-empty">No steps. Add the first step below.</div>
+        ) : (
+          <SfcChart sfc={sfc} selected={selected} onSelect={setSelected} />
+        )}
         {editable && (
           <button
             className="tbtn sm"
+            style={{ margin: 8 }}
             onClick={() => update([...sfc.steps, newStep(`STEP ${sfc.steps.length + 1}`)])}
           >
             + Add Step
           </button>
         )}
       </div>
+
+      {editable && selected !== null && sfc.steps[selected] && (
+        <StepPropertiesPanel
+          step={sfc.steps[selected]}
+          modules={modules}
+          onClose={() => setSelected(null)}
+          onDelete={() => {
+            update(sfc.steps.filter((_, idx) => idx !== selected))
+            setSelected(null)
+          }}
+          onChange={(patch) => setStep(selected, patch)}
+        />
+      )}
     </>
+  )
+}
+
+/** Native IEC 61131-3 SFC chart: double-bordered initial step, single-bordered
+ * standard steps, transition cross-bars with live boolean evaluation, and
+ * attached [qualifier | parameter | value] action blocks — a 2D vector
+ * flowchart instead of stacked HTML form cards. */
+function SfcChart({ sfc, selected, onSelect }: { sfc: SfcDef; selected: number | null; onSelect: (i: number) => void }): JSX.Element {
+  const modules = useStore((s) => s.modules)
+  const state = { modules } as PlantState
+  const STEP_W = 120
+  const STEP_H = 50
+  const GAP = 70
+  const CENTER_X = 170
+  const rowY = (i: number): number => 30 + i * (STEP_H + GAP)
+  const height = 30 + sfc.steps.length * (STEP_H + GAP) + 40
+
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 760 ${height}`} className="sfc-svg">
+      {sfc.steps.map((step, i) => {
+        const y = rowY(i)
+        const isActive = sfc.status === 'RUNNING' && sfc.active === i
+        const isPast = sfc.active > i || sfc.status === 'COMPLETE'
+        const transY = y + STEP_H + GAP / 2
+        const transTrue = isPast || (isActive && evalCondition(step.transition, state, sfc.elapsed))
+        const isLast = i === sfc.steps.length - 1
+        return (
+          <g key={step.id}>
+            {/* flow line: step bottom -> transition -> next step top */}
+            {!isLast && (
+              <line
+                x1={CENTER_X}
+                y1={y + STEP_H}
+                x2={CENTER_X}
+                y2={y + STEP_H + GAP}
+                className={isPast ? 'sfc-line-active' : 'sfc-line'}
+              />
+            )}
+            {/* step box */}
+            <g onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}>
+              {i === 0 && (
+                <rect x={CENTER_X - STEP_W / 2 - 5} y={y - 5} width={STEP_W + 10} height={STEP_H + 10} rx={1} className="sfc-step-box" />
+              )}
+              <rect
+                x={CENTER_X - STEP_W / 2}
+                y={y}
+                width={STEP_W}
+                height={STEP_H}
+                rx={1}
+                className={isActive ? 'sfc-step-box sfc-step-active' : 'sfc-step-box'}
+                stroke={selected === i ? 'var(--dv-accent)' : undefined}
+                strokeWidth={selected === i ? 2.5 : undefined}
+              />
+              <text x={CENTER_X} y={y + 20} className="step-title" fill={isActive ? '#0088cc' : undefined}>
+                {step.name}
+              </text>
+              <text x={CENTER_X} y={y + 36} className="step-timer" fill={isActive ? '#0088cc' : undefined} fontWeight={isActive ? 700 : 400}>
+                T: {isActive ? durationHHMMSS(sfc.elapsed) : isPast ? 'COMPLETE' : '--:--:--'}
+              </text>
+            </g>
+
+            {/* attached IEC action blocks */}
+            {step.actions.length > 0 && (
+              <g transform={`translate(${CENTER_X + STEP_W / 2}, ${y + 6})`}>
+                <line x1={0} y1={step.actions.length === 1 ? 17 : 21} x2={14} y2={step.actions.length === 1 ? 17 : 21} className={isActive ? 'sfc-line-active' : 'sfc-line'} />
+                {step.actions.map((a, ai) => {
+                  const [param, value] = splitAction(a)
+                  return (
+                    <g key={ai} transform={`translate(14, ${ai * 22})`}>
+                      <rect x={0} y={0} width={20} height={20} className="qual-box" />
+                      <text x={10} y={14} className="qual-box">
+                        {a.qualifier ?? 'S'}
+                      </text>
+                      <rect x={20} y={0} width={220} height={20} className="action-box" />
+                      <text x={25} y={14} fontSize={9} fontWeight={700} fill="#333">
+                        {param}
+                      </text>
+                      <text x={240} y={14} fontSize={9} fill="#0070b0" textAnchor="end">
+                        {value}
+                      </text>
+                    </g>
+                  )
+                })}
+              </g>
+            )}
+
+            {/* transition cross-bar + live boolean condition text */}
+            {!isLast && (
+              <g transform={`translate(${CENTER_X}, ${transY})`} onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}>
+                <rect x={-20} y={-2} width={40} height={4} className={transTrue ? 'sfc-trans-bar sfc-trans-true' : 'sfc-trans-bar'} />
+                <text x={28} y={3} className="trans-label" fill={transTrue ? '#2e6b4f' : '#555'}>
+                  T{String(i + 1).padStart(2, '0')}: {describeCondition(step.transition)}
+                </text>
+              </g>
+            )}
+          </g>
+        )
+      })}
+      {sfc.status === 'COMPLETE' && (
+        <circle cx={CENTER_X} cy={rowY(sfc.steps.length - 1) + STEP_H + 20} r={8} fill="none" stroke="#2e6b4f" strokeWidth={2} />
+      )}
+    </svg>
+  )
+}
+
+/** Splits a described action into [parameter path, assigned value] for the
+ * two-column IEC action block (e.g. "XV-101/SET_PV.CV" | "OPEN"). */
+function splitAction(a: SfcAction): [string, string] {
+  const full = describeAction(a)
+  const i = full.lastIndexOf(':=')
+  if (i === -1) return [full, '']
+  return [full.slice(0, i).replace(/^\[[^\]]*\]\s*/, '').trim(), full.slice(i + 2).trim()]
+}
+
+function durationHHMMSS(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  return [h, m, sec].map((v) => String(v).padStart(2, '0')).join(':')
+}
+
+/** Selection-driven properties panel (replaces the always-visible stacked
+ * dropdown cards) — editing still uses the existing dropdown controls, just
+ * tucked away until a step is actually selected for configuration. */
+function StepPropertiesPanel({
+  step,
+  modules,
+  onClose,
+  onDelete,
+  onChange
+}: {
+  step: SfcStep
+  modules: Record<string, AnyModule>
+  onClose: () => void
+  onDelete: () => void
+  onChange: (patch: Partial<SfcStep>) => void
+}): JSX.Element {
+  return (
+    <div className="sfc-props">
+      <div className="sfc-props-head">
+        <input className="sfc-stepname" value={step.name} onChange={(e) => onChange({ name: e.target.value })} />
+        <span style={{ flex: 1 }} />
+        <button className="sfc-x" onClick={onDelete} title="Delete step">
+          🗑
+        </button>
+        <button className="sfc-x" onClick={onClose} title="Close">
+          ✕
+        </button>
+      </div>
+      <div className="sfc-props-section">
+        <div className="sfc-props-label">Actions</div>
+        {step.actions.map((a, ai) => (
+          <div key={ai} className="sfc-action">
+            <ActionEditor
+              action={a}
+              modules={modules}
+              onChange={(na) => onChange({ actions: step.actions.map((x, idx) => (idx === ai ? na : x)) })}
+              onRemove={() => onChange({ actions: step.actions.filter((_, idx) => idx !== ai) })}
+            />
+          </div>
+        ))}
+        <button
+          className="sfc-add"
+          onClick={() => onChange({ actions: [...step.actions, { kind: 'valve', tag: firstTag(modules, 'VALVE'), open: true }] })}
+        >
+          + action
+        </button>
+      </div>
+      <div className="sfc-props-section">
+        <div className="sfc-props-label">Transition</div>
+        <TransitionEditor cond={step.transition} modules={modules} onChange={(c) => onChange({ transition: c })} />
+      </div>
+    </div>
   )
 }
 

@@ -74,7 +74,13 @@ export function TopBar(): JSX.Element {
   const currentUser = useSecurity((s) => s.currentUser)
   const users = useSecurity((s) => s.users)
   const lockWorkstation = useSecurity((s) => s.lockWorkstation)
+  const logEvent = useStore((s) => s.logEvent)
   const fullName = users.find((u) => u.name === currentUser)?.fullName ?? currentUser
+
+  const lockAndLog = (): void => {
+    logEvent('SECURITY', currentUser, 'Workstation locked (FlexLock)')
+    lockWorkstation()
+  }
 
   const current = NAV.find((n) => n.id === display)
 
@@ -172,7 +178,7 @@ export function TopBar(): JSX.Element {
       <div className="user">
         <span>👤</span>
         <span>{fullName}</span>
-        <button className="navarrow" onClick={lockWorkstation} title="Lock Workstation (FlexLock)" style={{ marginLeft: 6 }}>
+        <button className="navarrow" onClick={lockAndLog} title="Lock Workstation (FlexLock)" style={{ marginLeft: 6 }}>
           🔒
         </button>
       </div>

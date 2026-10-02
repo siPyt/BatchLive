@@ -48,6 +48,28 @@ export interface ActiveAlarm {
   shelvedUntil?: number
 }
 
+/** DeltaV Event Chronicle categories: process alarms plus the operator/system actions that make up the audit trail. */
+export type EventCategory =
+  | 'ALARM'
+  | 'RTN'
+  | 'ACK'
+  | 'OPERATOR'
+  | 'DIAGNOSTIC'
+  | 'SECURITY'
+  | 'BATCH'
+  | 'CONFIGURE'
+
+/** One row of the Alarm & Event Journal — a 21 CFR Part 11 style audit trail entry. */
+export interface EventLogEntry {
+  id: string
+  time: number
+  category: EventCategory
+  tag: string
+  description: string
+  user: string
+  priority?: AlarmPriority
+}
+
 /** A simulated engineering-unit analog measurement. */
 export interface AnalogParam {
   value: number

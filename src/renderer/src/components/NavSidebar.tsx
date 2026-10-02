@@ -25,6 +25,7 @@ const PHARMA: NavNode[] = [
 const TOOLS: NavNode[] = [
   { id: 'trend', label: 'Trends', ico: '📈' },
   { id: 'alarms', label: 'Alarm List', ico: '🔔' },
+  { id: 'journal', label: 'Event Journal', ico: '📜' },
   { id: 'batch', label: 'Batch Operator', ico: '⚙' }
 ]
 

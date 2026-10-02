@@ -13,6 +13,7 @@ import { FaceplateHost } from './faceplates/FaceplateHost'
 import { OverviewDisplay } from './displays/OverviewDisplay'
 import { AreaDisplay } from './displays/AreaDisplay'
 import { AlarmSummary } from './displays/AlarmSummary'
+import { EventJournalDisplay } from './displays/EventJournalDisplay'
 import { TrendDisplay } from './displays/TrendDisplay'
 import { ExplorerDisplay } from './displays/ExplorerDisplay'
 import { ControlStudioDisplay } from './displays/ControlStudioDisplay'
@@ -80,6 +81,7 @@ export function App(): JSX.Element {
           {display === 'cip' && <AreaDisplay area="CIP" />}
           {display === 'tcu' && <AreaDisplay area="TCU" />}
           {display === 'alarms' && <AlarmSummary />}
+          {display === 'journal' && <EventJournalDisplay />}
           {display === 'trend' && <TrendDisplay />}
           {display === 'explorer' && <ExplorerDisplay />}
           {display === 'studio' && <ControlStudioDisplay />}
