@@ -3,7 +3,7 @@
 // Mirrors DeltaV control-module concepts: modules, parameters, modes, alarms.
 // ---------------------------------------------------------------------------
 
-export type ModuleType = 'PID' | 'AI' | 'DI' | 'DO' | 'MOTOR' | 'VALVE'
+export type ModuleType = 'PID' | 'AI' | 'DI' | 'DO' | 'MOTOR' | 'VALVE' | 'FB'
 
 /** DeltaV control modes for a function block. */
 export type ControlMode = 'MAN' | 'AUTO' | 'CAS' | 'ROUT' | 'RCAS'
@@ -233,6 +233,119 @@ export interface DiscreteOutput {
   alarms: AlarmLimit[]
 }
 
+/** Math/Logic/Timer/Analog-Control utility blocks (DeltaV Function Block
+ * Reference categories: I/O, Math, Logical, Timer/Counter, and Analog
+ * Control blocks). Operator/engineer-creatable from the Control Studio
+ * palette, each wired to a constant or to another module's live value.
+ * Codes are the exact DeltaV Function Block Reference abbreviations
+ * (D800018X012), e.g. MLTY = Multiply, RTO = Ratio, OND/OFFD = On/Off-Delay
+ * Timer, RET = Retentive Timer, SCLR = Scaler, SGCR = Signal Characterizer,
+ * SGGN = Signal Generator, SGSL = Signal Selector, SPLTR = Splitter. */
+export type FbBlockType =
+  // I/O Blocks
+  | 'ALARM'
+  | 'MAI'
+  | 'FFMDI'
+  | 'FFMDO'
+  | 'PIN'
+  // Math Blocks
+  | 'ABS'
+  | 'ADD'
+  | 'ARITH'
+  | 'CMP'
+  | 'DIV'
+  | 'INT'
+  | 'MLTY'
+  | 'SUB'
+  // Timer/Counter Blocks
+  | 'CTR'
+  | 'DTE'
+  | 'OFFD'
+  | 'OND'
+  | 'RET'
+  | 'TP'
+  // Logical Blocks
+  | 'ACT'
+  | 'AND'
+  | 'BDE'
+  | 'BFI'
+  | 'BFO'
+  | 'CND'
+  | 'MLTX'
+  | 'NDE'
+  | 'NOT'
+  | 'OR'
+  | 'PDE'
+  | 'RS'
+  | 'SR'
+  // Analog Control Blocks
+  | 'BG'
+  | 'CALC'
+  | 'CTLSL'
+  | 'DT'
+  | 'FLTR'
+  | 'INSEL'
+  | 'ISELX'
+  | 'LE'
+  | 'LL'
+  | 'LIM'
+  | 'MANLD'
+  | 'RAMP'
+  | 'RTLM'
+  | 'RTO'
+  | 'SCLR'
+  | 'SGCR'
+  | 'SGGN'
+  | 'SGSL'
+  | 'SPLTR'
+
+export type FbCompareOp = '>' | '<' | '>=' | '<=' | '=='
+
+/** One function-block input: either an operator-entered constant, or a live
+ * reference to another module's value (PV/OUT/state, resolved each tick). */
+export interface FbInputRef {
+  kind: 'const' | 'ref'
+  value: number
+  tag?: string
+}
+
+export interface FunctionBlockModule {
+  tag: string
+  type: 'FB'
+  fbType: FbBlockType
+  description: string
+  area: string
+  /** Equipment Module this Control Module belongs to, if any. */
+  equipmentModule?: string
+  in1: FbInputRef
+  in2: FbInputRef
+  /** BG/ARITH: gain. RTO: ratio. RAMP/RTLM: rate (EU/s). SCLR/SGCR: scale factor. */
+  gain: number
+  /** BG/ARITH: bias. LIM: low limit. SCLR: input low. RAMP/SPLTR: target/threshold. */
+  bias: number
+  /** CMP/CND/CTLSL/INSEL/ISELX/SGSL: comparison or selection operator. */
+  cmpOp: FbCompareOp
+  /** CALC/ACT/CND: single-line expression using IN1/IN2, basic arithmetic and parentheses only (no eval). */
+  expr: string
+  /** OND/OFFD/RET/TP/DT/FLTR/LL/PIN/SGGN: delay, time constant, or period in seconds. */
+  delaySec: number
+  /** CTR: trip value. BFO/FFMDO: bit index to extract. */
+  tripValue: number
+  /** CTR: true = count up, false = count down from 0. */
+  countUp: boolean
+  /** Computed result (1/0 for logic/timer/counter types). */
+  out: number
+  alarms: AlarmLimit[]
+  _timerElapsed: number
+  _timerOutput: boolean
+  _count: number
+  _prevIn: boolean
+  /** LL: previous sample of IN1, for the lead term. */
+  _prevValue: number
+  /** DT (Deadtime): rolling {time, value} queue used to replay IN1 after delaySec. */
+  _buffer: { t: number; v: number }[]
+}
+
 export type AnyModule =
   | PidModule
   | AnalogIndicator
@@ -240,6 +353,7 @@ export type AnyModule =
   | ValveModule
   | DiscreteInput
   | DiscreteOutput
+  | FunctionBlockModule
 
 export interface TrendPoint {
   t: number

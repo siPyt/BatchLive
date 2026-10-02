@@ -6,6 +6,8 @@ import type {
   ValveModule,
   DiscreteInput,
   DiscreteOutput,
+  FunctionBlockModule,
+  FbBlockType,
   AnyModule,
   ModuleType
 } from './types'
@@ -192,6 +194,30 @@ function valve(p: Partial<ValveModule> & Pick<ValveModule, 'tag' | 'description'
     travelTimer: 0,
     dcState: 'CONFIRMED_PASSIVE',
     alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'ADVISORY', enabled: true }],
+    ...p
+  }
+}
+
+function fb(p: Partial<FunctionBlockModule> & Pick<FunctionBlockModule, 'tag' | 'description' | 'area' | 'fbType'>): FunctionBlockModule {
+  return {
+    type: 'FB',
+    in1: { kind: 'const', value: 0 },
+    in2: { kind: 'const', value: 0 },
+    gain: 1,
+    bias: 0,
+    cmpOp: '>',
+    expr: 'IN1 + IN2',
+    delaySec: 5,
+    tripValue: 10,
+    countUp: true,
+    out: 0,
+    alarms: [],
+    _timerElapsed: 0,
+    _timerOutput: false,
+    _count: 0,
+    _prevIn: false,
+    _prevValue: 0,
+    _buffer: [],
     ...p
   }
 }
@@ -957,6 +983,8 @@ export interface NewModuleSpec {
   unit?: string
   pvMin?: number
   pvMax?: number
+  /** Required when type === 'FB': which Math/Logic/Timer/Counter block to build. */
+  fbType?: FbBlockType
 }
 
 /** Build a new control module from an operator/engineer spec (Explorer "New Module"). */
@@ -1063,5 +1091,13 @@ export function makeModule(s: NewModuleSpec): AnyModule {
         inactiveDescriptor: 'OFF',
         alarms: []
       }
+    case 'FB':
+      return fb({
+        tag: s.tag,
+        description: s.description,
+        area: s.area,
+        equipmentModule: s.equipmentModule,
+        fbType: s.fbType ?? 'ADD'
+      })
   }
 }

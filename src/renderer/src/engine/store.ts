@@ -11,7 +11,10 @@ import type {
   AlarmType,
   AlarmPriority,
   EventLogEntry,
-  EventCategory
+  EventCategory,
+  FbInputRef,
+  FbCompareOp,
+  FbBlockType
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { stepPlant } from './simulate'
@@ -48,6 +51,13 @@ interface StoreState extends PlantState {
   setSetpoint: (tag: string, sp: number) => void
   setOutput: (tag: string, out: number) => void
   setTuning: (tag: string, t: { gain?: number; reset?: number; rate?: number }) => void
+  /** Wire a function block's IN1/IN2 to a constant value or another module's live value. */
+  setFbInput: (tag: string, which: 'in1' | 'in2', ref: FbInputRef) => void
+  /** Edit a function block's type-specific configuration (gain/bias/cmpOp/expr/delaySec/tripValue/countUp). */
+  setFbConfig: (
+    tag: string,
+    patch: Partial<{ gain: number; bias: number; cmpOp: FbCompareOp; expr: string; delaySec: number; tripValue: number; countUp: boolean }>
+  ) => void
   setAlarmLimit: (
     tag: string,
     type: AlarmType,
@@ -258,6 +268,22 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     })
     get().logEvent('CONFIGURE', tag, `Tuning changed: ${JSON.stringify(t)}`)
+  },
+
+  setFbInput: (tag, which, ref) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Wire ${tag}.${which.toUpperCase()}`)) return
+    mutateModule(set, get, tag, (m) => {
+      if (m.type === 'FB') m[which] = ref
+    })
+    get().logEvent('CONFIGURE', tag, `${which.toUpperCase()} wired to ${ref.kind === 'const' ? ref.value : ref.tag}`)
+  },
+
+  setFbConfig: (tag, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag}`)) return
+    mutateModule(set, get, tag, (m) => {
+      if (m.type === 'FB') Object.assign(m, patch)
+    })
+    get().logEvent('CONFIGURE', tag, `Config changed: ${JSON.stringify(patch)}`)
   },
 
   setAlarmLimit: (tag, type, patch) => {

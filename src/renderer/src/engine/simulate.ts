@@ -8,9 +8,12 @@ import type {
   ActiveAlarm,
   AlarmLimit,
   AnyModule,
-  DcState
+  DcState,
+  FunctionBlockModule,
+  FbInputRef
 } from './types'
 import { CUSTOM_PHYSICS_TAGS } from './plant'
+import { readModuleValue } from './fb'
 import { advanceControllers, computeBadTags, type HardwareState } from './hardware'
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
@@ -246,6 +249,331 @@ function applyValveDC(m: ValveModule, dt: number): void {
   m.dcState = io.dcState
 }
 
+/** Reads the live numeric value a function block can wire to: PV for AI/PID,
+ * 1/0 for discrete states, and OUT for another function block's result. */
+function resolveFbInput(modules: Record<string, AnyModule>, ref: FbInputRef): number {
+  if (ref.kind === 'const') return ref.value
+  const m = ref.tag ? modules[ref.tag] : undefined
+  return readModuleValue(m)
+}
+
+/** Minimal recursive-descent evaluator for CALC blocks — supports add, subtract,
+ * multiply, divide and parentheses, numeric literals, and the IN1/IN2 variables.
+ * No eval()/Function(): operator text is untrusted configuration data, not code to execute. */
+function evalExpr(expr: string, in1: number, in2: number): number {
+  const tokens = expr.toUpperCase().match(/\d+\.?\d*|[+\-*/()]|IN1|IN2/g) ?? []
+  let pos = 0
+  const peek = (): string | undefined => tokens[pos]
+  const take = (): string | undefined => tokens[pos++]
+  const parseFactor = (): number => {
+    const t = take()
+    if (t === '(') {
+      const v = parseExpr()
+      take() // consume ')'
+      return v
+    }
+    if (t === '-') return -parseFactor()
+    if (t === 'IN1') return in1
+    if (t === 'IN2') return in2
+    return t ? Number(t) || 0 : 0
+  }
+  const parseTerm = (): number => {
+    let v = parseFactor()
+    while (peek() === '*' || peek() === '/') {
+      const op = take()
+      const rhs = parseFactor()
+      v = op === '*' ? v * rhs : rhs !== 0 ? v / rhs : 0
+    }
+    return v
+  }
+  const parseExpr = (): number => {
+    let v = parseTerm()
+    while (peek() === '+' || peek() === '-') {
+      const op = take()
+      v = op === '+' ? v + parseTerm() : v - parseTerm()
+    }
+    return v
+  }
+  try {
+    return parseExpr()
+  } catch {
+    return 0
+  }
+}
+
+/** Executes one DeltaV Math/Logic/Timer/Counter/simple-Analog-Control block
+ * per scan, resolving its wired inputs against the current module set. Codes
+ * are the exact DeltaV Function Block Reference abbreviations. */
+function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string, AnyModule>, dt: number): void {
+  const a = resolveFbInput(modules, m.in1)
+  const b = resolveFbInput(modules, m.in2)
+  const cmp = (x: number, y: number): boolean => {
+    if (m.cmpOp === '>') return x > y
+    if (m.cmpOp === '<') return x < y
+    if (m.cmpOp === '>=') return x >= y
+    if (m.cmpOp === '<=') return x <= y
+    return x === y
+  }
+  switch (m.fbType) {
+    // ---------------- I/O Blocks ----------------
+    case 'ALARM':
+      m.out = cmp(a, m.bias) ? 1 : 0
+      break
+    case 'MAI':
+      m.out = (a + b) / 2
+      break
+    case 'FFMDI':
+      m.out = (a !== 0 ? 1 : 0) + (b !== 0 ? 2 : 0)
+      break
+    case 'FFMDO':
+      m.out = (Math.floor(a) >> Math.max(0, Math.round(m.tripValue))) & 1
+      break
+    case 'PIN': {
+      const inOn = a !== 0
+      if (inOn && !m._prevIn) m._count++
+      m._prevIn = inOn
+      m._timerElapsed += dt
+      if (m._timerElapsed >= Math.max(m.delaySec, 0.5)) {
+        m.out = m._count / m._timerElapsed
+        m._count = 0
+        m._timerElapsed = 0
+      }
+      break
+    }
+
+    // ---------------- Math Blocks ----------------
+    case 'ABS':
+      m.out = Math.abs(a)
+      break
+    case 'ADD':
+      m.out = a + b
+      break
+    case 'ARITH':
+      m.out = a * m.gain + m.bias + b
+      break
+    case 'CMP':
+      m.out = cmp(a, b) ? 1 : 0
+      break
+    case 'DIV':
+      m.out = b !== 0 ? a / b : 0
+      break
+    case 'INT':
+      if (b !== 0) m._count = 0
+      else m._count += a * dt
+      m.out = m._count
+      break
+    case 'MLTY':
+      m.out = a * b
+      break
+    case 'SUB':
+      m.out = a - b
+      break
+
+    // ---------------- Timer/Counter Blocks ----------------
+    case 'CTR': {
+      const inOn = a !== 0
+      if (inOn && !m._prevIn) m._count += m.countUp ? 1 : -1
+      m._prevIn = inOn
+      m.out = (m.countUp ? m._count >= m.tripValue : m._count <= m.tripValue) ? 1 : 0
+      break
+    }
+    case 'DTE':
+      m._timerElapsed += dt
+      m.out = m._timerElapsed % Math.max(m.delaySec, 1) < 1 ? 1 : 0
+      break
+    case 'OND': {
+      const inOn = a !== 0
+      if (inOn) {
+        m._timerElapsed += dt
+        m._timerOutput = m._timerElapsed >= m.delaySec
+      } else {
+        m._timerElapsed = 0
+        m._timerOutput = false
+      }
+      m.out = m._timerOutput ? 1 : 0
+      break
+    }
+    case 'OFFD': {
+      const inOn = a !== 0
+      if (inOn) {
+        m._timerElapsed = 0
+        m._timerOutput = true
+      } else {
+        m._timerElapsed += dt
+        if (m._timerElapsed >= m.delaySec) m._timerOutput = false
+      }
+      m.out = m._timerOutput ? 1 : 0
+      break
+    }
+    case 'RET': {
+      if (b !== 0) {
+        m._timerElapsed = 0
+        m._timerOutput = false
+      } else if (a !== 0) {
+        m._timerElapsed += dt
+        if (m._timerElapsed >= m.delaySec) m._timerOutput = true
+      }
+      m.out = m._timerOutput ? 1 : 0
+      break
+    }
+    case 'TP': {
+      const inOn = a !== 0
+      if (inOn && !m._prevIn) {
+        m._timerOutput = true
+        m._timerElapsed = 0
+      }
+      m._prevIn = inOn
+      if (m._timerOutput) {
+        m._timerElapsed += dt
+        if (m._timerElapsed >= m.delaySec) m._timerOutput = false
+      }
+      m.out = m._timerOutput ? 1 : 0
+      break
+    }
+
+    // ---------------- Logical Blocks ----------------
+    case 'ACT':
+      if (b !== 0) m.out = evalExpr(m.expr, a, b)
+      break
+    case 'AND':
+      m.out = a !== 0 && b !== 0 ? 1 : 0
+      break
+    case 'BDE': {
+      const inOn = a !== 0
+      m.out = inOn !== m._prevIn ? 1 : 0
+      m._prevIn = inOn
+      break
+    }
+    case 'BFI':
+      m.out = (a !== 0 ? 1 : 0) + (b !== 0 ? 2 : 0)
+      break
+    case 'BFO':
+      m.out = (Math.floor(a) >> Math.max(0, Math.round(m.tripValue))) & 1
+      break
+    case 'CND': {
+      const condTrue = evalExpr(m.expr, a, b) !== 0
+      if (condTrue) {
+        m._timerElapsed += dt
+        m._timerOutput = m._timerElapsed >= m.delaySec
+      } else {
+        m._timerElapsed = 0
+        m._timerOutput = false
+      }
+      m.out = m._timerOutput ? 1 : 0
+      break
+    }
+    case 'MLTX':
+      m.out = b !== 0 ? a : m.gain
+      break
+    case 'NDE': {
+      const inOn = a !== 0
+      m.out = !inOn && m._prevIn ? 1 : 0
+      m._prevIn = inOn
+      break
+    }
+    case 'NOT':
+      m.out = a !== 0 ? 0 : 1
+      break
+    case 'OR':
+      m.out = a !== 0 || b !== 0 ? 1 : 0
+      break
+    case 'PDE': {
+      const inOn = a !== 0
+      m.out = inOn && !m._prevIn ? 1 : 0
+      m._prevIn = inOn
+      break
+    }
+    case 'RS':
+      // Reset/Set flip-flop (NOR logic): Reset (IN2) dominates Set (IN1).
+      if (b !== 0) m._timerOutput = false
+      else if (a !== 0) m._timerOutput = true
+      m.out = m._timerOutput ? 1 : 0
+      break
+    case 'SR':
+      // Set/Reset flip-flop (NAND logic): Set (IN1) dominates Reset (IN2).
+      if (a !== 0) m._timerOutput = true
+      else if (b !== 0) m._timerOutput = false
+      m.out = m._timerOutput ? 1 : 0
+      break
+
+    // ---------------- Analog Control Blocks ----------------
+    case 'BG':
+      m.out = a * m.gain + m.bias
+      break
+    case 'CALC':
+      m.out = evalExpr(m.expr, a, b)
+      break
+    case 'CTLSL':
+      m.out = m.cmpOp === '<' ? Math.min(a, b) : m.cmpOp === '>' ? Math.max(a, b) : (a + b) / 2
+      break
+    case 'DT': {
+      m._timerElapsed += dt
+      m._buffer.push({ t: m._timerElapsed, v: a })
+      const cutoff = m._timerElapsed - m.delaySec
+      while (m._buffer.length > 1 && m._buffer[1].t <= cutoff) m._buffer.shift()
+      m.out = m._buffer[0].t <= cutoff ? m._buffer[0].v : 0
+      break
+    }
+    case 'FLTR': {
+      const tau = Math.max(m.delaySec, 0.1)
+      m.out += (a - m.out) * Math.min(1, dt / tau)
+      break
+    }
+    case 'INSEL':
+    case 'ISELX':
+    case 'SGSL':
+      m.out = m.cmpOp === '<' ? Math.min(a, b) : m.cmpOp === '>' ? Math.max(a, b) : (a + b) / 2
+      break
+    case 'LE':
+      m.out = m.gain
+      break
+    case 'LL': {
+      const tau = Math.max(m.delaySec, 0.1)
+      const lag = m.out + (a - m.out) * Math.min(1, dt / tau)
+      const lead = dt > 0 ? m.gain * ((a - m._prevValue) / dt) : 0
+      m._prevValue = a
+      m.out = lag + lead
+      break
+    }
+    case 'LIM':
+      m.out = Math.max(Math.min(m.bias, m.gain), Math.min(Math.max(m.bias, m.gain), a))
+      break
+    case 'MANLD':
+      m.out = m.gain
+      break
+    case 'RAMP': {
+      const maxStep = Math.max(m.gain, 0) * dt
+      const diff = a - m.out
+      m.out += Math.max(-maxStep, Math.min(maxStep, diff))
+      break
+    }
+    case 'RTLM': {
+      const maxStep = Math.max(m.gain, 0) * dt
+      const diff = a - m.out
+      m.out += Math.max(-maxStep, Math.min(maxStep, diff))
+      break
+    }
+    case 'RTO':
+      m.out = a * m.gain
+      break
+    case 'SCLR': {
+      const span = m.gain - m.bias || 1
+      m.out = ((a - m.bias) / span) * 100
+      break
+    }
+    case 'SGCR':
+      m.out = Math.sign(a) * Math.sqrt(Math.abs(a)) * m.gain
+      break
+    case 'SGGN':
+      m._timerElapsed += dt
+      m.out = m.gain * Math.sin((2 * Math.PI * m._timerElapsed) / Math.max(m.delaySec, 1))
+      break
+    case 'SPLTR':
+      m.out = a >= m.bias ? a : 0
+      break
+  }
+}
+
 /**
  * Advance the plant by dt seconds. Returns a NEW PlantState (fresh references)
  * so React/zustand subscribers re-render.
@@ -358,6 +686,8 @@ export function stepPlant(
       applyMotorDC(gm, dt)
     } else if (gm.type === 'VALVE') {
       applyValveDC(gm, dt)
+    } else if (gm.type === 'FB') {
+      stepFunctionBlock(gm, modules, dt)
     }
   }
 

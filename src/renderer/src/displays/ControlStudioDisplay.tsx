@@ -1,19 +1,23 @@
+import { useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
-import { fmt, modeColor } from '../utils/format'
-import type { AnyModule, PidModule, MotorModule, ValveModule, DiscreteOutput, DiscreteInput, AnalogIndicator, ControlMode } from '../engine/types'
+import { fmt } from '../utils/format'
+import { FbdCanvas } from '../components/FbdCanvas'
+import { FB_NEEDS_IN2 } from '../engine/fb'
+import type { AnyModule, FbBlockType, FunctionBlockModule } from '../engine/types'
 import type { ReactNode } from 'react'
 
-// Control Studio-style ONLINE function-block diagram for a single module.
-// Every CV shown in a port is live-clickable: setpoints, tuning, and discrete
-// commands write straight back through the same store actions the faceplates use.
-
-const PID_MODES: ControlMode[] = ['MAN', 'AUTO', 'CAS']
+// Control Studio: a real Function Block Diagram node editor (drag, wire,
+// delete) backed by the 10 Hz simulation tick in engine/simulate.ts — every
+// CV shown is live-clickable, same as the faceplates.
 
 export function ControlStudioDisplay(): JSX.Element {
   const studioTag = useUi((s) => s.studioTag)
-  const m = useStore((s) => (studioTag ? s.modules[studioTag] : undefined))
+  const modules = useStore((s) => s.modules)
+  const m = studioTag ? modules[studioTag] : undefined
   const openFaceplate = useUi((s) => s.openFaceplate)
+  const select = useUi((s) => s.select)
+  const openStudio = useUi((s) => s.openStudio)
 
   if (!m) {
     return (
@@ -23,6 +27,21 @@ export function ControlStudioDisplay(): JSX.Element {
     )
   }
 
+  // DeltaV Control Studio opens ONE Control Module at a time: the canvas
+  // shows the active module plus only its direct wiring neighbors (FB
+  // blocks that reference it, or tags it references), never the whole area.
+  const neighborTags = new Set<string>()
+  for (const t of Object.keys(modules)) {
+    const mm = modules[t]
+    if (mm.type !== 'FB') continue
+    if ((mm.in1.kind === 'ref' && mm.in1.tag === m.tag) || (mm.in2.kind === 'ref' && mm.in2.tag === m.tag)) neighborTags.add(t)
+  }
+  if (m.type === 'FB') {
+    if (m.in1.kind === 'ref' && m.in1.tag) neighborTags.add(m.in1.tag)
+    if (m.in2.kind === 'ref' && m.in2.tag) neighborTags.add(m.in2.tag)
+  }
+  const visibleTags = [m.tag, ...Array.from(neighborTags).sort()]
+
   return (
     <div className="display studio">
       <StudioRibbon tag={m.tag} onFaceplate={() => openFaceplate(m.tag)} />
@@ -30,11 +49,18 @@ export function ControlStudioDisplay(): JSX.Element {
         <HierarchyView module={m} />
         <div className="studio-center">
           <div className="studio-canvas">
-            <Diagram module={m} />
+            <FbdCanvas
+              areaTags={visibleTags}
+              selectedTag={m.tag}
+              onSelect={(tag) => {
+                select(tag)
+                openStudio(tag)
+              }}
+            />
           </div>
           <ParameterView module={m} />
         </div>
-        <PaletteView />
+        <PaletteView area={m.area} />
       </div>
     </div>
   )
@@ -86,6 +112,9 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
   const openValve = useStore((s) => s.openValve)
   const closeValve = useStore((s) => s.closeValve)
   const toggleDO = useStore((s) => s.toggleDO)
+  const modules = useStore((s) => s.modules)
+  const setFbInput = useStore((s) => s.setFbInput)
+  const setFbConfig = useStore((s) => s.setFbConfig)
 
   const rows: ParamRow[] = []
   if (m.type === 'PID') {
@@ -126,7 +155,7 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
     )
   } else if (m.type === 'DO') {
     rows.push({ key: 'OUT_D.CV', value: m.commanded ? '1' : '0', toggle: { onClick: () => toggleDO(m.tag), label: 'Toggle' } })
-  } else {
+  } else if (m.type !== 'FB') {
     rows.push({ key: 'OUT_D.CV', value: m.state ? '1' : '0' })
   }
 
@@ -141,29 +170,206 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.key}>
-              <td>{r.key}</td>
-              <td className="pv">
-                {r.edit ? (
-                  <ParamStepper step={r.edit.step} decimals={r.edit.decimals} value={r.edit.raw} onChange={r.edit.onChange} />
-                ) : r.toggle ? (
-                  <button className="studio-param-btn" onClick={r.toggle.onClick}>
-                    {r.value} · {r.toggle.label}
-                  </button>
-                ) : (
-                  r.value
-                )}
-              </td>
-              <td className="good">Good</td>
-            </tr>
-          ))}
+          {m.type === 'FB' ? (
+            <FbParamRows m={m} tags={Object.keys(modules).filter((t) => t !== m.tag).sort()} setFbInput={setFbInput} setFbConfig={setFbConfig} />
+          ) : (
+            rows.map((r) => (
+              <tr key={r.key}>
+                <td>{r.key}</td>
+                <td className="pv">
+                  {r.edit ? (
+                    <ParamStepper step={r.edit.step} decimals={r.edit.decimals} value={r.edit.raw} onChange={r.edit.onChange} />
+                  ) : r.toggle ? (
+                    <button className="studio-param-btn" onClick={r.toggle.onClick}>
+                      {r.value} · {r.toggle.label}
+                    </button>
+                  ) : (
+                    r.value
+                  )}
+                </td>
+                <td className="good">Good</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
       <div className="studio-pane-label">Parameter View — {m.tag}</div>
     </div>
   )
 }
+
+/** Property Inspector for Math/Logic/Timer/Analog-Control blocks: IN1/IN2
+ * wiring (const or any live module tag) plus whichever registers are
+ * meaningful for this specific block type — edits apply to the simulation
+ * on the next scan (10 Hz tick), same as every other module here. */
+function FbParamRows({
+  m,
+  tags,
+  setFbInput,
+  setFbConfig
+}: {
+  m: FunctionBlockModule
+  tags: string[]
+  setFbInput: (tag: string, which: 'in1' | 'in2', ref: { kind: 'const' | 'ref'; value: number; tag?: string }) => void
+  setFbConfig: (tag: string, patch: Record<string, unknown>) => void
+}): JSX.Element {
+  const needsIn2 = FB_NEEDS_IN2[m.fbType]
+  const field = m.fbType
+  const showGain = ['ARITH', 'MLTX', 'BG', 'LE', 'LL', 'LIM', 'MANLD', 'RAMP', 'RTLM', 'RTO', 'SCLR', 'SGCR', 'SGGN'].includes(field)
+  const gainLabel = field === 'RTO' ? 'RATIO' : field === 'RAMP' || field === 'RTLM' ? 'RATE (EU/s)' : field === 'LE' || field === 'MANLD' ? 'VALUE' : field === 'MLTX' ? 'ELSE' : 'GAIN'
+  const showBias = ['ARITH', 'BG', 'LIM', 'SCLR', 'SPLTR'].includes(field)
+  const biasLabel = field === 'LIM' || field === 'SCLR' ? 'LO_LIM' : field === 'SPLTR' ? 'THRESHOLD' : 'BIAS'
+  const showGainHi = field === 'LIM' || field === 'SCLR'
+  const showCmp = ['ALARM', 'CMP', 'CTLSL', 'INSEL', 'ISELX', 'SGSL'].includes(field)
+  const showExpr = field === 'ACT' || field === 'CALC' || field === 'CND'
+  const showDelay = ['PIN', 'OND', 'OFFD', 'RET', 'TP', 'DT', 'FLTR', 'LL', 'DTE', 'CND', 'SGGN'].includes(field)
+  const delayLabel = field === 'PIN' || field === 'DTE' || field === 'SGGN' ? 'PERIOD (s)' : field === 'FLTR' || field === 'LL' ? 'TIME CONST (s)' : 'TIME_DURATION (s)'
+  const showTrip = field === 'CTR' || field === 'BFO' || field === 'FFMDO'
+  const tripLabel = field === 'CTR' ? 'PRESET' : 'BIT INDEX'
+  const showCountUp = field === 'CTR'
+
+  return (
+    <>
+      <tr>
+        <td>BLOCK</td>
+        <td className="pv">{m.fbType}</td>
+        <td className="good">Good</td>
+      </tr>
+      <FbWireRow label="IN1" tags={tags} input={m.in1} onSet={(ref) => setFbInput(m.tag, 'in1', ref)} />
+      {needsIn2 && <FbWireRow label="IN2" tags={tags} input={m.in2} onSet={(ref) => setFbInput(m.tag, 'in2', ref)} />}
+      {showGain && (
+        <tr>
+          <td>{gainLabel}</td>
+          <td className="pv">
+            <ParamStepper step={0.1} decimals={3} value={m.gain} onChange={(v) => setFbConfig(m.tag, { gain: v })} />
+          </td>
+          <td className="good">Good</td>
+        </tr>
+      )}
+      {showGainHi && (
+        <tr>
+          <td>HI_LIM</td>
+          <td className="pv">
+            <ParamStepper step={0.5} decimals={2} value={m.gain} onChange={(v) => setFbConfig(m.tag, { gain: v })} />
+          </td>
+          <td className="good">Good</td>
+        </tr>
+      )}
+      {showBias && (
+        <tr>
+          <td>{biasLabel}</td>
+          <td className="pv">
+            <ParamStepper step={0.5} decimals={2} value={m.bias} onChange={(v) => setFbConfig(m.tag, { bias: v })} />
+          </td>
+          <td className="good">Good</td>
+        </tr>
+      )}
+      {showCmp && (
+        <tr>
+          <td>OP</td>
+          <td className="pv">
+            <select className="fb-select" value={m.cmpOp} onChange={(e) => setFbConfig(m.tag, { cmpOp: e.target.value })}>
+              {(['>', '<', '>=', '<=', '=='] as const).map((op) => (
+                <option key={op} value={op}>
+                  {op}
+                </option>
+              ))}
+            </select>
+          </td>
+          <td className="good">Good</td>
+        </tr>
+      )}
+      {showExpr && (
+        <tr>
+          <td>EXPR</td>
+          <td className="pv">
+            <input className="fb-exprinput" type="text" value={m.expr} onChange={(e) => setFbConfig(m.tag, { expr: e.target.value })} />
+          </td>
+          <td className="good">Good</td>
+        </tr>
+      )}
+      {showDelay && (
+        <tr>
+          <td>{delayLabel}</td>
+          <td className="pv">
+            <ParamStepper step={1} decimals={1} value={m.delaySec} onChange={(v) => setFbConfig(m.tag, { delaySec: Math.max(0, v) })} />
+          </td>
+          <td className="good">Good</td>
+        </tr>
+      )}
+      {showTrip && (
+        <tr>
+          <td>{tripLabel}</td>
+          <td className="pv">
+            <ParamStepper step={1} decimals={0} value={m.tripValue} onChange={(v) => setFbConfig(m.tag, { tripValue: v })} />
+          </td>
+          <td className="good">Good</td>
+        </tr>
+      )}
+      {showCountUp && (
+        <tr>
+          <td>COUNTER_TYPE</td>
+          <td className="pv">
+            <button className="studio-param-btn" onClick={() => setFbConfig(m.tag, { countUp: !m.countUp })}>
+              {m.countUp ? 'Up' : 'Down'}
+            </button>
+          </td>
+          <td className="good">Good</td>
+        </tr>
+      )}
+      <tr>
+        <td>OUT</td>
+        <td className="pv">{fmt(m.out, 3)}</td>
+        <td className="good">Good</td>
+      </tr>
+    </>
+  )
+}
+
+/** One IN1/IN2 register row: a dropdown chooses Const (editable number) vs.
+ * any live module tag on the plant (resolved fresh every scan). */
+function FbWireRow({
+  label,
+  tags,
+  input,
+  onSet
+}: {
+  label: string
+  tags: string[]
+  input: { kind: 'const' | 'ref'; value: number; tag?: string }
+  onSet: (ref: { kind: 'const' | 'ref'; value: number; tag?: string }) => void
+}): JSX.Element {
+  return (
+    <tr>
+      <td>{label}</td>
+      <td className="pv">
+        <span className="fb-wirerow">
+          <select
+            className="fb-select"
+            value={input.kind === 'const' ? 'CONST' : input.tag ?? ''}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v === 'CONST') onSet({ kind: 'const', value: input.value })
+              else onSet({ kind: 'ref', value: 0, tag: v })
+            }}
+          >
+            <option value="CONST">Const</option>
+            {tags.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          {input.kind === 'const' && (
+            <ParamStepper step={1} decimals={2} value={input.value} onChange={(v) => onSet({ kind: 'const', value: v })} />
+          )}
+        </span>
+      </td>
+      <td className="good">Good</td>
+    </tr>
+  )
+}
+
 
 function ParamStepper({
   value,
@@ -190,31 +396,167 @@ function ParamStepper({
   )
 }
 
-const PALETTE = [
-  { group: 'I/O', items: ['AI', 'AO', 'DI', 'DO'] },
-  { group: 'Control', items: ['PID', 'DC', 'RATIO', 'BG'] },
-  { group: 'Logic', items: ['AND', 'OR', 'NOT', 'CND'] },
-  { group: 'Math', items: ['ADD', 'MUL', 'CALC', 'INT'] },
-  { group: 'SFC', items: ['STEP', 'TRAN', 'TERM'] }
+interface PaletteItem {
+  label: string
+  create: { type: 'PID' | 'AI' | 'DI' | 'DO' } | { type: 'FB'; fbType: FbBlockType }
+}
+
+/** The full DeltaV Function Block Reference (D800018X012) palette, grouped
+ * by its own five standard categories — every item is a real, simulated,
+ * creatable module (Energy Metering and Advanced Control blocks such as
+ * MPC/Fuzzy Logic/steam-property blocks are out of scope: multi-array,
+ * thermodynamic-table, or trained-model algorithms that don't fit this
+ * engine's single in1/in2 block model). */
+const PALETTE: { group: string; items: PaletteItem[] }[] = [
+  {
+    group: 'I/O Blocks',
+    items: [
+      { label: 'AI', create: { type: 'AI' } },
+      { label: 'DI', create: { type: 'DI' } },
+      { label: 'DO', create: { type: 'DO' } },
+      { label: 'ALARM', create: { type: 'FB', fbType: 'ALARM' } },
+      { label: 'MAI', create: { type: 'FB', fbType: 'MAI' } },
+      { label: 'FFMDI', create: { type: 'FB', fbType: 'FFMDI' } },
+      { label: 'FFMDO', create: { type: 'FB', fbType: 'FFMDO' } },
+      { label: 'PIN', create: { type: 'FB', fbType: 'PIN' } }
+    ]
+  },
+  {
+    group: 'Math Blocks',
+    items: [
+      { label: 'ABS', create: { type: 'FB', fbType: 'ABS' } },
+      { label: 'ADD', create: { type: 'FB', fbType: 'ADD' } },
+      { label: 'ARITH', create: { type: 'FB', fbType: 'ARITH' } },
+      { label: 'CMP', create: { type: 'FB', fbType: 'CMP' } },
+      { label: 'DIV', create: { type: 'FB', fbType: 'DIV' } },
+      { label: 'INT', create: { type: 'FB', fbType: 'INT' } },
+      { label: 'MLTY', create: { type: 'FB', fbType: 'MLTY' } },
+      { label: 'SUB', create: { type: 'FB', fbType: 'SUB' } }
+    ]
+  },
+  {
+    group: 'Timer/Counter Blocks',
+    items: [
+      { label: 'CTR', create: { type: 'FB', fbType: 'CTR' } },
+      { label: 'DTE', create: { type: 'FB', fbType: 'DTE' } },
+      { label: 'OND', create: { type: 'FB', fbType: 'OND' } },
+      { label: 'OFFD', create: { type: 'FB', fbType: 'OFFD' } },
+      { label: 'RET', create: { type: 'FB', fbType: 'RET' } },
+      { label: 'TP', create: { type: 'FB', fbType: 'TP' } }
+    ]
+  },
+  {
+    group: 'Logical Blocks',
+    items: [
+      { label: 'ACT', create: { type: 'FB', fbType: 'ACT' } },
+      { label: 'AND', create: { type: 'FB', fbType: 'AND' } },
+      { label: 'BDE', create: { type: 'FB', fbType: 'BDE' } },
+      { label: 'BFI', create: { type: 'FB', fbType: 'BFI' } },
+      { label: 'BFO', create: { type: 'FB', fbType: 'BFO' } },
+      { label: 'CND', create: { type: 'FB', fbType: 'CND' } },
+      { label: 'MLTX', create: { type: 'FB', fbType: 'MLTX' } },
+      { label: 'NDE', create: { type: 'FB', fbType: 'NDE' } },
+      { label: 'NOT', create: { type: 'FB', fbType: 'NOT' } },
+      { label: 'OR', create: { type: 'FB', fbType: 'OR' } },
+      { label: 'PDE', create: { type: 'FB', fbType: 'PDE' } },
+      { label: 'RS', create: { type: 'FB', fbType: 'RS' } },
+      { label: 'SR', create: { type: 'FB', fbType: 'SR' } }
+    ]
+  },
+  {
+    group: 'Analog Control Blocks',
+    items: [
+      { label: 'PID', create: { type: 'PID' } },
+      { label: 'BG', create: { type: 'FB', fbType: 'BG' } },
+      { label: 'CALC', create: { type: 'FB', fbType: 'CALC' } },
+      { label: 'CTLSL', create: { type: 'FB', fbType: 'CTLSL' } },
+      { label: 'DT', create: { type: 'FB', fbType: 'DT' } },
+      { label: 'FLTR', create: { type: 'FB', fbType: 'FLTR' } },
+      { label: 'INSEL', create: { type: 'FB', fbType: 'INSEL' } },
+      { label: 'ISELX', create: { type: 'FB', fbType: 'ISELX' } },
+      { label: 'LE', create: { type: 'FB', fbType: 'LE' } },
+      { label: 'LL', create: { type: 'FB', fbType: 'LL' } },
+      { label: 'LIM', create: { type: 'FB', fbType: 'LIM' } },
+      { label: 'MANLD', create: { type: 'FB', fbType: 'MANLD' } },
+      { label: 'RAMP', create: { type: 'FB', fbType: 'RAMP' } },
+      { label: 'RTLM', create: { type: 'FB', fbType: 'RTLM' } },
+      { label: 'RTO', create: { type: 'FB', fbType: 'RTO' } },
+      { label: 'SCLR', create: { type: 'FB', fbType: 'SCLR' } },
+      { label: 'SGCR', create: { type: 'FB', fbType: 'SGCR' } },
+      { label: 'SGGN', create: { type: 'FB', fbType: 'SGGN' } },
+      { label: 'SGSL', create: { type: 'FB', fbType: 'SGSL' } },
+      { label: 'SPLTR', create: { type: 'FB', fbType: 'SPLTR' } }
+    ]
+  }
 ]
 
-function PaletteView(): JSX.Element {
+function PaletteView({ area }: { area: string }): JSX.Element {
+  const createModule = useStore((s) => s.createModule)
+  const modules = useStore((s) => s.modules)
+  const openStudio = useUi((s) => s.openStudio)
+  const [pending, setPending] = useState<PaletteItem | null>(null)
+  const [tag, setTag] = useState('')
+  const normTag = tag.trim().toUpperCase()
+  const exists = normTag.length > 0 && !!modules[normTag]
+
+  const submit = (): void => {
+    if (!pending || !normTag || exists) return
+    createModule(
+      pending.create.type === 'FB'
+        ? { tag: normTag, type: 'FB', fbType: pending.create.fbType, description: `${pending.label} block`, area }
+        : { tag: normTag, type: pending.create.type, description: `${pending.label} block`, area }
+    )
+    openStudio(normTag)
+    setPending(null)
+    setTag('')
+  }
+
   return (
     <div className="studio-pane studio-palette">
       <div className="studio-palette-body">
         {PALETTE.map((g) => (
           <div key={g.group} className="studio-pal-group">
             <div className="studio-pal-head">{g.group}</div>
-            {g.items.map((i) => (
-              <div key={i} className="studio-pal-item" draggable title={`${i} function block`}>
-                <span className="fb-type">{i}</span>
-                <span>{i} block</span>
+            {g.items.map((it) => (
+              <div
+                key={it.label}
+                className="studio-pal-item"
+                title={`Create a new ${it.label} block`}
+                onClick={() => {
+                  setPending(it)
+                  setTag('')
+                }}
+              >
+                <span className="fb-type">{it.label}</span>
+                <span>{it.label} block</span>
               </div>
             ))}
           </div>
         ))}
       </div>
-      <div className="studio-pane-label">Palette · All Function Blocks</div>
+      {pending && (
+        <div className="studio-pal-create">
+          <div className="studio-pal-create-title">New {pending.label} block</div>
+          <input
+            className="studio-pal-tag"
+            placeholder="Tag, e.g. CALC-101"
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            autoFocus
+          />
+          {exists && <div className="studio-pal-err">Tag already exists</div>}
+          <div className="studio-pal-create-btns">
+            <button className="tbtn sm" disabled={!normTag || exists} onClick={submit}>
+              Create
+            </button>
+            <button className="tbtn sm" onClick={() => setPending(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="studio-pane-label">Palette · click a block to create &amp; wire it</div>
     </div>
   )
 }
@@ -284,287 +626,3 @@ function RibbonBtn({
   )
 }
 
-function Diagram({ module: m }: { module: AnyModule }): JSX.Element {
-  if (m.type === 'PID') return <PidDiagram m={m} />
-  if (m.type === 'AI') return <AiDiagram m={m} />
-  if (m.type === 'MOTOR') return <MotorDiagram m={m} />
-  if (m.type === 'VALVE') return <ValveDiagram m={m} />
-  if (m.type === 'DO') return <DoDiagram m={m} />
-  return <DiDiagram m={m} />
-}
-
-function AiDiagram({ m }: { m: AnalogIndicator }): JSX.Element {
-  return (
-    <div className="fb-row">
-      <Block type="AI" tag={m.tag} ports={[<Port key="OUT" name="OUT" value={`${fmt(m.pv, m.decimals)} ${m.unit}`} />]} />
-    </div>
-  )
-}
-
-function PidDiagram({ m }: { m: PidModule }): JSX.Element {
-  const setMode = useStore((s) => s.setMode)
-  const setSetpoint = useStore((s) => s.setSetpoint)
-  const setOutput = useStore((s) => s.setOutput)
-  const setTuning = useStore((s) => s.setTuning)
-  const cascaded = !!m.casSource
-  const spEditable = m.actualMode === 'AUTO'
-  const outEditable = m.actualMode === 'MAN' || m.actualMode === 'ROUT'
-  const span = m.pvMax - m.pvMin || 1
-
-  return (
-    <div className="fb-row">
-      {cascaded && (
-        <>
-          <Block type="PID" tag={m.casSource as string} ports={[<Port key="OUT" name="OUT" value="→ remote SP" />]} subdued />
-          <Wire label="CAS_IN" />
-        </>
-      )}
-      <Block type="AI" tag={`${m.tag}/PV`} ports={[<Port key="OUT" name="OUT" value={`${fmt(m.pv, m.decimals)} ${m.unit}`} />]} />
-      <Wire label="IN" />
-      <div className="fb-block pid">
-        <div className="fb-head">
-          <span className="fb-type">PID</span>
-          <b>{m.tag}</b>
-          <span className="fb-mode" style={{ color: modeColor(m.mode) }}>
-            {m.mode}
-          </span>
-        </div>
-        <div className="fb-ports">
-          <Port name="PV" value={`${fmt(m.pv, m.decimals)} ${m.unit}`} />
-          <Port
-            name="SP"
-            value={`${fmt(m.sp, m.decimals)} ${m.unit}`}
-            rawValue={m.sp}
-            editStep={spEditable ? span / 100 : undefined}
-            editDecimals={m.decimals}
-            onEdit={spEditable ? (v) => setSetpoint(m.tag, v) : undefined}
-          />
-          <Port
-            name="OUT"
-            value={`${fmt(m.out, 1)} %`}
-            rawValue={m.out}
-            editStep={outEditable ? 1 : undefined}
-            editDecimals={1}
-            onEdit={outEditable ? (v) => setOutput(m.tag, v) : undefined}
-          />
-          <Port name="GAIN" value={`${m.gain}`} rawValue={m.gain} editStep={0.1} editDecimals={2} onEdit={(v) => setTuning(m.tag, { gain: v })} />
-          <Port name="RESET" value={`${m.reset} s`} rawValue={m.reset} editStep={1} editDecimals={0} onEdit={(v) => setTuning(m.tag, { reset: v })} />
-          <Port name="RATE" value={`${m.rate} s`} rawValue={m.rate} editStep={0.5} editDecimals={1} onEdit={(v) => setTuning(m.tag, { rate: v })} />
-        </div>
-        <div className="fb-modebar">
-          {PID_MODES.map((mode) => (
-            <button
-              key={mode}
-              className={'fb-modebtn' + (m.mode === mode ? ' active' : '')}
-              disabled={mode === 'CAS' && !m.casSource}
-              onClick={() => setMode(m.tag, mode)}
-            >
-              {mode}
-            </button>
-          ))}
-        </div>
-      </div>
-      <Wire label="OUT %" />
-      <Block type="AO" tag={`${m.tag}/OUT`} ports={[<Port key="OUT" name="OUT" value={`${fmt(m.out, 1)} %`} />]} />
-    </div>
-  )
-}
-
-function MotorDiagram({ m }: { m: MotorModule }): JSX.Element {
-  const startMotor = useStore((s) => s.startMotor)
-  const stopMotor = useStore((s) => s.stopMotor)
-  const toggleInterlock = useStore((s) => s.toggleInterlock)
-  const injectFault = useStore((s) => s.injectFault)
-  const resetDevice = useStore((s) => s.resetDevice)
-  const startDisabled = m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.running)
-
-  return (
-    <div className="fb-row">
-      <div className="fb-block dc">
-        <div className="fb-head">
-          <span className="fb-type">DC</span>
-          <b>{m.tag}</b>
-        </div>
-        <div className="fb-ports">
-          <Port name="PV_D" value={m.running ? 'RUNNING' : 'STOPPED'} />
-          <Port
-            name="INTERLOCK"
-            value={m.interlock ? 'TRIPPED' : 'clear'}
-            toggleLabel={m.interlock ? 'Clear' : 'Trip'}
-            onToggle={() => toggleInterlock(m.tag)}
-          />
-          <Port name="FAULT" value={m.fault ? 'YES' : 'no'} toggleLabel={m.fault ? 'Clear' : 'Inject'} onToggle={() => injectFault(m.tag)} />
-        </div>
-        <div className="fb-dcbar">
-          <button className="fb-dcbtn start" disabled={startDisabled} onClick={() => startMotor(m.tag)}>
-            START
-          </button>
-          <button className="fb-dcbtn stop" onClick={() => stopMotor(m.tag)}>
-            STOP
-          </button>
-          {m.locked && (
-            <button className="fb-dcbtn reset" onClick={() => resetDevice(m.tag)}>
-              RESET
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ValveDiagram({ m }: { m: ValveModule }): JSX.Element {
-  const openValve = useStore((s) => s.openValve)
-  const closeValve = useStore((s) => s.closeValve)
-  const toggleInterlock = useStore((s) => s.toggleInterlock)
-  const injectFault = useStore((s) => s.injectFault)
-  const resetDevice = useStore((s) => s.resetDevice)
-  const openDisabled = m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.open)
-
-  return (
-    <div className="fb-row">
-      <div className="fb-block dc">
-        <div className="fb-head">
-          <span className="fb-type">DC</span>
-          <b>{m.tag}</b>
-        </div>
-        <div className="fb-ports">
-          <Port name="PV_D" value={m.open ? 'OPEN' : 'CLOSED'} />
-          <Port
-            name="INTERLOCK"
-            value={m.interlock ? 'TRIPPED' : 'clear'}
-            toggleLabel={m.interlock ? 'Clear' : 'Trip'}
-            onToggle={() => toggleInterlock(m.tag)}
-          />
-          <Port name="FAULT" value={m.fault ? 'YES' : 'no'} toggleLabel={m.fault ? 'Clear' : 'Inject'} onToggle={() => injectFault(m.tag)} />
-        </div>
-        <div className="fb-dcbar">
-          <button className="fb-dcbtn start" disabled={openDisabled} onClick={() => openValve(m.tag)}>
-            OPEN
-          </button>
-          <button className="fb-dcbtn stop" onClick={() => closeValve(m.tag)}>
-            CLOSE
-          </button>
-          {m.locked && (
-            <button className="fb-dcbtn reset" onClick={() => resetDevice(m.tag)}>
-              RESET
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DoDiagram({ m }: { m: DiscreteOutput }): JSX.Element {
-  const toggleDO = useStore((s) => s.toggleDO)
-  return (
-    <div className="fb-row">
-      <Block
-        type="DO"
-        tag={m.tag}
-        ports={[
-          <Port
-            key="OUT_D"
-            name="OUT_D"
-            value={m.state ? m.activeDescriptor : m.inactiveDescriptor}
-            toggleLabel={m.commanded ? m.inactiveDescriptor : m.activeDescriptor}
-            onToggle={() => toggleDO(m.tag)}
-          />
-        ]}
-      />
-    </div>
-  )
-}
-
-function DiDiagram({ m }: { m: DiscreteInput }): JSX.Element {
-  return (
-    <div className="fb-row">
-      <Block type="DI" tag={m.tag} ports={[<Port key="OUT_D" name="OUT_D" value={m.state ? m.activeDescriptor : m.inactiveDescriptor} />]} />
-    </div>
-  )
-}
-
-function Block({
-  type,
-  tag,
-  ports,
-  subdued
-}: {
-  type: string
-  tag: string
-  ports: ReactNode[]
-  subdued?: boolean
-}): JSX.Element {
-  return (
-    <div className={'fb-block' + (subdued ? ' subdued' : '')}>
-      <div className="fb-head">
-        <span className="fb-type">{type}</span>
-        <b>{tag}</b>
-      </div>
-      <div className="fb-ports">{ports}</div>
-    </div>
-  )
-}
-
-function Port({
-  name,
-  value,
-  rawValue,
-  editStep,
-  editDecimals,
-  onEdit,
-  toggleLabel,
-  onToggle
-}: {
-  name: string
-  value: string
-  /** Numeric value backing an editable port (required together with onEdit). */
-  rawValue?: number
-  /** When provided with onEdit, renders an inline +/- stepper instead of plain text. */
-  editStep?: number
-  editDecimals?: number
-  onEdit?: (v: number) => void
-  /** When provided with onToggle, renders a small command button next to the value. */
-  toggleLabel?: string
-  onToggle?: () => void
-}): JSX.Element {
-  if (onEdit && editStep !== undefined && rawValue !== undefined) {
-    const raw = rawValue
-    return (
-      <div className="fb-port editable">
-        <span className="fb-port-name">{name}</span>
-        <span className="fb-stepper">
-          <button onClick={() => onEdit(raw - editStep)}>−</button>
-          <input
-            className="fb-numinput"
-            type="number"
-            value={Number(raw.toFixed(editDecimals ?? 1))}
-            onChange={(e) => onEdit(Number(e.target.value))}
-          />
-          <button onClick={() => onEdit(raw + editStep)}>+</button>
-        </span>
-      </div>
-    )
-  }
-  return (
-    <div className="fb-port">
-      <span className="fb-port-name">{name}</span>
-      <span className="fb-port-val">{value}</span>
-      {onToggle && (
-        <button className="fb-port-toggle" onClick={onToggle}>
-          {toggleLabel}
-        </button>
-      )}
-    </div>
-  )
-}
-
-function Wire({ label }: { label: string }): JSX.Element {
-  return (
-    <div className="fb-wire">
-      <span className="fb-wire-lbl">{label}</span>
-      <span className="fb-wire-arrow">→</span>
-    </div>
-  )
-}

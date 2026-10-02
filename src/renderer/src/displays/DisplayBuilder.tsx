@@ -13,6 +13,7 @@ function paramValue(m: AnyModule | undefined, param: PicParam): string {
     if (m.type === 'PID' || m.type === 'AI') return `${fmt(m.pv, m.decimals)} ${m.unit}`
     if (m.type === 'MOTOR') return m.running ? 'RUN' : 'STOP'
     if (m.type === 'VALVE') return m.open ? 'OPEN' : 'CLOSED'
+    if (m.type === 'FB') return `${fmt(m.out, 2)}`
     return m.state ? m.activeDescriptor : m.inactiveDescriptor
   }
   if (param === 'SP') return m.type === 'PID' ? `${fmt(m.sp, m.decimals)} ${m.unit}` : '—'

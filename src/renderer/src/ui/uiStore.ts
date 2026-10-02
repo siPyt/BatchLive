@@ -35,6 +35,9 @@ interface UiState {
   faceplates: OpenFaceplate[]
   selectedTag: string | null
   studioTag: string | null
+  /** FBD canvas node positions, keyed by module tag (Control Studio drag-and-drop layout). */
+  studioLayout: Record<string, { x: number; y: number }>
+  setStudioLayout: (tag: string, x: number, y: number) => void
   /** Pen to isolate when the Trend display next mounts/updates; consumed then cleared. */
   trendFocusTag: string | null
   /** Module tag to filter the Alarm List to; consumed then cleared. */
@@ -68,6 +71,8 @@ export const useUi = create<UiState>((set, get) => ({
   faceplates: [],
   selectedTag: null,
   studioTag: null,
+  studioLayout: {},
+  setStudioLayout: (tag, x, y) => set((s) => ({ studioLayout: { ...s.studioLayout, [tag]: { x, y } } })),
   trendFocusTag: null,
   alarmFocusTag: null,
 

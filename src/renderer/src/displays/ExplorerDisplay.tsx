@@ -3,7 +3,7 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt } from '../utils/format'
 import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
-import type { AnyModule, AlarmPriority, ModuleType } from '../engine/types'
+import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engine/types'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -24,7 +24,8 @@ const TYPE_BADGE: Record<AnyModule['type'], string> = {
   MOTOR: 'MTR',
   VALVE: 'XV',
   DI: 'DI',
-  DO: 'DO'
+  DO: 'DO',
+  FB: 'FB'
 }
 
 function statusText(m: AnyModule): { text: string; color: string } {
@@ -41,6 +42,8 @@ function statusText(m: AnyModule): { text: string; color: string } {
       return m.fault
         ? { text: 'FAULT', color: '#c0202a' }
         : { text: m.open ? 'OPEN' : 'CLOSED', color: m.open ? '#1f8a4c' : 'var(--dv-text-mute)' }
+    case 'FB':
+      return { text: `${m.fbType} = ${fmt(m.out, 2)}`, color: 'var(--dv-pv)' }
     default:
       return {
         text: m.state ? m.activeDescriptor : m.inactiveDescriptor,
@@ -353,6 +356,13 @@ function ModuleProperties({
       ['Commanded', m.commandedOpen ? 'OPEN' : 'CLOSE'],
       ['Interlock', m.interlock ? 'ACTIVE' : 'clear']
     )
+  } else if (m.type === 'FB') {
+    rows.push(
+      ['Block', m.fbType],
+      ['IN1', m.in1.kind === 'const' ? `${m.in1.value}` : m.in1.tag ?? ''],
+      ['IN2', m.in2.kind === 'const' ? `${m.in2.value}` : m.in2.tag ?? ''],
+      ['OUT', `${fmt(m.out, 3)}`]
+    )
   } else {
     rows.push(['State', m.state ? m.activeDescriptor : m.inactiveDescriptor])
   }
@@ -485,6 +495,7 @@ function NewModuleForm({
   const select = useUi((s) => s.select)
   const [tag, setTag] = useState('')
   const [type, setType] = useState<ModuleType>('PID')
+  const [fbType, setFbType] = useState<FbBlockType>('ADD')
   const [description, setDescription] = useState('')
   const [area, setArea] = useState(initialArea)
   const [em, setEm] = useState(initialEquipment ?? '')
@@ -503,6 +514,7 @@ function NewModuleForm({
     const spec: NewModuleSpec = {
       tag: normTag,
       type,
+      fbType: type === 'FB' ? fbType : undefined,
       description: description.trim() || normTag,
       area,
       equipmentModule: em || undefined,
@@ -531,8 +543,77 @@ function NewModuleForm({
           <option value="VALVE">VALVE (on/off)</option>
           <option value="DI">DI — Discrete Input</option>
           <option value="DO">DO — Discrete Output</option>
+          <option value="FB">FB — Math/Logic/Timer Block</option>
         </select>
       </label>
+      {type === 'FB' && (
+        <label>
+          Block
+          <select value={fbType} onChange={(e) => setFbType(e.target.value as FbBlockType)}>
+            <optgroup label="I/O Blocks">
+              <option value="ALARM">ALARM — Alarm Detection</option>
+              <option value="MAI">MAI — Multiplexed Analog Input</option>
+              <option value="FFMDI">FFMDI — Multiple Discrete Input</option>
+              <option value="FFMDO">FFMDO — Multiple Discrete Output</option>
+              <option value="PIN">PIN — Pulse Input</option>
+            </optgroup>
+            <optgroup label="Math Blocks">
+              <option value="ABS">ABS — Absolute Value</option>
+              <option value="ADD">ADD — Add</option>
+              <option value="ARITH">ARITH — Arithmetic</option>
+              <option value="CMP">CMP — Comparator</option>
+              <option value="DIV">DIV — Divide</option>
+              <option value="INT">INT — Integrator</option>
+              <option value="MLTY">MLTY — Multiply</option>
+              <option value="SUB">SUB — Subtract</option>
+            </optgroup>
+            <optgroup label="Timer/Counter Blocks">
+              <option value="CTR">CTR — Counter</option>
+              <option value="DTE">DTE — Date Time Event</option>
+              <option value="OND">OND — On-Delay Timer</option>
+              <option value="OFFD">OFFD — Off-Delay Timer</option>
+              <option value="RET">RET — Retentive Timer</option>
+              <option value="TP">TP — Timed Pulse</option>
+            </optgroup>
+            <optgroup label="Logical Blocks">
+              <option value="ACT">ACT — Action</option>
+              <option value="AND">AND</option>
+              <option value="BDE">BDE — Bi-directional Edge Trigger</option>
+              <option value="BFI">BFI — Boolean Fan Input</option>
+              <option value="BFO">BFO — Boolean Fan Output</option>
+              <option value="CND">CND — Condition</option>
+              <option value="MLTX">MLTX — Multiplexer</option>
+              <option value="NDE">NDE — Negative Edge Trigger</option>
+              <option value="NOT">NOT</option>
+              <option value="OR">OR</option>
+              <option value="PDE">PDE — Positive Edge Trigger</option>
+              <option value="RS">RS — Reset/Set Flip-flop</option>
+              <option value="SR">SR — Set/Reset Flip-flop</option>
+            </optgroup>
+            <optgroup label="Analog Control Blocks">
+              <option value="BG">BG — Bias/Gain</option>
+              <option value="CALC">CALC — Calculation/Logic</option>
+              <option value="CTLSL">CTLSL — Control Selector</option>
+              <option value="DT">DT — Deadtime</option>
+              <option value="FLTR">FLTR — Filter</option>
+              <option value="INSEL">INSEL — Input Selector</option>
+              <option value="ISELX">ISELX — Input Selector Extended</option>
+              <option value="LE">LE — Lab Entry</option>
+              <option value="LL">LL — Lead/Lag</option>
+              <option value="LIM">LIM — Limit</option>
+              <option value="MANLD">MANLD — Manual Loader</option>
+              <option value="RAMP">RAMP — Ramp</option>
+              <option value="RTLM">RTLM — Rate Limit</option>
+              <option value="RTO">RTO — Ratio</option>
+              <option value="SCLR">SCLR — Scaler</option>
+              <option value="SGCR">SGCR — Signal Characterizer</option>
+              <option value="SGGN">SGGN — Signal Generator</option>
+              <option value="SGSL">SGSL — Signal Selector</option>
+              <option value="SPLTR">SPLTR — Splitter</option>
+            </optgroup>
+          </select>
+        </label>
+      )}
       <label>
         Description
         <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" />

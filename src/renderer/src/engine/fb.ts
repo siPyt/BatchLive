@@ -1,0 +1,135 @@
+import type { AnyModule, FbBlockType } from './types'
+
+// Shared Function Block helpers used by both the simulation engine
+// (simulate.ts) and the Control Studio FBD canvas UI.
+
+/** Whether a block type consumes a second input (IN2). */
+export const FB_NEEDS_IN2: Record<FbBlockType, boolean> = {
+  // I/O
+  ALARM: false,
+  MAI: true,
+  FFMDI: true,
+  FFMDO: false,
+  PIN: false,
+  // Math
+  ABS: false,
+  ADD: true,
+  ARITH: true,
+  CMP: true,
+  DIV: true,
+  INT: true,
+  MLTY: true,
+  SUB: true,
+  // Timer/Counter
+  CTR: false,
+  DTE: false,
+  OFFD: false,
+  OND: false,
+  RET: true,
+  TP: false,
+  // Logical
+  ACT: true,
+  AND: true,
+  BDE: false,
+  BFI: true,
+  BFO: false,
+  CND: true,
+  MLTX: true,
+  NDE: false,
+  NOT: false,
+  OR: true,
+  PDE: false,
+  RS: true,
+  SR: true,
+  // Analog Control
+  BG: false,
+  CALC: true,
+  CTLSL: true,
+  DT: false,
+  FLTR: false,
+  INSEL: true,
+  ISELX: true,
+  LE: false,
+  LL: false,
+  LIM: false,
+  MANLD: false,
+  RAMP: false,
+  RTLM: false,
+  RTO: false,
+  SCLR: false,
+  SGCR: false,
+  SGGN: false,
+  SGSL: true,
+  SPLTR: false
+}
+
+/** True for block/module types whose live value is boolean-ish (drawn with a
+ * green discrete wire instead of a blue analog one). */
+export function isDiscreteModule(m: AnyModule): boolean {
+  if (m.type === 'MOTOR' || m.type === 'VALVE' || m.type === 'DI' || m.type === 'DO') return true
+  if (m.type === 'FB') {
+    const discreteTypes: Record<string, boolean> = {
+      ALARM: true,
+      FFMDO: true,
+      AND: true,
+      OR: true,
+      NOT: true,
+      CMP: true,
+      BDE: true,
+      BFO: true,
+      CND: true,
+      NDE: true,
+      PDE: true,
+      RS: true,
+      SR: true,
+      CTR: true,
+      OFFD: true,
+      OND: true,
+      RET: true,
+      TP: true,
+      DTE: true
+    }
+    return !!discreteTypes[m.fbType]
+  }
+  return false
+}
+
+/** Reads the single live numeric value a module exposes on its output pin:
+ * PV for AI/PID, 1/0 for discrete states, OUT for a function block. */
+export function readModuleValue(m: AnyModule | undefined): number {
+  if (!m) return 0
+  switch (m.type) {
+    case 'PID':
+    case 'AI':
+      return m.pv
+    case 'MOTOR':
+      return m.running ? 1 : 0
+    case 'VALVE':
+      return m.open ? 1 : 0
+    case 'DI':
+    case 'DO':
+      return m.state ? 1 : 0
+    case 'FB':
+      return m.out
+    default:
+      return 0
+  }
+}
+
+/** Short label for a module's single output pin, matching the quantity readModuleValue returns. */
+export function outputPinLabel(m: AnyModule): string {
+  switch (m.type) {
+    case 'PID':
+    case 'AI':
+      return 'PV'
+    case 'MOTOR':
+      return 'RUN'
+    case 'VALVE':
+      return 'OPEN'
+    case 'DI':
+    case 'DO':
+      return 'ST'
+    case 'FB':
+      return 'OUT'
+  }
+}

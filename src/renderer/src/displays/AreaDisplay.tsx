@@ -120,6 +120,13 @@ function CardBody({ module: m }: { module: AnyModule }): JSX.Element {
     const c = m.fault ? '#c0202a' : m.open ? '#1f8a4c' : 'var(--dv-text-mute)'
     return <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: c }}>{s}</div>
   }
+  if (m.type === 'FB') {
+    return (
+      <div style={{ marginTop: 4 }}>
+        <Stat label={m.fbType} value={`${fmt(m.out, 3)}`} unit="" color="var(--dv-pv)" big />
+      </div>
+    )
+  }
   // DI / DO
   const state = m.state ? m.activeDescriptor : m.inactiveDescriptor
   return (
