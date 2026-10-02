@@ -4,7 +4,7 @@ import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
 import { FB_NEEDS_IN2 } from '../engine/fb'
-import type { AnyModule, FbBlockType, FunctionBlockModule } from '../engine/types'
+import type { AnyModule, FbBlockType, FunctionBlockModule, PidModule, ControlMode } from '../engine/types'
 import type { ReactNode } from 'react'
 
 // Control Studio: a real Function Block Diagram node editor (drag, wire,
@@ -29,16 +29,25 @@ export function ControlStudioDisplay(): JSX.Element {
 
   // DeltaV Control Studio opens ONE Control Module at a time: the canvas
   // shows the active module plus only its direct wiring neighbors (FB
-  // blocks that reference it, or tags it references), never the whole area.
+  // blocks that reference it, PID cascade/feedforward/tracking sources and
+  // sinks), never the whole area.
   const neighborTags = new Set<string>()
   for (const t of Object.keys(modules)) {
     const mm = modules[t]
-    if (mm.type !== 'FB') continue
-    if ((mm.in1.kind === 'ref' && mm.in1.tag === m.tag) || (mm.in2.kind === 'ref' && mm.in2.tag === m.tag)) neighborTags.add(t)
+    if (mm.type === 'FB') {
+      if ((mm.in1.kind === 'ref' && mm.in1.tag === m.tag) || (mm.in2.kind === 'ref' && mm.in2.tag === m.tag)) neighborTags.add(t)
+    } else if (mm.type === 'PID') {
+      if (mm.casSource === m.tag || mm.ffSource === m.tag || mm.trackSource === m.tag || mm.trackValueSource === m.tag) neighborTags.add(t)
+    }
   }
   if (m.type === 'FB') {
     if (m.in1.kind === 'ref' && m.in1.tag) neighborTags.add(m.in1.tag)
     if (m.in2.kind === 'ref' && m.in2.tag) neighborTags.add(m.in2.tag)
+  } else if (m.type === 'PID') {
+    if (m.casSource) neighborTags.add(m.casSource)
+    if (m.ffSource) neighborTags.add(m.ffSource)
+    if (m.trackSource) neighborTags.add(m.trackSource)
+    if (m.trackValueSource) neighborTags.add(m.trackValueSource)
   }
   const visibleTags = [m.tag, ...Array.from(neighborTags).sort()]
 
@@ -112,6 +121,10 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
   const openValve = useStore((s) => s.openValve)
   const closeValve = useStore((s) => s.closeValve)
   const toggleDO = useStore((s) => s.toggleDO)
+  const setCasSource = useStore((s) => s.setCasSource)
+  const setFeedforward = useStore((s) => s.setFeedforward)
+  const setTracking = useStore((s) => s.setTracking)
+  const setMode = useStore((s) => s.setMode)
   const modules = useStore((s) => s.modules)
   const setFbInput = useStore((s) => s.setFbInput)
   const setFbConfig = useStore((s) => s.setFbConfig)
@@ -120,8 +133,10 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
   if (m.type === 'PID') {
     const spEditable = m.actualMode === 'AUTO'
     const outEditable = m.actualMode === 'MAN' || m.actualMode === 'ROUT'
+    const modeCycle: ControlMode[] = m.casSource ? ['MAN', 'AUTO', 'CAS'] : ['MAN', 'AUTO']
+    const nextMode = modeCycle[(modeCycle.indexOf(m.mode) + 1) % modeCycle.length] ?? 'AUTO'
     rows.push(
-      { key: 'MODE.TARGET', value: m.mode },
+      { key: 'MODE.TARGET', value: m.mode, toggle: { onClick: () => setMode(m.tag, nextMode), label: `→ ${nextMode}` } },
       { key: 'PV.CV', value: `${fmt(m.pv, m.decimals)} ${m.unit}` },
       {
         key: 'SP.CV',
@@ -190,6 +205,15 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
                 <td className="good">Good</td>
               </tr>
             ))
+          )}
+          {m.type === 'PID' && (
+            <PidStrategyRows
+              m={m}
+              tags={Object.keys(modules).filter((t) => t !== m.tag).sort()}
+              setCasSource={setCasSource}
+              setFeedforward={setFeedforward}
+              setTracking={setTracking}
+            />
           )}
         </tbody>
       </table>
@@ -367,6 +391,127 @@ function FbWireRow({
       </td>
       <td className="good">Good</td>
     </tr>
+  )
+}
+
+/** Cascade (CAS_SOURCE), feedforward (FF_ENABLE/FF_GAIN/FF_VAL), and tracking
+ * (TRK_IN_D/TRK_VAL) registers — generic for ANY PID, not a one-off hardcoded
+ * pair, so wiring a Control Selector or another loop's OUT into CAS_SOURCE
+ * here is how override and cascade control strategies get built. */
+function PidStrategyRows({
+  m,
+  tags,
+  setCasSource,
+  setFeedforward,
+  setTracking
+}: {
+  m: PidModule
+  tags: string[]
+  setCasSource: (tag: string, source: string | undefined) => void
+  setFeedforward: (tag: string, patch: { enable?: boolean; gain?: number; source?: string }) => void
+  setTracking: (tag: string, patch: { enable?: boolean; source?: string; valueSource?: string; value?: number }) => void
+}): JSX.Element {
+  return (
+    <>
+      <tr>
+        <td>CAS_SOURCE</td>
+        <td className="pv">
+          <select className="fb-select" value={m.casSource ?? ''} onChange={(e) => setCasSource(m.tag, e.target.value || undefined)}>
+            <option value="">(none)</option>
+            {tags.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td className="good">Good</td>
+      </tr>
+      <tr>
+        <td>FF_ENABLE</td>
+        <td className="pv">
+          <button className="studio-param-btn" onClick={() => setFeedforward(m.tag, { enable: !m.ffEnable })}>
+            {m.ffEnable ? 'On' : 'Off'}
+          </button>
+        </td>
+        <td className="good">Good</td>
+      </tr>
+      {m.ffEnable && (
+        <>
+          <tr>
+            <td>FF_VAL source</td>
+            <td className="pv">
+              <select className="fb-select" value={m.ffSource ?? ''} onChange={(e) => setFeedforward(m.tag, { source: e.target.value || undefined })}>
+                <option value="">(none)</option>
+                {tags.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </td>
+            <td className="good">Good</td>
+          </tr>
+          <tr>
+            <td>FF_GAIN</td>
+            <td className="pv">
+              <ParamStepper step={0.1} decimals={2} value={m.ffGain} onChange={(v) => setFeedforward(m.tag, { gain: v })} />
+            </td>
+            <td className="good">Good</td>
+          </tr>
+        </>
+      )}
+      <tr>
+        <td>TRK_IN_D</td>
+        <td className="pv">
+          <button className="studio-param-btn" onClick={() => setTracking(m.tag, { enable: !m.trackEnable })}>
+            {m.trackEnable ? 'On' : 'Off'}
+          </button>
+        </td>
+        <td className="good">Good</td>
+      </tr>
+      {m.trackEnable && (
+        <>
+          <tr>
+            <td>TRK trigger</td>
+            <td className="pv">
+              <select className="fb-select" value={m.trackSource ?? ''} onChange={(e) => setTracking(m.tag, { source: e.target.value || undefined })}>
+                <option value="">(none)</option>
+                {tags.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </td>
+            <td className="good">Good</td>
+          </tr>
+          <tr>
+            <td>TRK_VAL source</td>
+            <td className="pv">
+              <select className="fb-select" value={m.trackValueSource ?? ''} onChange={(e) => setTracking(m.tag, { valueSource: e.target.value || undefined })}>
+                <option value="">(const)</option>
+                {tags.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </td>
+            <td className="good">Good</td>
+          </tr>
+          {!m.trackValueSource && (
+            <tr>
+              <td>TRK_VAL</td>
+              <td className="pv">
+                <ParamStepper step={1} decimals={1} value={m.trackValue} onChange={(v) => setTracking(m.tag, { value: v })} />
+              </td>
+              <td className="good">Good</td>
+            </tr>
+          )}
+        </>
+      )}
+    </>
   )
 }
 

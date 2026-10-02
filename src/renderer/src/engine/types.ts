@@ -104,6 +104,15 @@ export interface PidModule {
   casSource?: string // tag that supplies remote SP when in CAS
   /** health of the CAS_IN_D remote connection; false forces a shed to Auto (SHED_OPT). */
   casHealthy: boolean
+  /** FF_ENABLE/FF_GAIN/FF_VAL: feedforward term (source value * ffGain) added to OUT ahead of the measured disturbance. */
+  ffEnable: boolean
+  ffGain: number
+  ffSource?: string
+  /** TRK_IN_D/TRK_VAL: while trackSource is a non-zero tag, OUT is bumplessly forced to trackValueSource (or trackValue). */
+  trackEnable: boolean
+  trackSource?: string
+  trackValueSource?: string
+  trackValue: number
   direct: boolean // true = direct acting (PV up -> OUT up)
   // internal integrator term
   _integral: number

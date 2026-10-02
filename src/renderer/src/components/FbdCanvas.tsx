@@ -20,7 +20,7 @@ const CANVAS_W = 2200
 const CANVAS_H = 1400
 
 function nodeHeight(m: AnyModule): number {
-  const pins = m.type === 'FB' ? (FB_NEEDS_IN2[m.fbType] ? 2 : 1) : 0
+  const pins = m.type === 'FB' ? (FB_NEEDS_IN2[m.fbType] ? 2 : 1) : m.type === 'PID' ? 1 : 0
   return HEADER_H + ROW_H * 2 + pins * ROW_H + 6
 }
 
@@ -34,7 +34,7 @@ interface Wire {
   key: string
   fromTag: string
   toTag: string
-  which: 'in1' | 'in2'
+  which: string
 }
 
 export function FbdCanvas({
@@ -48,6 +48,7 @@ export function FbdCanvas({
 }): JSX.Element {
   const modules = useStore((s) => s.modules)
   const setFbInput = useStore((s) => s.setFbInput)
+  const setCasSource = useStore((s) => s.setCasSource)
   const deleteModule = useStore((s) => s.deleteModule)
   const layout = useUi((s) => s.studioLayout)
   const setStudioLayout = useUi((s) => s.setStudioLayout)
@@ -55,7 +56,7 @@ export function FbdCanvas({
   const svgRef = useRef<SVGSVGElement>(null)
   const [dragNode, setDragNode] = useState<{ tag: string; offX: number; offY: number } | null>(null)
   const [wiring, setWiring] = useState<{ fromTag: string; x: number; y: number; curX: number; curY: number } | null>(null)
-  const [selectedWire, setSelectedWire] = useState<{ tag: string; which: 'in1' | 'in2' } | null>(null)
+  const [selectedWire, setSelectedWire] = useState<{ tag: string; which: string } | null>(null)
 
   const posOf = (tag: string): { x: number; y: number } => layout[tag] ?? defaultPos(areaTags.indexOf(tag))
 
@@ -102,7 +103,8 @@ export function FbdCanvas({
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return
       if (selectedWire) {
-        setFbInput(selectedWire.tag, selectedWire.which, { kind: 'const', value: 0 })
+        if (selectedWire.which === 'cas') setCasSource(selectedWire.tag, undefined)
+        else setFbInput(selectedWire.tag, selectedWire.which as 'in1' | 'in2', { kind: 'const', value: 0 })
         setSelectedWire(null)
       } else if (selectedTag && !BUILTIN_TAGS.has(selectedTag)) {
         deleteModule(selectedTag)
@@ -110,27 +112,31 @@ export function FbdCanvas({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedWire, selectedTag, setFbInput, deleteModule])
+  }, [selectedWire, selectedTag, setFbInput, setCasSource, deleteModule])
 
-  // Build the wire list from every FB block's IN1/IN2 refs that point at a tag on this canvas.
+  // Build the wire list from every FB block's IN1/IN2 refs, and every PID's
+  // CAS_SOURCE, that point at a tag on this canvas.
   const wires: Wire[] = []
   for (const tag of areaTags) {
     const m = modules[tag]
-    if (!m || m.type !== 'FB') continue
-    const check = (which: 'in1' | 'in2', ref: FbInputRef): void => {
-      if (ref.kind === 'ref' && ref.tag && areaTags.includes(ref.tag)) {
-        wires.push({ key: `${tag}.${which}`, fromTag: ref.tag, toTag: tag, which })
+    if (!m) continue
+    if (m.type === 'FB') {
+      const check = (which: 'in1' | 'in2', ref: FbInputRef): void => {
+        if (ref.kind === 'ref' && ref.tag && areaTags.includes(ref.tag)) {
+          wires.push({ key: `${tag}.${which}`, fromTag: ref.tag, toTag: tag, which })
+        }
       }
+      check('in1', m.in1)
+      check('in2', m.in2)
+    } else if (m.type === 'PID' && m.casSource && areaTags.includes(m.casSource)) {
+      wires.push({ key: `${tag}.cas`, fromTag: m.casSource, toTag: tag, which: 'cas' })
     }
-    check('in1', m.in1)
-    check('in2', m.in2)
   }
 
-  const pinPos = (tag: string, which: 'out' | 'in1' | 'in2'): { x: number; y: number } => {
+  const pinPos = (tag: string, which: string): { x: number; y: number } => {
     const p = posOf(tag)
-    const m = modules[tag]
     if (which === 'out') return { x: p.x + NODE_W, y: p.y + HEADER_H + ROW_H + ROW_H / 2 }
-    const row = which === 'in1' ? 0 : 1
+    const row = which === 'in1' || which === 'cas' ? 0 : 1
     return { x: p.x, y: p.y + HEADER_H + ROW_H * 2 + row * ROW_H + ROW_H / 2 }
   }
 
@@ -141,10 +147,13 @@ export function FbdCanvas({
     setWiring({ fromTag, x: anchor.x, y: anchor.y, curX: p.x, curY: p.y })
   }
 
-  const dropWire = (toTag: string, which: 'in1' | 'in2', e: React.MouseEvent): void => {
+  const dropWire = (toTag: string, which: string, e: React.MouseEvent): void => {
     e.stopPropagation()
     if (!wiring) return
-    if (wiring.fromTag !== toTag) setFbInput(toTag, which, { kind: 'ref', value: 0, tag: wiring.fromTag })
+    if (wiring.fromTag !== toTag) {
+      if (which === 'cas') setCasSource(toTag, wiring.fromTag)
+      else setFbInput(toTag, which as 'in1' | 'in2', { kind: 'ref', value: 0, tag: wiring.fromTag })
+    }
     setWiring(null)
   }
 
@@ -212,7 +221,7 @@ export function FbdCanvas({
               selected={tag === selectedTag}
               onHeaderDown={(e) => beginDragNode(tag, e)}
               onOutDown={(e) => beginWire(tag, e)}
-              onIn1Up={m.type === 'FB' ? (e) => dropWire(tag, 'in1', e) : undefined}
+              onIn1Up={m.type === 'FB' ? (e) => dropWire(tag, 'in1', e) : m.type === 'PID' ? (e) => dropWire(tag, 'cas', e) : undefined}
               onIn2Up={m.type === 'FB' && FB_NEEDS_IN2[m.fbType] ? (e) => dropWire(tag, 'in2', e) : undefined}
             />
           )
@@ -249,7 +258,13 @@ function FbNode({
   const decimals = m.type === 'PID' || m.type === 'AI' ? m.decimals : m.type === 'FB' ? 2 : 0
   const bad = (m.type === 'PID' || m.type === 'AI') && m.pvBad
   const inputs: { label: string; up?: (e: React.MouseEvent) => void }[] =
-    m.type === 'FB' ? (FB_NEEDS_IN2[m.fbType] ? [{ label: 'IN1', up: onIn1Up }, { label: 'IN2', up: onIn2Up }] : [{ label: 'IN1', up: onIn1Up }]) : []
+    m.type === 'FB'
+      ? FB_NEEDS_IN2[m.fbType]
+        ? [{ label: 'IN1', up: onIn1Up }, { label: 'IN2', up: onIn2Up }]
+        : [{ label: 'IN1', up: onIn1Up }]
+      : m.type === 'PID'
+        ? [{ label: 'CAS_IN', up: onIn1Up }]
+        : []
 
   return (
     <g transform={`translate(${x},${y})`}>

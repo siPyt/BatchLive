@@ -39,8 +39,10 @@ function resolveActualMode(m: PidModule): PidModule['mode'] {
  * "PI Action on Error, D Action on PV": proportional + integral act on error,
  * derivative acts on the measurement (no derivative kick on SP changes).
  * GAIN is dimensionless, RESET is seconds/repeat, RATE is derivative seconds.
+ * ffVal (FF_VAL * FF_GAIN) is summed into OUT ahead of the PID math, exactly
+ * like the PDF's feedforward application example (steam flow -> PID.FF_VAL).
  */
-function computePid(m: PidModule, dt: number): number {
+function computePid(m: PidModule, dt: number, ffVal = 0): number {
   m.actualMode = resolveActualMode(m)
   if (m.actualMode === 'MAN' || m.actualMode === 'ROUT') {
     // Operator holds the output directly; keep derivative state bumpless.
@@ -71,7 +73,7 @@ function computePid(m: PidModule, dt: number): number {
 
   // Conditional-integration anti-windup: integrate only when it does not push
   // an already-saturated output further into its limit.
-  const fixed = pTerm + dTerm
+  const fixed = pTerm + dTerm + ffVal
   const pre = clamp(fixed + m._integral, 0, 100)
   const saturated = (pre >= 100 && ePct > 0) || (pre <= 0 && ePct < 0)
   if (!saturated) {
@@ -79,6 +81,38 @@ function computePid(m: PidModule, dt: number): number {
     m._integral = clamp(m._integral, -100, 100)
   }
   return clamp(fixed + m._integral, 0, 100)
+}
+
+/**
+ * Generic cascade + feedforward + tracking wrapper, usable by ANY PID (the
+ * custom reactor-train pair and every operator-created one alike) — not a
+ * one-off special case for a single hardcoded tag pair.
+ *  - Cascade: while CAS/RCas, SP is pulled from casSource every scan (a PID
+ *    source supplies its OUT as percent-of-range; anything else supplies its
+ *    live value directly in EU, matching CAS_IN's "EU of PV_SCALE").
+ *  - Tracking: while trackSource is non-zero, OUT is bumplessly forced to
+ *    trackValueSource (or the constant trackValue), mirroring TRK_IN_D/TRK_VAL.
+ *  - Feedforward: FF_VAL (from ffSource) * FF_GAIN is summed into OUT.
+ * Known simplification vs. the real BKCAL mechanism: no Not-Invited status or
+ * multi-step Man->Cas initialization handshake — SP/OUT just resolve fresh
+ * every scan, so transfers are bumpless in practice but not status-negotiated.
+ */
+function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, dt: number): void {
+  m.actualMode = resolveActualMode(m)
+  if ((m.actualMode === 'CAS' || m.actualMode === 'RCAS') && m.casSource) {
+    const src = modules[m.casSource]
+    if (src) m.sp = clamp(src.type === 'PID' ? m.pvMin + (src.out / 100) * (m.pvMax - m.pvMin) : readModuleValue(src), m.pvMin, m.pvMax)
+  }
+  if (m.trackEnable && m.trackSource && readModuleValue(modules[m.trackSource]) !== 0) {
+    const trackVal = m.trackValueSource ? readModuleValue(modules[m.trackValueSource]) : m.trackValue
+    m.out = clamp(trackVal, 0, 100)
+    m._integral = m.out
+    m._prevPv = m.pv
+    m._dFilt = 0
+    return
+  }
+  const ffVal = m.ffEnable && m.ffSource ? readModuleValue(modules[m.ffSource]) * m.ffGain : 0
+  m.out = computePid(m, dt, ffVal)
 }
 
 /** Evaluate analog alarm limits and reconcile with the active alarm list. */
@@ -611,14 +645,11 @@ export function stepPlant(
   applyValveDC(xv101, dt)
   applyValveDC(xv201, dt)
 
-  // --- Cascade: LIC-101 (master) sets remote SP of FIC-101 (slave) ------
-  const lic101Out = computePid(lic101, dt)
-  lic101.out = lic101Out
-  if (fic.actualMode === 'CAS' || fic.actualMode === 'RCAS') {
-    fic.sp = (lic101Out / 100) * fic.pvMax
-  }
-  const ficOut = computePid(fic, dt)
-  fic.out = ficOut
+  // --- Cascade: LIC-101 (master) sets remote SP of FIC-101 (slave), via the
+  // generic cascade/feedforward/tracking wrapper (same one every user PID uses) ---
+  stepPidWithStrategy(lic101, modules, dt)
+  stepPidWithStrategy(fic, modules, dt)
+  const ficOut = fic.out
 
   // --- Feed flow physics ------------------------------------------------
   const feedEnabled = p101.running && xv101.open
@@ -633,21 +664,21 @@ export function stepPlant(
   proc.feedTankLevel = clamp(proc.feedTankLevel, 0, 100)
 
   // --- Reactor level: feed in minus product out ------------------------
-  lic201.out = computePid(lic201, dt)
+  stepPidWithStrategy(lic201, modules, dt)
   const productOut = p201.running ? (lic201.out / 100) * 110 : 0
   proc.productFlow += (productOut - proc.productFlow) * clamp(dt / 3, 0, 1)
   proc.reactorLevel += (reactorDraw - proc.productFlow) * dt * 0.05
   proc.reactorLevel = clamp(proc.reactorLevel, 0, 100)
 
   // --- Reactor temperature: steam heats, cold feed + losses cool -------
-  tic.out = computePid(tic, dt)
+  stepPidWithStrategy(tic, modules, dt)
   const steamHeat = (tic.out / 100) * 2.4
   const cooling = 0.012 * (proc.reactorTemp - 25) + proc.feedFlow * 0.004
   proc.reactorTemp += (steamHeat - cooling) * dt
   proc.reactorTemp = clamp(proc.reactorTemp + noise(0.05), 0, 200)
 
   // --- Header pressure: product flow builds it, PIC relief bleeds it ----
-  pic.out = computePid(pic, dt)
+  stepPidWithStrategy(pic, modules, dt)
   const relief = (pic.out / 100) * 12 + (xv201.open ? 4 : 0)
   proc.headerPressure += (proc.productFlow * 0.08 + 1.2 - relief) * dt * 4
   proc.headerPressure = clamp(proc.headerPressure + noise(0.5), 0, 500)
@@ -673,7 +704,7 @@ export function stepPlant(
     if (CUSTOM_PHYSICS_TAGS.has(tag)) continue
     const gm = modules[tag]
     if (gm.type === 'PID') {
-      gm.out = computePid(gm, dt)
+      stepPidWithStrategy(gm, modules, dt)
       const gspan = gm.pvMax - gm.pvMin || 1
       // Self-regulating first-order process: PV rises with controller output.
       const target = gm.pvMin + (gm.out / 100) * gspan

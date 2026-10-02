@@ -51,6 +51,12 @@ interface StoreState extends PlantState {
   setSetpoint: (tag: string, sp: number) => void
   setOutput: (tag: string, out: number) => void
   setTuning: (tag: string, t: { gain?: number; reset?: number; rate?: number }) => void
+  /** Wire or clear a PID's cascade remote-SP source (CAS_SOURCE) — any tag, any PID, not just a hardcoded pair. */
+  setCasSource: (tag: string, source: string | undefined) => void
+  /** Configure feedforward (FF_ENABLE/FF_GAIN/FF_VAL source) on any PID. */
+  setFeedforward: (tag: string, patch: { enable?: boolean; gain?: number; source?: string }) => void
+  /** Configure tracking (TRK_IN_D trigger tag + TRK_VAL source/constant) on any PID. */
+  setTracking: (tag: string, patch: { enable?: boolean; source?: string; valueSource?: string; value?: number }) => void
   /** Wire a function block's IN1/IN2 to a constant value or another module's live value. */
   setFbInput: (tag: string, which: 'in1' | 'in2', ref: FbInputRef) => void
   /** Edit a function block's type-specific configuration (gain/bias/cmpOp/expr/delaySec/tripValue/countUp). */
@@ -268,6 +274,37 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     })
     get().logEvent('CONFIGURE', tag, `Tuning changed: ${JSON.stringify(t)}`)
+  },
+
+  setCasSource: (tag, source) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Set cascade source ${tag}`)) return
+    mutateModule(set, get, tag, (m) => {
+      if (m.type === 'PID') m.casSource = source
+    })
+    get().logEvent('CONFIGURE', tag, `CAS_SOURCE set to ${source ?? '(none)'}`)
+  },
+
+  setFeedforward: (tag, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure feedforward ${tag}`)) return
+    mutateModule(set, get, tag, (m) => {
+      if (m.type !== 'PID') return
+      if ('enable' in patch) m.ffEnable = !!patch.enable
+      if ('gain' in patch) m.ffGain = patch.gain ?? 0
+      if ('source' in patch) m.ffSource = patch.source
+    })
+    get().logEvent('CONFIGURE', tag, `Feedforward changed: ${JSON.stringify(patch)}`)
+  },
+
+  setTracking: (tag, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure tracking ${tag}`)) return
+    mutateModule(set, get, tag, (m) => {
+      if (m.type !== 'PID') return
+      if ('enable' in patch) m.trackEnable = !!patch.enable
+      if ('source' in patch) m.trackSource = patch.source
+      if ('valueSource' in patch) m.trackValueSource = patch.valueSource
+      if ('value' in patch) m.trackValue = patch.value ?? 0
+    })
+    get().logEvent('CONFIGURE', tag, `Tracking changed: ${JSON.stringify(patch)}`)
   },
 
   setFbInput: (tag, which, ref) => {
