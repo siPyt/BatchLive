@@ -2,6 +2,7 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt, isPid } from '../utils/format'
 import type { AnyModule } from '../engine/types'
+import { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } from './PharmaDiagrams'
 
 const AREA_TITLE: Record<string, string> = {
   FEED: 'FEED SYSTEM',
@@ -14,13 +15,23 @@ const AREA_TITLE: Record<string, string> = {
   TCU: 'TEMPERATURE CONTROL UNITS (TCUs)'
 }
 
+const AREA_DIAGRAM: Partial<Record<string, () => JSX.Element | null>> = {
+  WFI: WfiDiagram,
+  AUTOCLAVE: AutoclaveDiagram,
+  LYO: LyoDiagram,
+  CIP: CipDiagram,
+  TCU: TcuDiagram
+}
+
 export function AreaDisplay({ area }: { area: string }): JSX.Element {
   const modules = useStore((s) => s.modules)
   const list = Object.values(modules).filter((m) => m.area === area)
+  const Diagram = AREA_DIAGRAM[area]
 
   return (
     <div className="display" style={{ padding: '48px 24px 24px' }}>
       <div className="display-title">{AREA_TITLE[area] ?? area} — Detail</div>
+      {Diagram && <Diagram />}
       <div
         style={{
           display: 'grid',
