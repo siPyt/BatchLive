@@ -5,8 +5,10 @@
 
 export type ModuleType = 'PID' | 'AI' | 'DI' | 'DO' | 'MOTOR' | 'VALVE' | 'FB'
 
-/** DeltaV control modes for a function block. */
-export type ControlMode = 'MAN' | 'AUTO' | 'CAS' | 'ROUT' | 'RCAS'
+/** DeltaV control modes for a function block. IMAN (Initialization Manual) is
+ * an actual-mode-only state: the block has a downstream cascade consumer that
+ * hasn't accepted Cas/RCas yet ("Not Invited"), so it can't close the loop. */
+export type ControlMode = 'MAN' | 'AUTO' | 'CAS' | 'ROUT' | 'RCAS' | 'IMAN'
 
 /** DeltaV-style alarm priorities (drive banner color + sort order). */
 export type AlarmPriority = 'CRITICAL' | 'WARNING' | 'ADVISORY'

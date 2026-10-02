@@ -40,6 +40,12 @@ export const BUILTIN_TAGS = new Set([
   'SIC-201',
   'II-201',
   'PSV-201',
+  // Agitator overload protection strategy: 2x CMP -> OR -> OND debounce -> MLTX selector -> SIC-201 cascade
+  'PT201-HIALM',
+  'II201-OLALM',
+  'AGIT-TRIP-OR',
+  'AGIT-TRIP-DLY',
+  'SIC-201-SEL',
   // WFI Generation & Distribution Loop (2 stills, generic closed-loop simulation)
   'TIC-401',
   'FI-401',
@@ -492,7 +498,8 @@ export function buildInitialPlant(): PlantState {
       pvMax: 300,
       sp: 150,
       out: 50,
-      mode: 'AUTO',
+      mode: 'CAS',
+      casSource: 'SIC-201-SEL',
       gain: 1.2,
       reset: 6,
       direct: false
@@ -512,6 +519,65 @@ export function buildInitialPlant(): PlantState {
     })
   )
   add(valve({ tag: 'PSV-201', description: 'REACTOR HEADSPACE SAFETY RELIEF VALVE', area: 'REACTOR' }))
+
+  // --- Agitator overload protection: a real multi-block interlock/override/cascade
+  // strategy, not a toy example. Two independent alarms (headspace overpressure,
+  // motor overload) OR together, debounce for 3s so a brief transient doesn't trip
+  // it, then an MLTX selector forces SIC-201's cascaded SP down to a safe 50 RPM
+  // until both conditions clear — SIC-201 runs this cascade live by default. ---
+  add(
+    fb({
+      tag: 'PT201-HIALM',
+      fbType: 'CMP',
+      description: 'AGITATOR PROTECTION: HEADSPACE OVERPRESSURE ALARM',
+      area: 'REACTOR',
+      in1: { kind: 'ref', value: 0, tag: 'PT-201' },
+      in2: { kind: 'const', value: 1.8 },
+      cmpOp: '>'
+    })
+  )
+  add(
+    fb({
+      tag: 'II201-OLALM',
+      fbType: 'CMP',
+      description: 'AGITATOR PROTECTION: MOTOR OVERLOAD ALARM',
+      area: 'REACTOR',
+      in1: { kind: 'ref', value: 0, tag: 'II-201' },
+      in2: { kind: 'const', value: 22 },
+      cmpOp: '>'
+    })
+  )
+  add(
+    fb({
+      tag: 'AGIT-TRIP-OR',
+      fbType: 'OR',
+      description: 'AGITATOR PROTECTION: OVERPRESSURE OR OVERLOAD',
+      area: 'REACTOR',
+      in1: { kind: 'ref', value: 0, tag: 'PT201-HIALM' },
+      in2: { kind: 'ref', value: 0, tag: 'II201-OLALM' }
+    })
+  )
+  add(
+    fb({
+      tag: 'AGIT-TRIP-DLY',
+      fbType: 'OND',
+      description: 'AGITATOR PROTECTION: 3s TRIP DEBOUNCE',
+      area: 'REACTOR',
+      in1: { kind: 'ref', value: 0, tag: 'AGIT-TRIP-OR' },
+      delaySec: 3
+    })
+  )
+  add(
+    fb({
+      tag: 'SIC-201-SEL',
+      fbType: 'MLTX',
+      description: 'AGITATOR PROTECTION: NORMAL/OVERRIDE SPEED SELECTOR',
+      area: 'REACTOR',
+      in1: { kind: 'const', value: 50 },
+      in2: { kind: 'ref', value: 0, tag: 'AGIT-TRIP-DLY' },
+      gain: 150
+    })
+  )
 
   // --- Discrete devices --------------------------------------------------
   const lsh101: DiscreteInput = {

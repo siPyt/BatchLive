@@ -63,6 +63,8 @@ export function modeColor(mode: string): string {
     case 'CAS':
     case 'RCAS':
       return 'var(--mode-cas)'
+    case 'IMAN':
+      return 'var(--dv-critical)'
     default:
       return 'var(--dv-text-mute)'
   }

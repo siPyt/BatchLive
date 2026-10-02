@@ -75,13 +75,11 @@ export function ControlStudioDisplay(): JSX.Element {
   )
 }
 
+/** Lists the real blocks inside this Control Module — matches the canvas
+ * exactly (the PDF confirms a PID can reference I/O directly, "not using AI
+ * and AO function blocks", which is the configuration this engine models:
+ * one consolidated PID node, not a fictional separate AI/AO pair). */
 function blocksOf(m: AnyModule): { name: string; type: string }[] {
-  if (m.type === 'PID')
-    return [
-      { name: `${m.tag}/PV`, type: 'AI' },
-      { name: m.tag, type: 'PID' },
-      { name: `${m.tag}/OUT`, type: 'AO' }
-    ]
   if (m.type === 'MOTOR' || m.type === 'VALVE') return [{ name: m.tag, type: 'DC' }]
   return [{ name: m.tag, type: m.type }]
 }
@@ -137,6 +135,7 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
     const nextMode = modeCycle[(modeCycle.indexOf(m.mode) + 1) % modeCycle.length] ?? 'AUTO'
     rows.push(
       { key: 'MODE.TARGET', value: m.mode, toggle: { onClick: () => setMode(m.tag, nextMode), label: `→ ${nextMode}` } },
+      { key: 'MODE.ACTUAL', value: m.actualMode },
       { key: 'PV.CV', value: `${fmt(m.pv, m.decimals)} ${m.unit}` },
       {
         key: 'SP.CV',
@@ -152,7 +151,8 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
       },
       { key: 'GAIN', value: `${m.gain}`, edit: { kind: 'num', step: 0.1, decimals: 2, raw: m.gain, onChange: (v) => setTuning(m.tag, { gain: v }) } },
       { key: 'RESET', value: `${m.reset} s/rpt`, edit: { kind: 'num', step: 1, decimals: 0, raw: m.reset, onChange: (v) => setTuning(m.tag, { reset: v }) } },
-      { key: 'RATE', value: `${m.rate} s`, edit: { kind: 'num', step: 0.5, decimals: 1, raw: m.rate, onChange: (v) => setTuning(m.tag, { rate: v }) } }
+      { key: 'RATE', value: `${m.rate} s`, edit: { kind: 'num', step: 0.5, decimals: 1, raw: m.rate, onChange: (v) => setTuning(m.tag, { rate: v }) } },
+      { key: 'BKCAL_OUT', value: bkcalOutStatus(m, modules) }
     )
   } else if (m.type === 'AI') {
     rows.push({ key: 'PV.CV', value: `${fmt(m.pv, m.decimals)} ${m.unit}` }, { key: 'PV_FTIME', value: '2 s' })
@@ -515,6 +515,17 @@ function PidStrategyRows({
   )
 }
 
+
+/** Human-readable BKCAL_OUT status for this PID as seen from its downstream
+ * cascade child (if any) — mirrors the real Not Invited / Limited / Good
+ * status words the PDF's BKCAL topic describes. */
+function bkcalOutStatus(m: PidModule, modules: Record<string, AnyModule>): string {
+  const child = Object.values(modules).find((mm): mm is PidModule => mm.type === 'PID' && mm.casSource === m.tag)
+  if (!child) return '(no downstream)'
+  if (child.actualMode !== 'CAS' && child.actualMode !== 'RCAS') return `Not Invited (${child.tag})`
+  if (child.out <= 0.001 || child.out >= 99.999) return `Good:Limited (${child.tag} saturated)`
+  return `Good (${child.tag})`
+}
 
 function ParamStepper({
   value,

@@ -28,10 +28,30 @@ const DERIV_ALPHA = 0.125
  * Auto while the remote cascade connection (casHealthy) is unhealthy, and
  * climbs back to Cas automatically as soon as the connection is restored —
  * the target mode itself never changes.
+ *
+ * Also implements the real BKCAL "Not Invited" rule: if this block has a
+ * downstream block cascading off it (some PID's CAS_SOURCE === this tag) and
+ * that downstream block isn't actually in Cas/RCas yet, this block cannot
+ * close the loop — its actual mode reports IMAN (Initialization Manual),
+ * exactly as the PDF describes ("the block would have remained with mode
+ * Auto/IMan because of the Not Invited status").
  */
-function resolveActualMode(m: PidModule): PidModule['mode'] {
+function resolveActualMode(m: PidModule, modules: Record<string, AnyModule>): PidModule['mode'] {
   if ((m.mode === 'CAS' || m.mode === 'RCAS') && !m.casHealthy) return 'AUTO'
+  if (m.mode === 'MAN' || m.mode === 'ROUT') return m.mode
+  const child = findCascadeChild(modules, m.tag)
+  if (child && child.actualMode !== 'CAS' && child.actualMode !== 'RCAS') return 'IMAN'
   return m.mode
+}
+
+/** The downstream PID (if any) whose CAS_SOURCE points at this tag — the
+ * "slave" of a cascade, from the upstream/master's point of view. */
+function findCascadeChild(modules: Record<string, AnyModule>, tag: string): PidModule | undefined {
+  for (const k of Object.keys(modules)) {
+    const mm = modules[k]
+    if (mm.type === 'PID' && mm.casSource === tag) return mm
+  }
+  return undefined
 }
 
 /**
@@ -41,10 +61,11 @@ function resolveActualMode(m: PidModule): PidModule['mode'] {
  * GAIN is dimensionless, RESET is seconds/repeat, RATE is derivative seconds.
  * ffVal (FF_VAL * FF_GAIN) is summed into OUT ahead of the PID math, exactly
  * like the PDF's feedforward application example (steam flow -> PID.FF_VAL).
+ * bkcalLimited mirrors real BKCAL anti-reset-windup: true when the downstream
+ * cascade child is saturated, which freezes this block's integral term too.
  */
-function computePid(m: PidModule, dt: number, ffVal = 0): number {
-  m.actualMode = resolveActualMode(m)
-  if (m.actualMode === 'MAN' || m.actualMode === 'ROUT') {
+function computePid(m: PidModule, dt: number, ffVal = 0, bkcalLimited = false): number {
+  if (m.actualMode === 'MAN' || m.actualMode === 'ROUT' || m.actualMode === 'IMAN') {
     // Operator holds the output directly; keep derivative state bumpless.
     m._prevPv = m.pv
     m._dFilt = 0
@@ -72,10 +93,12 @@ function computePid(m: PidModule, dt: number, ffVal = 0): number {
   m._prevPv = m.pv
 
   // Conditional-integration anti-windup: integrate only when it does not push
-  // an already-saturated output further into its limit.
+  // an already-saturated output further into its limit, OR when BKCAL says
+  // the downstream cascade child is itself already saturated (real anti-reset-
+  // windup: a limited slave tells the master to stop integrating too).
   const fixed = pTerm + dTerm + ffVal
   const pre = clamp(fixed + m._integral, 0, 100)
-  const saturated = (pre >= 100 && ePct > 0) || (pre <= 0 && ePct < 0)
+  const saturated = bkcalLimited || (pre >= 100 && ePct > 0) || (pre <= 0 && ePct < 0)
   if (!saturated) {
     m._integral += (m.gain / Math.max(m.reset, 0.5)) * ePct * dt
     m._integral = clamp(m._integral, -100, 100)
@@ -86,19 +109,22 @@ function computePid(m: PidModule, dt: number, ffVal = 0): number {
 /**
  * Generic cascade + feedforward + tracking wrapper, usable by ANY PID (the
  * custom reactor-train pair and every operator-created one alike) — not a
- * one-off special case for a single hardcoded tag pair.
+ * one-off special case for a single hardcoded tag pair. Also implements the
+ * BKCAL anti-reset-windup feedback described in the PDF: if this block itself
+ * is the master of a cascade, a saturated downstream child freezes its
+ * integral term (see computePid's bkcalLimited argument).
  *  - Cascade: while CAS/RCas, SP is pulled from casSource every scan (a PID
  *    source supplies its OUT as percent-of-range; anything else supplies its
  *    live value directly in EU, matching CAS_IN's "EU of PV_SCALE").
  *  - Tracking: while trackSource is non-zero, OUT is bumplessly forced to
  *    trackValueSource (or the constant trackValue), mirroring TRK_IN_D/TRK_VAL.
  *  - Feedforward: FF_VAL (from ffSource) * FF_GAIN is summed into OUT.
- * Known simplification vs. the real BKCAL mechanism: no Not-Invited status or
- * multi-step Man->Cas initialization handshake — SP/OUT just resolve fresh
- * every scan, so transfers are bumpless in practice but not status-negotiated.
+ * Simplification vs. full BKCAL: status resolves fresh every scan rather than
+ * a multi-step acknowledgement handshake, so transfers are bumpless in
+ * practice but not status-negotiated message-by-message.
  */
 function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, dt: number): void {
-  m.actualMode = resolveActualMode(m)
+  m.actualMode = resolveActualMode(m, modules)
   if ((m.actualMode === 'CAS' || m.actualMode === 'RCAS') && m.casSource) {
     const src = modules[m.casSource]
     if (src) m.sp = clamp(src.type === 'PID' ? m.pvMin + (src.out / 100) * (m.pvMax - m.pvMin) : readModuleValue(src), m.pvMin, m.pvMax)
@@ -112,7 +138,9 @@ function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, d
     return
   }
   const ffVal = m.ffEnable && m.ffSource ? readModuleValue(modules[m.ffSource]) * m.ffGain : 0
-  m.out = computePid(m, dt, ffVal)
+  const child = findCascadeChild(modules, m.tag)
+  const bkcalLimited = !!child && (child.out <= 0.001 || child.out >= 99.999)
+  m.out = computePid(m, dt, ffVal, bkcalLimited)
 }
 
 /** Evaluate analog alarm limits and reconcile with the active alarm list. */
