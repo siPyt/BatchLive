@@ -17,6 +17,65 @@ function Wrap({ height, children }: { height: number; children: ReactNode }): JS
   )
 }
 
+/** A distillation-column-style vessel (VCD still): domed top, internal trays,
+ * and a heat-jacket core that glows with the controller's heat output. */
+function StillVessel({
+  x,
+  y,
+  w,
+  h,
+  heatFrac,
+  label
+}: {
+  x: number
+  y: number
+  w: number
+  h: number
+  heatFrac: number
+  label: string
+}): JSX.Element {
+  const domeH = 18
+  return (
+    <g>
+      <Label x={x + w / 2} y={y - 8} text={label} />
+      <path
+        d={`M ${x},${y + domeH}
+            Q ${x},${y} ${x + w / 2},${y}
+            Q ${x + w},${y} ${x + w},${y + domeH}
+            L ${x + w},${y + h}
+            Q ${x + w},${y + h + 10} ${x + w - 10},${y + h + 10}
+            L ${x + 10},${y + h + 10}
+            Q ${x},${y + h + 10} ${x},${y + h}
+            Z`}
+        fill="#eef1f4"
+        stroke="var(--dv-metal)"
+        strokeWidth={2}
+      />
+      {[0.3, 0.5, 0.7].map((f) => (
+        <line
+          key={f}
+          x1={x + 6}
+          x2={x + w - 6}
+          y1={y + domeH + f * (h - domeH)}
+          y2={y + domeH + f * (h - domeH)}
+          stroke="var(--dv-metal)"
+          strokeWidth={1}
+          opacity={0.45}
+        />
+      ))}
+      <rect
+        x={x + w / 2 - 6}
+        y={y + domeH + 6}
+        width={12}
+        height={h - domeH - 14}
+        rx={4}
+        fill="var(--dv-steam)"
+        opacity={0.2 + heatFrac * 0.6}
+      />
+    </g>
+  )
+}
+
 export function WfiDiagram(): JSX.Element | null {
   const modules = useStore((s) => s.modules)
   const tic401 = modules['TIC-401'] as PidModule
@@ -29,43 +88,31 @@ export function WfiDiagram(): JSX.Element | null {
   if (!tic401 || !tic411 || !xv411 || !xv401 || !p401 || !p402) return null
 
   return (
-    <Wrap height={260}>
-      <Label x={90} y={28} text="STILL 1" />
-      <rect x={60} y={38} width={60} height={120} rx={6} fill="#eef1f4" stroke="var(--dv-metal)" strokeWidth={2} />
-      <rect x={66} y={44} width={10} height={108} rx={3} fill="var(--dv-steam)" opacity={0.25 + (tic401.out / 100) * 0.6} />
+    <Wrap height={300}>
+      <StillVessel x={50} y={50} w={80} h={130} heatFrac={tic401.out / 100} label="STILL 1" />
+      <StillVessel x={170} y={50} w={80} h={130} heatFrac={tic411.out / 100} label="STILL 2" />
+      <GateValve x={290} y={150} open={xv411.open} tag="XV-411" interlock={xv411.interlock} />
 
-      <Label x={210} y={28} text="STILL 2" />
-      <rect x={180} y={38} width={60} height={120} rx={6} fill="#eef1f4" stroke="var(--dv-metal)" strokeWidth={2} />
-      <rect x={186} y={44} width={10} height={108} rx={3} fill="var(--dv-steam)" opacity={0.25 + (tic411.out / 100) * 0.6} />
-      <GateValve x={240} y={100} open={xv411.open} tag="XV-411" interlock={xv411.interlock} />
+      <Pipe d="M90,198 V240 H340" />
+      <Pipe d="M210,198 V220 H272" />
+      <Pipe d="M308,150 H340 V240" />
 
-      <Pipe d="M90,158 V200 H330" />
-      <Pipe d="M210,158 V180 H258" />
-      <Pipe d="M262,100 H330 V200" />
+      <Tank x={340} y={50} w={110} h={150} level={proc?.pv ?? 0} label="TK-401 WFI STORAGE" />
 
-      <Tank x={330} y={38} w={110} h={150} level={proc?.pv ?? 0} label="TK-401 WFI STORAGE" />
+      <Pipe d="M395,200 V260 H960" />
+      <Pump x={560} y={260} running={p401.running} tag="P-401" r={20} />
+      <Pump x={660} y={260} running={p402.running} tag="P-402" r={20} />
+      <GateValve x={800} y={260} open={xv401.open} tag="XV-401" interlock={xv401.interlock} />
+      <Label x={945} y={250} text="TO POINT-OF-USE" anchor="end" />
 
-      <Pipe d="M385,188 V220 H480" />
-      <Pump x={500} y={220} running={p401.running} tag="P-401" r={18} />
-      <Pump x={500} y={170} running={p402.running} tag="P-402" r={18} />
-      <Pipe d="M480,220 H500" />
-      <Pipe d="M480,170 H500" />
-      <Pipe d="M385,170 H480" />
-      <Pipe d="M518,220 H560 V195 H900" />
-      <Pipe d="M518,170 H560" />
-
-      <GateValve x={700} y={195} open={xv401.open} tag="XV-401" interlock={xv401.interlock} />
-      <Label x={940} y={190} text="TO POINT-OF-USE" anchor="end" />
-      <Pipe d="M900,195 H960" />
-
-      <ValueBox tag="TIC-401" x={55} y={168} />
-      <ValueBox tag="TIC-411" x={175} y={168} />
-      <ValueBox tag="FI-401" x={55} y={10} />
-      <ValueBox tag="FI-411" x={175} y={10} />
-      <ValueBox tag="LIC-401" x={450} y={60} />
-      <ValueBox tag="PIC-401" x={600} y={140} />
-      <ValueBox tag="AT-401" x={760} y={140} />
-      <ValueBox tag="TI-402" x={830} y={225} />
+      <ValueBox tag="TIC-401" x={45} y={195} />
+      <ValueBox tag="TIC-411" x={165} y={195} />
+      <ValueBox tag="FI-401" x={45} y={15} />
+      <ValueBox tag="FI-411" x={165} y={15} />
+      <ValueBox tag="LIC-401" x={460} y={70} />
+      <ValueBox tag="PIC-401" x={540} y={200} />
+      <ValueBox tag="AT-401" x={700} y={200} />
+      <ValueBox tag="TI-402" x={840} y={200} />
     </Wrap>
   )
 }
@@ -227,12 +274,12 @@ function CipUnit({
     <g>
       <Label x={offsetX + 60} y={20} text={`CIP SKID ${n}`} />
       <Tank x={offsetX} y={30} w={80} h={100} level={60} label="" liquidColor="var(--dv-liquid)" />
-      <Pipe d={`M${offsetX + 40},130 V155`} />
-      <Pump x={offsetX + 40} y={170} running={p.running} tag={p.tag} r={16} />
-      <Pipe d={`M${offsetX + 40},186 V200 H${offsetX + 140}`} />
-      <GateValve x={offsetX + 140} y={200} open={xvS.open} tag={xvS.tag} interlock={xvS.interlock} />
-      <Label x={offsetX + 140} y={225} text="SUPPLY" anchor="middle" />
-      <Pipe d={`M${offsetX},60 H${offsetX - 20} V200 H${offsetX + 20}`} />
+      <Pipe d={`M${offsetX + 40},130 V150`} />
+      <Pump x={offsetX + 40} y={170} running={p.running} tag={p.tag} r={20} />
+      <Pipe d={`M${offsetX + 40},190 V210 H${offsetX + 140}`} />
+      <GateValve x={offsetX + 140} y={210} open={xvS.open} tag={xvS.tag} interlock={xvS.interlock} />
+      <Label x={offsetX + 140} y={235} text="SUPPLY" anchor="middle" />
+      <Pipe d={`M${offsetX},60 H${offsetX - 20} V210 H${offsetX + 20}`} />
       <GateValve x={offsetX - 20} y={130} open={xvR.open} tag={xvR.tag} interlock={xvR.interlock} />
       <Label x={offsetX - 20} y={108} text="RETURN" anchor="middle" />
       <ValueBox tag={tic.tag} x={offsetX + 90} y={30} />
@@ -246,7 +293,7 @@ export function CipDiagram(): JSX.Element | null {
   const modules = useStore((s) => s.modules)
   if (!modules['TIC-701'] || !modules['TIC-711'] || !modules['TIC-721']) return null
   return (
-    <Wrap height={260}>
+    <Wrap height={280}>
       <CipUnit
         n={1}
         tic={modules['TIC-701'] as PidModule}
@@ -301,16 +348,17 @@ function TcuUnit({
   return (
     <g>
       <Label x={offsetX + 70} y={20} text={`TCU ${n}`} />
-      <rect x={offsetX} y={30} width={140} height={90} rx={6} fill="#eef1f4" stroke="var(--dv-metal)" strokeWidth={2} />
-      <rect x={offsetX + 10} y={40} width={30} height={20} rx={3} fill={hs.state ? 'var(--dv-critical)' : 'var(--dv-metal)'} opacity={0.75} />
-      <text x={offsetX + 25} y={75} fill="var(--dv-text-mute)" fontSize={9} textAnchor="middle">
+      <rect x={offsetX} y={30} width={140} height={70} rx={6} fill="#eef1f4" stroke="var(--dv-metal)" strokeWidth={2} />
+      <rect x={offsetX + 55} y={44} width={30} height={20} rx={3} fill={hs.state ? 'var(--dv-critical)' : 'var(--dv-metal)'} opacity={0.75} />
+      <text x={offsetX + 70} y={78} fill="var(--dv-text-mute)" fontSize={9} textAnchor="middle">
         HEATER
       </text>
-      <Pump x={offsetX + 100} y={75} running={p.running} tag={p.tag} r={15} />
-      <Pipe d={`M${offsetX + 70},120 V140 H${offsetX + 70}`} />
-      <Label x={offsetX + 70} y={155} text={`TO ${serves}`} anchor="middle" />
-      <ValueBox tag={tic.tag} x={offsetX - 10} y={135} />
-      <ValueBox tag={fic.tag} x={offsetX + 70} y={135} />
+      <Pipe d={`M${offsetX + 70},100 V110`} />
+      <Pump x={offsetX + 70} y={130} running={p.running} tag={p.tag} r={20} />
+      <Pipe d={`M${offsetX + 70},150 V170`} />
+      <Label x={offsetX + 70} y={185} text={`TO ${serves}`} anchor="middle" />
+      <ValueBox tag={tic.tag} x={offsetX - 15} y={38} />
+      <ValueBox tag={fic.tag} x={offsetX + 95} y={38} />
     </g>
   )
 }
@@ -319,7 +367,7 @@ export function TcuDiagram(): JSX.Element | null {
   const modules = useStore((s) => s.modules)
   if (!modules['TIC-801'] || !modules['TIC-811'] || !modules['TIC-821']) return null
   return (
-    <Wrap height={210}>
+    <Wrap height={230}>
       <TcuUnit
         n={1}
         tic={modules['TIC-801'] as PidModule}
