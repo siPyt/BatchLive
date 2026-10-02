@@ -14,6 +14,12 @@ const DISPLAYS: NavNode[] = [
   { id: 'product', label: 'Product / Header', ico: '◈' }
 ]
 
+const PHARMA: NavNode[] = [
+  { id: 'wfi', label: 'WFI Generation', ico: '💧' },
+  { id: 'autoclave', label: 'Autoclave (Sterilizer)', ico: '♨' },
+  { id: 'lyo', label: 'Lyophilizer', ico: '❄' }
+]
+
 const TOOLS: NavNode[] = [
   { id: 'trend', label: 'Trends', ico: '📈' },
   { id: 'alarms', label: 'Alarm List', ico: '🔔' },
@@ -51,6 +57,18 @@ export function NavSidebar(): JSX.Element {
 
       <div className="nav-section">Displays</div>
       {DISPLAYS.map((n) => (
+        <div
+          key={n.id}
+          className={'nav-item' + (display === n.id ? ' active' : '')}
+          onClick={() => navigate(n.id)}
+        >
+          <span className="ico">{n.ico}</span>
+          {n.label}
+        </div>
+      ))}
+
+      <div className="nav-section">GMP Pharma Systems</div>
+      {PHARMA.map((n) => (
         <div
           key={n.id}
           className={'nav-item' + (display === n.id ? ' active' : '')}

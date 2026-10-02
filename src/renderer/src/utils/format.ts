@@ -4,6 +4,12 @@ export function fmt(value: number, decimals: number): string {
   return value.toFixed(decimals)
 }
 
+/** Dashed "---.-" display for a Bad-quality (STATUS.QUALITY = BAD) reading. */
+export function fmtQ(value: number, decimals: number, bad: boolean): string {
+  if (!bad) return fmt(value, decimals)
+  return decimals > 0 ? '-'.repeat(Math.max(1, 3 - decimals)) + '.' + '-'.repeat(decimals) : '---'
+}
+
 // DeltaV default alarm priority numeric values (CRITICAL 15 / WARNING 11 / ADVISORY 7).
 const PRIO_RANK: Record<AlarmPriority, number> = {
   CRITICAL: 15,

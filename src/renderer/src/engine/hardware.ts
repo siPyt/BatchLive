@@ -134,6 +134,11 @@ export function makeDefaultHardware(): HardwareState {
   }
 }
 
+/** Empty project: no Physical Network hardware configured. */
+export function makeBlankHardware(): HardwareState {
+  return { controllers: {}, carriers: {}, baseplates: {} }
+}
+
 /** True if the owning controller cannot service I/O (simplex failed, or both legs of a redundant pair down). */
 export function controllerIsDown(c: Controller): boolean {
   return c.redundant ? c.primary === 'FAILED' && c.secondary === 'FAILED' : c.primary === 'FAILED'

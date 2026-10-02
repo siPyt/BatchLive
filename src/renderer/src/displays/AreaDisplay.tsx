@@ -6,16 +6,19 @@ import type { AnyModule } from '../engine/types'
 const AREA_TITLE: Record<string, string> = {
   FEED: 'FEED SYSTEM',
   REACTOR: 'REACTOR',
-  PRODUCT: 'PRODUCT / HEADER'
+  PRODUCT: 'PRODUCT / HEADER',
+  WFI: 'WFI GENERATION & DISTRIBUTION',
+  AUTOCLAVE: 'STERILIZATION (AUTOCLAVE)',
+  LYO: 'LYOPHILIZATION'
 }
 
-export function AreaDisplay({ area }: { area: 'FEED' | 'REACTOR' | 'PRODUCT' }): JSX.Element {
+export function AreaDisplay({ area }: { area: string }): JSX.Element {
   const modules = useStore((s) => s.modules)
   const list = Object.values(modules).filter((m) => m.area === area)
 
   return (
     <div className="display" style={{ padding: '48px 24px 24px' }}>
-      <div className="display-title">{AREA_TITLE[area]} — Detail</div>
+      <div className="display-title">{AREA_TITLE[area] ?? area} — Detail</div>
       <div
         style={{
           display: 'grid',

@@ -15,6 +15,9 @@ export type DisplayId =
   | 'workshops'
   | 'users'
   | 'hardware'
+  | 'wfi'
+  | 'autoclave'
+  | 'lyo'
 
 export interface OpenFaceplate {
   tag: string
@@ -41,6 +44,8 @@ interface UiState {
   moveFaceplate: (tag: string, x: number, y: number) => void
   select: (tag: string | null) => void
   openStudio: (tag: string) => void
+  /** Close every open faceplate and return to Overview — used when switching projects. */
+  resetToOverview: () => void
   /** Faceplate "Explorer" link: jump to DeltaV Explorer with this module selected. */
   focusExplorer: (tag: string) => void
   /** Faceplate "Trend" link: jump to the Historian Trend with this tag's pen isolated. */
@@ -116,6 +121,16 @@ export const useUi = create<UiState>((set, get) => ({
         history,
         histIndex: history.length - 1
       }
+    }),
+
+  resetToOverview: () =>
+    set({
+      faceplates: [],
+      selectedTag: null,
+      studioTag: null,
+      display: 'overview',
+      history: ['overview'],
+      histIndex: 0
     }),
 
   focusExplorer: (tag) => {

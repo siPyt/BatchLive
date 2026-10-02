@@ -1,5 +1,5 @@
 import type { PlantState, AnyModule } from './types'
-import { evalCondition, applyAction, type SfcStep } from './sfc'
+import { evalCondition, applyStepActions, revertNonStoredActions, type SfcStep } from './sfc'
 
 // ---------------------------------------------------------------------------
 // DeltaV Batch (ISA-88) layer.
@@ -257,16 +257,14 @@ export function advanceBatch(
   const def = state.phases[phase.name]
   const step = def.steps[phase.step]
 
-  // Apply the current step's actions (idempotent).
-  for (const a of step.actions) {
-    const m = modules[a.tag]
-    if (m) applyAction(m, a)
-  }
+  // Apply the current step's actions, honoring N/P/S/R/D/L qualifiers.
+  applyStepActions(modules, step, phase.elapsed)
 
   phase.elapsed += dt
   const nextBatch: BatchRuntime = { ...b, phase, log: b.log }
 
   if (evalCondition(step.transition, state, phase.elapsed)) {
+    revertNonStoredActions(modules, step)
     if (phase.step < def.steps.length - 1) {
       phase.step += 1
       phase.stepName = def.steps[phase.step].name

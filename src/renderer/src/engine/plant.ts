@@ -13,8 +13,8 @@ import { DEFAULT_MEMBERSHIP } from './equipment'
 
 // Helper builders keep the plant definition compact and readable.
 
-/** Tags wired into the hardcoded plant physics (cannot be deleted). */
-export const BUILTIN_TAGS = new Set([
+/** Tags with bespoke named physics in simulate.ts (the reactor train). */
+export const CUSTOM_PHYSICS_TAGS = new Set([
   'FIC-101',
   'LIC-101',
   'LIC-201',
@@ -28,6 +28,29 @@ export const BUILTIN_TAGS = new Set([
   'XV-201',
   'LSH-101',
   'HS-201'
+])
+
+/** Tags that belong to the default project baseline and cannot be deleted. */
+export const BUILTIN_TAGS = new Set([
+  ...CUSTOM_PHYSICS_TAGS,
+  // WFI Generation & Distribution Loop (generic closed-loop simulation)
+  'TIC-401',
+  'LIC-401',
+  'PIC-401',
+  'AT-401',
+  'TI-402',
+  'P-401',
+  'XV-401',
+  // Autoclave 1 (steam sterilizer) — driven by the STERILIZE-AC1 SFC
+  'TIC-501',
+  'PIC-501',
+  'XV-501',
+  'DI-501',
+  // Lyophilizer 1 (freeze dryer) — driven by the LYO-CYCLE-1 SFC
+  'TIC-601',
+  'PIC-601',
+  'AT-601',
+  'XV-601'
 ])
 function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>): PidModule {
   const m: PidModule = {
@@ -49,6 +72,7 @@ function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'ar
     _prevPv: 0,
     _dFilt: 0,
     alarms: [],
+    pvBad: false,
     ...p
   }
   // Bumpless startup: begin at setpoint and hold the configured output so the
@@ -73,12 +97,52 @@ function ai(p: Partial<AnalogIndicator> & Pick<AnalogIndicator, 'tag' | 'descrip
     pvMax: 100,
     decimals: 1,
     alarms: [],
+    pvBad: false,
     ...p
   }
   if (!m.alarms.some((a) => a.type === 'PVBAD')) {
     m.alarms = [...m.alarms, { type: 'PVBAD', label: 'PV BAD', priority: 'CRITICAL', enabled: true }]
   }
   return m
+}
+
+function motor(p: Partial<MotorModule> & Pick<MotorModule, 'tag' | 'description' | 'area'>): MotorModule {
+  return {
+    type: 'MOTOR',
+    running: false,
+    commanded: false,
+    fault: false,
+    interlock: false,
+    permissiveOk: true,
+    permissiveRequired: false,
+    resetRequired: true,
+    locked: false,
+    confirmTimeSec: 2,
+    travelTimer: 0,
+    dcState: 'CONFIRMED_PASSIVE',
+    runtimeHrs: 0,
+    alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }],
+    ...p
+  }
+}
+
+function valve(p: Partial<ValveModule> & Pick<ValveModule, 'tag' | 'description' | 'area'>): ValveModule {
+  return {
+    type: 'VALVE',
+    commandedOpen: false,
+    open: false,
+    fault: false,
+    interlock: false,
+    permissiveOk: true,
+    permissiveRequired: false,
+    resetRequired: true,
+    locked: false,
+    confirmTimeSec: 5,
+    travelTimer: 0,
+    dcState: 'CONFIRMED_PASSIVE',
+    alarms: [{ type: 'FAIL', label: 'FAIL', priority: 'ADVISORY', enabled: true }],
+    ...p
+  }
 }
 
 /**
@@ -349,6 +413,174 @@ export function buildInitialPlant(): PlantState {
   }
   add(hs201)
 
+  // =========================================================================
+  // GMP Pharma Factory additions — WFI, Autoclave, Lyophilizer.
+  // These run on the generic closed-loop/device-control engine (no bespoke
+  // physics needed): PID modules self-regulate toward a setpoint-proportional
+  // target, and Motor/Valve modules follow the Device Control block already
+  // used by the reactor train.
+  // =========================================================================
+
+  // --- WFI (Water For Injection) generation & distribution loop ----------
+  add(
+    pid({
+      tag: 'TIC-401',
+      description: 'WFI STILL/VCD TEMPERATURE',
+      area: 'WFI',
+      unit: 'degC',
+      pvMax: 140,
+      sp: 128,
+      out: 55,
+      mode: 'AUTO',
+      gain: 1.5,
+      reset: 15,
+      direct: false
+    })
+  )
+  add(
+    pid({
+      tag: 'LIC-401',
+      description: 'WFI STORAGE TANK LEVEL',
+      area: 'WFI',
+      unit: '%',
+      sp: 60,
+      out: 50,
+      mode: 'AUTO',
+      gain: 1.2,
+      reset: 20,
+      direct: false
+    })
+  )
+  add(
+    pid({
+      tag: 'PIC-401',
+      description: 'WFI DISTRIBUTION LOOP PRESSURE',
+      area: 'WFI',
+      unit: 'kPa',
+      pvMax: 600,
+      sp: 300,
+      out: 50,
+      mode: 'AUTO',
+      gain: 1.0,
+      reset: 10,
+      direct: true
+    })
+  )
+  add(
+    ai({
+      tag: 'AT-401',
+      description: 'WFI CONDUCTIVITY (USP <645>)',
+      area: 'WFI',
+      unit: 'uS/cm',
+      pvMax: 10,
+      pv: 0.9,
+      decimals: 2,
+      alarms: [{ type: 'HI', label: 'HI', priority: 'CRITICAL', limit: 1.3, enabled: true }]
+    })
+  )
+  add(
+    ai({
+      tag: 'TI-402',
+      description: 'WFI LOOP RETURN TEMPERATURE',
+      area: 'WFI',
+      unit: 'degC',
+      pvMax: 90,
+      pv: 78,
+      alarms: [{ type: 'LO', label: 'LO (COLD LOOP)', priority: 'WARNING', limit: 65, enabled: true }]
+    })
+  )
+  add(motor({ tag: 'P-401', description: 'WFI DISTRIBUTION PUMP', area: 'WFI', running: true, commanded: true }))
+  add(valve({ tag: 'XV-401', description: 'WFI LOOP SAMPLE VALVE', area: 'WFI' }))
+
+  // --- Autoclave 1 (steam sterilizer) — cycle run from SFC STERILIZE-AC1 --
+  add(
+    pid({
+      tag: 'TIC-501',
+      description: 'AUTOCLAVE CHAMBER TEMPERATURE',
+      area: 'AUTOCLAVE',
+      unit: 'degC',
+      pvMax: 140,
+      sp: 25,
+      out: 18,
+      mode: 'MAN',
+      gain: 2.0,
+      reset: 8,
+      direct: false
+    })
+  )
+  add(
+    pid({
+      tag: 'PIC-501',
+      description: 'AUTOCLAVE CHAMBER PRESSURE',
+      area: 'AUTOCLAVE',
+      unit: 'kPa',
+      pvMin: -100,
+      pvMax: 300,
+      sp: 0,
+      out: 25,
+      mode: 'MAN',
+      gain: 1.5,
+      reset: 8,
+      direct: false
+    })
+  )
+  add(valve({ tag: 'XV-501', description: 'CHAMBER DRAIN / EXHAUST VALVE', area: 'AUTOCLAVE' }))
+  add({
+    tag: 'DI-501',
+    type: 'DI',
+    description: 'CHAMBER DOOR CLOSED INTERLOCK',
+    area: 'AUTOCLAVE',
+    state: true,
+    activeDescriptor: 'CLOSED',
+    inactiveDescriptor: 'OPEN',
+    alarms: [{ type: 'LO', label: 'DOOR OPEN', priority: 'WARNING', enabled: true }]
+  })
+
+  // --- Lyophilizer 1 (freeze dryer) — cycle run from SFC LYO-CYCLE-1 ------
+  add(
+    pid({
+      tag: 'TIC-601',
+      description: 'LYO SHELF TEMPERATURE',
+      area: 'LYO',
+      unit: 'degC',
+      pvMin: -50,
+      pvMax: 50,
+      sp: 20,
+      out: 70,
+      mode: 'MAN',
+      gain: 1.8,
+      reset: 10,
+      direct: false
+    })
+  )
+  add(
+    pid({
+      tag: 'PIC-601',
+      description: 'LYO CHAMBER VACUUM',
+      area: 'LYO',
+      unit: 'mTorr',
+      pvMax: 1000,
+      sp: 1000,
+      out: 100,
+      mode: 'MAN',
+      gain: 1.0,
+      reset: 10,
+      direct: true
+    })
+  )
+  add(
+    ai({
+      tag: 'AT-601',
+      description: 'LYO PRODUCT TEMPERATURE (RTD PROBE)',
+      area: 'LYO',
+      unit: 'degC',
+      pvMin: -60,
+      pvMax: 50,
+      pv: 20
+    })
+  )
+  add(valve({ tag: 'XV-601', description: 'CHAMBER ISOLATION VALVE', area: 'LYO' }))
+
   // --- Equipment Module membership (ISA-88 physical hierarchy) -----------
   for (const [tag, em] of Object.entries(DEFAULT_MEMBERSHIP)) {
     if (modules[tag]) modules[tag].equipmentModule = em
@@ -368,6 +600,26 @@ export function buildInitialPlant(): PlantState {
       feedFlow: 60,
       productFlow: 58,
       reactorConc: 96
+    }
+  }
+}
+
+/** Empty project: no modules, no process state. */
+export function buildBlankPlant(): PlantState {
+  return {
+    time: Date.now(),
+    running: true,
+    speed: 1,
+    modules: {},
+    alarms: [],
+    process: {
+      feedTankLevel: 0,
+      reactorLevel: 0,
+      reactorTemp: 25,
+      headerPressure: 0,
+      feedFlow: 0,
+      productFlow: 0,
+      reactorConc: 0
     }
   }
 }

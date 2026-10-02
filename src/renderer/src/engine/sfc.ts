@@ -8,13 +8,34 @@ import type { PlantState, AnyModule, PidModule, ControlMode } from './types'
 
 export type CompareOp = '>' | '<' | '>=' | '<='
 
-export type SfcAction =
-  | { kind: 'mode'; tag: string; mode: ControlMode }
-  | { kind: 'sp'; tag: string; value: number }
-  | { kind: 'out'; tag: string; value: number }
-  | { kind: 'motor'; tag: string; run: boolean }
-  | { kind: 'valve'; tag: string; open: boolean }
-  | { kind: 'do'; tag: string; on: boolean }
+/**
+ * IEC 61131-3 SFC action qualifiers. Undefined/'S' = legacy "apply and
+ * persist" behavior (the default for every action authored before this was
+ * added, so existing recipes/SFCs are unaffected).
+ * N = Non-stored (applies while step is active; reverts to off on exit)
+ * P = Pulse (applies once, on the scan the step becomes active)
+ * S = Set/Store (applies once on entry; stays set until an explicit R)
+ * R = Reset (applies the inverse/off value once on entry)
+ * D = Time Delayed (applies only after the step has been active >= seconds)
+ * L = Time Limited (applies on entry, auto-reverts after seconds)
+ */
+export type ActionQualifier = 'N' | 'P' | 'S' | 'R' | 'D' | 'L'
+
+interface ActionBase {
+  qualifier?: ActionQualifier
+  /** seconds, used by the D (delay) and L (duration) qualifiers. */
+  seconds?: number
+}
+
+export type SfcAction = ActionBase &
+  (
+    | { kind: 'mode'; tag: string; mode: ControlMode }
+    | { kind: 'sp'; tag: string; value: number }
+    | { kind: 'out'; tag: string; value: number }
+    | { kind: 'motor'; tag: string; run: boolean }
+    | { kind: 'valve'; tag: string; open: boolean }
+    | { kind: 'do'; tag: string; on: boolean }
+  )
 
 export type SfcCondition =
   | { kind: 'always' }
@@ -58,20 +79,29 @@ function cmp(a: number, op: CompareOp, b: number): boolean {
 }
 
 export function describeAction(a: SfcAction): string {
+  const q = a.qualifier && a.qualifier !== 'S' ? `[${a.qualifier}${a.seconds !== undefined ? ' ' + a.seconds + 's' : ''}] ` : ''
   switch (a.kind) {
     case 'mode':
-      return `${a.tag} mode → ${a.mode}`
+      return `${q}^/${a.tag}/PID1/MODE.TARGET := ${a.mode}`
     case 'sp':
-      return `${a.tag} SP = ${a.value}`
+      return `${q}^/${a.tag}/PID1/SP.CV := ${a.value}`
     case 'out':
-      return `${a.tag} OUT = ${a.value}%`
+      return `${q}^/${a.tag}/PID1/OUT.CV := ${a.value}`
     case 'motor':
-      return `${a.tag} ${a.run ? 'START' : 'STOP'}`
+      return `${q}^/${a.tag}/DC1/OUT_D.CV := ${a.run ? 1 : 0} (${a.run ? 'START' : 'STOP'})`
     case 'valve':
-      return `${a.tag} ${a.open ? 'OPEN' : 'CLOSE'}`
+      return `${q}^/${a.tag}/DC1/OUT_D.CV := ${a.open ? 1 : 0} (${a.open ? 'OPEN' : 'CLOSE'})`
     case 'do':
-      return `${a.tag} ${a.on ? 'ON' : 'OFF'}`
+      return `${q}^/${a.tag}/DO1/OUT_D.CV := ${a.on ? 1 : 0} (${a.on ? 'ON' : 'OFF'})`
   }
+}
+
+/** The "off"/inverse counterpart of a discrete action, used by N (revert on exit), R and L. */
+export function invertAction(a: SfcAction): SfcAction | null {
+  if (a.kind === 'motor') return { ...a, run: !a.run }
+  if (a.kind === 'valve') return { ...a, open: !a.open }
+  if (a.kind === 'do') return { ...a, on: !a.on }
+  return null
 }
 
 export function describeCondition(c: SfcCondition): string {
@@ -79,15 +109,15 @@ export function describeCondition(c: SfcCondition): string {
     case 'always':
       return 'TRUE (no wait)'
     case 'timer':
-      return `wait ${c.seconds}s`
+      return `T_ACTIVE >= ${c.seconds}s`
     case 'pv':
-      return `${c.tag}.PV ${c.op} ${c.value}`
+      return `^/${c.tag}/AI1/PV.CV ${c.op} ${c.value}`
     case 'out':
-      return `${c.tag}.OUT ${c.op} ${c.value}`
+      return `^/${c.tag}/PID1/OUT.CV ${c.op} ${c.value}`
     case 'motorRunning':
-      return `${c.tag} ${c.running ? 'RUNNING' : 'STOPPED'}`
+      return `^/${c.tag}/DC1/PV_D.CV = ${c.running ? 1 : 0} (${c.running ? 'RUNNING' : 'STOPPED'})`
     case 'valveOpen':
-      return `${c.tag} ${c.open ? 'OPEN' : 'CLOSED'}`
+      return `^/${c.tag}/DC1/PV_D.CV = ${c.open ? 1 : 0} (${c.open ? 'OPEN' : 'CLOSED'})`
   }
 }
 
@@ -168,7 +198,174 @@ export function makeSampleSfc(): SfcDef {
   }
 }
 
+/** Autoclave 1 sterilization cycle: pre-vacuum pulse, steam-up, hold, exhaust, dry. */
+export function makeAutoclaveSfc(): SfcDef {
+  return {
+    name: 'STERILIZE-AC1',
+    area: 'AUTOCLAVE',
+    status: 'READY',
+    active: 0,
+    elapsed: 0,
+    steps: [
+      {
+        id: newStep('').id,
+        name: 'LOAD CHAMBER',
+        actions: [],
+        transition: { kind: 'timer', seconds: 5 }
+      },
+      {
+        id: newStep('').id,
+        name: 'VACUUM PULSE',
+        actions: [
+          { kind: 'mode', tag: 'PIC-501', mode: 'AUTO' },
+          { kind: 'sp', tag: 'PIC-501', value: -80 }
+        ],
+        transition: { kind: 'pv', tag: 'PIC-501', op: '<=', value: -75 }
+      },
+      {
+        id: newStep('').id,
+        name: 'STEAM UP TO 121C',
+        actions: [
+          { kind: 'mode', tag: 'TIC-501', mode: 'AUTO' },
+          { kind: 'sp', tag: 'TIC-501', value: 121 },
+          { kind: 'mode', tag: 'PIC-501', mode: 'AUTO' },
+          { kind: 'sp', tag: 'PIC-501', value: 120 }
+        ],
+        transition: { kind: 'pv', tag: 'TIC-501', op: '>=', value: 121 }
+      },
+      {
+        id: newStep('').id,
+        name: 'STERILIZE HOLD (121C)',
+        actions: [
+          { kind: 'mode', tag: 'TIC-501', mode: 'AUTO' },
+          { kind: 'sp', tag: 'TIC-501', value: 121 }
+        ],
+        transition: { kind: 'timer', seconds: 20 }
+      },
+      {
+        id: newStep('').id,
+        name: 'EXHAUST',
+        actions: [
+          { kind: 'mode', tag: 'TIC-501', mode: 'MAN' },
+          { kind: 'out', tag: 'TIC-501', value: 18 },
+          { kind: 'mode', tag: 'PIC-501', mode: 'AUTO' },
+          { kind: 'sp', tag: 'PIC-501', value: 0 },
+          { kind: 'valve', tag: 'XV-501', open: true }
+        ],
+        transition: { kind: 'pv', tag: 'PIC-501', op: '<=', value: 5 }
+      },
+      {
+        id: newStep('').id,
+        name: 'VACUUM DRY',
+        actions: [
+          { kind: 'mode', tag: 'PIC-501', mode: 'AUTO' },
+          { kind: 'sp', tag: 'PIC-501', value: -50 },
+          { kind: 'valve', tag: 'XV-501', open: false }
+        ],
+        transition: { kind: 'timer', seconds: 10 }
+      }
+    ]
+  }
+}
+
+/** Lyophilizer 1 cycle: freeze, primary dry (deep vacuum + heat), secondary dry, unload. */
+export function makeLyoSfc(): SfcDef {
+  return {
+    name: 'LYO-CYCLE-1',
+    area: 'LYO',
+    status: 'READY',
+    active: 0,
+    elapsed: 0,
+    steps: [
+      {
+        id: newStep('').id,
+        name: 'LOAD SHELVES',
+        actions: [],
+        transition: { kind: 'timer', seconds: 5 }
+      },
+      {
+        id: newStep('').id,
+        name: 'FREEZING',
+        actions: [
+          { kind: 'mode', tag: 'TIC-601', mode: 'AUTO' },
+          { kind: 'sp', tag: 'TIC-601', value: -40 }
+        ],
+        transition: { kind: 'pv', tag: 'TIC-601', op: '<=', value: -35 }
+      },
+      {
+        id: newStep('').id,
+        name: 'PRIMARY DRYING',
+        actions: [
+          { kind: 'mode', tag: 'PIC-601', mode: 'AUTO' },
+          { kind: 'sp', tag: 'PIC-601', value: 100 },
+          { kind: 'mode', tag: 'TIC-601', mode: 'AUTO' },
+          { kind: 'sp', tag: 'TIC-601', value: -20 },
+          { kind: 'valve', tag: 'XV-601', open: true }
+        ],
+        transition: { kind: 'pv', tag: 'PIC-601', op: '<=', value: 110 }
+      },
+      {
+        id: newStep('').id,
+        name: 'SECONDARY DRYING',
+        actions: [
+          { kind: 'mode', tag: 'TIC-601', mode: 'AUTO' },
+          { kind: 'sp', tag: 'TIC-601', value: 25 }
+        ],
+        transition: { kind: 'timer', seconds: 15 }
+      },
+      {
+        id: newStep('').id,
+        name: 'UNLOAD',
+        actions: [{ kind: 'valve', tag: 'XV-601', open: false }],
+        transition: { kind: 'timer', seconds: 5 }
+      }
+    ]
+  }
+}
+
 /** Advance all running SFCs one scan; mutates a clone of modules with step actions. */
+/**
+ * Apply one step's actions for this scan, honoring IEC 61131-3 qualifiers.
+ * `elapsed` is the step's active time BEFORE this scan's dt is added, so it
+ * reads exactly 0 on the first scan after the step becomes active.
+ */
+export function applyStepActions(modules: Record<string, AnyModule>, step: SfcStep, elapsed: number): void {
+  for (const a of step.actions) {
+    const m = modules[a.tag]
+    if (!m) continue
+    const q = a.qualifier ?? 'S'
+    if (q === 'P') {
+      if (elapsed === 0) applyAction(m, a)
+    } else if (q === 'D') {
+      if (a.seconds !== undefined && elapsed >= a.seconds) applyAction(m, a)
+    } else if (q === 'L') {
+      if (elapsed === 0) applyAction(m, a)
+      if (a.seconds !== undefined && elapsed >= a.seconds) {
+        const inv = invertAction(a)
+        if (inv) applyAction(m, inv)
+      }
+    } else if (q === 'R') {
+      if (elapsed === 0) {
+        const inv = invertAction(a)
+        applyAction(m, inv ?? a)
+      }
+    } else {
+      // 'N' (non-stored) and 'S'/legacy (set/persist): apply every active scan.
+      applyAction(m, a)
+    }
+  }
+}
+
+/** Revert any Non-Stored ('N') actions of a step that is being exited this scan. */
+export function revertNonStoredActions(modules: Record<string, AnyModule>, step: SfcStep): void {
+  for (const a of step.actions) {
+    if ((a.qualifier ?? 'S') !== 'N') continue
+    const m = modules[a.tag]
+    const inv = invertAction(a)
+    if (m && inv) applyAction(m, inv)
+  }
+}
+
 export function advanceSfcs(
   state: PlantState & { sfcs: Record<string, SfcDef> },
   modulesIn: Record<string, AnyModule>,
@@ -186,12 +383,10 @@ export function advanceSfcs(
     if (sfc.status !== 'RUNNING' || sfc.steps.length === 0) continue
     const next: SfcDef = { ...sfc }
     const step = sfc.steps[Math.min(sfc.active, sfc.steps.length - 1)]
-    for (const a of step.actions) {
-      const m = modules[a.tag]
-      if (m) applyAction(m, a)
-    }
+    applyStepActions(modules, step, sfc.elapsed)
     next.elapsed = sfc.elapsed + dt
     if (evalCondition(step.transition, state, next.elapsed)) {
+      revertNonStoredActions(modules, step)
       if (sfc.active < sfc.steps.length - 1) {
         next.active = sfc.active + 1
         next.elapsed = 0

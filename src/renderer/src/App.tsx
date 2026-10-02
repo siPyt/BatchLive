@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { useStore } from './engine/store'
 import { useUi } from './ui/uiStore'
+import { compareAlarmRank } from './utils/format'
 import { AlarmBanner } from './components/AlarmBanner'
 import { TopBar } from './components/TopBar'
 import { NavSidebar } from './components/NavSidebar'
 import { StatusBar } from './components/StatusBar'
 import { FlexLockOverlay } from './components/FlexLockOverlay'
 import { AccessDeniedToast } from './components/AccessDeniedToast'
+import { AlarmAudio } from './components/AlarmAudio'
 import { FaceplateHost } from './faceplates/FaceplateHost'
 import { OverviewDisplay } from './displays/OverviewDisplay'
 import { AreaDisplay } from './displays/AreaDisplay'
@@ -45,6 +47,22 @@ export function App(): JSX.Element {
     return () => cancelAnimationFrame(raf)
   }, [tick])
 
+  // Operator console hotkeys: F8 Silence Horn, F9 Acknowledge top alarm.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent): void {
+      if (e.key === 'F8') {
+        e.preventDefault()
+        useStore.getState().silenceHorn()
+      } else if (e.key === 'F9') {
+        e.preventDefault()
+        const top = [...useStore.getState().alarms].sort(compareAlarmRank)[0]
+        if (top) useStore.getState().ackAlarm(top.id)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   return (
     <div className="app-shell">
       <AlarmBanner />
@@ -56,6 +74,9 @@ export function App(): JSX.Element {
           {display === 'feed' && <AreaDisplay area="FEED" />}
           {display === 'reactor' && <AreaDisplay area="REACTOR" />}
           {display === 'product' && <AreaDisplay area="PRODUCT" />}
+          {display === 'wfi' && <AreaDisplay area="WFI" />}
+          {display === 'autoclave' && <AreaDisplay area="AUTOCLAVE" />}
+          {display === 'lyo' && <AreaDisplay area="LYO" />}
           {display === 'alarms' && <AlarmSummary />}
           {display === 'trend' && <TrendDisplay />}
           {display === 'explorer' && <ExplorerDisplay />}
@@ -72,6 +93,7 @@ export function App(): JSX.Element {
       <StatusBar />
       <AccessDeniedToast />
       <FlexLockOverlay />
+      <AlarmAudio />
     </div>
   )
 }

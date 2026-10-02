@@ -11,13 +11,13 @@ import type {
   AlarmType,
   AlarmPriority
 } from './types'
-import { buildInitialPlant, makeModule, type NewModuleSpec } from './plant'
+import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { stepPlant } from './simulate'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
-import { advanceSfcs, makeSampleSfc, type SfcDef, type SfcStep } from './sfc'
+import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
-import { makeDefaultEquipment, type EquipmentModule } from './equipment'
-import { makeDefaultHardware, type HardwareState } from './hardware'
+import { makeDefaultEquipment, makeBlankEquipment, type EquipmentModule } from './equipment'
+import { makeDefaultHardware, makeBlankHardware, type HardwareState } from './hardware'
 
 const TREND_SECONDS = 600 // 10 minutes of history
 const TREND_HZ = 2
@@ -26,6 +26,9 @@ interface StoreState extends PlantState {
   trend: TrendPoint[]
   rev: number
   batch: BatchRuntime
+  /** Horn Silence: mutes audible alarm tone without acknowledging (F8). */
+  hornSilenced: boolean
+  silenceHorn: () => void
   /** Editable phase logic (SFC per phase), keyed by phase name. */
   phases: Record<string, PhaseDef>
   sfcs: Record<string, SfcDef>
@@ -66,6 +69,9 @@ interface StoreState extends PlantState {
   reinsertCharm: (baseplateId: string, slot: number) => void
   ackAlarm: (id: string) => void
   ackAll: () => void
+  /** ISA-18.2 Shelving: suppress an alarm from the active view for durationMin minutes. */
+  shelveAlarm: (id: string, durationMin: number) => void
+  unshelveAlarm: (id: string) => void
   setRunning: (r: boolean) => void
   setSpeed: (s: number) => void
   tick: (dt: number) => void
@@ -82,6 +88,8 @@ interface StoreState extends PlantState {
   deleteSfc: (name: string) => void
   setSfcSteps: (name: string, steps: SfcStep[]) => void
   sfcCommand: (name: string, cmd: 'run' | 'hold' | 'reset') => void
+  /** File > New: reload either the GMP Pharma Factory baseline or a blank project. */
+  newProject: (kind: 'pharma' | 'blank') => void
 }
 
 const initial = buildInitialPlant()
@@ -92,9 +100,10 @@ export const useStore = create<StoreState>((set, get) => ({
   rev: 0,
   batch: makeBatch(),
   phases: makeDefaultPhases(),
-  sfcs: { 'STARTUP-T101': makeSampleSfc() },
+  sfcs: { 'STARTUP-T101': makeSampleSfc(), 'STERILIZE-AC1': makeAutoclaveSfc(), 'LYO-CYCLE-1': makeLyoSfc() },
   equipment: makeDefaultEquipment(),
   hardware: makeDefaultHardware(),
+  hornSilenced: false,
 
   tick: (dt: number) => {
     const s = get()
@@ -128,8 +137,20 @@ export const useStore = create<StoreState>((set, get) => ({
       const cutoff = next.time - TREND_SECONDS * 1000
       newTrend = [...trend, point].filter((p) => p.t >= cutoff)
     }
-    set({ ...next, trend: newTrend, batch, sfcs, rev: s.rev + 1 })
+    // A brand-new active alarm re-sounds the horn even if it was silenced.
+    const priorIds = new Set(s.alarms.map((a) => a.id))
+    const hasNewAlarm = next.alarms.some((a) => a.active && !priorIds.has(a.id))
+    set({
+      ...next,
+      trend: newTrend,
+      batch,
+      sfcs,
+      rev: s.rev + 1,
+      hornSilenced: hasNewAlarm ? false : s.hornSilenced
+    })
   },
+
+  silenceHorn: () => set({ hornSilenced: true }),
 
   setMode: (tag, mode) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Set Mode ${tag}`)) return
@@ -341,6 +362,22 @@ export const useStore = create<StoreState>((set, get) => ({
     }))
   },
 
+  shelveAlarm: (id, durationMin) => {
+    if (!useSecurity.getState().requireLock('ALARMS', 'Shelve alarm')) return
+    set((s) => ({
+      alarms: s.alarms.map((a) => (a.id === id ? { ...a, shelvedUntil: s.time + durationMin * 60000 } : a)),
+      rev: s.rev + 1
+    }))
+  },
+
+  unshelveAlarm: (id) => {
+    if (!useSecurity.getState().requireLock('ALARMS', 'Unshelve alarm')) return
+    set((s) => ({
+      alarms: s.alarms.map((a) => (a.id === id ? { ...a, shelvedUntil: undefined } : a)),
+      rev: s.rev + 1
+    }))
+  },
+
   setRunning: (r) => set({ running: r }),
   setSpeed: (speed) => set({ speed }),
 
@@ -450,6 +487,21 @@ export const useStore = create<StoreState>((set, get) => ({
       else if (cmd === 'hold') next = { ...sfc, status: sfc.status === 'RUNNING' ? 'HELD' : sfc.status }
       else if (cmd === 'reset') next = { ...sfc, status: 'READY', active: 0, elapsed: 0 }
       return { sfcs: { ...s.sfcs, [name]: next }, rev: s.rev + 1 }
+    })
+  },
+
+  newProject: (kind) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `New Project (${kind})`)) return
+    const base = kind === 'blank' ? buildBlankPlant() : buildInitialPlant()
+    set({
+      ...base,
+      trend: [],
+      batch: makeBatch(),
+      phases: makeDefaultPhases(),
+      sfcs: kind === 'blank' ? {} : { 'STARTUP-T101': makeSampleSfc(), 'STERILIZE-AC1': makeAutoclaveSfc(), 'LYO-CYCLE-1': makeLyoSfc() },
+      equipment: kind === 'blank' ? makeBlankEquipment() : makeDefaultEquipment(),
+      hardware: kind === 'blank' ? makeBlankHardware() : makeDefaultHardware(),
+      rev: get().rev + 1
     })
   }
 }))

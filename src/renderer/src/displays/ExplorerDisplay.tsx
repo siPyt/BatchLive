@@ -8,11 +8,14 @@ import type { AnyModule, AlarmPriority, ModuleType } from '../engine/types'
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
 
-const AREAS = ['FEED', 'REACTOR', 'PRODUCT'] as const
+const AREAS = ['FEED', 'REACTOR', 'PRODUCT', 'WFI', 'AUTOCLAVE', 'LYO'] as const
 const AREA_LABEL: Record<string, string> = {
   FEED: 'FEED',
   REACTOR: 'REACTOR',
-  PRODUCT: 'PRODUCT'
+  PRODUCT: 'PRODUCT',
+  WFI: 'WFI',
+  AUTOCLAVE: 'AUTOCLAVE',
+  LYO: 'LYOPHILIZATION'
 }
 
 const TYPE_BADGE: Record<AnyModule['type'], string> = {
@@ -546,6 +549,9 @@ function NewModuleForm({
           <option>FEED</option>
           <option>REACTOR</option>
           <option>PRODUCT</option>
+          <option>WFI</option>
+          <option>AUTOCLAVE</option>
+          <option>LYO</option>
         </select>
       </label>
       <label>
@@ -622,6 +628,9 @@ function NewEquipmentModuleForm({
           <option>FEED</option>
           <option>REACTOR</option>
           <option>PRODUCT</option>
+          <option>WFI</option>
+          <option>AUTOCLAVE</option>
+          <option>LYO</option>
         </select>
       </label>
       {exists && <div className="exp-newmod-err">Tag already exists</div>}

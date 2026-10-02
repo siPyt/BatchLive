@@ -44,6 +44,8 @@ export interface ActiveAlarm {
   acknowledged: boolean
   /** epoch ms when the alarm went active. */
   time: number
+  /** ISA-18.2 Shelving: epoch ms the shelf expires, or undefined if not shelved. */
+  shelvedUntil?: number
 }
 
 /** A simulated engineering-unit analog measurement. */
@@ -87,6 +89,8 @@ export interface PidModule {
   _prevPv: number
   _dFilt: number
   alarms: AlarmLimit[]
+  /** STATUS.QUALITY = BAD — PV is frozen (CHARM pulled or controller down). */
+  pvBad: boolean
 }
 
 export interface AnalogIndicator {
@@ -102,6 +106,8 @@ export interface AnalogIndicator {
   pvMax: number
   decimals: number
   alarms: AlarmLimit[]
+  /** STATUS.QUALITY = BAD — PV is frozen (CHARM pulled or controller down). */
+  pvBad: boolean
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
-import type { PidModule, ControlMode, AlarmPriority } from '../engine/types'
-import { fmt, modeColor } from '../utils/format'
+import type { PidModule, ControlMode, AlarmPriority, AlarmType, AlarmLimit } from '../engine/types'
+import { fmt, fmtQ, modeColor } from '../utils/format'
 
 const MODES: ControlMode[] = ['MAN', 'AUTO', 'CAS']
 type Tab = 'operate' | 'tune' | 'alarm' | 'trend'
@@ -36,14 +36,26 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
       {tab === 'operate' && (
         <>
           <div className="fp-readouts">
-            <Readout label="PV" cls="fp-pv" value={fmt(m.pv, m.decimals)} unit={m.unit} />
+            <Readout label="PV" cls="fp-pv" value={fmtQ(m.pv, m.decimals, m.pvBad)} unit={m.unit} bad={m.pvBad} />
             <Readout label="SP" cls="fp-sp" value={fmt(m.sp, m.decimals)} unit={m.unit} />
             <Readout label="OUT" cls="fp-out" value={fmt(m.out, 1)} unit="%" />
           </div>
 
           <div className="fp-bars">
             <Bar label="OUT" cls="out" pct={m.out} value={m.out} decimals={1} unit="%" min={0} max={100} />
-            <Bar label="PV" cls="pv" pct={pvPct} value={m.pv} decimals={m.decimals} spPct={spPct} unit={m.unit} min={m.pvMin} max={m.pvMax} />
+            <Bar
+              label="PV"
+              cls="pv"
+              pct={pvPct}
+              value={m.pv}
+              decimals={m.decimals}
+              spPct={spPct}
+              unit={m.unit}
+              min={m.pvMin}
+              max={m.pvMax}
+              bad={m.pvBad}
+              alarms={m.alarms}
+            />
           </div>
 
           <div className="fp-moderow">
@@ -132,11 +144,23 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
   )
 }
 
-function Readout({ label, cls, value, unit }: { label: string; cls: string; value: string; unit: string }): JSX.Element {
+function Readout({
+  label,
+  cls,
+  value,
+  unit,
+  bad
+}: {
+  label: string
+  cls: string
+  value: string
+  unit: string
+  bad?: boolean
+}): JSX.Element {
   return (
     <div className="fp-readout">
       <span className="fp-label">{label}</span>
-      <span className={'fp-value ' + cls}>
+      <span className={'fp-value ' + cls} style={bad ? { color: 'var(--dv-bad)' } : undefined}>
         {value}
         <span className="fp-ro-unit">{unit}</span>
       </span>
@@ -153,7 +177,9 @@ function Bar({
   spPct,
   unit,
   min,
-  max
+  max,
+  bad,
+  alarms
 }: {
   label: string
   cls: string
@@ -164,12 +190,26 @@ function Bar({
   unit?: string
   min: number
   max: number
+  bad?: boolean
+  alarms?: AlarmLimit[]
 }): JSX.Element {
   const clamped = Math.max(0, Math.min(100, pct))
   const mid = (min + max) / 2
+  const span = max - min || 1
+  const limitPct = (type: AlarmType): number | undefined => {
+    const a = alarms?.find((x) => x.type === type && x.enabled && x.limit !== undefined)
+    if (!a || a.limit === undefined) return undefined
+    return Math.max(0, Math.min(100, ((a.limit - min) / span) * 100))
+  }
+  const hi = limitPct('HI')
+  const lo = limitPct('LO')
+  const hiHi = limitPct('HI_HI')
+  const loLo = limitPct('LO_LO')
   return (
     <div className="fp-bar">
-      <span className="bar-num">{fmt(value, decimals)}</span>
+      <span className="bar-num" style={bad ? { color: 'var(--dv-bad)' } : undefined}>
+        {fmtQ(value, decimals, !!bad)}
+      </span>
       <div className="fp-bar-row">
         <div className="fp-scale">
           <span>{fmt(max, 0)}</span>
@@ -177,6 +217,13 @@ function Bar({
           <span>{fmt(min, 0)}</span>
         </div>
         <div className="track">
+          {/* Operating bounds envelope: muted zone between LO and HI. */}
+          {hi !== undefined && lo !== undefined && (
+            <div className="envelope" style={{ bottom: lo + '%', height: Math.max(0, hi - lo) + '%' }} />
+          )}
+          {/* Trip limit tick marks: HI-HI / LO-LO. */}
+          {hiHi !== undefined && <div className="trip-tick hihi" style={{ bottom: hiHi + '%' }} />}
+          {loLo !== undefined && <div className="trip-tick lolo" style={{ bottom: loLo + '%' }} />}
           <div className={'fill ' + cls} style={{ height: clamped + '%' }} />
           {spPct !== undefined && (
             <div className="sp-marker" style={{ bottom: Math.max(0, Math.min(100, spPct)) + '%' }} />

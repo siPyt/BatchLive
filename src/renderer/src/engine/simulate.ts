@@ -10,7 +10,7 @@ import type {
   AnyModule,
   DcState
 } from './types'
-import { BUILTIN_TAGS } from './plant'
+import { CUSTOM_PHYSICS_TAGS } from './plant'
 import { advanceControllers, computeBadTags, type HardwareState } from './hardware'
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
@@ -342,7 +342,7 @@ export function stepPlant(
 
   // --- Generic simulation for operator-created modules -----------------
   for (const tag of Object.keys(modules)) {
-    if (BUILTIN_TAGS.has(tag)) continue
+    if (CUSTOM_PHYSICS_TAGS.has(tag)) continue
     const gm = modules[tag]
     if (gm.type === 'PID') {
       gm.out = computePid(gm, dt)
@@ -374,9 +374,17 @@ export function stepPlant(
     const m = modules[tag]
     if (m && (m.type === 'MOTOR' || m.type === 'VALVE')) m.fault = true
   }
+  for (const tag of Object.keys(modules)) {
+    const m = modules[tag]
+    if (m.type === 'PID' || m.type === 'AI') m.pvBad = badPvTags.has(tag)
+  }
 
   // --- Alarm evaluation -------------------------------------------------
   const alarms = prev.alarms.map((a) => ({ ...a }))
+  // ISA-18.2 Shelving: automatically return a shelved alarm to view on expiry.
+  for (const a of alarms) {
+    if (a.shelvedUntil !== undefined && now >= a.shelvedUntil) a.shelvedUntil = undefined
+  }
   for (const tag of Object.keys(modules)) {
     const m = modules[tag]
     if (m.type === 'PID') {

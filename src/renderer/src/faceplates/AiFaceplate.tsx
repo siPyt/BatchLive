@@ -1,6 +1,6 @@
 import { useStore } from '../engine/store'
 import type { AnalogIndicator } from '../engine/types'
-import { fmt, moduleAlarm } from '../utils/format'
+import { fmt, fmtQ, moduleAlarm } from '../utils/format'
 
 export function AiFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as AnalogIndicator | undefined
@@ -15,8 +15,8 @@ export function AiFaceplate({ tag }: { tag: string }): JSX.Element | null {
     <div className="fp-body">
       <div className="fp-bars">
         <div className="fp-bar">
-          <span className="bar-num" style={alm ? { color: 'var(--dv-critical)' } : undefined}>
-            {fmt(m.pv, m.decimals)}
+          <span className="bar-num" style={{ color: m.pvBad ? 'var(--dv-bad)' : alm ? 'var(--dv-critical)' : undefined }}>
+            {fmtQ(m.pv, m.decimals, m.pvBad)}
           </span>
           <div className="track">
             <div className="fill pv" style={{ height: pvPct + '%' }} />
@@ -27,8 +27,8 @@ export function AiFaceplate({ tag }: { tag: string }): JSX.Element | null {
 
       <div className="fp-row">
         <span className="fp-label">Value</span>
-        <span className="fp-value fp-pv">
-          {fmt(m.pv, m.decimals)} {m.unit}
+        <span className="fp-value fp-pv" style={m.pvBad ? { color: 'var(--dv-bad)' } : undefined}>
+          {fmtQ(m.pv, m.decimals, m.pvBad)} {m.unit}
         </span>
       </div>
       <div className="fp-row">
@@ -39,8 +39,8 @@ export function AiFaceplate({ tag }: { tag: string }): JSX.Element | null {
       </div>
       <div className="fp-row">
         <span className="fp-label">Status</span>
-        <span style={{ color: alm ? 'var(--dv-critical)' : 'var(--dv-ok)', fontWeight: 700 }}>
-          {alm ? alm.label + ' ALARM' : 'NORMAL'}
+        <span style={{ color: m.pvBad ? 'var(--dv-bad)' : alm ? 'var(--dv-critical)' : 'var(--dv-ok)', fontWeight: 700 }}>
+          {m.pvBad ? 'BAD (I/O)' : alm ? alm.label + ' ALARM' : 'NORMAL'}
         </span>
       </div>
 

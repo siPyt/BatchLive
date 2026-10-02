@@ -8,7 +8,8 @@ import {
   type SfcStep,
   type SfcAction,
   type SfcCondition,
-  type CompareOp
+  type CompareOp,
+  type ActionQualifier
 } from '../engine/sfc'
 import type { AnyModule } from '../engine/types'
 
@@ -114,7 +115,11 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
         {sfc.steps.length === 0 && <div className="exp-empty">No steps. Add the first step below.</div>}
         {sfc.steps.map((step, i) => (
           <div key={step.id} className="sfc-stepwrap">
-            <div className={'sfc-step' + (sfc.status === 'RUNNING' && sfc.active === i ? ' active' : '')}>
+            <div
+              className={
+                'sfc-step' + (i === 0 ? ' initial' : '') + (sfc.status === 'RUNNING' && sfc.active === i ? ' active' : '')
+              }
+            >
               <div className="sfc-step-head">
                 <span className="sfc-step-num">{i + 1}</span>
                 {editable ? (
@@ -169,6 +174,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
             </div>
           </div>
         ))}
+        {sfc.steps.length > 0 && sfc.status === 'COMPLETE' && <div className="sfc-terminal">O</div>}
         {editable && (
           <button
             className="tbtn sm"
@@ -192,6 +198,7 @@ export function firstTag(modules: Record<string, AnyModule>, type: AnyModule['ty
 }
 
 const ACTION_KINDS: SfcAction['kind'][] = ['mode', 'sp', 'out', 'motor', 'valve', 'do']
+const QUALIFIERS: ActionQualifier[] = ['S', 'N', 'P', 'R', 'D', 'L']
 
 export function ActionEditor({
   action,
@@ -261,6 +268,30 @@ export function ActionEditor({
           <option value="1">ON</option>
           <option value="0">OFF</option>
         </select>
+      )}
+      <select
+        className="exp-alm-select"
+        title="Action qualifier (IEC 61131-3)"
+        value={action.qualifier ?? 'S'}
+        onChange={(e) => {
+          const q = e.target.value as ActionQualifier
+          onChange({ ...action, qualifier: q, seconds: q === 'D' || q === 'L' ? (action.seconds ?? 5) : undefined })
+        }}
+      >
+        {QUALIFIERS.map((q) => (
+          <option key={q} value={q}>
+            {q}
+          </option>
+        ))}
+      </select>
+      {(action.qualifier === 'D' || action.qualifier === 'L') && (
+        <input
+          className="fp-numinput sm"
+          type="number"
+          title="seconds"
+          value={action.seconds ?? 0}
+          onChange={(e) => onChange({ ...action, seconds: Number(e.target.value) })}
+        />
       )}
       <button className="sfc-x" onClick={onRemove}>
         ✕

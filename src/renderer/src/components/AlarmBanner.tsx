@@ -6,18 +6,22 @@ export function AlarmBanner(): JSX.Element {
   const alarms = useStore((s) => s.alarms)
   const ackAll = useStore((s) => s.ackAll)
   const ackAlarm = useStore((s) => s.ackAlarm)
+  const hornSilenced = useStore((s) => s.hornSilenced)
+  const silenceHorn = useStore((s) => s.silenceHorn)
   const navigate = useUi((s) => s.navigate)
   const openFaceplate = useUi((s) => s.openFaceplate)
 
-  const active = alarms.filter((a) => a.active)
+  const shelvedCount = alarms.filter((a) => a.shelvedUntil !== undefined).length
+  const visible = alarms.filter((a) => a.shelvedUntil === undefined)
+  const active = visible.filter((a) => a.active)
   const counts = {
     critical: active.filter((a) => a.priority === 'CRITICAL').length,
     warning: active.filter((a) => a.priority === 'WARNING').length,
     advisory: active.filter((a) => a.priority === 'ADVISORY').length
   }
-  const unackCount = alarms.filter((a) => !a.acknowledged).length
+  const unackCount = visible.filter((a) => !a.acknowledged).length
 
-  const tiles = [...alarms].sort(compareAlarmRank).slice(0, 6)
+  const tiles = [...visible].sort(compareAlarmRank).slice(0, 6)
 
   return (
     <div className="alarm-banner">
@@ -66,7 +70,15 @@ export function AlarmBanner(): JSX.Element {
 
       <div className="alarm-banner-actions">
         <button className="tbtn sm" onClick={() => navigate('alarms')}>
-          List
+          List{shelvedCount > 0 ? ` (${shelvedCount} shelved)` : ''}
+        </button>
+        <button
+          className={'tbtn sm' + (hornSilenced ? ' active' : '')}
+          onClick={silenceHorn}
+          disabled={hornSilenced}
+          title="Silence Horn (F8) — mutes audible tone without acknowledging"
+        >
+          🔇 Silence
         </button>
         <button className="tbtn sm" onClick={ackAll} disabled={unackCount === 0}>
           Ack Page ({unackCount})

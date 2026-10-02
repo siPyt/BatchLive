@@ -42,3 +42,4 @@ pdf_*.txt
 pdf_img/
 pdf_extracted/
 extract_pdfs.py
+extract_pdf_images.py

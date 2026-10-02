@@ -1,34 +1,49 @@
 :root {
-  /* DeltaV Operate / Live L16 light theme (silver chrome, white canvases) */
-  --dv-bg: #c8ccd2;
-  --dv-bg-2: #d6dadf;
-  --dv-bg-3: #e4e7ea;
-  --dv-panel: #eceef1;
-  --dv-panel-2: #f6f7f9;
-  --dv-border: #a7acb3;
-  --dv-border-light: #c3c7cd;
+  /* DeltaV Operate "Shades of Silver" Theme — exact RGB values from the
+     official "DeltaV Operate Themes" whitepaper (Theme_Colors /
+     Alarm_Color_Table). Flat, low-glare canvas; saturated color reserved
+     strictly for alarms/abnormal state (ASM / ISA-101 discipline). */
+  --dv-bg: #e0e2eb; /* Picture Background color (224,226,235) */
+  --dv-bg-2: #ccced9;
+  --dv-bg-3: #d6d8e2;
+  --dv-panel: #ebecf1; /* Dynamo background color (235,236,241) */
+  --dv-panel-2: #f5f6f8;
+  --dv-border: #8c92a3;
+  --dv-border-light: #b2c7d5; /* Main Big Equipment Color (178,199,213) */
   --dv-text: #1b1f24;
   --dv-text-dim: #3c444d;
   --dv-text-mute: #727b85;
   --dv-accent: #0a6cbf;
   --dv-accent-2: #1a73c4;
   --dv-select: #cfe2f6;
+  /* Informational text — Tag names, EU (14,50,96) */
+  --dv-text-tag: #0e3260;
 
-  /* Alarm priority colors (DeltaV standard: red / yellow / magenta) */
-  --dv-critical: #e00b22;
-  --dv-warning: #ffd21e;
-  --dv-advisory: #c23bd0;
-  --dv-ok: #2f9e44;
+  /* Default Alarm colors (Alarm_Color_Table) */
+  --dv-critical: #ff0000; /* Critical: Red (255,0,0) */
+  --dv-warning: #ffff00; /* Warning: Yellow (255,255,0) */
+  --dv-advisory: #6f3198; /* Advisory: Purple (111,49,152) */
+  --dv-ok: #4caf50;
+  /* Forced / Bypass / Interlock Override */
+  --dv-bypass: #ff9800;
+  /* Bad PV / Comm Failure (STATUS.QUALITY = BAD) */
+  --dv-bad: #e91e63;
+  --dv-bad-cyan: #00e5ff;
 
-  /* Equipment / process colors */
+  /* Equipment / process colors (Discrete and Analog Devices table) */
   --dv-liquid: #2f8fd6;
   --dv-liquid-2: #1e6fb0;
-  --dv-pipe: #7c8894;
+  --dv-pipe: #6b8daf; /* Main pipe color (107,141,175) */
   --dv-pipe-active: #2f80c4;
   --dv-steam: #c94f3a;
-  --dv-metal: #8a97a5;
-  --dv-run: #2f9e44;
-  --dv-stop: #8a939d;
+  --dv-metal: #75849b; /* Equipment (pump/valve) outline (117,132,155) */
+  --dv-run: #4caf50; /* Energized / Running / Open */
+  --dv-stop: #b4b9c8; /* Discrete/Analog off color (180,185,200) silver-grey */
+
+  /* SFC step animation (IEC 61131-3) */
+  --dv-sfc-active: #00e676;
+  --dv-sfc-inactive: #e0e0e0;
+  --dv-sfc-interlocked: #d50000;
 
   /* On-light value colors (PV green / SP blue / OUT amber) */
   --dv-pv: #157a3a;
@@ -36,7 +51,7 @@
   --dv-out: #b5731a;
 
   --mode-man: #d98c2b;
-  --mode-auto: #2f9e44;
+  --mode-auto: #4caf50;
   --mode-cas: #1a73c4;
 
   font-family: 'Segoe UI', 'Roboto', system-ui, -apple-system, sans-serif;
@@ -1585,15 +1600,33 @@ button {
   align-items: flex-start;
 }
 .sfc-step {
-  background: #fff;
+  background: var(--dv-sfc-inactive);
   border: 1.5px solid var(--dv-border-light);
   border-radius: 4px;
   min-width: 320px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
+.sfc-step.initial {
+  border-width: 3px;
+  border-style: double;
+}
 .sfc-step.active {
+  background: var(--dv-sfc-active);
   border-color: var(--dv-run);
   box-shadow: 0 0 0 2px var(--dv-run) inset;
+}
+.sfc-terminal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--dv-text-dim);
+  color: var(--dv-text-dim);
+  font-weight: 800;
+  margin-top: 4px;
+  align-self: center;
 }
 .sfc-step-head {
   display: flex;

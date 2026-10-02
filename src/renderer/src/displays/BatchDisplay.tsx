@@ -193,7 +193,7 @@ function PhaseEditor({
         {steps.length === 0 && <div className="exp-empty">No steps.</div>}
         {steps.map((step, i) => (
           <div key={step.id} className="sfc-stepwrap">
-            <div className="sfc-step">
+            <div className={'sfc-step' + (i === 0 ? ' initial' : '')}>
               <div className="sfc-step-head">
                 <span className="sfc-step-num">{i + 1}</span>
                 {editable ? (

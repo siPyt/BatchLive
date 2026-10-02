@@ -292,7 +292,7 @@ export const COURSE: WModule[] = [
         title: 'Defining Users (Locks & Keys)',
         objective: 'Create users with restricted privileges and verify that Locks & Keys actually block operator actions.',
         note:
-          'BatchLive starts logged on as ENGINEER, who holds every Lock & Key, so nothing is restricted by default. Use Utilities → User Manager to create/edit users, and the 🔒 button in the top bar (FlexLock) to switch who is logged on.',
+          'BatchLive starts logged on as admin (password admin123), who holds every Lock & Key, so nothing is restricted by default. Use Utilities → User Manager to create/edit users, and the 🔒 button in the top bar (FlexLock) to switch who is logged on.',
         steps: [
           { id: 'sec-1', text: 'Open Utilities → User Manager.', goto: 'users' },
           {
@@ -309,7 +309,7 @@ export const COURSE: WModule[] = [
           },
           {
             id: 'sec-5',
-            text: 'Confirm SP/Mode/START/STOP still work for OperatorA (Control key), then Lock Workstation and log back on as ENGINEER.'
+            text: 'Confirm SP/Mode/START/STOP still work for OperatorA (Control key), then Lock Workstation and log back on as admin.'
           },
           {
             id: 'sec-6',

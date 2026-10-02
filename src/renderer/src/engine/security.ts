@@ -93,8 +93,9 @@ interface SecurityState {
 }
 
 // Seeded from the DV-09 "Defining Users" workshop (OperatorA / Supervisor1)
-// plus a full-access Engineer so nothing is locked out of the box.
+// plus full-access accounts so nothing is locked out of the box.
 const DEFAULT_USERS: DvUser[] = [
+  { name: 'admin', fullName: 'Administrator', password: 'admin123', locks: [...ALL_LOCKS] },
   { name: 'ENGINEER', fullName: 'System Engineer', password: 'engineer', locks: [...ALL_LOCKS] },
   {
     name: 'Supervisor1',
@@ -112,7 +113,7 @@ const DEFAULT_USERS: DvUser[] = [
 
 export const useSecurity = create<SecurityState>((set, get) => ({
   users: DEFAULT_USERS,
-  currentUser: 'ENGINEER',
+  currentUser: 'admin',
   locked: false,
   lastDenied: null,
 
