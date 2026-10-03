@@ -265,6 +265,9 @@ export interface FloatingInputParameter {
 export interface AnalogOutputModule {
   tag: string
   type: 'AO'
+  /** Set only by the opt-in saved configuration/download workflow. */
+  downloaded?: boolean
+  controllerTag?: string
   description: string
   area: string
   equipmentModule?: string

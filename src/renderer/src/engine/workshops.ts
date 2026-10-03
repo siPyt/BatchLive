@@ -211,7 +211,7 @@ export const COURSE: WModule[] = [
         id: 'dv09-standalone-ao',
         title: 'LEVEL-101 Standalone AO and CAS_SP',
         objective: 'Build the actual AO/CAS_SP path and verify applied channel output with a simulated LI-101 tieback.',
-        note: 'Use a separate blank training session. This is the executable AO/signal subset of pp164-168 and pp173-178, not the complete workshop. Assignment, native properties, Save/Download/Online, restore flags/NVM and picture-level bounded data entry remain absent. Floating Point parameters allow finite values; the AO applies its SP limits. No electrical 4-20 mA conversion is claimed.',
+        note: 'Use a separate blank training session. This is the executable AO/signal subset of pp164-168 and pp173-178, not the complete workshop. Standalone AO now offers the opt-in saved lifecycle in the next exercise. Native properties/templates, picture assignment and picture-level bounded data entry remain absent. Floating Point parameters allow finite values; the AO applies its SP limits. No electrical 4-20 mA conversion is claimed.',
         steps: [
           { id: 'dv09-ao-1', text: 'Create PLANT_AREA_A, commission CTRL1, add C01 AI and C02 AO, and name/enable LT-1 at C01 CH1 and LY-1 at C02 CH1.', goto: 'hardware' },
           { id: 'dv09-ao-2', text: 'Create AO LEVEL-101 in Explorer, range 0-1000 gal. Alternatively create AO from the Studio I/O palette and Apply AO Scale / Limits: Scale Low 0, High 1000, SP Low 0, SP High 1000, Unit gal.', goto: 'explorer' },
@@ -219,6 +219,21 @@ export const COURSE: WModule[] = [
           { id: 'dv09-ao-4', text: 'Run with target CAS. Confirm actual CAS, SP500 gal, applied OUT50%, and LY-1 signal50%. CAS_SP0 gives0%; CAS_SP1000 gives100%. Out-of-limit finite parameter values are clamped by AO SP limits and report Limited.' },
           { id: 'dv09-ao-5', text: 'Delete the CAS_IN wire: output holds Bad. Reconnect to recover. AUTO uses SP independently of CAS_SP; MAN uses percent output. OOS or a disabled output channel holds the last actual channel signal with Bad.' },
           { id: 'dv09-ao-6', text: 'Create AI LI-101 range0-1000 gal, bind IO_IN LT-1, then configure LT-1 simulated tieback source LY-1 in Physical Network. At CAS_SP500 confirm LI-101 becomes500 on the following input scan. This is simulated percent-to-engineering tieback, not physical feedback.', goto: 'hardware' }
+        ]
+      },
+      {
+        id: 'dv09-ao-lifecycle',
+        title: 'LEVEL-101 Save, Download and Restart',
+        objective: 'Keep saved defaults independent from live values and reproduce the pp169-170 preservation outcomes.',
+        note: 'Opt-in standalone AO only, not a physical or whole-controller download. Browser Save persists configuration; simulated NVM and deployed runtime are in-memory. Other module types remain immediately live. Workshop checkmarks are manual, not acceptance-test evidence.',
+        steps: [
+          { id: 'dv09-life-1', text: 'Finish the LEVEL-101 AO/CAS_SP fixture above. In Studio click Enable Saved Module Lifecycle and accept the held-output warning. Confirm assigned controller CTRL1, IO_OUT LY-1, configured CAS and CAS_SP500. Enrollment holds output until the first Save and Full Download.', goto: 'studio' },
+          { id: 'dv09-life-2', text: 'Save Module. Open Download and Cancel: output stays held and no deployment occurs. Open Download again and Confirm Full. Run and verify actual CAS with output50%. Go Online; offline configuration controls must not edit runtime.' },
+          { id: 'dv09-life-3', text: 'Go Offline and select Preserve critical block values, then Save. Go Online and set mode AUTO and live CAS_SP555. Confirm Partial Download. MODE remains AUTO, but CAS_SP returns to its saved default500.' },
+          { id: 'dv09-life-4', text: 'Repeat using Preserve user-defined and critical block values: set live AUTO/CAS_SP555 before Partial Download. Verify AUTO/555. Repeat using Use configured values: the result must be CAS/500. Saved defaults remain CAS/500 in all three cases.' },
+          { id: 'dv09-life-5', text: 'Go Offline. Select module restart restore and CAS_SP parameter restore; Save and Full Download these flags. Go Online, set CAS_SP555, and allow a scan. Cold Restart Module must retain555. Repeat without either flag: it returns to configured500. Saved but undownloaded restore flags must have no effect.' },
+          { id: 'dv09-life-6', text: 'After online edits, Upload to Draft and accept replacement. The draft contains live values; saved browser configuration remains unchanged until Save. Go Offline and Load Saved Configuration to recover the previous saved defaults without changing runtime.' },
+          { id: 'dv09-life-7', text: 'In Physical Network, simulate CTRL1 power loss and restore inside its cold-restart window; verify the deployed restore flags. Outside that window, commissioning alone cannot reactivate this AO. A fresh Full Download is required.', goto: 'hardware' }
         ]
       },
       {

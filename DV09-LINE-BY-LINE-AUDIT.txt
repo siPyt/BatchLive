@@ -32,7 +32,8 @@ Page numbers are PDF pages, not the printed chapter-page numbers.
 The audit's implementation baseline is commit 7d425a9 plus the module-name
 validation and alarm-ranking regressions delivered with this report.
 Later verified traditional-I/O/discrete subsets are recorded in the updated
-groups below and DV09-FUNCTIONAL-COVERAGE.txt; download parity remains absent.
+groups below and DV09-FUNCTIONAL-COVERAGE.txt. An opt-in standalone AO saved/
+download/restart subset now exists; general controller/download parity is absent.
 No push is authorized by the user's request to commit and audit.
 
 STATUS DEFINITIONS
@@ -73,6 +74,8 @@ FLEXLOCK = src\renderer\src\components\FlexLockOverlay.tsx
 BANNER = src\renderer\src\components\AlarmBanner.tsx
 RANK = src\renderer\src\utils\format.ts: compareAlarmRank
 TESTS = tests\control-strategy.test.cjs
+LIFECYCLE = src\renderer\src\engine\moduleLifecycle.ts
+LIFECYCLE_UI = src\renderer\src\components\ModuleLifecycleControls.tsx
 
 Evidence denotes source inspection unless explicitly called a regression or
 live verification. Never treat a label, icon, disabled ribbon control,
@@ -459,21 +462,39 @@ Verified subset: Independent AO module LEVEL-101, Floating Point input CAS_SP
   actual percent output from engineering PV_SCALE 0-1000 gal and SP limits.
   CAS 500 produces 50%; AUTO uses SP independently, MAN uses percent output,
   OOS/invalid/disconnected/down signals hold hardware readback with Bad.
-Gaps: Arbitrary parameter types/paths, controller assignment, native module
-  properties, Save/Download/Online and configured/runtime/NVM remain absent.
+Additional verified subset: Opt-in standalone AO controller assignment,
+  independent offline/saved/deployed/live snapshots, persistent browser Save,
+  validated Full/Partial module Download and Online/Offline Studio views.
+  Cancelled/invalid transfer retains last-good runtime; output ownership and
+  assigned-controller/DST prerequisites are checked atomically.
+Gaps: Arbitrary parameter types/paths, native module properties/templates,
+  independent picture assignment and full-controller downloads remain absent.
 Acceptance: Verify remaining property/assignment/lifecycle steps without
   replacing standalone AO with a PID stage or claiming session writes are saved.
 
 [DV09-035]
 Pages: 169-171
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Set module/parameter restart restoration and NVM behavior; partial
   download chooses configured values, critical-only or all selected runtime
   preservation. Course example distinguishes configured CAS/500 from live
   AUTO/555, with critical-only AUTO/500.
-Evidence: There is only one live module object, no separate defaults/runtime.
-Acceptance: Test all three outcomes and cold restart using independent stores,
-  including MODE preservation without incorrectly preserving CAS_SP.
+Evidence: LIFECYCLE/STORE/LIFECYCLE_UI and regressions execute the independent
+  configured CAS/500 versus live AUTO/555 exercise. Configured partial yields
+  CAS/500, critical-only yields AUTO/500, all yields AUTO/555. Full always uses
+  configured defaults. Offline edits and Save do not change runtime. Upload
+  requires an available controller and explicit Save to persist its draft.
+  Restart reads DEPLOYED flags/defaults, not undownloaded saved edits; both
+  module and per-parameter flags are needed. MODE, SP, manual OUT and CAS_SP
+  have individual restoration tests; power recovery observes the controller's
+  cold-restart window. Expired memory requires Full Download.
+  Browser verification confirmed cancellation, Full transfer, all three
+  partial outcomes and saved/live/persistent CAS_SP separation.
+Boundary: Opt-in standalone AO only. NVM/deployed state is simulated in-memory;
+  browser Save persists configuration, not controller memory. Native dialogs,
+  real communication and whole-controller/multi-module scopes are not certified.
+Acceptance: Retain these tests and live checks. Generalize the lifecycle before
+  marking other module/template/controller procedures equivalent.
 
 [DV09-036]
 Pages: 172-172

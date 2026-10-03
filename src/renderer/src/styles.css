@@ -2618,6 +2618,29 @@ button {
   border-collapse: collapse;
   font-size: 12px;
 }
+.module-download-dialog {
+  position: fixed;
+  z-index: 100;
+  top: 25%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  margin: 0;
+  transform: translateX(-50%);
+  width: min(440px, 90vw);
+  padding: 16px;
+  background: var(--dv-panel);
+  border: 1px solid var(--dv-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  color: var(--dv-text);
+  white-space: normal;
+}
+.module-download-dialog select {
+  max-width: 100%;
+}
+.module-download-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.3);
+}
 .studio-param-table th {
   text-align: left;
   background: var(--dv-bg-3);

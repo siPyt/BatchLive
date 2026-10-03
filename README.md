@@ -116,10 +116,30 @@ Explicit simulated AO-to-AI tiebacks convert percent through the receiving
 module's engineering scale on the following scan; manual AI inputs retain their
 engineering-unit behavior. This is not electrical conversion or device feedback.
 
-Arbitrary typed parameters/paths, 4-20 mA scaling, discrete CAS,
-native templates, controller/display assignment, and the configuration/runtime/
-Save/Download/Online lifecycle remain gaps. These channel settings are
-immediately live and session-local, not saved controller configuration.
+Standalone AO also has an **opt-in saved module lifecycle** in Control Studio.
+Enable it in an isolated training session: the output holds until Save and the
+first Full Download. Offline drafts, saved defaults, deployed configuration,
+live values and simulated NVM are independent. Assign a commissioned controller,
+Save, then Download the module. Cancelled or invalid transfers leave runtime
+unchanged. Full uses configured values; Partial selects configured values,
+critical block values only, or critical plus user-defined values. The DV-09
+CAS/500 versus AUTO/555 exercise produces CAS/500, AUTO/500 and AUTO/555 respectively.
+Online shows runtime; offline edits do not alter the deployed module. Upload
+copies live values into a draft, requiring explicit Save before persistence.
+Cold restart restores selected values only when both deployed module and
+parameter restore flags are set. Power recovery outside the configured cold
+restart window requires a fresh Full Download, not just commissioning.
+
+Save persists only this AO configuration in the local browser profile; Load Saved
+requires the module and its plant area to exist. Controller/card prerequisites
+must be recreated before Download. Deployed state and simulated NVM remain
+in-memory and do not survive browser reload. This is a synchronous, simulated,
+single-module transfer, not native DeltaV communication or a whole-controller
+download. Other module types and unenrolled modules remain immediately live.
+Area and Equipment Module membership stays project-level metadata; Save captures
+current membership, and transfer/restart does not resurrect renamed/deleted parents.
+Arbitrary typed parameters/paths, 4-20 mA scaling, discrete CAS, native templates,
+independent display assignment and general saved/controller lifecycle remain gaps.
 
 Module creation in Explorer and Control Studio now enforces the course's
 16-character naming rule and reports invalid/duplicate/denied creation without

@@ -14,7 +14,7 @@ import type {
 } from './types'
 import { CUSTOM_PHYSICS_TAGS } from './plant'
 import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue } from './fb'
-import { advanceControllers, computeBadTags, type HardwareState } from './hardware'
+import { advanceControllers, computeBadTags, controllerIsDown, type HardwareState } from './hardware'
 import {
   advanceTraditionalIo, analogChannelBad, sampleAnalogInputs, sampleAnalogOutputs, sampleDiscreteInputs
 } from './traditionalIo'
@@ -786,7 +786,9 @@ export function stepPlant(
     const module = modules[tag]
     if (module.type === 'PID') executeLoop(module)
     else if (module.type === 'FB') stepFunctionBlock(module, modules, dt)
-    else if (module.type === 'AO') executeStandaloneAo(module, analogOutputBad(tag))
+    else if (module.type === 'AO') executeStandaloneAo(module, analogOutputBad(tag) ||
+      (!!module.controllerTag && (!prev.hardware.controllers[module.controllerTag] ||
+        controllerIsDown(prev.hardware.controllers[module.controllerTag]))))
     else if (module.type === 'MOTOR') applyMotorDC(module, dt, modules)
     else if (module.type === 'VALVE') applyValveDC(module, dt, modules)
     else if (module.type === 'DO' && !prev.hardware.discreteBindings?.[tag] && module.mode !== 'OOS') {

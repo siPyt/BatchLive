@@ -3,8 +3,8 @@ import { useStore } from '../engine/store'
 import type { AnalogOutputModule } from '../engine/types'
 import { fmt } from '../utils/format'
 
-export function StandaloneAoControls({ module: m, configuration = true }: {
-  module: AnalogOutputModule; configuration?: boolean
+export function StandaloneAoControls({ module: m, configuration = true, offline = false }: {
+  module: AnalogOutputModule; configuration?: boolean; offline?: boolean
 }): JSX.Element {
   const configure = useStore(s => s.configureStandaloneAo)
   const mode = useStore(s => s.setStandaloneAoMode)
@@ -21,7 +21,7 @@ export function StandaloneAoControls({ module: m, configuration = true }: {
   }, [m.pvMin, m.pvMax, m.unit, m.spLow, m.spHigh])
   const quality = m.bad ? 'Bad - held output' : m.limited ? 'Limited' : 'Good'
   return <>
-    <tr><td>MODE.TARGET</td><td><select aria-label={`${m.tag} AO mode`} value={m.mode}
+    {!offline && <><tr><td>MODE.TARGET</td><td><select aria-label={`${m.tag} AO mode`} value={m.mode}
       onChange={e => {
         const target = e.target.value
         if (target === 'CAS' || target === 'AUTO' || target === 'MAN' || target === 'OOS') mode(m.tag, target)
@@ -40,7 +40,7 @@ export function StandaloneAoControls({ module: m, configuration = true }: {
       <td>{key}.CV</td><td><input type="number" aria-label={`${m.tag} ${key}.CV`}
         value={parameter.value}
         onChange={e => write(m.tag, key, Number(e.target.value))} /></td><td>Floating Point</td>
-    </tr>)}
+    </tr>)}</>}
     {configuration && <>
       <tr><td>CAS_IN.SOURCE</td><td><select aria-label={`${m.tag} CAS_IN source`}
         value={m.casParameter ?? ''} onChange={e => connect(m.tag, e.target.value || undefined)}>

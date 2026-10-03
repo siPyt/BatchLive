@@ -386,6 +386,68 @@ Save/Download/Online and original-PDF image-only review. A PID output stage
 is not a substitute for the standalone course module. No full-parity claim.
 Commit permitted; no push without explicit authorization.
 
+PASS 8: STANDALONE AO SAVED CONFIGURATION / DOWNLOAD / RESTART
+------------------------------------------------------------
+Scope: DV09-034 assignment/save subset and DV09-035 pp169-171 lifecycle.
+This supersedes PASS 7's lifecycle limitation ONLY for opt-in standalone AO.
+The other module types and whole-controller downloads are still outstanding.
+
+Executable behavior:
+- Studio enrollment is explicit and warns that output will hold until the
+  first Save and Full Download. Existing immediately-live pharma modules
+  are not enrolled or altered.
+- Draft, saved configuration, deployed configuration, live runtime and
+  simulated NVM are independent snapshots. Offline edits and Save cannot
+  change applied output; Online displays runtime rather than the draft.
+- Save writes this AO configuration to the local browser database. Load
+  Saved replaces only offline draft/saved state and requires the plant area.
+  Browser reload/new-project recovery is explicit, never automatic execution.
+  Storage failures and invalid/version/tag/schema data reject visibly and
+  leave runtime, saved revision and last-good configuration unchanged.
+- Assigned controller and output DST must agree. Download checks controller
+  availability, CAS wiring/defaults, scale/limits and output-writer exclusion
+  before atomically installing a module. Dirty drafts require Save first.
+  Cancel/Escape do not transfer or write success-shaped events.
+- Full always uses configured values. With configured CAS/CAS_SP500 and live
+  AUTO/CAS_SP555, Partial gives CONFIGURED CAS/500, CRITICAL AUTO/500,
+  ALL AUTO/555. User preservation does not include unrelated new parameters.
+  Invalid/nonfinite preserved values reject without partial transfer.
+- Upload requires an available downloaded controller and writes a draft,
+  not persisted defaults. Save is an explicit, separate operation.
+- Managed online writes reject an unavailable assigned controller. Project
+  area/Equipment Module membership remains a project-level operation; Save
+  captures current membership, and transfer/restart cannot revive old areas
+  or deleted equipment parents.
+- Restart uses deployed defaults/flags, not merely saved edits. Both module
+  and selected parameter flags must be enabled. MODE, SP, OUT and CAS_SP
+  restore independently. OUT restoration uses its current live CV, not an
+  inactive manual setting left behind while CAS/AUTO was operating.
+- Controller power loss captures the simulated NVM. Recovery inside its
+  cold-restart window runs deployed restore policy. Expired memory remains
+  undownloaded; commissioning, Online, Upload and Partial cannot reactivate
+  the AO. Full Download is required.
+
+Live evidence:
+- UI enrollment, Save, Cancel, Full Download and Online execution verified.
+- All three pp170 Partial outcomes verified through actual UI controls.
+- Both restart flags retained CAS_SP555/55.5% while saved defaults stayed500.
+- Load Saved discarded a750 draft while leaving live555 unchanged.
+- Real browser reload recovered saved CAS_SP500 and both restore flags, but
+  did not recover deployment. Full Download then executed50% output.
+- Download is a native modal: background interaction is blocked, Escape
+  cancels, and its controls fit inside the dialog at1024x720.
+- Original96-module running pharma Overview and previous local saved entry
+  were restored; test globals and fixture data were removed.
+
+Boundary: synchronous simulated single-module transfer, not vendor network
+communication, native database files/templates or multi-module/controller
+download. Browser configuration persistence is not NVM persistence; NVM
+and deployed/runtime state remain in-memory across the running session.
+Remaining course procedures and original-PDF image-only review are not done.
+Validation: 113 control regressions plus five audit regressions; typecheck,
+production build, editor diagnostics and audit mapping checks pass.
+Local commit only; do not push without explicit authorization.
+
 FIFTH PASS: STANDALONE LEVEL-101 AO AND SIMULATED ANALOG TIEBACK
 --------------------------------------------------------------
 Sources: standalone module procedure pp164-168 and signal check pp173-178.

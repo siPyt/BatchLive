@@ -25,6 +25,11 @@ import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } fr
 import { stepPlant } from './simulate'
 import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
 import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
+import {
+  aoOperatorError, cloneAo, cloneConfiguration, configurationError, deployedAo, downloadError, lifecycleDirty,
+  memoryOf, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
+  type AoDraftPatch, type AoLifecycle
+} from './moduleLifecycle'
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
@@ -71,6 +76,15 @@ interface StoreState extends PlantState {
   equipment: Record<string, EquipmentModule>
   /** Physical Network: Controllers / I/O Carriers / CHARM baseplates. */
   hardware: HardwareState
+  moduleLifecycle: Record<string, AoLifecycle>
+  enableModuleLifecycle: (tag: string) => boolean
+  setModuleOnline: (tag: string, online: boolean) => boolean
+  editModuleDraft: (tag: string, patch: AoDraftPatch) => boolean
+  saveModuleConfiguration: (tag: string) => boolean
+  loadSavedModuleConfiguration: (tag: string) => boolean
+  downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL') => boolean
+  uploadModule: (tag: string) => boolean
+  restartModule: (tag: string) => boolean
   addTraditionalCard: (controllerTag: string, slot: number, type: TraditionalCardType) => boolean
   configureTraditionalChannel: (cardId: string, channel: number,
     patch: { dst: string; enabled: boolean; tiebackDst?: string }) => boolean
@@ -210,6 +224,7 @@ export const useStore = create<StoreState>((set, get) => ({
   sfcs: makeDefaultSfcs(),
   equipment: makeDefaultEquipment(),
   hardware: makeDefaultHardware(),
+  moduleLifecycle: {},
   hornSilenced: false,
 
   tick: (dt: number) => {
@@ -288,6 +303,12 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     set({
       ...next,
+      moduleLifecycle: Object.fromEntries(Object.entries(s.moduleLifecycle).map(([tag, record]) => {
+        const runtime = next.modules[tag]
+        const controller = record.deployed ? s.hardware.controllers[record.deployed.controllerTag] : undefined
+        return [tag, runtime?.type === 'AO' && runtime.downloaded && controller && !controllerIsDown(controller)
+          ? { ...record, nvm: memoryOf(runtime) } : record]
+      })),
       trend: newTrend,
       batch,
       sfcs,
@@ -828,6 +849,11 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!c || !c.commissioned || c.powerDownAt !== null) return {}
       poweredDown = true
       return {
+        moduleLifecycle: Object.fromEntries(Object.entries(s.moduleLifecycle).map(([moduleTag, record]) => {
+          const runtime = s.modules[moduleTag]
+          return [moduleTag, record.deployed?.controllerTag === tag && runtime?.type === 'AO' && runtime.downloaded
+            ? { ...record, nvm: memoryOf(runtime) } : record]
+        })),
         hardware: {
           ...s.hardware,
           controllers: {
@@ -859,7 +885,19 @@ export const useStore = create<StoreState>((set, get) => ({
       outageMinutes = Math.max(0, (Date.now() - c.powerDownAt) / 60_000)
       coldRestartSucceeded = c.coldRestartMinutes > 0 && outageMinutes <= c.coldRestartMinutes
       restored = true
+      const modules = { ...s.modules }
+      const moduleLifecycle = { ...s.moduleLifecycle }
+      for (const [moduleTag, record] of Object.entries(s.moduleLifecycle)) {
+        const runtime = modules[moduleTag]
+        if (record.deployed?.controllerTag !== tag || runtime?.type !== 'AO') continue
+        const restore = coldRestartSucceeded && runtime.downloaded === true
+        modules[moduleTag] = restore ? restartAo(record, runtime, s.hardware)
+          : { ...runtime, downloaded: false, bad: true, actualMode: 'OOS' }
+        moduleLifecycle[moduleTag] = { ...record, nvm: restore ? memoryOf(modules[moduleTag]) : undefined }
+      }
       return {
+        modules,
+        moduleLifecycle,
         hardware: {
           ...s.hardware,
           controllers: {
@@ -1121,8 +1159,177 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  enableModuleLifecycle: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Enable saved lifecycle ${tag}`)) return false
+    const state = get()
+    const module = state.modules[tag]
+    if (module?.type !== 'AO' || state.moduleLifecycle[tag]) {
+      return rejectAo(get, tag, 'Saved lifecycle currently requires an unmanaged standalone AO module')
+    }
+    const dst = state.hardware.analogBindings?.[tag]?.output ?? ''
+    const target = findDst(state.hardware, dst)
+    const configuration = { module: cloneAo(module), controllerTag: target?.card.controllerTag ?? '',
+      outputDst: dst, restoreModule: false, restoreParameters: [], downloadBehavior: 'CONFIGURED' as const }
+    const draftModule = configuration.module
+    delete draftModule.downloaded
+    delete draftModule.controllerTag
+    set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: {
+      draft: configuration, online: false, savedRevision: 0, deployedRevision: 0
+    } }, modules: { ...s.modules, [tag]: { ...module, downloaded: false, bad: true, actualMode: 'OOS' } },
+    rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Opt-in saved AO lifecycle enabled; output held until first download')
+    return true
+  },
+
+  setModuleOnline: (tag, online) => {
+    const record = get().moduleLifecycle[tag]
+    if (!record) return rejectAo(get, tag, 'Module does not use the saved lifecycle')
+    const module = get().modules[tag]
+    if (online && (!record.deployed || module?.type !== 'AO' || !module.downloaded)) {
+      return rejectAo(get, tag, 'Download the saved module before going online')
+    }
+    set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record, online } } }))
+    return true
+  },
+
+  editModuleDraft: (tag, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Edit offline configuration ${tag}`)) return false
+    const record = get().moduleLifecycle[tag]
+    if (!record || record.online) return rejectAo(get, tag, 'Go Offline to edit the saved-lifecycle draft')
+    const draft = cloneConfiguration(record.draft)
+    const { controllerTag, outputDst, restoreModule, restoreParameters, downloadBehavior,
+      parameter, ...modulePatch } = patch
+    Object.assign(draft.module, modulePatch)
+    if (controllerTag !== undefined) draft.controllerTag = controllerTag
+    if (outputDst !== undefined) draft.outputDst = outputDst.trim().toUpperCase()
+    if (restoreModule !== undefined) draft.restoreModule = restoreModule
+    if (restoreParameters !== undefined) draft.restoreParameters = [...restoreParameters]
+    if (downloadBehavior !== undefined) draft.downloadBehavior = downloadBehavior
+    if (parameter) {
+      if (!draft.module.parameters[parameter.name]) return rejectAo(get, tag, 'Configured parameter does not exist')
+      draft.module.parameters[parameter.name].value = parameter.value
+    }
+    const error = configurationError(draft)
+    if (error) return rejectAo(get, tag, error)
+    if (draft.controllerTag && !get().hardware.controllers[draft.controllerTag]) {
+      return rejectAo(get, tag, 'Assigned controller does not exist')
+    }
+    set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record, draft } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Offline AO draft changed; runtime unchanged')
+    return true
+  },
+
+  saveModuleConfiguration: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Save module configuration ${tag}`)) return false
+    const record = get().moduleLifecycle[tag]
+    const runtime = get().modules[tag]
+    if (!record || record.online || runtime?.type !== 'AO') return rejectAo(get, tag, 'Go Offline to save the module draft')
+    const draft = withProjectMembership(record.draft, runtime)
+    const error = configurationError(draft)
+    if (error) return rejectAo(get, tag, error)
+    try {
+      window.localStorage.setItem(savedAoStorageKey(tag), serializeSavedAo(draft))
+    } catch (error) {
+      return rejectAo(get, tag, `Save failed; database unchanged: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record,
+      draft, saved: cloneConfiguration(draft), savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Module saved to the local browser configuration database; runtime unchanged')
+    return true
+  },
+
+  loadSavedModuleConfiguration: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Load saved module ${tag}`)) return false
+    const record = get().moduleLifecycle[tag]
+    if (!record || record.online) return rejectAo(get, tag, 'Go Offline before loading saved configuration')
+    let saved
+    try {
+      const text = window.localStorage.getItem(savedAoStorageKey(tag))
+      if (text === null) return rejectAo(get, tag, 'No saved AO configuration exists for this tag in this browser profile')
+      saved = parseSavedAo(text, tag)
+    } catch (error) {
+      return rejectAo(get, tag, `Load failed; draft/runtime unchanged: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    if (!get().areas.includes(saved.module.area)) return rejectAo(get, tag, 'Create the saved plant area before loading this module')
+    set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record,
+      draft: cloneConfiguration(saved), saved, savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Persistent saved configuration loaded offline; download is still required')
+    return true
+  },
+
+  downloadModule: (tag, scope) => {
+    if (!useSecurity.getState().requireLock('CAN_DOWNLOAD', `Download module ${tag}`)) return false
+    const state = get()
+    const record = state.moduleLifecycle[tag]
+    const runtime = state.modules[tag]
+    if (!record?.saved || runtime?.type !== 'AO' || lifecycleDirty(record)) {
+      return rejectAo(get, tag, 'Save a valid offline draft before downloading')
+    }
+    if (!['FULL', 'PARTIAL'].includes(scope) || (scope === 'PARTIAL' && (!record.deployed || !runtime.downloaded))) {
+      return rejectAo(get, tag, 'First download must be Full; subsequent scope must be Full or Partial')
+    }
+    const error = downloadError(record.saved, state.hardware)
+    if (error) return rejectAo(get, tag, `Download failed; last-good runtime retained: ${error}`)
+    const saved = record.saved
+    const behavior = scope === 'FULL' ? 'CONFIGURED' : saved.downloadBehavior
+    const module = deployedAo(saved, runtime, behavior, state.hardware)
+    const transferError = configurationError({ ...saved, module })
+    if (transferError) return rejectAo(get, tag, `Preserved runtime values are invalid: ${transferError}`)
+    set(s => ({
+      modules: { ...s.modules, [tag]: module },
+      hardware: { ...s.hardware, analogBindings: { ...s.hardware.analogBindings,
+        [tag]: { output: saved.outputDst } } },
+      moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record,
+        deployed: cloneConfiguration(saved), deployedRevision: record.savedRevision,
+        nvm: memoryOf(module) } }, rev: s.rev + 1
+    }))
+    get().logEvent('CONFIGURE', tag, `${scope} simulated module download committed atomically (${behavior}); NVM updated`)
+    return true
+  },
+
+  uploadModule: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Upload module ${tag}`)) return false
+    const state = get()
+    const record = state.moduleLifecycle[tag]
+    const runtime = state.modules[tag]
+    const controller = record?.deployed ? state.hardware.controllers[record.deployed.controllerTag] : undefined
+    if (!record?.deployed || runtime?.type !== 'AO' || !runtime.downloaded) {
+      return rejectAo(get, tag, 'Upload requires a downloaded AO module')
+    }
+    if (!controller || controllerIsDown(controller)) return rejectAo(get, tag, 'Upload requires an available assigned controller')
+    const draft = cloneConfiguration(record.deployed)
+    draft.module = cloneAo(runtime)
+    delete draft.module.downloaded
+    delete draft.module.controllerTag
+    // Upload defaults, not transient field readback/quality, to the offline draft.
+    const defaults = record.deployed.module
+    for (const key of ['out', 'pv', 'bad', 'actualMode', 'limited'] as const) {
+      Object.assign(draft.module, { [key]: defaults[key] })
+    }
+    set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record, draft, online: false } },
+      rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Runtime uploaded into offline draft; Save is still required')
+    return true
+  },
+
+  restartModule: (tag) => {
+    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Cold restart module ${tag}`)) return false
+    const state = get()
+    const record = state.moduleLifecycle[tag]
+    const runtime = state.modules[tag]
+    const controller = record?.deployed ? state.hardware.controllers[record.deployed.controllerTag] : undefined
+    if (!record?.deployed || runtime?.type !== 'AO' || !runtime.downloaded ||
+        !controller || controllerIsDown(controller)) return rejectAo(get, tag, 'Cold restart requires an available downloaded module')
+    const module = restartAo(record, runtime, state.hardware)
+    set(s => ({ modules: { ...s.modules, [tag]: module }, moduleLifecycle: { ...s.moduleLifecycle,
+      [tag]: { ...record, nvm: memoryOf(module) } }, rev: s.rev + 1 }))
+    get().logEvent('DIAGNOSTIC', tag, 'Simulated cold restart used deployed defaults and selected NVM restore flags')
+    return true
+  },
+
   configureStandaloneAo: (tag, patch) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag} AO`)) return false
+    if (get().moduleLifecycle[tag]) return get().editModuleDraft(tag, patch)
     const module = get().modules[tag]
     const error = module?.type !== 'AO' ? 'Select a standalone AO module' : aoConfigurationError(module, patch)
     if (error) return rejectAo(get, tag, error)
@@ -1141,6 +1348,8 @@ export const useStore = create<StoreState>((set, get) => ({
   setStandaloneAoMode: (tag, mode) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Set ${tag} AO mode`)) return false
     const module = get().modules[tag]
+    const availability = module?.type === 'AO' ? aoOperatorError(module, get().hardware) : null
+    if (availability) return rejectAo(get, tag, availability)
     if (module?.type !== 'AO' || !['CAS', 'AUTO', 'MAN', 'OOS'].includes(mode)) {
       return rejectAo(get, tag, 'AO mode requires CAS, AUTO, MAN or OOS')
     }
@@ -1158,6 +1367,8 @@ export const useStore = create<StoreState>((set, get) => ({
   setStandaloneAoValue: (tag, value) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Write ${tag} AO setpoint/output`)) return false
     const module = get().modules[tag]
+    const availability = module?.type === 'AO' ? aoOperatorError(module, get().hardware) : null
+    if (availability) return rejectAo(get, tag, availability)
     const error = module?.type !== 'AO' ? 'Select a standalone AO module' :
       module.mode !== 'AUTO' && module.mode !== 'MAN' ? 'AO direct value entry requires AUTO or MAN' :
       !Number.isFinite(value) || value < (module.mode === 'MAN' ? 0 : module.spLow) ||
@@ -1176,14 +1387,20 @@ export const useStore = create<StoreState>((set, get) => ({
   addAoParameter: (tag, name, value) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create ${tag} input parameter`)) return false
     const key = name.trim().toUpperCase()
-    const module = get().modules[tag]
+    const record = get().moduleLifecycle[tag]
+    if (record?.online) return rejectAo(get, tag, 'Go Offline to create configured parameters')
+    const module = record?.draft.module ?? get().modules[tag]
     const error = module?.type !== 'AO' ? 'Input parameters currently require a standalone AO module' :
       moduleNameError(key) ?? (['AO1', 'PV', 'SP', 'OUT', 'MODE', 'CAS_IN', 'IO_OUT'].includes(key)
         ? 'Parameter name conflicts with an AO block/parameter' :
         module.parameters[key] ? `Parameter ${key} already exists` :
         !Number.isFinite(value) ? 'Floating Point input value must be finite' : null)
     if (error) return rejectAo(get, tag, error)
-    mutateModule(set, get, tag, m => {
+    if (record && module.type === 'AO') {
+      const draft = cloneConfiguration(record.draft)
+      draft.module.parameters[key] = { type: 'FLOAT', value }
+      set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record, draft } }, rev: s.rev + 1 }))
+    } else mutateModule(set, get, tag, m => {
       if (m.type === 'AO') m.parameters = { ...m.parameters, [key]: { type: 'FLOAT', value } }
     })
     get().logEvent('CONFIGURE', tag, `Floating Point input ${key} created`)
@@ -1193,6 +1410,8 @@ export const useStore = create<StoreState>((set, get) => ({
   setAoParameter: (tag, name, value) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Write ${tag}/${name}`)) return false
     const module = get().modules[tag]
+    const availability = module?.type === 'AO' ? aoOperatorError(module, get().hardware) : null
+    if (availability) return rejectAo(get, tag, availability)
     const error = module?.type !== 'AO' || !module.parameters[name] ? 'Floating Point input parameter does not exist' :
       !Number.isFinite(value) ? 'Floating Point input value must be finite' : null
     if (error) return rejectAo(get, tag, error)
@@ -1205,11 +1424,17 @@ export const useStore = create<StoreState>((set, get) => ({
 
   connectAoParameter: (tag, name) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Wire ${tag} CAS_IN`)) return false
-    const module = get().modules[tag]
+    const record = get().moduleLifecycle[tag]
+    if (record?.online) return rejectAo(get, tag, 'Go Offline to change configured CAS_IN wiring')
+    const module = record?.draft.module ?? get().modules[tag]
     if (module?.type !== 'AO' || (name !== undefined && !module.parameters[name])) {
       return rejectAo(get, tag, 'Select an existing Floating Point input parameter')
     }
-    mutateModule(set, get, tag, m => {
+    if (record) {
+      const draft = cloneConfiguration(record.draft)
+      draft.module.casParameter = name
+      set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record, draft } }, rev: s.rev + 1 }))
+    } else mutateModule(set, get, tag, m => {
       if (m.type === 'AO') { m.casParameter = name; m.bad = true }
     })
     get().logEvent('CONFIGURE', tag, `AO1.CAS_IN connected to ${name ?? '(none)'}`)
@@ -1219,6 +1444,11 @@ export const useStore = create<StoreState>((set, get) => ({
   bindAnalogDst: (tag, port, dst) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Bind ${tag} ${port} traditional I/O`)) return false
     const normalized = dst.trim().toUpperCase()
+    const record = get().moduleLifecycle[tag]
+    if (record) {
+      if (port !== 'output') return rejectAo(get, tag, 'Standalone AO supports IO_OUT only')
+      return get().editModuleDraft(tag, { outputDst: normalized })
+    }
     const error = analogBindingError(get().hardware, get().modules[tag], port, normalized)
     if (error) {
       get().logEvent('DIAGNOSTIC', tag, `Analog I/O binding rejected: ${error}`)
@@ -1311,7 +1541,9 @@ export const useStore = create<StoreState>((set, get) => ({
       delete bindings[tag]
       const analogBindings = { ...s.hardware.analogBindings }
       delete analogBindings[tag]
-      return { modules, hardware: { ...s.hardware, discreteBindings: bindings, analogBindings },
+      const moduleLifecycle = { ...s.moduleLifecycle }
+      delete moduleLifecycle[tag]
+      return { modules, moduleLifecycle, hardware: { ...s.hardware, discreteBindings: bindings, analogBindings },
         alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
     })
     get().logEvent('CONFIGURE', tag, 'Module deleted')
@@ -1425,6 +1657,7 @@ export const useStore = create<StoreState>((set, get) => ({
       sfcs: kind === 'blank' ? {} : makeDefaultSfcs(),
       equipment: kind === 'blank' ? makeBlankEquipment() : makeDefaultEquipment(),
       hardware: kind === 'blank' ? makeBlankHardware() : makeDefaultHardware(),
+      moduleLifecycle: {},
       rev: get().rev + 1
     })
   }

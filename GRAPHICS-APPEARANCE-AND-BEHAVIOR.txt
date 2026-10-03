@@ -912,6 +912,74 @@ complete manual implemented or redesign approved graphics to hide these gaps.
 Commit permitted; push remains unauthorized.
 
 ===============================================================================
+20. DV-09 OPT-IN AO SAVED LIFECYCLE - DO NOT REDESIGN THE APPROVED PLANT
+===============================================================================
+
+This is an added training workflow for standalone AO, not a new plant theme.
+All approved motors/pumps, distinct valve symbols, feedback green/black,
+tanks/agitators, pipe routes, engineering icons, FBD block geometry, ribbons
+and palette/tree arrangement remain protected by the earlier sections.
+Do not replace or restyle them to introduce configuration/download controls.
+
+Enable Saved Module Lifecycle is explicit and warns that output will hold.
+Do not enroll the established pharma modules automatically. Unenrolled AO
+and the other module types retain their previous immediately-live behavior.
+Enrollment changes functionality, not symbol geometry or equipment state colors.
+
+Studio presentation:
+- Add controls to the existing parameter table and wrapping channel forms.
+  Keep the table's existing scrollable pane; do not enlarge blocks or ribbons
+  to fit lengthy lifecycle labels.
+- Caption must distinguish OFFLINE configuration draft from ONLINE controller
+  runtime. Offline values are defaults, never falsely labeled sampled feedback.
+- Offline FBD uses the draft CAS_SP node, AO block and actual connection.
+  Online FBD uses runtime, including its connected signal sources; a separate
+  offline module must not substitute its draft into an online diagram.
+- The live parameter CV, configured default, actual percent output and
+  hardware readback are separate values. Continue held Bad presentation for
+  undownloaded, OOS, disconnected, disabled or unavailable execution paths.
+- Save and Download use the existing ribbon style. They are enabled only
+  for enrolled AO, not decorative promises of generic controller download.
+- Download is a native modal using the existing panel/text/border variables.
+  It blocks background interaction, restores focus when closed, and supports
+  Cancel and Escape. Its controls and text stay inside their own dialog.
+  At1024x720 it is440px wide, wholly within the viewport, without horizontal
+  control overflow. Do not change the reference palette to emphasize it.
+
+Functional contract:
+- Draft, saved, deployed, live and simulated NVM must remain independent.
+- Save persists configuration in this browser profile only. Loading a saved
+  tag requires explicit confirmation and never changes runtime automatically.
+- First download is Full. Cancel/failure leaves output, binding, deployed
+  snapshot and NVM unchanged; error is explicitly reported.
+- Full uses configured values. Partial CONFIGURED/CRITICAL/ALL must retain
+  the pp170 CAS/500, AUTO/500 and AUTO/555 outcomes respectively.
+- Online operator writes cannot overwrite configured defaults. Offline
+  wiring, scale, binding and controller assignment cannot affect runtime
+  until a validated transfer.
+- Upload copies runtime values to a draft and still requires explicit Save.
+- Area/Equipment Module membership remains project-level metadata. Save
+  captures its current state; transfer/restart must not revive old folders
+  or deleted equipment parents. This is not control-parameter preservation.
+- Only DEPLOYED module and parameter flags govern restart restoration.
+  Selected OUT means its current CV, not an unrelated inactive manual value.
+- Outside the controller cold-restart window, commissioning is insufficient:
+  show undownloaded status and require Full Download.
+- Real communication, native templates/files, whole-controller transfer and
+  NVM persistence across browser reload are NOT implemented by this workflow.
+
+Regression requirements:
+- Preserve pp169 restart flag combinations and pp170 all three outcomes.
+- Test cancelled/invalid/denied/colliding transfers and storage quota failures.
+- Verify Save survives browser reload but deployment does not auto-resume.
+- Verify offline edits do not move runtime output or change plant appearance.
+- Restore the original running96-module plant after any isolated test fixture.
+- Retain113 control and five audit regressions, typecheck/build/diagnostics,
+  and the zero-unmapped audit ledger. The course as a whole is not complete.
+No motor/valve/tank/piping redesign was made in this milestone.
+Commit locally; do not push until the user authorizes it.
+
+===============================================================================
 19. DV-09 STANDALONE AO - PRESERVE THE REFERENCE PRESENTATION
 ===============================================================================
 

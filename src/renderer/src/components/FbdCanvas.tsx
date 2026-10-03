@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { BUILTIN_TAGS } from '../engine/plant'
@@ -8,6 +8,7 @@ import { FunctionBlockIcon } from './EngineeringIcons'
 import { pidIo } from '../engine/analogStrategy'
 import { avoidSavedBlockOverlaps, buildControlDiagram, type DiagramBlock, type DiagramWire } from '../engine/controlDiagram'
 import type { AnalogSignalRef, AnyModule, PidBlockName } from '../engine/types'
+import { lifecycleModules } from '../engine/moduleLifecycle'
 
 // A true IEC 61131-3 / DeltaV-style Function Block Diagram node editor:
 // draggable nodes, click-drag pin-to-pin wiring, orthogonal colored wires,
@@ -104,7 +105,10 @@ export function FbdCanvas({
   selectedBlock?: PidBlockName
   zoom?: number
 }): JSX.Element {
-  const modules = useStore((s) => s.modules)
+  const runtimeModules = useStore((s) => s.modules)
+  const moduleLifecycle = useStore(s => s.moduleLifecycle)
+  const modules = useMemo(() => lifecycleModules({ modules: runtimeModules, moduleLifecycle }, selectedTag),
+    [runtimeModules, moduleLifecycle, selectedTag])
   const setFbInput = useStore((s) => s.setFbInput)
   const setCasSource = useStore((s) => s.setCasSource)
   const setFeedforward = useStore((s) => s.setFeedforward)

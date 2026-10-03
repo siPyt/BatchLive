@@ -633,7 +633,11 @@ function withAreaProject(run) {
   const previousSecurity = useSecurity.getState()
   const previousWindow = global.window
   const alerts = []
-  global.window = { alert: message => alerts.push(message) }
+  const savedConfiguration = new Map()
+  global.window = { alert: message => alerts.push(message), localStorage: {
+    setItem: (key, value) => savedConfiguration.set(key, value),
+    getItem: key => savedConfiguration.get(key) ?? null
+  } }
   try {
     useSecurity.setState({ currentUser: 'admin', locked: false })
     useStore.getState().newProject('pharma')
@@ -1334,6 +1338,434 @@ test('standalone AO outputs participate in PID cascade scaling, SFC actions and 
     assert.equal(point.values['LEVEL-101.PV'], 500)
     assert.equal(point.values['LEVEL-101.SP'], 500)
     assert.equal(point.values['LEVEL-101.OUT'], 50)
+  })
+})
+
+function savedAoCourseProject(store) {
+  standaloneAoCourseProject(store)
+  assert.equal(store.enableModuleLifecycle('LEVEL-101'), true)
+  assert.equal(store.editModuleDraft('LEVEL-101', { mode: 'CAS', sp: 500,
+    parameter: { name: 'CAS_SP', value: 500 } }), true)
+  assert.equal(store.saveModuleConfiguration('LEVEL-101'), true)
+  assert.equal(store.downloadModule('LEVEL-101', 'FULL'), true)
+  store.tick(0.1)
+}
+
+test('saved AO lifecycle is opt-in: enrollment holds, Save does not execute, Full download activates', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    assert.equal(store.enableModuleLifecycle('LEVEL-101'), true)
+    let state = useStore.getState()
+    const record = state.moduleLifecycle['LEVEL-101']
+    assert.equal(record.online, false)
+    assert.equal(record.saved, undefined)
+    assert.equal(state.modules['LEVEL-101'].downloaded, false)
+    assert.equal(store.setAoParameter('LEVEL-101', 'CAS_SP', 800), false)
+    assert.equal(store.setModuleOnline('LEVEL-101', true), false)
+    assert.equal(store.uploadModule('LEVEL-101'), false)
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), false)
+    assert.equal(store.setModuleOnline('LEVEL-101', true), false)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 50)
+    assert.equal(useStore.getState().modules['LEVEL-101'].bad, true)
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 800 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.tick(0.1)
+    state = useStore.getState()
+    assert.equal(state.modules['LEVEL-101'].parameters.CAS_SP.value, 500)
+    assert.equal(state.modules['LEVEL-101'].out, 50)
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), false)
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL'), true)
+    store.tick(0.1)
+    state = useStore.getState()
+    assert.equal(state.modules['LEVEL-101'].out, 80)
+    assert.equal(state.modules['LEVEL-101'].controllerTag, 'CTRL1')
+    assert.equal(state.moduleLifecycle['LEVEL-101'].deployedRevision, 1)
+    assert.equal(record.draft.module.parameters.CAS_SP.value, 500)
+  })
+})
+
+test('DV09 p170 exact partial download outcomes: configured CAS500, critical AUTO500, all AUTO555', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    for (const [behavior, mode, value] of [['CONFIGURED', 'CAS', 500], ['CRITICAL', 'AUTO', 500],
+      ['ALL', 'AUTO', 555]]) {
+      store.setModuleOnline('LEVEL-101', false)
+      assert.equal(store.editModuleDraft('LEVEL-101', { downloadBehavior: behavior }), true)
+      assert.equal(store.saveModuleConfiguration('LEVEL-101'), true)
+      store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+      store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+      store.tick(0.1)
+      assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), true)
+      const m = useStore.getState().modules['LEVEL-101']
+      assert.deepEqual([m.mode, m.parameters.CAS_SP.value], [mode, value])
+      const saved = useStore.getState().moduleLifecycle['LEVEL-101'].saved
+      assert.deepEqual([saved.module.mode, saved.module.parameters.CAS_SP.value], ['CAS', 500])
+    }
+  })
+})
+
+test('Full download always applies configured values even when preservation policy is ALL', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { downloadBehavior: 'ALL' })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL'), true)
+    assert.deepEqual([useStore.getState().modules['LEVEL-101'].mode,
+      useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value], ['CAS', 500])
+  })
+})
+
+test('offline AO edits and FBD/binding draft changes do not affect last-good runtime until download', () => {
+  withAreaProject(store => {
+    const { lifecycleDirty, lifecycleModules } = require('../src/renderer/src/engine/moduleLifecycle.ts')
+    savedAoCourseProject(store)
+    const before = useStore.getState()
+    assert.equal(store.addAoParameter('LEVEL-101', 'SECOND', 800), true)
+    assert.equal(store.connectAoParameter('LEVEL-101', 'SECOND'), true)
+    assert.equal(store.bindAnalogDst('LEVEL-101', 'output', 'FY-2'), true)
+    let state = useStore.getState()
+    assert.equal(state.hardware.analogBindings['LEVEL-101'].output, 'LY-1')
+    assert.equal(state.modules['LEVEL-101'].casParameter, 'CAS_SP')
+    assert.equal(state.modules['LEVEL-101'].parameters.SECOND, undefined)
+    assert.equal(lifecycleModules(state)['LEVEL-101'].casParameter, 'SECOND')
+    assert.equal(lifecycleDirty(state.moduleLifecycle['LEVEL-101']), true)
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), false)
+    store.saveModuleConfiguration('LEVEL-101')
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), true)
+    store.tick(0.1)
+    state = useStore.getState()
+    assert.equal(state.hardware.analogBindings['LEVEL-101'].output, 'FY-2')
+    assert.equal(state.modules['LEVEL-101'].out, 80)
+    assert.equal(findDst(state.hardware, 'FY-2').channel.value, 80)
+    assert.equal(before.moduleLifecycle['LEVEL-101'].saved.module.parameters.SECOND, undefined)
+    assert.equal(before.modules['LEVEL-101'].casParameter, 'CAS_SP')
+  })
+})
+
+test('download verifies assignment, ownership and available controller without partially changing runtime', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.createController('CTRL2', 'Other assignment')
+    store.commissionController('CTRL2')
+    store.editModuleDraft('LEVEL-101', { controllerTag: 'CTRL2' })
+    store.saveModuleConfiguration('LEVEL-101')
+    let before = useStore.getState()
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), false)
+    assert.equal(useStore.getState().modules['LEVEL-101'], before.modules['LEVEL-101'])
+    assert.equal(useStore.getState().hardware, before.hardware)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].deployedRevision, 1)
+    store.editModuleDraft('LEVEL-101', { controllerTag: 'CTRL1' })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.simulateControllerPowerLoss('CTRL1')
+    before = useStore.getState()
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), false)
+    assert.equal(useStore.getState().modules['LEVEL-101'], before.modules['LEVEL-101'])
+    store.restoreControllerPower('CTRL1')
+    store.commissionController('CTRL1')
+    store.createModule({ tag: 'OTHER-WRITER', type: 'AO', area: 'PLANT_AREA_A', description: 'Collision' })
+    store.bindAnalogDst('OTHER-WRITER', 'output', 'FY-2')
+    store.editModuleDraft('LEVEL-101', { outputDst: 'FY-2' })
+    store.saveModuleConfiguration('LEVEL-101')
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL'), false)
+    assert.equal(useStore.getState().hardware.analogBindings['LEVEL-101'].output, 'LY-1')
+  })
+})
+
+test('online mode displays runtime and rejects offline configuration changes; operators do not alter saved defaults', () => {
+  withAreaProject(store => {
+    const { lifecycleModules } = require('../src/renderer/src/engine/moduleLifecycle.ts')
+    savedAoCourseProject(store)
+    assert.equal(store.setModuleOnline('LEVEL-101', true), true)
+    assert.equal(lifecycleModules(useStore.getState(), 'LEVEL-101'), useStore.getState().modules)
+    const before = useStore.getState().moduleLifecycle['LEVEL-101']
+    assert.equal(store.configureStandaloneAo('LEVEL-101', { spHigh: 900 }), false)
+    assert.equal(store.bindAnalogDst('LEVEL-101', 'output', 'FY-2'), false)
+    assert.equal(store.addAoParameter('LEVEL-101', 'OTHER', 500), false)
+    assert.equal(store.connectAoParameter('LEVEL-101', undefined), false)
+    assert.equal(store.saveModuleConfiguration('LEVEL-101'), false)
+    store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+    store.tick(0.1)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].saved.module.parameters.CAS_SP.value, 500)
+    assert.equal(before.saved.module.mode, 'CAS')
+    assert.equal(useStore.getState().modules['LEVEL-101'].mode, 'AUTO')
+    store.setModuleOnline('LEVEL-101', false)
+    assert.equal(lifecycleModules(useStore.getState(), 'LEVEL-101')['LEVEL-101'],
+      useStore.getState().moduleLifecycle['LEVEL-101'].draft.module)
+  })
+})
+
+test('DV09 p169 cold restart restores only when both deployed module and parameter flags are checked', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    for (const [restoreModule, restoreParameters, expected] of [
+      [false, [], 500], [true, [], 500], [false, ['CAS_SP'], 500], [true, ['CAS_SP'], 555]
+    ]) {
+      store.setModuleOnline('LEVEL-101', false)
+      store.editModuleDraft('LEVEL-101', { restoreModule, restoreParameters })
+      store.saveModuleConfiguration('LEVEL-101')
+      store.downloadModule('LEVEL-101', 'FULL')
+      store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+      store.tick(0.1)
+      assert.equal(store.restartModule('LEVEL-101'), true)
+      store.tick(0.1)
+      assert.equal(useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value, expected)
+      assert.ok(Math.abs(useStore.getState().modules['LEVEL-101'].out - expected / 10) < 1e-9)
+    }
+  })
+})
+
+test('saved but undownloaded restart flags/defaults cannot change deployed NVM behavior', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+    store.tick(0.1)
+    store.editModuleDraft('LEVEL-101', { restoreModule: true, restoreParameters: ['CAS_SP'],
+      parameter: { name: 'CAS_SP', value: 800 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    assert.equal(store.restartModule('LEVEL-101'), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value, 500)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].saved.module.parameters.CAS_SP.value, 800)
+  })
+})
+
+test('controller power-loss restart uses assigned AO NVM and timeout requires a fresh download', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { restoreModule: true, restoreParameters: ['CAS_SP'] })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.downloadModule('LEVEL-101', 'FULL')
+    store.setControllerConfiguration('CTRL1', { coldRestartMinutes: 5 })
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+    store.simulateControllerPowerLoss('CTRL1')
+    store.tick(0.1)
+    store.restoreControllerPower('CTRL1')
+    assert.equal(useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value, 555)
+    store.setControllerConfiguration('CTRL1', { coldRestartMinutes: 0 })
+    store.simulateControllerPowerLoss('CTRL1')
+    store.restoreControllerPower('CTRL1')
+    assert.equal(useStore.getState().modules['LEVEL-101'].downloaded, false)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].nvm, undefined)
+    store.commissionController('CTRL1')
+    store.setControllerConfiguration('CTRL1', { coldRestartMinutes: 5 })
+    store.simulateControllerPowerLoss('CTRL1')
+    store.restoreControllerPower('CTRL1')
+    assert.equal(useStore.getState().modules['LEVEL-101'].downloaded, false)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].bad, true)
+    assert.equal(store.setAoParameter('LEVEL-101', 'CAS_SP', 800), false)
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL'), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].bad, false)
+  })
+})
+
+test('upload captures online values into a separate unsaved draft without overwriting configuration', () => {
+  withAreaProject(store => {
+    const { lifecycleDirty } = require('../src/renderer/src/engine/moduleLifecycle.ts')
+    savedAoCourseProject(store)
+    store.setModuleOnline('LEVEL-101', true)
+    store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+    const before = useStore.getState()
+    assert.equal(store.uploadModule('LEVEL-101'), true)
+    const record = useStore.getState().moduleLifecycle['LEVEL-101']
+    assert.deepEqual([record.draft.module.mode, record.draft.module.parameters.CAS_SP.value], ['AUTO', 555])
+    assert.deepEqual([record.saved.module.mode, record.saved.module.parameters.CAS_SP.value], ['CAS', 500])
+    assert.equal(record.online, false)
+    assert.equal(lifecycleDirty(record), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'], before.modules['LEVEL-101'])
+  })
+})
+
+test('module lifecycle requires configuration/download keys and cleans all state on deletion/reset', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    const before = useStore.getState().moduleLifecycle['LEVEL-101']
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    assert.equal(store.editModuleDraft('LEVEL-101', { mode: 'MAN' }), false)
+    assert.equal(store.saveModuleConfiguration('LEVEL-101'), false)
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL'), false)
+    assert.equal(store.uploadModule('LEVEL-101'), false)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'], before)
+    useSecurity.setState({ currentUser: 'admin' })
+    store.deleteModule('LEVEL-101')
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'], undefined)
+    savedAoCourseProject(store)
+    store.newProject('pharma')
+    assert.deepEqual(useStore.getState().moduleLifecycle, {})
+    assert.equal(useStore.getState().modules['XV-101'].type, 'VALVE')
+  })
+})
+
+test('persistent AO configuration survives a new project without reactivating runtime automatically', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 750 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.newProject('blank')
+    store.createArea('PLANT_AREA_A')
+    store.createController('CTRL1', 'Restored prerequisites')
+    store.commissionController('CTRL1')
+    store.addTraditionalCard('CTRL1', 2, 'AO')
+    store.configureTraditionalChannel('CTRL1/C02', 1, { dst: 'LY-1', enabled: true })
+    store.createModule({ tag: 'LEVEL-101', type: 'AO', area: 'PLANT_AREA_A', description: 'Reopened',
+      pvMin: 0, pvMax: 1000, unit: 'gal' })
+    store.enableModuleLifecycle('LEVEL-101')
+    assert.equal(store.loadSavedModuleConfiguration('LEVEL-101'), true)
+    const record = useStore.getState().moduleLifecycle['LEVEL-101']
+    assert.equal(record.saved.module.parameters.CAS_SP.value, 750)
+    assert.equal(record.deployed, undefined)
+    assert.equal(useStore.getState().modules['LEVEL-101'].downloaded, false)
+    assert.equal(store.setModuleOnline('LEVEL-101', true), false)
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL'), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 75)
+  })
+})
+
+test('persistent Save failure reports error without marking draft saved or changing runtime', () => {
+  withAreaProject((store, alerts) => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 750 } })
+    const before = useStore.getState()
+    global.window.localStorage.setItem = () => { throw new Error('Storage quota exceeded') }
+    assert.equal(store.saveModuleConfiguration('LEVEL-101'), false)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'], before.moduleLifecycle['LEVEL-101'])
+    assert.equal(useStore.getState().modules['LEVEL-101'], before.modules['LEVEL-101'])
+    assert.match(alerts.at(-1), /Save failed.*quota/)
+  })
+})
+
+test('saved AO schema validation rejects corrupt, nonfinite, wrong-tag and stale parameter data', () => {
+  withAreaProject((store, alerts) => {
+    const { parseSavedAo, savedAoStorageKey } = require('../src/renderer/src/engine/moduleLifecycle.ts')
+    savedAoCourseProject(store)
+    const valid = global.window.localStorage.getItem(savedAoStorageKey('LEVEL-101'))
+    assert.equal(parseSavedAo(valid, 'LEVEL-101').module.type, 'AO')
+    assert.throws(() => parseSavedAo(valid, 'WRONG-TAG'), /tag/)
+    assert.throws(() => parseSavedAo('{', 'LEVEL-101'))
+    for (const modify of [
+      d => { d.version = 99 },
+      d => { d.configuration.module.parameters.CAS_SP.value = null },
+      d => { d.configuration.module.pvMax = 0 },
+      d => { d.configuration.module.decimals = -1 },
+      d => { d.configuration.module.alarms = [{ type: 'UNKNOWN', label: 'Invalid', enabled: true, priority: 'CRITICAL' }] },
+      d => { d.configuration.module.casParameter = 'MISSING' },
+      d => { d.configuration.restoreParameters = ['MISSING'] }
+    ]) {
+      const data = JSON.parse(valid)
+      modify(data)
+      global.window.localStorage.setItem(savedAoStorageKey('LEVEL-101'), JSON.stringify(data))
+      const before = useStore.getState()
+      assert.equal(store.loadSavedModuleConfiguration('LEVEL-101'), false)
+      assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'], before.moduleLifecycle['LEVEL-101'])
+      assert.equal(useStore.getState().modules['LEVEL-101'], before.modules['LEVEL-101'])
+      assert.match(alerts.at(-1), /Load failed/)
+    }
+    const alarmConfig = JSON.parse(valid)
+    alarmConfig.configuration.module.alarms = [{ type: 'PVBAD', label: 'PV BAD', enabled: true, priority: 'WARNING' }]
+    assert.equal(parseSavedAo(JSON.stringify(alarmConfig), 'LEVEL-101').module.alarms[0].label, 'PV BAD')
+  })
+})
+
+test('critical SP and manual-output restart restoration are individually selected and snapshots remain independent', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { restoreModule: true, restoreParameters: ['AO1/SP', 'AO1/OUT', 'AO1/MODE'] })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.downloadModule('LEVEL-101', 'FULL')
+    const before = useStore.getState().moduleLifecycle['LEVEL-101']
+    store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+    store.setStandaloneAoValue('LEVEL-101', 700)
+    store.setStandaloneAoMode('LEVEL-101', 'MAN')
+    store.setStandaloneAoValue('LEVEL-101', 25)
+    store.tick(0.1)
+    store.restartModule('LEVEL-101')
+    store.tick(0.1)
+    const m = useStore.getState().modules['LEVEL-101']
+    assert.deepEqual([m.mode, m.sp, m.manualOutput, m.out], ['MAN', 700, 25, 25])
+    assert.equal(before.saved.module.mode, 'CAS')
+    assert.equal(before.saved.module.sp, 500)
+    assert.equal(before.nvm.mode, 'CAS')
+  })
+})
+
+test('OUT restart restoration uses the live OUT CV rather than inactive manual settings in CAS', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { mode: 'MAN', manualOutput: 10,
+      restoreModule: true, restoreParameters: ['AO1/OUT'] })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.downloadModule('LEVEL-101', 'FULL')
+    store.setStandaloneAoMode('LEVEL-101', 'CAS')
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 600)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 60)
+    store.restartModule('LEVEL-101')
+    store.tick(0.1)
+    const m = useStore.getState().modules['LEVEL-101']
+    assert.deepEqual([m.mode, m.manualOutput, m.out], ['MAN', 60, 60])
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].saved.module.manualOutput, 10)
+  })
+})
+
+test('preserving nonfinite live user values rejects download atomically instead of resetting silently', () => {
+  withAreaProject((store, alerts) => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { downloadBehavior: 'ALL' })
+    store.saveModuleConfiguration('LEVEL-101')
+    const m = useStore.getState().modules['LEVEL-101']
+    useStore.setState({ modules: { ...useStore.getState().modules, 'LEVEL-101': { ...m,
+      parameters: { ...m.parameters, CAS_SP: { type: 'FLOAT', value: NaN } } } } })
+    const before = useStore.getState()
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), false)
+    assert.equal(useStore.getState().modules, before.modules)
+    assert.equal(useStore.getState().hardware, before.hardware)
+    assert.equal(useStore.getState().moduleLifecycle, before.moduleLifecycle)
+    assert.match(alerts.at(-1), /Preserved runtime values are invalid/)
+  })
+})
+
+test('managed AO online writes and Upload reject a down controller without changing live values', () => {
+  withAreaProject((store, alerts) => {
+    savedAoCourseProject(store)
+    store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+    store.simulateControllerPowerLoss('CTRL1')
+    const before = useStore.getState()
+    assert.equal(store.setStandaloneAoMode('LEVEL-101', 'MAN'), false)
+    assert.equal(store.setStandaloneAoValue('LEVEL-101', 750), false)
+    assert.equal(store.setAoParameter('LEVEL-101', 'CAS_SP', 800), false)
+    assert.equal(store.uploadModule('LEVEL-101'), false)
+    assert.equal(useStore.getState().modules, before.modules)
+    assert.equal(useStore.getState().moduleLifecycle, before.moduleLifecycle)
+    assert.match(alerts.at(-1), /available assigned controller/)
+  })
+})
+
+test('AO transfer and restart cannot revive renamed areas or deleted equipment memberships', () => {
+  withAreaProject(store => {
+    const { parseSavedAo, savedAoStorageKey } = require('../src/renderer/src/engine/moduleLifecycle.ts')
+    savedAoCourseProject(store)
+    assert.equal(store.renameArea('PLANT_AREA_A', 'RENAMED_AREA'), true)
+    store.createEquipmentModule('COURSE_EM', 'Project membership', 'RENAMED_AREA')
+    store.setModuleEquipment('LEVEL-101', 'COURSE_EM')
+    assert.equal(store.restartModule('LEVEL-101'), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].area, 'RENAMED_AREA')
+    assert.equal(useStore.getState().modules['LEVEL-101'].equipmentModule, 'COURSE_EM')
+    assert.equal(store.saveModuleConfiguration('LEVEL-101'), true)
+    const saved = parseSavedAo(global.window.localStorage.getItem(savedAoStorageKey('LEVEL-101')), 'LEVEL-101')
+    assert.equal(saved.module.area, 'RENAMED_AREA')
+    assert.equal(saved.module.equipmentModule, 'COURSE_EM')
+    store.deleteEquipmentModule('COURSE_EM')
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL'), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].equipmentModule, undefined)
+    assert.equal(useStore.getState().modules['LEVEL-101'].area, 'RENAMED_AREA')
+    assert.equal(store.restartModule('LEVEL-101'), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].equipmentModule, undefined)
   })
 })
 

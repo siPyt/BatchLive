@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
 import { StandaloneAoControls } from '../components/StandaloneAoControls'
+import { ModuleDownloadDialog, ModuleLifecycleRows } from '../components/ModuleLifecycleControls'
+import { lifecycleModules } from '../engine/moduleLifecycle'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
 import { moduleNameError } from '../engine/naming'
@@ -23,7 +25,10 @@ import type { ReactNode } from 'react'
 
 export function ControlStudioDisplay(): JSX.Element {
   const studioTag = useUi((s) => s.studioTag)
-  const modules = useStore((s) => s.modules)
+  const runtimeModules = useStore((s) => s.modules)
+  const moduleLifecycle = useStore(s => s.moduleLifecycle)
+  const modules = useMemo(() => lifecycleModules({ modules: runtimeModules, moduleLifecycle }, studioTag ?? undefined),
+    [runtimeModules, moduleLifecycle, studioTag])
   const m = studioTag ? modules[studioTag] : undefined
   const openFaceplate = useUi((s) => s.openFaceplate)
   const select = useUi((s) => s.select)
@@ -309,9 +314,11 @@ function DiscreteIoRows({ m }: { m: Extract<AnyModule, { type: 'DI' | 'DO' }> })
 }
 
 function StandaloneAoRows({ m }: { m: AnalogOutputModule }): JSX.Element {
+  const record = useStore(s => s.moduleLifecycle[m.tag])
   return <>
+    <ModuleLifecycleRows tag={m.tag} />
     <AnalogDstRow tag={m.tag} port="output" bad={m.bad} />
-    <StandaloneAoControls module={m} />
+    <StandaloneAoControls module={m} offline={!!record && !record.online} configuration={!record || !record.online} />
   </>
 }
 
@@ -320,12 +327,13 @@ function AnalogDstRow({ tag, port, bad }: {
 }): JSX.Element {
   const hardware = useStore(s => s.hardware)
   const bind = useStore(s => s.bindAnalogDst)
+  const record = useStore(s => s.moduleLifecycle[tag])
   const input = port === 'input'
   const label = input ? 'IO_IN' : port === 'output2' ? 'AO2.IO_OUT' : 'IO_OUT'
   const choices = traditionalChannels(hardware).filter(item =>
     item.card.type === (input ? 'AI' : 'AO') && item.channel.dst)
-  const selected = hardware.analogBindings?.[tag]?.[port] ?? ''
-  return <tr><td>{label}</td><td><select aria-label={`${tag} ${label}`} value={selected}
+  const selected = record && !record.online ? record.draft.outputDst : hardware.analogBindings?.[tag]?.[port] ?? ''
+  return <tr><td>{label}</td><td><select aria-label={`${tag} ${label}`} value={selected} disabled={!!record?.online}
     onChange={e => bind(tag, port, e.target.value)}>
     <option value="">(none - local simulation)</option>
     {selected && !choices.some(item => item.channel.dst === selected) &&
@@ -333,7 +341,8 @@ function AnalogDstRow({ tag, port, bad }: {
     {choices.map(item => <option key={item.channel.dst} value={item.channel.dst}>
       {item.channel.dst} ({item.card.id} CH{item.channel.channel})
     </option>)}
-  </select></td><td>{selected ? bad ? 'Bad' : input ? 'Engineering signal' : 'Percent output' : 'Local'}</td></tr>
+  </select></td><td>{record && !record.online ? 'Offline configuration' :
+    selected ? bad ? 'Bad' : input ? 'Engineering signal' : 'Percent output' : 'Local'}</td></tr>
 }
 
 /** Property Inspector for Math/Logic/Timer/Analog-Control blocks: IN1/IN2
@@ -1184,6 +1193,9 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
   panes: Record<StudioPane, boolean>; onToggle: (pane: StudioPane) => void
 }): JSX.Element {
   const [tab, setTab] = useState('Diagram')
+  const [showDownload, setShowDownload] = useState(false)
+  const record = useStore(s => s.moduleLifecycle[tag])
+  const save = useStore(s => s.saveModuleConfiguration)
   const focusExplorer = useUi((s) => s.focusExplorer)
   const focusAlarms = useUi((s) => s.focusAlarms)
   const focusTrend = useUi((s) => s.focusTrend)
@@ -1191,7 +1203,7 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
   const trendAvailable = module?.type === 'PID' || module?.type === 'AI'
   return (
     <div className="ribbon">
-      <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio</span><span className="studio-caption-status">ONLINE · simulated configuration</span></div>
+      <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio</span><span className="studio-caption-status">{record ? record.online ? 'ONLINE - controller runtime' : 'OFFLINE - configuration draft' : 'ONLINE · simulated configuration'}</span></div>
       <div className="ribbon-tabs">
         {RIBBON_TABS.map((t) => (
           <button key={t} type="button" className={'ribbon-tab' + (t === 'File' ? ' file' : t === tab ? ' active' : '')}
@@ -1210,7 +1222,10 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
         </RibbonGroup>}
         {tab !== 'View' && <>
           <RibbonGroup label="Module">
-            <RibbonBtn ic="download" label="Download" unavailable="This simulator has no Control Studio module download command" />
+            <RibbonBtn ic="download" label="Download" onClick={() => setShowDownload(true)}
+              unavailable={record ? undefined : 'Enable Saved Module Lifecycle on a standalone AO first'} />
+            {record && <RibbonBtn ic="parameters" label="Save" onClick={() => save(tag)}
+              unavailable={record.online ? 'Go Offline before saving configuration' : undefined} />}
             <RibbonBtn ic="module" label="Faceplate" onClick={onFaceplate} />
             <RibbonBtn ic="parameters" label="Properties" onClick={() => focusExplorer(tag)} />
           </RibbonGroup>
@@ -1234,6 +1249,7 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
           <RibbonBtn ic="reset" label="100%" onClick={() => onZoom(1)} />
         </RibbonGroup>
       </div>
+      {showDownload && <ModuleDownloadDialog tag={tag} onClose={() => setShowDownload(false)} />}
     </div>
   )
 }

@@ -21,7 +21,7 @@ export function aoEngineeringValue(m: AnalogOutputModule, percent: number): numb
 export function executeStandaloneAo(m: AnalogOutputModule, hardwareBad: boolean): void {
   const parameter = m.casParameter ? m.parameters[m.casParameter] : undefined
   const command = m.mode === 'CAS' ? parameter?.value : m.sp
-  const invalid = aoConfigurationError(m) !== null || m.mode === 'OOS' ||
+  const invalid = m.downloaded === false || aoConfigurationError(m) !== null || m.mode === 'OOS' ||
     !['CAS', 'AUTO', 'MAN'].includes(m.mode) ||
     !Number.isFinite(m.mode === 'MAN' ? m.manualOutput : command)
   m.bad = hardwareBad || invalid
