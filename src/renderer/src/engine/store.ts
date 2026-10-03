@@ -23,6 +23,7 @@ import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } fr
 import { stepPlant } from './simulate'
 import { configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
 import { configureSplitter, createSplitter } from './splitter'
+import { areaNameError } from './areas'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
@@ -134,6 +135,8 @@ interface StoreState extends PlantState {
   /** Edit a phase's logic (requires Can Configure), mirroring setSfcSteps. */
   setPhaseSteps: (phaseName: string, steps: SfcStep[]) => void
   createModule: (spec: NewModuleSpec) => void
+  createArea: (name: string) => boolean
+  renameArea: (name: string, nextName: string) => boolean
   deleteModule: (tag: string) => void
   createEquipmentModule: (tag: string, description: string, area: string) => void
   deleteEquipmentModule: (tag: string) => void
@@ -585,7 +588,17 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!useSecurity.getState().requireLock('SYSTEM_ADMIN', `Create controller ${tag}`)) return false
     const normalizedTag = tag.trim()
     const normalizedDescription = description.trim()
-    if (!isValidControllerTag(normalizedTag) || normalizedDescription.length > MAX_CONTROLLER_DESCRIPTION_LENGTH) return false
+    const error = !isValidControllerTag(normalizedTag)
+      ? 'Controller names must have at most 16 letters, digits, $, - or _, with at least one letter'
+      : normalizedDescription.length > MAX_CONTROLLER_DESCRIPTION_LENGTH
+        ? `Controller descriptions must have at most ${MAX_CONTROLLER_DESCRIPTION_LENGTH} characters`
+        : Object.keys(get().hardware.controllers).some(existing => existing.toLowerCase() === normalizedTag.toLowerCase())
+          ? `Controller ${normalizedTag} already exists` : null
+    if (error) {
+      get().logEvent('DIAGNOSTIC', normalizedTag, `Controller creation rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
 
     let created = false
     set((s) => {
@@ -928,8 +941,54 @@ export const useStore = create<StoreState>((set, get) => ({
     get().logEvent('CONFIGURE', phaseName, 'Phase logic edited')
   },
 
+  createArea: (name) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', 'Create plant area')) return false
+    const key = name.trim().toUpperCase()
+    const error = areaNameError(key) ?? (get().areas.includes(key) ? `Area ${key} already exists` : null)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', key, `Area creation rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    set(s => ({ areas: [...s.areas, key], rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', key, 'Plant area created')
+    return true
+  },
+
+  renameArea: (name, nextName) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Rename plant area ${name}`)) return false
+    const key = nextName.trim().toUpperCase()
+    const state = get()
+    const error = !state.areas.includes(name) ? `Area ${name} does not exist` :
+      areaNameError(key) ?? (key !== name && state.areas.includes(key) ? `Area ${key} already exists` : null)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', name, `Area rename rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    if (key === name) return true
+    set(s => ({
+      areas: s.areas.map(area => area === name ? key : area),
+      modules: Object.fromEntries(Object.entries(s.modules).map(([tag, module]) =>
+        [tag, module.area === name ? { ...module, area: key } : module])),
+      equipment: Object.fromEntries(Object.entries(s.equipment).map(([tag, equipment]) =>
+        [tag, equipment.area === name ? { ...equipment, area: key } : equipment])),
+      sfcs: Object.fromEntries(Object.entries(s.sfcs).map(([tag, sfc]) =>
+        [tag, sfc.area === name ? { ...sfc, area: key } : sfc])),
+      rev: s.rev + 1
+    }))
+    get().logEvent('CONFIGURE', key, `Plant area renamed from ${name}`)
+    return true
+  },
+
   createModule: (spec) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create module ${spec.tag}`)) return
+    if (!get().areas.includes(spec.area)) {
+      const message = `Area ${spec.area} does not exist`
+      get().logEvent('DIAGNOSTIC', spec.tag, `Module creation rejected: ${message}`)
+      window.alert(message)
+      return
+    }
     set((s) => {
       if (s.modules[spec.tag]) return {}
       return { modules: { ...s.modules, [spec.tag]: makeModule(spec) }, rev: s.rev + 1 }
@@ -950,6 +1009,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
   createEquipmentModule: (tag, description, area) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create Equipment Module ${tag}`)) return
+    if (!get().areas.includes(area)) {
+      const message = `Area ${area} does not exist`
+      get().logEvent('DIAGNOSTIC', tag, `Equipment Module creation rejected: ${message}`)
+      window.alert(message)
+      return
+    }
     set((s) => {
       const key = tag.trim().toUpperCase()
       if (!key || s.equipment[key]) return {}
@@ -984,6 +1049,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
   createSfc: (name, area) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create SFC ${name}`)) return
+    if (!get().areas.includes(area)) {
+      const message = `Area ${area} does not exist`
+      get().logEvent('DIAGNOSTIC', name, `SFC creation rejected: ${message}`)
+      window.alert(message)
+      return
+    }
     set((s) => {
       const key = name.trim().toUpperCase()
       if (!key || s.sfcs[key]) return {}

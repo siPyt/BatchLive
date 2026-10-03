@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
-import { usePictures, type PicElement, type PicParam } from '../engine/pictureStore'
+import { resolvePictureTarget, usePictures, type PicElement, type PicParam } from '../engine/pictureStore'
 import { fmt } from '../utils/format'
 import type { AnyModule } from '../engine/types'
 
@@ -36,8 +36,30 @@ export function DisplayBuilder(): JSX.Element {
   const [edit, setEdit] = useState(true)
   const [selEl, setSelEl] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
+  const [pictureProperties, setPictureProperties] = useState(false)
+  const navigate = useUi(s => s.navigate)
 
   const pic = pictures[selected]
+
+  const openPictureLink = (name: string | undefined): void => {
+    if (edit) {
+      setPictureProperties(true)
+      return
+    }
+    const target = resolvePictureTarget(name ?? '', pictures)
+    if (!target) {
+      const message = `Navigation picture not found: ${name || '(not configured)'}`
+      useStore.getState().logEvent('DIAGNOSTIC', selected, message)
+      window.alert(message)
+      return
+    }
+    if (target.kind === 'display') navigate(target.display)
+    else {
+      setSelected(target.name)
+      setSelEl(null)
+      setPictureProperties(false)
+    }
+  }
 
   const add = (type: PicElement['type']): void => {
     if (!pic) return
@@ -81,6 +103,16 @@ export function DisplayBuilder(): JSX.Element {
         <button className={'tbtn sm' + (edit ? ' active' : '')} onClick={() => setEdit((v) => !v)}>
           {edit ? '✎ Configure' : '▷ Run'}
         </button>
+        {pic && (
+          <>
+            <button className="tbtn sm" disabled={!edit && !pic.previousPicture}
+              title={pic.previousPicture || 'Previous picture is not configured'}
+              onClick={() => openPictureLink(pic.previousPicture)}>Previous Picture</button>
+            <button className="tbtn sm" disabled={!edit && !pic.nextPicture}
+              title={pic.nextPicture || 'Next picture is not configured'}
+              onClick={() => openPictureLink(pic.nextPicture)}>Next Picture</button>
+          </>
+        )}
         {edit && pic && (
           <>
             <button className="tbtn sm" onClick={() => add('datalink')}>
@@ -108,9 +140,39 @@ export function DisplayBuilder(): JSX.Element {
         ) : (
           <>
             <Canvas picture={selected} edit={edit} selEl={selEl} setSelEl={setSelEl} />
-            {edit && selEl && <PropsPanel picture={selected} id={selEl} />}
+            {edit && pictureProperties ? (
+              <PictureProperties key={selected} picture={selected} onClose={() => setPictureProperties(false)} />
+            ) : edit && selEl ? <PropsPanel picture={selected} id={selEl} /> : null}
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+function PictureProperties({ picture, onClose }: { picture: string; onClose: () => void }): JSX.Element {
+  const pic = usePictures(s => s.pictures[picture])
+  const setPictureLinks = usePictures(s => s.setPictureLinks)
+  const [previous, setPrevious] = useState(pic.previousPicture ?? '')
+  const [next, setNext] = useState(pic.nextPicture ?? '')
+  const [error, setError] = useState('')
+  return (
+    <div className="bld-props">
+      <div className="bld-props-head"><b>Previous / Next Picture</b></div>
+      <label className="bld-f">Previous Picture Name
+        <input value={previous} onChange={e => setPrevious(e.target.value)} placeholder="Ovw_ref.grf" />
+      </label>
+      <label className="bld-f">Next Picture Name
+        <input value={next} onChange={e => setNext(e.target.value)} placeholder="alarmList.grf" />
+      </label>
+      <p>Use a created picture name, Ovw_ref.grf (Overview) or alarmList.grf (Alarm List). Blank removes a link.</p>
+      {error && <div className="exp-newmod-err" role="alert">{error}</div>}
+      <div className="exp-newmod-actions">
+        <button className="tbtn sm" onClick={() => {
+          if (setPictureLinks(picture, previous, next)) onClose()
+          else setError('Links were not applied. Check picture names and your Can Configure key.')
+        }}>Apply Links</button>
+        <button className="tbtn sm" onClick={onClose}>Cancel</button>
       </div>
     </div>
   )

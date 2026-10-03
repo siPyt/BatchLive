@@ -174,6 +174,7 @@ function ControllerPanel({
   })
   const [error, setError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
+  const [commissioningScan, setCommissioningScan] = useState(false)
 
   useEffect(() => {
     setSettings({
@@ -182,6 +183,10 @@ function ControllerPanel({
       coldRestartMinutes: c.coldRestartMinutes
     })
   }, [c.tag, c.redundant, c.networkRedundant, c.coldRestartMinutes])
+
+  useEffect(() => {
+    if (!c.commissioned) setCommissioningScan(false)
+  }, [c.commissioned])
 
   const applySettings = (): void => {
     if (!Number.isInteger(settings.coldRestartMinutes) || settings.coldRestartMinutes < 0 || settings.coldRestartMinutes > MAX_COLD_RESTART_MINUTES) {
@@ -207,6 +212,7 @@ function ControllerPanel({
     }
     setError('')
     setActionMessage('Controller commissioned on the control network.')
+    setCommissioningScan(true)
   }
 
   const identify = (): void => {
@@ -243,6 +249,7 @@ function ControllerPanel({
     }
     setError('')
     setActionMessage('I/O auto-sense completed; review the detected-channel summary below.')
+    setCommissioningScan(false)
   }
 
   const powerLoss = (): void => {
@@ -284,7 +291,7 @@ function ControllerPanel({
     <div className="exp-props hardware-controller" style={{ padding: 0 }}>
       <div className="batch-toolbar hardware-controller-head">
         <span className="batch-title">{c.tag}</span>
-        <span className="hardware-controller-description">{c.description}</span>
+        <span className="hardware-controller-description" title={c.description}>{c.description}</span>
         <span className={`hardware-controller-state ${c.commissioned ? 'online' : 'offline'}`}>
           {c.commissioned ? 'COMMISSIONED' : 'DECOMMISSIONED'}
         </span>
@@ -378,6 +385,17 @@ function ControllerPanel({
           </span>
         )}
       </div>
+      {commissioningScan && (
+        <div className="hardware-controller-settings" role="group" aria-label="Commissioning I/O auto-sense">
+          <span>Auto-sense I/O now? Commissioning is complete; No skips the scan.</span>
+          <button className="tbtn sm" onClick={autoSense}>Yes — Auto-sense I/O</button>
+          <button className="tbtn sm" onClick={() => {
+            setCommissioningScan(false)
+            setError('')
+            setActionMessage('Controller commissioned without auto-sensing. Auto-sense I/O remains available later.')
+          }}>No — Skip auto-sense</button>
+        </div>
+      )}
       {c.lastAutoSense?.unresolvedBindings.length ? (
         <div className="hardware-unresolved">
           Unresolved I/O references: {c.lastAutoSense.unresolvedBindings.join(', ')}

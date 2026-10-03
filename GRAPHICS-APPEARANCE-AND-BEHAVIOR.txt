@@ -781,3 +781,33 @@ Validation:
   The local 3001.png / 3002.png reference screenshots remain outside the commit.
 - Preserve these containment rules in future toolbar/banner changes; do not
   restore fixed-height controls that allow labels to spill into adjacent rows.
+
+===============================================================================
+16. DV-09 FUNCTIONAL AUDIT - FIRST VERIFIED WORKFLOW PASS
+===============================================================================
+
+Primary course is DV-09 Revision 0 in the 575-page O&M training PDF.
+Detailed evidence and unfinished coverage are in DV09-FUNCTIONAL-COVERAGE.txt.
+Do not describe the full manual as implemented or completely audited.
+
+Added executable plant-area create/rename, commissioning auto-sense Yes/No,
+the DV-09 controller-description limit, and Previous/Next builder navigation.
+These are functional changes, not permission to redesign established visuals.
+
+Protected pump/motor/valve geometry, green/black feedback colors, palette,
+piping, Control Studio icon artwork and FBD coordinates were NOT changed.
+Area renames update membership only; they do not move or redraw plant devices.
+Controller descriptions can now be 255 characters. Keep them wrapped inside
+the hardware header, with the full text available in a tooltip.
+New area labels ellipsize with a full-name tooltip. Inline rename inputs must
+remain inside the existing row, and Explorer toolbar controls wrap as needed.
+Display Builder toolbar wraps whole controls to contain the new picture-link
+actions. Its existing canvas, datalink/text/dynamo appearance is retained.
+
+Verification: 46 engine/store/layout tests passed, typecheck/build passed,
+and live UI checks passed for area editing, both auto-sense choices,
+long-description containment, course picture targets and custom-picture links.
+Temporary verification fixtures were restored; do not leave injected state.
+Workshop progress is explicitly manual and not proof of course completeness.
+2026-10-03: The user authorized committing this verified functional pass and
+continuing the full DV-09 line-by-line audit. No new push was authorized.

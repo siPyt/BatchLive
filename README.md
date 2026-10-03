@@ -69,6 +69,23 @@ Run the focused engine regressions with `npm run test:control`, then
 `npm run typecheck` and `npm run build`. The appearance and regression contract
 is maintained in [GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt](GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt).
 
+## DV-09 functional coverage
+
+The primary DV-09 source is the 575-page Engineering Training manual.
+The full procedure-by-procedure audit is **in progress**, not complete.
+Verified workflows and remaining gaps are recorded in
+[DV09-FUNCTIONAL-COVERAGE.txt](DV09-FUNCTIONAL-COVERAGE.txt).
+
+Explorer supports creating and renaming actual plant areas, shared by module,
+equipment and SFC configuration. Physical Network commissioning offers an
+optional I/O auto-sense step and accepts DV-09's 255-character descriptions.
+Display Builder supports configurable Previous/Next links: `Ovw_ref.grf`
+opens Overview, `alarmList.grf` opens Alarm List, and created picture names
+open custom builder pictures in Run mode. These are session-local simulator
+definitions, not native DeltaV database downloads or `.grf` files.
+
+Workshop checkmarks are a manual exercise checklist, **not verified coverage**.
+
 ## Project layout
 
 ```

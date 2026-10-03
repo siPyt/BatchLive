@@ -5,11 +5,11 @@ import { moduleAlarm, fmt } from '../utils/format'
 import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
 import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engine/types'
 import { ModuleIcon } from '../components/EngineeringIcons'
+import { nextAreaName } from '../engine/areas'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
 
-const AREAS = ['FEED', 'REACTOR', 'PRODUCT', 'WFI', 'AUTOCLAVE', 'LYO', 'CIP', 'TCU'] as const
 const AREA_LABEL: Record<string, string> = {
   FEED: 'FEED',
   REACTOR: 'REACTOR',
@@ -57,6 +57,9 @@ export function ExplorerDisplay(): JSX.Element {
   const modules = useStore((s) => s.modules)
   const alarms = useStore((s) => s.alarms)
   const equipment = useStore((s) => s.equipment)
+  const areas = useStore((s) => s.areas)
+  const addArea = useStore((s) => s.createArea)
+  const renameArea = useStore((s) => s.renameArea)
   const deleteModule = useStore((s) => s.deleteModule)
   const deleteEquipmentModule = useStore((s) => s.deleteEquipmentModule)
   const selectedTag = useUi((s) => s.selectedTag)
@@ -72,8 +75,9 @@ export function ExplorerDisplay(): JSX.Element {
   const [createArea, setCreateArea] = useState<string | null>(null)
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
+  const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
   const [menu, setMenu] = useState<
-    { x: number; y: number; kind: 'area' | 'module' | 'em'; target: string } | null
+    { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'em'; target: string } | null
   >(null)
 
   useEffect(() => {
@@ -90,6 +94,23 @@ export function ExplorerDisplay(): JSX.Element {
   const toggle = (k: string): void => setOpen((o) => ({ ...o, [k]: !o[k] }))
   const list = Object.values(modules)
   const selected = selectedTag ? modules[selectedTag] : undefined
+  const newArea = (): void => {
+    const name = nextAreaName(areas)
+    if (addArea(name)) {
+      setOpen(o => ({ ...o, CELL: true, [name]: true }))
+      setEditingArea({ original: name, value: name })
+    }
+    setMenu(null)
+  }
+
+  const finishAreaRename = (): void => {
+    if (!editingArea) return
+    if (renameArea(editingArea.original, editingArea.value)) {
+      const name = editingArea.value.trim().toUpperCase()
+      setOpen(o => ({ ...o, [name]: o[editingArea.original] ?? true }))
+      setEditingArea(null)
+    }
+  }
 
   const renderModuleRow = (m: AnyModule, nested: boolean): JSX.Element => {
     const alm = moduleAlarm(m.tag, alarms)
@@ -123,9 +144,10 @@ export function ExplorerDisplay(): JSX.Element {
     <div className="display explorer">
       <div className="explorer-tree">
         <div className="exp-toolbar">
-          <button className="tbtn sm" onClick={() => setCreateArea((v) => (v ? null : 'FEED'))}>
+          <button className="tbtn sm" onClick={() => setCreateArea((v) => (v ? null : areas[0]))}>
             {createArea ? '✕ Cancel' : '＋ New Module'}
           </button>
+          <button className="tbtn sm" onClick={newArea}>New Area</button>
           <span className="exp-hint">right-click an Area → New ▸ Control Module / Equipment Module</span>
         </div>
         {createArea && (
@@ -141,6 +163,15 @@ export function ExplorerDisplay(): JSX.Element {
         {createEmArea && (
           <NewEquipmentModuleForm initialArea={createEmArea} onDone={() => setCreateEmArea(null)} />
         )}
+        <div
+          className="exp-node exp-cell"
+          onContextMenu={e => {
+            e.preventDefault()
+            setMenu({ x: e.clientX, y: e.clientY, kind: 'strategies', target: 'Control Strategies' })
+          }}
+        >
+          <b>Control Strategies</b>
+        </div>
         <div className="exp-node exp-cell" onClick={() => toggle('CELL')}>
           <span className="exp-caret">{open.CELL ? '▾' : '▸'}</span>
           <ModuleIcon kind="cell" />
@@ -148,7 +179,7 @@ export function ExplorerDisplay(): JSX.Element {
           <span className="exp-sub">Process Cell</span>
         </div>
         {open.CELL &&
-          AREAS.map((area) => {
+          areas.map((area) => {
             const mods = list.filter((m) => m.area === area)
             const ems = Object.values(equipment).filter((em) => em.area === area)
             const unassigned = mods.filter((m) => !m.equipmentModule || !equipment[m.equipmentModule])
@@ -164,7 +195,23 @@ export function ExplorerDisplay(): JSX.Element {
                 >
                   <span className="exp-caret">{open[area] ? '▾' : '▸'}</span>
                   <ModuleIcon kind="area" />
-                  {AREA_LABEL[area]}
+                  {editingArea?.original === area ? (
+                    <input
+                      aria-label="Area name"
+                      className="exp-area-editor"
+                      autoFocus
+                      value={editingArea.value}
+                      onFocus={e => e.target.select()}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => setEditingArea({ original: area, value: e.target.value })}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          finishAreaRename()
+                        } else if (e.key === 'Escape') setEditingArea(null)
+                      }}
+                    />
+                  ) : <span className="exp-area-name" title={area}>{AREA_LABEL[area] ?? area}</span>}
                   <span className="exp-sub">{mods.length} modules</span>
                 </div>
                 {open[area] && (
@@ -221,9 +268,18 @@ export function ExplorerDisplay(): JSX.Element {
 
       {menu && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
-          {menu.kind === 'area' ? (
+          {menu.kind === 'strategies' ? (
+            <>
+              <div className="ctx-label">Control Strategies</div>
+              <button className="ctx-item" onClick={newArea}>New Area</button>
+            </>
+          ) : menu.kind === 'area' ? (
             <>
               <div className="ctx-label">{menu.target}</div>
+              <button className="ctx-item" onClick={() => {
+                setEditingArea({ original: menu.target, value: menu.target })
+                setMenu(null)
+              }}>Rename</button>
               <div className="ctx-parent">New ▸</div>
               <button
                 className="ctx-item ctx-sub"
@@ -492,6 +548,7 @@ function NewModuleForm({
   initialEquipment?: string
 }): JSX.Element {
   const createModule = useStore((s) => s.createModule)
+  const areas = useStore((s) => s.areas)
   const modules = useStore((s) => s.modules)
   const equipment = useStore((s) => s.equipment)
   const select = useUi((s) => s.select)
@@ -508,7 +565,8 @@ function NewModuleForm({
   const analog = type === 'PID' || type === 'AI'
   const normTag = tag.trim().toUpperCase()
   const exists = normTag.length > 0 && !!modules[normTag]
-  const valid = normTag.length > 0 && !exists
+  const areaExists = areas.includes(area)
+  const valid = normTag.length > 0 && !exists && areaExists
   const emsInArea = Object.values(equipment).filter((e) => e.area === area)
 
   const submit = (): void => {
@@ -525,6 +583,7 @@ function NewModuleForm({
       pvMax: analog ? pvMax : undefined
     }
     createModule(spec)
+    if (!useStore.getState().modules[normTag]) return
     select(normTag)
     onDone()
   }
@@ -629,14 +688,8 @@ function NewModuleForm({
             setEm('')
           }}
         >
-          <option>FEED</option>
-          <option>REACTOR</option>
-          <option>PRODUCT</option>
-          <option>WFI</option>
-          <option>AUTOCLAVE</option>
-          <option>LYO</option>
-          <option>CIP</option>
-          <option>TCU</option>
+          {!areaExists && <option value={area}>{area} (no longer exists)</option>}
+          {areas.map(name => <option key={name}>{name}</option>)}
         </select>
       </label>
       <label>
@@ -667,6 +720,7 @@ function NewModuleForm({
         </div>
       )}
       {exists && <div className="exp-newmod-err">Tag already exists</div>}
+      {!areaExists && <div className="exp-newmod-err">Select an existing plant area.</div>}
       <div className="exp-newmod-actions">
         <button className="tbtn sm" disabled={!valid} onClick={submit}>
           Create
@@ -687,6 +741,7 @@ function NewEquipmentModuleForm({
   initialArea: string
 }): JSX.Element {
   const createEquipmentModule = useStore((s) => s.createEquipmentModule)
+  const areas = useStore((s) => s.areas)
   const equipment = useStore((s) => s.equipment)
   const [tag, setTag] = useState('')
   const [description, setDescription] = useState('')
@@ -694,7 +749,8 @@ function NewEquipmentModuleForm({
 
   const normTag = tag.trim().toUpperCase()
   const exists = normTag.length > 0 && !!equipment[normTag]
-  const valid = normTag.length > 0 && !exists
+  const areaExists = areas.includes(area)
+  const valid = normTag.length > 0 && !exists && areaExists
 
   return (
     <div className="exp-newmod">
@@ -710,23 +766,19 @@ function NewEquipmentModuleForm({
       <label>
         Area
         <select value={area} onChange={(e) => setArea(e.target.value)}>
-          <option>FEED</option>
-          <option>REACTOR</option>
-          <option>PRODUCT</option>
-          <option>WFI</option>
-          <option>AUTOCLAVE</option>
-          <option>LYO</option>
-          <option>CIP</option>
-          <option>TCU</option>
+          {!areaExists && <option value={area}>{area} (no longer exists)</option>}
+          {areas.map(name => <option key={name}>{name}</option>)}
         </select>
       </label>
       {exists && <div className="exp-newmod-err">Tag already exists</div>}
+      {!areaExists && <div className="exp-newmod-err">Select an existing plant area.</div>}
       <div className="exp-newmod-actions">
         <button
           className="tbtn sm"
           disabled={!valid}
           onClick={() => {
             createEquipmentModule(normTag, description.trim() || normTag, area)
+            if (!useStore.getState().equipment[normTag]) return
             onDone()
           }}
         >

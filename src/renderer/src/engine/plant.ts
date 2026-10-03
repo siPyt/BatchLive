@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_MEMBERSHIP } from './equipment'
 import { configurePidIo, createPidIo } from './analogStrategy'
 import { createSplitter } from './splitter'
+import { DEFAULT_PLANT_AREAS } from './areas'
 
 // Helper builders keep the plant definition compact and readable.
 
@@ -1222,6 +1223,7 @@ export function buildInitialPlant(): PlantState {
     time: Date.now(),
     running: true,
     speed: 1,
+    areas: [...DEFAULT_PLANT_AREAS],
     modules,
     alarms: [],
     process: {
@@ -1242,6 +1244,7 @@ export function buildBlankPlant(): PlantState {
     time: Date.now(),
     running: true,
     speed: 1,
+    areas: [...DEFAULT_PLANT_AREAS],
     modules: {},
     alarms: [],
     process: {

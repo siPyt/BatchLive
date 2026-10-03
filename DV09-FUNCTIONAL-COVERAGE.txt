@@ -1,0 +1,207 @@
+BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
+==================================
+
+SOURCE AND REVIEW STATUS
+------------------------
+Primary source: 740124885-Deltav-O-M-Training-Manual.pdf
+Title verified directly from the original PDF:
+  Course DV-09, Revision 0, DeltaV Engineering Training.
+Length verified directly from the original PDF: 575 pages.
+Local searchable reference: pdf_om.txt.
+Page numbers below are PDF page numbers, NOT the printed chapter-page numbers.
+
+This is an IN-PROGRESS coverage ledger, not a certification of full parity.
+The complete 575-page, line-by-line audit is NOT finished.
+The existing course screen is an adapted exercise collection, not the complete
+manual. Its checkmarks are manually recorded learner progress, not tests or
+proof that a course operation is implemented.
+
+Do not confuse this manual with the older Course 7009 text in pdf_7009.txt.
+For example, DV-09 p60 permits a 255-character controller description, whereas
+the older 7009 source specifies 48. DV-09 is the user's current primary source.
+
+STATUS DEFINITIONS
+------------------
+VERIFIED WORKFLOW: the described BatchLive operation has executable state
+changes, regression evidence and live UI evidence. This does not imply that
+every associated DeltaV application, dialog, file format or hardware behavior
+is replicated.
+PARTIAL: something related exists, but one or more required operations differ
+or are missing. A substitute tag, decorative dialog, or checkbox is not parity.
+MISSING: the required executable operation is not currently available.
+UNREVIEWED: no procedure-level claim is made.
+VENDOR/HARDWARE BOUNDARY: real host administration, electrical wiring,
+licensed software and physical devices cannot be verified by this offline
+simulator. Training models may still be needed; this is not an excuse to mark
+those procedures complete.
+
+FIRST VERIFIED IMPLEMENTATION PASS
+----------------------------------
+
+1. Controller description limit
+   Source: p60, printed 1-59.
+   Status: VERIFIED WORKFLOW for the length boundary.
+   Controller creation accepts 255 characters and rejects 256.
+   The creation input and engine use the same exported limit.
+   Invalid names, excessive descriptions and duplicate controller names
+   produce a diagnostic journal entry and explicit notification.
+   Full descriptions remain available in the tooltip and wrap within their
+   header, including an unbroken 255-character string.
+   Other controller properties on this page are not all implemented.
+
+2. Controller commissioning and optional auto-sense
+   Source: pp55-67, especially p62 and the p67 exercise.
+   Status: VERIFIED WORKFLOW within the current simulated controller model.
+   Identify/Stop Identify, network redundancy, commission, address allocation,
+   explicit I/O scan and five-minute cold restart are executable.
+   Commissioning now offers Yes/No for auto-sense:
+     Yes scans the controller's configured carrier/baseplate/channel inventory.
+     No leaves the controller commissioned without performing a new scan.
+     A standalone Auto-sense I/O action remains available later.
+   Live verification on CTLR-01:
+     - Identify indication appeared and stopped.
+     - Network redundancy was saved during commissioning.
+     - No kept lastAutoSense null and commissioned true.
+     - Later auto-sense found 1 carrier, 3 baseplates and 18 channels.
+     - Recommissioning with Yes performed the scan.
+     - Cold Restart = 5 was applied and retained.
+   Engine regression also verified restoration at the five-minute boundary.
+   These addresses are simulated 192.0.2.x addresses, not real plant traffic.
+   A newly created controller without carriers correctly scans zero channels.
+   Remaining differences:
+     - Physical Network panels, not Explorer drag/drop commissioning.
+     - CHARM inventory, not the manual's traditional I/O cards.
+     - No full node alarm/event-area, hardware-alarm or time-sync property model.
+     - No real Windows/DeltaV logon or nonvolatile download script.
+
+3. Defining plant areas
+   Source: pp87-88, printed 2-16 through 2-17.
+   Status: VERIFIED WORKFLOW for area creation and rename.
+   Explorer supports Control Strategies -> New Area and area -> Rename.
+   New Area creates an unused AREA1/AREA2/etc. and selects its editable name.
+   Enter commits a valid rename; Escape leaves the current stored name.
+   The course AREA_A prerequisite can be created without changing the existing
+   pharma project's protected equipment or diagrams.
+   Verified live procedure:
+     create AREA_A -> rename PLANT_AREA_A -> create PLANT_AREA_B.
+   A DI created through Explorer in PLANT_AREA_A retained that actual area.
+   Area choices are shared by Control Module, Equipment Module and SFC forms.
+   Renaming an occupied area atomically updates its control modules, equipment
+   modules and SFCs; tags, I/O wiring, live values and references are preserved.
+   Invalid/duplicate/missing names are rejected explicitly and journaled.
+   Can Configure is required; OperatorA cannot perform these mutations.
+   Existing project defaults remain; a New Project resets custom areas.
+   Changes reside in the active project/session, like the existing plant model.
+   No persistent configuration database/export is claimed.
+   Updated exercise IDs prevent old area-viewing checkmarks from appearing
+   to complete this new create/rename exercise.
+
+4. Previous / Next picture navigation
+   Source: pp134-136, printed 3-29 through 3-31.
+   Status: VERIFIED WORKFLOW for configuration and navigation.
+   In Display Builder Configure, Previous Picture or Next Picture opens the
+   shared picture-link properties. Apply Links validates and stores both links.
+   In Run:
+     Ovw_ref.grf navigates to the actual Overview.
+     alarmList.grf navigates to the actual Alarm List.
+     A created picture name navigates to that builder picture without leaving
+     Run mode. Names are case-insensitive with an optional .grf suffix.
+   Blank fields remove links. Reciprocal links are not fabricated.
+   Can Configure is required to apply navigation settings.
+   Missing targets are rejected without partially applying the other link.
+   Deleting a linked target makes subsequent navigation fail explicitly.
+   No fake .grf file is loaded and no decorative-only navigation is claimed.
+   Live verification followed both course aliases and a second custom picture.
+   Remaining differences:
+     - BatchLive builder, not DeltaV Operate/iFIX main-template creation.
+     - Links are active-session picture metadata, not native .grf files.
+     - No native picture save/export, grouped main-template objects, or
+       course-identical application menu/keyboard workflow is claimed.
+
+CONFIRMED EARLY GAPS: DO NOT MARK COMPLETE
+-----------------------------------------
+pp79-83: Plant areas and equipment hierarchy.
+  PARTIAL. Existing Area/Equipment/Control organization is simplified.
+  The required full Area -> Process Cell -> Unit -> Equipment -> Control
+  hierarchy and unit behavior are not verified.
+  Area-specific user privileges and workstation alarm boundaries are missing
+  from the current sitewide lock/key and global alarm model.
+
+pp85-91: Device Signal Tags and traditional channel configuration.
+  PARTIAL. Current CHARM bindings do not reproduce the course's four
+  traditional cards, named DST properties and Enable channel configuration.
+  The eight specified analog/discrete channel assignments are not verified.
+
+pp92-104: Downloads and system checks.
+  MISSING/PARTIAL. Configuration edits are immediately live in BatchLive.
+  Total/partial controller downloads, verification checks, upload handling,
+  cold-restart-memory updates, last-known-good replay, download progress and
+  dirty/download indicator clearing are not implemented as a lifecycle.
+  Current controller diagnostics do not make those download steps complete.
+
+pp117-124: XV-101 and XVSTAT-101.
+  PARTIAL. The existing exercise substitutes VALVE XV-301 and DI XVSTAT-301.
+  The course calls for a DO module, a monitoring template, named DST binding,
+  assignment to a controller, save/download, online mode and channel checks.
+  Operating a generic valve is NOT proof that those procedures work.
+
+pp129-155: New picture, datalinks, text, dynamo and verification.
+  PARTIAL. Previous/Next navigation is now specifically verified.
+  Existing builder datalinks/text/dynamos still need detailed procedure checks.
+  Their existence alone does not verify all course expressions, picture
+  properties, object grouping, native file handling or verification steps.
+
+FULL-MANUAL CONTINUATION INDEX
+------------------------------
+The following chapter objectives/workshop locations have been indexed from
+the source. Unless an operation is specifically verified above, these remain
+UNREVIEWED at procedure level; this index is not a completed line-by-line pass.
+
+pp1-71: Overview, architecture, application roles and commissioning.
+pp72-105: Plant definition, areas, hierarchy, DSTs, downloads, diagnostics.
+pp106-157: Discrete modules and initial operator graphics.
+pp158-215: Analog modules, alarm definitions, restart/download parameter
+  behavior, data entry/visibility and tank graphics.
+pp216-237: Motor templates, state masks, named sets, device options,
+  condition expressions and operation.
+pp238-269: Regulatory control, PID_LOOP template, modes/fields and tuning.
+pp270-299: SFC execution, steps/actions, qualifiers, parameter paths,
+  startup/shutdown and modification.
+pp300-363: Locks/keys, users/groups, area privileges, FlexLock, electronic
+  signatures, workstation options, simulation and export.
+pp364-410: Serial interface configuration and Modbus tie-back procedures.
+pp411-456: FOUNDATION fieldbus concepts and AMS device management.
+pp457-480: Fieldbus segment design, termination, cable/ground/shield and logon.
+pp481-534: Preferences, segment wiring/checkout and H1 card configuration.
+pp535-575: Fieldbus device alarms, PlantWeb alerts, alarm-list columns
+  and device-alarm banner handling.
+
+NEXT CONTIGUOUS REVIEW WORK
+---------------------------
+1. Complete the early chapter text/procedure review; do not skip the
+   controller properties or claim the first 104 pages are fully covered.
+2. Build a real configuration/download/DST lifecycle before marking the
+   controller and discrete module creation workshops complete.
+3. Provide an isolated course process/configuration setup using course tags
+   instead of overwriting the existing approved pharma baseline.
+4. Continue each course chapter in source order with exact expected values,
+   permission checks, error cases, UI actions and regression evidence.
+
+VALIDATION AND PRESERVATION
+---------------------------
+Current regression command: npm run test:control.
+Result for this implementation pass: 46 tests passed (35 existing + 11 new).
+npm run typecheck: passed.
+npm run build: passed.
+Editor diagnostics for changed TypeScript/CSS: passed.
+Live UI tests: area exercise, both commissioning scan paths, description
+boundary/containment, course picture links and custom-picture Run navigation.
+Test fixtures restored original plant, picture and security state; temporary
+test globals were removed.
+
+No changes to protected pump/motor/valve artwork, state colors, palette,
+piping, diagram coordinates or the existing process simulation equations.
+Keep following GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt.
+2026-10-03 release authorization:
+The user requested committing this verified pass and continuing the full
+line-by-line audit. This pass is being committed; no push was authorized.

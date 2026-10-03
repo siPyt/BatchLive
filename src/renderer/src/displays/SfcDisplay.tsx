@@ -24,6 +24,7 @@ const STATUS_COLOR: Record<SfcDef['status'], string> = {
 export function SfcDisplay(): JSX.Element {
   const sfcs = useStore((s) => s.sfcs)
   const createSfc = useStore((s) => s.createSfc)
+  const areas = useStore((s) => s.areas)
   const names = Object.keys(sfcs)
   const [selected, setSelected] = useState<string>(names[0] ?? '')
   const [newName, setNewName] = useState('')
@@ -42,20 +43,15 @@ export function SfcDisplay(): JSX.Element {
             onChange={(e) => setNewName(e.target.value)}
           />
           <select className="exp-alm-select" value={newArea} onChange={(e) => setNewArea(e.target.value)}>
-            <option>FEED</option>
-            <option>REACTOR</option>
-            <option>PRODUCT</option>
-            <option>WFI</option>
-            <option>AUTOCLAVE</option>
-            <option>LYO</option>
-            <option>CIP</option>
-            <option>TCU</option>
+            {!areas.includes(newArea) && <option value={newArea}>{newArea} (no longer exists)</option>}
+            {areas.map(name => <option key={name}>{name}</option>)}
           </select>
           <button
             className="tbtn sm"
-            disabled={!newName.trim()}
+            disabled={!newName.trim() || !areas.includes(newArea)}
             onClick={() => {
               createSfc(newName, newArea)
+              if (!useStore.getState().sfcs[newName.trim().toUpperCase()]) return
               setSelected(newName.trim().toUpperCase())
               setNewName('')
             }}

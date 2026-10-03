@@ -1305,6 +1305,24 @@ button {
   color: var(--dv-text);
   font-weight: 600;
 }
+.exp-area-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.exp-area-editor {
+  min-width: 0;
+  max-width: 100%;
+  width: 200px;
+  height: 22px;
+  box-sizing: border-box;
+}
+.exp-area > .exp-sub {
+  flex-shrink: 0;
+}
+.explorer-tree .exp-toolbar {
+  flex-wrap: wrap;
+}
 .exp-em {
   padding-left: 40px;
   color: var(--dv-text-dim);
@@ -1635,6 +1653,9 @@ button {
   flex-wrap: wrap;
 }
 .hardware-controller-description {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: var(--dv-text-dim);
   font-size: 12px;
 }
@@ -2174,6 +2195,7 @@ button {
 }
 .bld-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   padding: 8px 12px;

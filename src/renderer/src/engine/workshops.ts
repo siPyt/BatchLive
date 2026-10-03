@@ -25,16 +25,38 @@ export interface WModule {
 
 export const COURSE: WModule[] = [
   {
+    module: 'DV-09 · Controller Commissioning',
+    workshops: [
+      {
+        id: 'dv09-commissioning',
+        title: 'Commissioning the Controller',
+        objective: 'Identify, commission, auto-sense and configure a five-minute cold restart (DV-09 PDF pages 55-67).',
+        note: 'Physical Network provides simulated controllers and CHARM I/O. Windows logon, Explorer drag-and-drop commissioning, traditional cards, full controller alarm properties and real downloads are not implemented equivalents.',
+        steps: [
+          { id: 'dv09-ctlr-1', text: 'Open Physical Network. Use Add Decommissioned Controller to create a named training controller, or decommission CTLR-01 if you intend to test the existing I/O.', goto: 'hardware' },
+          { id: 'dv09-ctlr-2', text: 'Click Identify and confirm IDENTIFY FLASHING. Click Stop Identify to stop it.' },
+          { id: 'dv09-ctlr-3', text: 'Select Redundant control network and click Commission. Confirm the controller becomes COMMISSIONED with an assigned simulated address.' },
+          { id: 'dv09-ctlr-4', text: 'Answer Yes to Auto-sense I/O and inspect the detected-channel summary. A newly created controller with no attached I/O correctly reports zero channels.' },
+          { id: 'dv09-ctlr-5', text: 'Set Cold Restart to 5 minutes and click Apply Properties. Confirm the saved value remains 5.' },
+          { id: 'dv09-ctlr-6', text: 'Verify the alternate commissioning path by answering No: the controller remains commissioned without a new I/O scan. Use Auto-sense I/O later to scan explicitly.' }
+        ]
+      }
+    ]
+  },
+  {
     module: 'DV-09 · Plant Areas & Control Modules',
     workshops: [
       {
         id: 'areas',
         title: 'Defining Plant Areas',
-        objective: 'Review the process-cell area hierarchy used to organise modules.',
+        objective: 'Create and rename plant areas, following DV-09 PDF pages 87-88 (printed 2-16 to 2-17).',
+        note: 'The existing pharma project is retained. Create AREA_A first as the training prerequisite; no plant drawings are renamed or redesigned. This verifies area editing only, not the full Area / Process Cell / Unit batch hierarchy or area-specific privileges.',
         steps: [
-          { id: 'areas-1', text: 'Open DeltaV Explorer.', goto: 'explorer' },
-          { id: 'areas-2', text: 'Expand REACTOR_CELL and note the FEED, REACTOR and PRODUCT areas.' },
-          { id: 'areas-3', text: 'Expand an area and observe its control modules grouped underneath.' }
+          { id: 'areas-dv09-1', text: 'Open DeltaV Explorer.', goto: 'explorer' },
+          { id: 'areas-dv09-2', text: 'Right-click Control Strategies → New Area. Replace the selected AREA1 name with AREA_A and press Enter (training setup).' },
+          { id: 'areas-dv09-3', text: 'Right-click AREA_A → Rename. Enter PLANT_AREA_A and press Enter. Confirm the new name appears in Explorer.' },
+          { id: 'areas-dv09-4', text: 'Right-click Control Strategies → New Area. Replace the selected generated name with PLANT_AREA_B and press Enter.' },
+          { id: 'areas-dv09-5', text: 'Create a control module in PLANT_AREA_A and confirm both new areas are offered in the Control Module, Equipment Module and SFC area selectors.' }
         ]
       },
       {
@@ -115,6 +137,19 @@ export const COURSE: WModule[] = [
           { id: 'pic-1', text: 'Open the Display Builder.', goto: 'builder' },
           { id: 'pic-2', text: 'Type TANK201 in the New picture field and click Create.' },
           { id: 'pic-3', text: 'The new picture opens on the silver configure canvas, ready for objects.' }
+        ]
+      },
+      {
+        id: 'dv09-picture-links',
+        title: 'Configuring Previous / Next Pictures',
+        objective: 'Configure and operate the navigation required by DV-09 PDF pages 134-136.',
+        note: 'Display Builder stores links on the picture in the current session. The two course .grf names resolve to BatchLive Overview and Alarm List; custom picture names link to other builder pictures. This is not a native DeltaV .grf file/template export.',
+        steps: [
+          { id: 'dv09-piclink-1', text: 'Open Display Builder, select TANK101 and stay in Configure mode.', goto: 'builder' },
+          { id: 'dv09-piclink-2', text: 'Click Previous Picture or Next Picture to open the Previous / Next Picture properties.' },
+          { id: 'dv09-piclink-3', text: 'Set Previous Picture Name = Ovw_ref.grf and Next Picture Name = alarmList.grf. Click Apply Links.' },
+          { id: 'dv09-piclink-4', text: 'Switch to Run. Click Previous Picture and verify Overview opens. Return to Display Builder, switch to Run and click Next Picture; verify Alarm List opens.' },
+          { id: 'dv09-piclink-5', text: 'Create a second builder picture, configure its name as the Next target, and verify Run navigation selects that picture. No automatic reciprocal link is created.' }
         ]
       },
       {

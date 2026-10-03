@@ -27,6 +27,8 @@ const {
 const { moduleExecutionOrder } = require('../src/renderer/src/engine/fb.ts')
 const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
+const { nextAreaName } = require('../src/renderer/src/engine/areas.ts')
+const { usePictures, resolvePictureTarget } = require('../src/renderer/src/engine/pictureStore.ts')
 
 function plant(splitRange = false) {
   const state = { ...buildInitialPlant(), hardware: makeDefaultHardware(), speed: 1 }
@@ -621,4 +623,216 @@ test('new strategy blocks avoid saved node positions without moving the saved la
   assert.ok(result.SPLTR.y >= saved.AO2.y + sizes.AO2.height + 54)
   assert.deepEqual(result.PID, automatic.PID)
   assert.deepEqual(avoidSavedBlockOverlaps(automatic, {}, sizes), automatic)
+})
+
+function withAreaProject(run) {
+  const previousStore = useStore.getState()
+  const previousSecurity = useSecurity.getState()
+  const previousWindow = global.window
+  const alerts = []
+  global.window = { alert: message => alerts.push(message) }
+  try {
+    useSecurity.setState({ currentUser: 'admin', locked: false })
+    useStore.getState().newProject('pharma')
+    run(useStore.getState(), alerts)
+  } finally {
+    useStore.setState(previousStore, true)
+    useSecurity.setState(previousSecurity, true)
+    if (previousWindow === undefined) delete global.window
+    else global.window = previousWindow
+  }
+}
+
+test('DV09 pages 87-88: create AREA_A, rename PLANT_AREA_A and add PLANT_AREA_B', () => {
+  withAreaProject(store => {
+    const originalAreas = store.areas
+    assert.equal(store.createArea('area_a'), true)
+    assert.equal(store.renameArea('AREA_A', 'plant_area_a'), true)
+    const generated = nextAreaName(useStore.getState().areas)
+    assert.equal(generated, 'AREA1')
+    assert.equal(store.createArea(generated), true)
+    assert.equal(store.renameArea(generated, 'PLANT_AREA_B'), true)
+    assert.deepEqual(useStore.getState().areas, [...originalAreas, 'PLANT_AREA_A', 'PLANT_AREA_B'])
+    assert.ok(!useStore.getState().areas.includes('AREA_A'))
+    assert.ok(useStore.getState().eventLog.some(e =>
+      e.category === 'CONFIGURE' && e.description === 'Plant area renamed from AREA_A'))
+    store.createModule({ tag: 'DV09-DI', type: 'DI', area: 'PLANT_AREA_A', description: 'Training input' })
+    assert.equal(useStore.getState().modules['DV09-DI'].area, 'PLANT_AREA_A')
+    assert.equal(originalAreas.includes('PLANT_AREA_A'), false)
+  })
+})
+
+test('area rename atomically moves modules, equipment and SFCs without changing references or live values', () => {
+  withAreaProject(store => {
+    const original = useStore.getState()
+    const module = original.modules['P-101']
+    const wiring = original.hardware
+    assert.equal(store.renameArea('FEED', 'PLANT_AREA_A'), true)
+    const next = useStore.getState()
+    assert.deepEqual(next.modules['P-101'], { ...module, area: 'PLANT_AREA_A' })
+    assert.equal(module.area, 'FEED')
+    assert.equal(next.equipment['EM-FEED-SUPPLY'].area, 'PLANT_AREA_A')
+    assert.ok(Object.values(original.sfcs).some(s => s.area === 'FEED'))
+    for (const [name, sfc] of Object.entries(original.sfcs)) {
+      assert.deepEqual(next.sfcs[name], { ...sfc, area: sfc.area === 'FEED' ? 'PLANT_AREA_A' : sfc.area })
+    }
+    assert.equal(next.hardware, wiring)
+    assert.equal(next.process, original.process)
+    assert.equal(next.alarms, original.alarms)
+    store.tick(0.1)
+    assert.ok(useStore.getState().areas.includes('PLANT_AREA_A'))
+    assert.equal(useStore.getState().modules['P-101'].area, 'PLANT_AREA_A')
+  })
+})
+
+test('invalid, duplicate and missing area writes fail visibly without success journal entries', () => {
+  withAreaProject((store, alerts) => {
+    const originalAreas = store.areas
+    const originalModules = store.modules
+    assert.equal(store.createArea(''), false)
+    assert.equal(store.createArea('two words'), false)
+    assert.equal(store.createArea('feed'), false)
+    assert.equal(store.renameArea('FEED', 'REACTOR'), false)
+    assert.equal(store.renameArea('MISSING', 'AREA_A'), false)
+    assert.equal(store.renameArea('FEED', ''), false)
+    assert.equal(useStore.getState().areas, originalAreas)
+    assert.equal(useStore.getState().modules, originalModules)
+    assert.equal(alerts.length, 6)
+    assert.ok(useStore.getState().eventLog.every(e => e.category === 'DIAGNOSTIC'))
+    assert.equal(store.renameArea('FEED', 'FEED'), true)
+    assert.equal(useStore.getState().areas, originalAreas)
+  })
+})
+
+test('area configuration requires Can Configure and does not mutate denied operations', () => {
+  withAreaProject(store => {
+    useSecurity.setState({ currentUser: 'OperatorA', lastDenied: null })
+    const before = useStore.getState()
+    assert.equal(store.createArea('AREA_A'), false)
+    assert.equal(store.renameArea('FEED', 'PLANT_AREA_A'), false)
+    assert.equal(useStore.getState(), before)
+    assert.match(useSecurity.getState().lastDenied, /Access Denied.*Can Configure/)
+  })
+})
+
+test('new module, equipment and SFC configuration rejects nonexistent areas and project reset restores defaults', () => {
+  withAreaProject((store, alerts) => {
+    store.createModule({ tag: 'ORPHAN-DI', type: 'DI', area: 'MISSING', description: 'Training input' })
+    store.createEquipmentModule('ORPHAN-EM', 'Training equipment', 'MISSING')
+    store.createSfc('ORPHAN-SFC', 'MISSING')
+    assert.equal(alerts.length, 3)
+    assert.equal(useStore.getState().modules['ORPHAN-DI'], undefined)
+    assert.equal(useStore.getState().equipment['ORPHAN-EM'], undefined)
+    assert.equal(useStore.getState().sfcs['ORPHAN-SFC'], undefined)
+    assert.equal(store.createArea('PLANT_AREA_B'), true)
+    store.createEquipmentModule('DV09-EM', 'Training equipment', 'PLANT_AREA_B')
+    store.createSfc('DV09-SFC', 'PLANT_AREA_B')
+    assert.equal(useStore.getState().equipment['DV09-EM'].area, 'PLANT_AREA_B')
+    assert.equal(useStore.getState().sfcs['DV09-SFC'].area, 'PLANT_AREA_B')
+    assert.equal(nextAreaName(['AREA1', 'AREA3']), 'AREA2')
+    store.newProject('blank')
+    assert.ok(!useStore.getState().areas.includes('PLANT_AREA_B'))
+    assert.deepEqual(useStore.getState().modules, {})
+    assert.deepEqual(useStore.getState().equipment, {})
+    assert.deepEqual(useStore.getState().sfcs, {})
+  })
+})
+
+test('DV09 page 60: controller descriptions support 255 characters and reject 256', () => {
+  withAreaProject(store => {
+    assert.equal(store.createController('DV09-CTLR', 'x'.repeat(255)), true)
+    assert.equal(useStore.getState().hardware.controllers['DV09-CTLR'].description.length, 255)
+    assert.equal(store.createController('LONG-CTLR', 'x'.repeat(256)), false)
+    assert.equal(useStore.getState().hardware.controllers['LONG-CTLR'], undefined)
+  })
+})
+
+test('DV09 page 67: identify, network-redundant commission, auto-sense and five-minute cold restart are executable', () => {
+  withAreaProject(store => {
+    assert.equal(store.decommissionController('CTLR-01'), true)
+    assert.equal(store.identifyController('CTLR-01', true), true)
+    assert.equal(useStore.getState().hardware.controllers['CTLR-01'].identified, true)
+    assert.equal(store.identifyController('CTLR-01', false), true)
+    assert.equal(store.setControllerConfiguration('CTLR-01', { networkRedundant: true }), true)
+    assert.equal(store.commissionController('CTLR-01'), true)
+    let controller = useStore.getState().hardware.controllers['CTLR-01']
+    assert.equal(controller.commissioned, true)
+    assert.equal(controller.networkRedundant, true)
+    assert.ok(controller.controlNetworkAddress)
+    assert.equal(controller.lastAutoSense, null)
+    assert.equal(store.autoSenseController('CTLR-01'), true)
+    controller = useStore.getState().hardware.controllers['CTLR-01']
+    assert.ok(controller.lastAutoSense.carriersScanned > 0)
+    assert.ok(controller.lastAutoSense.channelsDetected > 0)
+    assert.equal(store.setControllerConfiguration('CTLR-01', { coldRestartMinutes: 5 }), true)
+    assert.equal(useStore.getState().hardware.controllers['CTLR-01'].coldRestartMinutes, 5)
+    assert.equal(store.simulateControllerPowerLoss('CTLR-01'), true)
+    store.tick(300)
+    assert.equal(store.restoreControllerPower('CTLR-01'), true)
+    assert.equal(useStore.getState().hardware.controllers['CTLR-01'].commissioned, true)
+  })
+})
+
+function withPictureProject(run) {
+  const originalPictures = usePictures.getState()
+  try {
+    withAreaProject((store, alerts) => {
+      usePictures.setState({ pictures: { TANK101: { name: 'TANK101', elements: [] } } })
+      run(usePictures.getState(), store, alerts)
+    })
+  } finally {
+    usePictures.setState(originalPictures, true)
+  }
+}
+
+test('DV09 page 136: Previous Ovw_ref.grf and Next alarmList.grf resolve to real displays', () => {
+  withPictureProject(pictures => {
+    const original = pictures.pictures.TANK101
+    assert.equal(pictures.setPictureLinks('TANK101', 'Ovw_ref.grf', 'alarmList.grf'), true)
+    const configured = usePictures.getState().pictures.TANK101
+    assert.deepEqual(resolvePictureTarget(configured.previousPicture, usePictures.getState().pictures),
+      { kind: 'display', display: 'overview' })
+    assert.deepEqual(resolvePictureTarget(configured.nextPicture, usePictures.getState().pictures),
+      { kind: 'display', display: 'alarms' })
+    assert.equal(configured.elements, original.elements)
+    assert.equal(original.previousPicture, undefined)
+    assert.ok(useStore.getState().eventLog.some(e => e.category === 'CONFIGURE' && e.tag === 'TANK101'))
+  })
+})
+
+test('custom picture links resolve case-insensitively with optional .grf and blanks remove links', () => {
+  withPictureProject(pictures => {
+    pictures.createPicture('TANK201')
+    assert.equal(pictures.setPictureLinks('TANK101', '', ' tank201.grf '), true)
+    assert.deepEqual(resolvePictureTarget('tank201.grf', usePictures.getState().pictures),
+      { kind: 'picture', name: 'TANK201' })
+    assert.equal(pictures.setPictureLinks('TANK101', '', ''), true)
+    assert.equal(usePictures.getState().pictures.TANK101.nextPicture, '')
+    assert.equal(resolvePictureTarget('', usePictures.getState().pictures), null)
+  })
+})
+
+test('missing navigation targets and deleted pictures do not silently navigate or apply partial links', () => {
+  withPictureProject((pictures, store, alerts) => {
+    const before = usePictures.getState().pictures
+    assert.equal(pictures.setPictureLinks('TANK101', 'Ovw_ref.grf', 'MISSING.grf'), false)
+    assert.equal(usePictures.getState().pictures, before)
+    assert.equal(pictures.setPictureLinks('MISSING', '', ''), false)
+    assert.equal(alerts.length, 2)
+    assert.ok(useStore.getState().eventLog.every(e => e.category === 'DIAGNOSTIC'))
+    pictures.createPicture('TANK201')
+    assert.equal(pictures.setPictureLinks('TANK101', '', 'TANK201'), true)
+    pictures.deletePicture('TANK201')
+    assert.equal(resolvePictureTarget('TANK201', usePictures.getState().pictures), null)
+  })
+})
+
+test('picture navigation configuration requires Can Configure and preserves denied state', () => {
+  withPictureProject(pictures => {
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    const before = usePictures.getState()
+    assert.equal(pictures.setPictureLinks('TANK101', 'Ovw_ref.grf', 'alarmList.grf'), false)
+    assert.equal(usePictures.getState(), before)
+    assert.match(useSecurity.getState().lastDenied, /Access Denied.*Can Configure/)
+  })
 })

@@ -83,7 +83,7 @@ export interface ControllerConfiguration {
 }
 
 export const MAX_COLD_RESTART_MINUTES = 30 * 24 * 60 + 23 * 60 + 59
-export const MAX_CONTROLLER_DESCRIPTION_LENGTH = 48
+export const MAX_CONTROLLER_DESCRIPTION_LENGTH = 255
 
 /** Allocate from a documentation-only subnet so simulated addresses cannot route onto a real plant network. */
 export function allocateControlNetworkAddress(controllers: Record<string, Controller>): string | null {

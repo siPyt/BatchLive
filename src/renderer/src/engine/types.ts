@@ -503,6 +503,7 @@ export interface PlantState {
   time: number
   running: boolean
   speed: number // sim speed multiplier
+  areas: string[]
   modules: Record<string, AnyModule>
   alarms: ActiveAlarm[]
   // physical process reservoirs the engine integrates

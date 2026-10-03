@@ -29,14 +29,14 @@ export function WorkshopsDisplay(): JSX.Element {
       <div className="ws-list">
         <div className="ws-overall">
           <div className="ws-overall-top">
-            <b>Course Progress</b>
+            <b>Exercise Checklist</b>
             <span>{overall}%</span>
           </div>
           <div className="ws-bar">
             <div className="ws-bar-fill" style={{ width: overall + '%' }} />
           </div>
           <div className="ws-overall-sub">
-            {doneSteps} / {totalSteps} steps complete
+            {doneSteps} / {totalSteps} steps checked manually. Not verified DV-09 coverage.
           </div>
         </div>
         {COURSE.map((m) => (
