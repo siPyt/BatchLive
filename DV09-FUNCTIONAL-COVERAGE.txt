@@ -136,9 +136,10 @@ pp79-83: Plant areas and equipment hierarchy.
 
 pp85-91: Device Signal Tags and traditional channel configuration.
   PARTIAL. The third pass verifies the four card slots, eight named/enabled
-  DST assignments and executable DI/DO binding. Analog module binding,
-  native hardware/dialog coverage and configuration/download lifecycle remain
-  absent. CHARM bindings are still a separate, preserved path.
+  DST assignments and executable DI/DO binding. The fourth pass adds
+  standalone AI and PID AI1/AO1/AO2 physical-channel binding. Standalone
+  course AO, electrical scaling, native hardware/dialog coverage and download
+  lifecycle remain absent. CHARM bindings are a separate, preserved path.
 
 pp92-104: Downloads and system checks.
   MISSING/PARTIAL. Configuration edits are immediately live in BatchLive.
@@ -317,9 +318,68 @@ passed; typecheck and production build passed. Preserve these regressions.
 The training guide identifies the verified course subset and labels the
 older XV-301/XVSTAT-301 examples as supplemental, not exact course workflows.
 
-Remaining: AI/AO module binding, full traditional hardware catalog and
+Remaining at the third-pass checkpoint: AI/AO module binding, full traditional hardware catalog and
 output options, CAS, DISCRETE library templates, independent controller/
 primary-display assignments, save/download/online, persistent configuration/
 runtime/NVM and native dialogs. Settings are immediately live/session-local.
 No complete-course or image-only-review completion claim is made.
 Commit allowed; no push without explicit authorization.
+
+FOURTH VERIFIED PASS: ANALOG CHANNEL BINDING AND LI-101 THRESHOLDS
+----------------------------------------------------------------
+Sources: card assignments pp89-91 and LI-101 p172.
+Status: VERIFIED WORKFLOW for the subset below, not full course parity.
+
+- Standalone AI IO_IN and PID AI1 IO_IN / AO1 IO_OUT / AO2 IO_OUT bind to
+  independent named/enabled traditional AI/AO channels.
+- AI signal values are supplied in engineering units, clamped to each
+  module's configured range. This is NOT an electrical 4-20 mA conversion.
+- Bound AI inputs are sampled before module execution and bypass generic
+  synthetic drift/reactor measurement writes. External PID.IN sources and
+  AI1 MAN remain distinct from physical FIELD_VAL and its raw quality.
+- AO signal is the actual applied stage output in percent, not PID command.
+  Hardware readback initializes the stage on binding and each scan; a
+  disabled/down/failed stage holds that physical signal and reports Bad.
+- AO1 and AO2 have distinct writers/quality. Failure of AO2 does not make
+  healthy AO1 Bad. Recovery preserves existing splitter balancing time.
+- Wrong direction/port, missing channels, duplicate writers across modules
+  or AO1/AO2 and existing CHARM conflicts are explicitly rejected.
+- Removing a bound AO2 block requires disconnecting its DST first; deleting
+  a module releases all its analog ports. Referenced DST rename is blocked.
+- Auto-sense includes analog ports without counting them as extra installed
+  channels. Project reset removes bindings without changing the pharma plant.
+- Bound-input Bad reaches PV/OUT reference consumers and PV BAD alarms.
+  Nonfinite signal data holds last-good PV with channel/module Bad, not a
+  falsely healthy signal. Missing DSTs do not fall back to synthetic physics.
+- Newly created AI indicators expose HI/LO definitions disabled by default;
+  existing baseline modules are not modified. LI-101 can configure HI950
+  and LO100 through Explorer. Writes clone alarm definitions, preserving
+  previous snapshots; missing alarms/nonfinite limits fail with diagnostics.
+
+Live verification:
+Created cards/channels and AI/PID fixtures through the existing UI, bound
+LI-101 LT-1 and LOOP-101 FT-2/LY-1 in Studio, and used manual input forms.
+LI-101 stayed exactly 725.5 gal; PID AI1/PV read 432.1. A Studio output
+command applied 63% to C02 CH1. Disabling CH1 and commanding 80% held
+actual channel/stage at 63% with Bad. Re-enabling recovered; split AO1/AO2
+were separately bound and applied 100% / 60% for an 80% PID command.
+The final rebound check showed hardware output 0, applied stage 0 and Bad
+before any validating scan, rather than the old local-simulation 50%.
+LI-101 HI950/LO100 were entered and enabled through Explorer. At 100 LO
+was active, at 100.1 it returned; at 949.9 HI was inactive and at 950 active.
+OperatorA binding denial preserved both selection and stored DST. New
+Studio controls and channel forms were contained at a 900-pixel viewport.
+All temporary fixtures were restored/removed; original plant/security/UI
+and viewport were retained, and the current preview is running on Overview.
+
+Validation: 82 control regressions plus five audit-validator regressions,
+typecheck, production build and editor diagnostics passed.
+Protected equipment geometry/colors/piping and FBD/ribbon geometry unchanged.
+Complete baseline process equations and unbound control behavior retained.
+
+Remaining: standalone LEVEL-101 AO with CAS_SP and 0-1000 gal output scale,
+electrical input/output conversion, analog tiebacks, native templates,
+assignment/display properties, persistent configured/runtime/NVM separation,
+Save/Download/Online and original-PDF image-only review. A PID output stage
+is not a substitute for the standalone course module. No full-parity claim.
+Commit permitted; no push without explicit authorization.

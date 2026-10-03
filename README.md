@@ -99,7 +99,15 @@ signal with Bad quality rather than reporting the command as confirmed feedback.
 
 The course DST exercise uses a separate blank training session so the existing
 pharma `XV-101` valve is not overwritten. Creating a blank project discards that
-session's current project after confirmation. AI/AO module binding, CAS,
+session's current project after confirmation. Standalone AI and PID AI1/AO1/AO2
+stages now support analog DST binding. Manual AI channel signals are engineering
+values clamped to the module range; bound inputs bypass synthetic process drift.
+AO channels carry applied percent output, retain hardware readback during faults,
+and preserve existing limits, manual modes, back-calculation and splitter balance.
+New AI indicators expose disabled HI/LO alarms so the course's LI-101 thresholds
+can be explicitly configured without adding unexpected alarms to local indicators.
+
+Standalone AO/user parameters, 4-20 mA scaling and analog tiebacks, discrete CAS,
 native templates, controller/display assignment, and the configuration/runtime/
 Save/Download/Online lifecycle remain gaps. These channel settings are
 immediately live and session-local, not saved controller configuration.

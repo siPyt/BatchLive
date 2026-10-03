@@ -872,3 +872,41 @@ OperatorA binding. Temporary fixtures were restored and removed.
 passed. The complete course, native downloads and image-only review remain
 incomplete. Preserve the explicit limitations in the coverage ledger.
 Commit is permitted; push remains unauthorized.
+
+===============================================================================
+18. DV-09 ANALOG DST - FUNCTIONAL SIGNAL/QUALITY EXTENSION
+===============================================================================
+
+The existing Traditional I/O forms and Control Studio parameter table now
+expose standalone AI and PID AI1/AO1/AO2 DST binding. AI channel values are
+engineering signals, AO values are applied percent output. Keep these units
+explicit; do not label them as real electrical inputs or downloaded data.
+Input and output wiring are different from an external block CAS_IN source.
+
+Channel summaries include engineering/percent units and actual module/port
+bindings. The existing wrapping forms are retained. At a 900-pixel viewport
+new controls stayed inside the channel forms and parameter-table cells.
+No new theme, glyph, equipment geometry, FBD coordinates or ribbon artwork.
+
+Binding an analog output reads its actual hardware value immediately and
+marks it Bad until execution validates the path. Never show the previous
+local simulation's output as already applied to a newly selected channel.
+Inputs remain held/Bad until sampled; faults retain last-good values.
+Existing analog FBD/faceplate Bad indications display this real quality.
+AO2 faults are independent from AO1, and recovery honors splitter balancing.
+
+Standalone AI indicators now offer disabled-by-default HI/LO definitions,
+allowing LI-101's explicit HI950/LO100 configuration. The existing baseline
+alarm definitions and protected equipment feedback appearance are unchanged.
+Bound engineering inputs bypass synthetic drift; unbound physics is retained.
+
+Verified live: LI-101 725.5 gal, PID AI1 432.1, applied output/channel 63%,
+held 63% Bad against an 80% command, recovery and split channels, exact
+100/100.1 and 949.9/950 alarm boundaries, denied operator binding and layout
+containment. Fixtures and viewports restored, preview running on Overview.
+82 control tests and five audit tests passed with typecheck/build/diagnostics.
+
+Native standalone AO/CAS_SP, electrical scaling, analog tiebacks, templates,
+assignment and Save/Download/Online remain incomplete. Do not mark the
+complete manual implemented or redesign approved graphics to hide these gaps.
+Commit permitted; push remains unauthorized.

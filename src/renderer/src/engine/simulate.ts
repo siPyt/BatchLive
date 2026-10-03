@@ -15,7 +15,9 @@ import type {
 import { CUSTOM_PHYSICS_TAGS } from './plant'
 import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue } from './fb'
 import { advanceControllers, computeBadTags, type HardwareState } from './hardware'
-import { advanceTraditionalIo, sampleDiscreteInputs } from './traditionalIo'
+import {
+  advanceTraditionalIo, analogChannelBad, sampleAnalogInputs, sampleAnalogOutputs, sampleDiscreteInputs
+} from './traditionalIo'
 import {
   appliedPidOutput, clonePidIo, executePidOutput, pidIo, pidOutputUnavailable,
   readAnalogSignal, resolvePidInput, samplePidInput
@@ -723,23 +725,31 @@ export function stepPlant(
         { ...module }
   }
   sampleDiscreteInputs(prev.hardware, modules)
+  sampleAnalogOutputs(prev.hardware, modules)
+  const boundInput = (tag: string): boolean => !!prev.hardware.analogBindings?.[tag]?.input
+  const analogOutputBad = (tag: string, second = false): boolean => {
+    const dst = prev.hardware.analogBindings?.[tag]?.[second ? 'output2' : 'output']
+    return (second ? false : badOutTags.has(tag)) || (!!dst && analogChannelBad(prev.hardware, dst, 'AO'))
+  }
   for (const module of Object.values(modules)) {
     if (module.type === 'AI') module.pvBad = badPvTags.has(module.tag)
     if ((module.type === 'MOTOR' || module.type === 'VALVE') && badCmdTags.has(module.tag)) module.fault = true
     if (module.type !== 'PID') continue
     const io = pidIo(module)
-    samplePidInput(module, io.ai.raw, badPvTags.has(module.tag))
-    io.ao.bad = badOutTags.has(module.tag) || !!io.ao.fault ||
+    if (!boundInput(module.tag)) samplePidInput(module, io.ai.raw, badPvTags.has(module.tag))
+    io.ao.bad = analogOutputBad(module.tag) || !!io.ao.fault ||
       (io.ao.mode === 'CAS' && !io.aoConnected)
-    if (io.ao2) io.ao2.bad = !!io.ao2.fault || (io.ao2.mode === 'CAS' && !io.ao2Connected)
+    if (io.ao2) io.ao2.bad = analogOutputBad(module.tag, true) || !!io.ao2.fault ||
+      (io.ao2.mode === 'CAS' && !io.ao2Connected)
     if (io.splitter && io.ao2) {
       refreshSplitterStatus(io.splitter, outputFeedback(io.ao, io.aoConnected && !io.outputSource),
         outputFeedback(io.ao2, !!io.ao2Connected && !io.output2Source))
     }
   }
+  sampleAnalogInputs(prev.hardware, modules)
   const executeLoop = (m: PidModule): number => {
     stepPidWithStrategy(m, modules, dt)
-    executePidOutput(m, modules, badOutTags.has(m.tag), dt)
+    executePidOutput(m, modules, analogOutputBad(m.tag), dt, analogOutputBad(m.tag, true))
     const io = pidIo(m)
     if (m.actualMode === 'IMAN' && io.bkcalConnected &&
         pidOutputUnavailable(m)) {
@@ -776,7 +786,8 @@ export function stepPlant(
     else if (module.type === 'DO' && !prev.hardware.discreteBindings?.[tag] && module.mode !== 'OOS') {
       module.state = module.commanded
     }
-    else if (module.type === 'AI' && !(hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) && !module.pvBad) {
+    else if (module.type === 'AI' && !boundInput(tag) &&
+        !(hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) && !module.pvBad) {
       const span = module.pvMax - module.pvMin || 1
       const mid = module.pvMin + span / 2
       module.pv = clamp(module.pv + (mid - module.pv) * 0.01 + noise(span * 0.002),
@@ -829,13 +840,13 @@ export function stepPlant(
     proc.reactorConc = clamp(proc.reactorConc + noise(0.05), 0, 100)
 
     // --- Write PVs back to modules ---------------------------------------
-    samplePidInput(fic, proc.feedFlow, badPvTags.has(fic.tag))
-    samplePidInput(lic101, proc.feedTankLevel, badPvTags.has(lic101.tag))
-    samplePidInput(lic201, proc.reactorLevel, badPvTags.has(lic201.tag))
-    samplePidInput(tic, proc.reactorTemp, badPvTags.has(tic.tag))
-    samplePidInput(pic, proc.headerPressure, badPvTags.has(pic.tag))
-    at301.pv = proc.reactorConc
-    ti101.pv = clamp(ti101.pv + (32 - ti101.pv) * 0.02 + noise(0.05), 28, 70)
+    if (!boundInput(fic.tag)) samplePidInput(fic, proc.feedFlow, badPvTags.has(fic.tag))
+    if (!boundInput(lic101.tag)) samplePidInput(lic101, proc.feedTankLevel, badPvTags.has(lic101.tag))
+    if (!boundInput(lic201.tag)) samplePidInput(lic201, proc.reactorLevel, badPvTags.has(lic201.tag))
+    if (!boundInput(tic.tag)) samplePidInput(tic, proc.reactorTemp, badPvTags.has(tic.tag))
+    if (!boundInput(pic.tag)) samplePidInput(pic, proc.headerPressure, badPvTags.has(pic.tag))
+    if (!boundInput(at301.tag)) at301.pv = proc.reactorConc
+    if (!boundInput(ti101.tag)) ti101.pv = clamp(ti101.pv + (32 - ti101.pv) * 0.02 + noise(0.05), 28, 70)
     lsh101.state = proc.feedTankLevel >= 85
   }
 
@@ -843,7 +854,7 @@ export function stepPlant(
   for (const tag of Object.keys(modules)) {
     if (hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) continue
     const gm = modules[tag]
-    if (gm.type === 'PID') {
+    if (gm.type === 'PID' && !boundInput(tag)) {
       const output = appliedPidOutput(gm)
       const gspan = gm.pvMax - gm.pvMin || 1
       // Self-regulating first-order process: PV rises with controller output.
@@ -868,7 +879,7 @@ export function stepPlant(
   }
   for (const tag of Object.keys(modules)) {
     const m = modules[tag]
-    if (m.type === 'AI') m.pvBad = badPvTags.has(tag)
+    if (m.type === 'AI' && !boundInput(tag)) m.pvBad = badPvTags.has(tag)
   }
 
   // --- Alarm evaluation -------------------------------------------------
@@ -886,7 +897,7 @@ export function stepPlant(
     } else if (m.type === 'AI') {
       evalAnalogAlarms(m.tag, m.description, m.pv, m.unit, m.alarms, alarms, now)
       const pvbad = m.alarms.find((a) => a.type === 'PVBAD')
-      if (pvbad) reconcile(alarms, m.tag, m.description, pvbad, badPvTags.has(m.tag), m.pv, m.unit, now)
+      if (pvbad) reconcile(alarms, m.tag, m.description, pvbad, m.pvBad, m.pv, m.unit, now)
     } else if (m.type === 'MOTOR') {
       const fail = m.alarms.find((a) => a.type === 'FAIL')
       if (fail) reconcile(alarms, m.tag, m.description, fail, m.fault, 0, '', now)

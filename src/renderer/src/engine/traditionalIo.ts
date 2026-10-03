@@ -1,6 +1,10 @@
 import { controllerIsDown, type HardwareState } from './hardware'
 import { isValidDeltaVTag } from './naming'
 import type { AnyModule } from './types'
+import { pidIo, samplePidInput } from './analogStrategy'
+
+export type AnalogBindingPort = 'input' | 'output' | 'output2'
+export type AnalogDstBindings = Partial<Record<AnalogBindingPort, string>>
 
 export type TraditionalCardType = 'AI' | 'AO' | 'DI' | 'DO'
 
@@ -55,7 +59,8 @@ export function channelConfigurationError(
     item.channel.dst === patch.dst && item.channel !== channel)) return `DST ${patch.dst} already exists`
   if (patch.dst !== channel.dst && channel.dst) {
     const referenced = traditionalChannels(hw).some(item => item.channel.tiebackDst === channel.dst) ||
-      Object.values(hw.discreteBindings ?? {}).some(dst => dst === channel.dst)
+      Object.values(hw.discreteBindings ?? {}).some(dst => dst === channel.dst) ||
+      Object.values(hw.analogBindings ?? {}).some(bindings => Object.values(bindings).includes(channel.dst))
     if (referenced) return `DST ${channel.dst} is in use; disconnect its module bindings and tiebacks before renaming`
   }
   if (patch.tiebackDst) {
@@ -83,7 +88,65 @@ export function discreteBindingError(hw: HardwareState, module: AnyModule | unde
 
 export function channelBad(hw: HardwareState, card: TraditionalCard, channel: TraditionalChannel): boolean {
   const controller = hw.controllers[card.controllerTag]
-  return !controller || controllerIsDown(controller) || !channel.enabled || !channel.dst
+  return !controller || controllerIsDown(controller) || !channel.enabled || !channel.dst ||
+    !Number.isFinite(channel.value)
+}
+
+export function analogBindingError(
+  hw: HardwareState, module: AnyModule | undefined, port: AnalogBindingPort, dst: string
+): string | null {
+  if (!module || (module.type !== 'AI' && module.type !== 'PID')) return 'Analog DST binding requires an AI or PID module'
+  if (!['input', 'output', 'output2'].includes(port)) return 'Unknown analog I/O port'
+  if (module.type === 'AI' && port !== 'input') return 'AI modules support IO_IN only'
+  if (!dst) return null
+  if (module.type === 'PID' && port === 'output2' && !pidIo(module).ao2) return 'Enable AO2 before binding its output'
+  const type = port === 'input' ? 'AI' : 'AO'
+  const target = findDst(hw, dst)
+  if (!target || target.card.type !== type) return `Select a named ${type} channel`
+  if (port !== 'input' && Object.entries(hw.analogBindings ?? {}).some(([tag, bindings]) =>
+    (['output', 'output2'] as const).some(other => bindings[other] === dst &&
+      (tag !== module.tag || other !== port)))) return `Output DST ${dst} already has a writer`
+  if (Object.values(hw.baseplates).some(plate => plate.channels.some(channel => channel.boundTag === module.tag))) {
+    return `${module.tag} already has a CHARM binding; use an unbound training module`
+  }
+  return null
+}
+
+export function analogChannelBad(hw: HardwareState, dst: string, type: 'AI' | 'AO'): boolean {
+  const target = findDst(hw, dst)
+  return !target || target.card.type !== type || channelBad(hw, target.card, target.channel) ||
+    (type === 'AI' && target.channel.bad)
+}
+
+export function sampleAnalogInputs(hw: HardwareState, modules: Record<string, AnyModule>): void {
+  for (const [tag, bindings] of Object.entries(hw.analogBindings ?? {})) {
+    const module = modules[tag]
+    if (!bindings.input || !module || (module.type !== 'AI' && module.type !== 'PID')) continue
+    const target = findDst(hw, bindings.input)
+    const bad = analogChannelBad(hw, bindings.input, 'AI')
+    if (module.type === 'PID') samplePidInput(module, target?.channel.value ?? pidIo(module).ai.raw, bad)
+    else {
+      module.pvBad = bad
+      if (!bad && target) module.pv = Math.max(module.pvMin, Math.min(module.pvMax, target.channel.value))
+    }
+  }
+}
+
+/** AO stages start from hardware readback so failure cannot hold a fictitious output. */
+export function sampleAnalogOutputs(hw: HardwareState, modules: Record<string, AnyModule>): void {
+  for (const [tag, bindings] of Object.entries(hw.analogBindings ?? {})) {
+    const module = modules[tag]
+    if (module?.type !== 'PID') continue
+    for (const port of ['output', 'output2'] as const) {
+      const dst = bindings[port]
+      if (!dst) continue
+      const stage = port === 'output' ? pidIo(module).ao : pidIo(module).ao2
+      const target = findDst(hw, dst)
+      if (stage && target?.card.type === 'AO' && Number.isFinite(target.channel.value)) {
+        stage.out = target.channel.value
+      }
+    }
+  }
 }
 
 /** Read inputs from the preceding hardware scan; write outputs after module execution. */
@@ -121,6 +184,26 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
       module.ioBad = channel.bad
       if (!channel.bad) channel.value = module.commanded ? 1 : 0
       module.state = channel.value !== 0
+    }
+  }
+  for (const [tag, bindings] of Object.entries(hw.analogBindings ?? {})) {
+    const module = modules[tag]
+    if (module?.type !== 'PID') continue
+    for (const port of ['output', 'output2'] as const) {
+      const dst = bindings[port]
+      if (!dst) continue
+      const target = findDst(next, dst)
+      const stage = port === 'output' ? pidIo(module).ao : pidIo(module).ao2
+      if (!target || target.card.type !== 'AO') {
+        if (stage) stage.bad = true
+        continue
+      }
+      target.channel.bad ||= !stage || stage.bad || !Number.isFinite(stage.out)
+      if (stage && !target.channel.bad) target.channel.value = stage.out
+      if (stage) {
+        stage.bad = target.channel.bad
+        if (Number.isFinite(target.channel.value)) stage.out = target.channel.value
+      }
     }
   }
   for (const card of Object.values(cards)) {

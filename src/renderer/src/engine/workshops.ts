@@ -67,7 +67,7 @@ export const COURSE: WModule[] = [
         steps: [
           { id: 'dv09-io-1', text: 'In a separate training session, choose File → New Blank Project. Create PLANT_AREA_A in Explorer, then add and commission a training controller in Physical Network.', goto: 'hardware' },
           { id: 'dv09-io-2', text: 'Under that controller, use New Card to create C01 AI, C02 AO, C03 DI and C04 DO in slots 1, 2, 3 and 4.' },
-          { id: 'dv09-io-3', text: 'Expand channels 1 and 2 in each card, set DST, select Enable and Apply Channel Properties: C01 LT-1 / FT-2; C02 LY-1 / FY-2; C03 LSO-1 / XI-2; C04 XV-1 / ZX-2. AI/AO names are inventory only in this pass.' },
+          { id: 'dv09-io-3', text: 'Expand channels 1 and 2 in each card, set DST, select Enable and Apply Channel Properties: C01 LT-1 / FT-2; C02 LY-1 / FY-2; C03 LSO-1 / XI-2; C04 XV-1 / ZX-2. The analog DST exercise below binds AI/PID stages; a standalone course AO module is still absent.' },
           { id: 'dv09-io-4', text: 'Set C03 channel 1 Simulated tieback to XV-1 and apply. Auto-sense I/O should detect 32 installed channels on the four eight-channel cards, regardless of which channels are enabled.' },
           { id: 'dv09-io-5', text: 'In Explorer, create Type DO, Tag XV-101, Area PLANT_AREA_A; create Type DI, Tag XVSTAT-101 in the same area.', goto: 'explorer' },
           { id: 'dv09-io-6', text: 'Open XV-101 in Control Studio. Select IO_OUT XV-1 and MODE.TARGET AUTO. Open XVSTAT-101, select IO_IN LSO-1, ON VALUE 0 and enable the discrete alarm.', goto: 'studio' },
@@ -208,9 +208,26 @@ export const COURSE: WModule[] = [
     module: 'DV-09 · Analog & Regulatory Control',
     workshops: [
       {
+        id: 'dv09-analog-dst',
+        title: 'LI-101 Input and Analog Channel Signal Paths',
+        objective: 'Read LT-1 into LI-101, verify HI950/LO100, and exercise real PID analog output channels.',
+        note: 'Use a separate blank training session, not the approved pharma plant. This is an executable subset of DV-09 p172 plus a PID I/O path check, not the standalone LEVEL-101 AO / CAS_SP procedure. Input signals are supplied in engineering units, outputs in percent; 4-20 mA/XD_SCALE conversion, analog tiebacks, templates, assignment and Save/Download/Online remain absent. File → New Blank Project discards that session after confirmation.',
+        steps: [
+          { id: 'dv09-ai-1', text: 'In the blank training project, create PLANT_AREA_A and commission CTRL1. Add C01 AI and C02 AO. Name/Enable C01 CH1 LT-1, CH2 FT-2 and C02 CH1 LY-1, CH2 FY-2.', goto: 'hardware' },
+          { id: 'dv09-ai-2', text: 'In Explorer create AI LI-101, Area PLANT_AREA_A, Unit gal, Min 0, Max 1000. In Configured Alarms set HI 950 and LO 100 and enable both. New AI threshold alarms start disabled.', goto: 'explorer' },
+          { id: 'dv09-ai-3', text: 'Open LI-101 in Studio and select IO_IN LT-1. A binding change marks the unsampled input Bad until the scan validates it.', goto: 'studio' },
+          { id: 'dv09-ai-4', text: 'In Physical Network, set LT-1 Simulated signal to 725.5 and Set Simulated Input. Run and confirm LI-101 remains 725.5 gal, not a drifting synthetic measurement. At 100 LO is active; at 100.1 it returns. At 949.9 HI is inactive; at 950 HI becomes active.', goto: 'hardware' },
+          { id: 'dv09-ai-5', text: 'For a separate PID path fixture, create PID LOOP-101 with range 0-1000 gal. In Studio bind IO_IN FT-2 and IO_OUT LY-1. Set FT-2 engineering signal to 432.1 and verify AI1/PV reads 432.1.', goto: 'studio' },
+          { id: 'dv09-ai-6', text: 'Switch LOOP-101 to MAN, allow a scan, and set OUT.CV 63. Verify C02 CH1 signal 63% and AO1 applied output 63%. Disable CH1, command 80%, and confirm physical/AO output holds 63% with Bad rather than following the command.' },
+          { id: 'dv09-ai-7', text: 'Enable CH1 to recover. Select the split strategy and bind AO2.IO_OUT FY-2; verify separate channel signals and independent quality. Disconnect AO2.IO_OUT before returning to the simple strategy. Recovery retains the existing splitter balancing time, not an instant jump.' },
+          { id: 'dv09-ai-8', text: 'Disable an input to verify held last-good PV and PV BAD alarm. AI1 MAN can substitute its manual value while FIELD_VAL remains Bad. Restore the channel and AUTO to resume physical sampling. Do not treat this as downloaded persistent configuration.' }
+        ]
+      },
+      {
         id: 'analog',
-        title: 'Creating an Analog Module (AI)',
+        title: 'Supplemental Local Analog Indicator',
         objective: 'Create an analog indicator with engineering range.',
+        note: 'Local synthetic input exercise; use the LI-101 DST exercise above for a real simulated channel source.',
         steps: [
           { id: 'ai-1', text: 'DeltaV Explorer → ＋ New Module.', goto: 'explorer' },
           { id: 'ai-2', text: 'Type = AI, Tag = TI-301, Unit = degC, Min = 0, Max = 150, Area = REACTOR.' },

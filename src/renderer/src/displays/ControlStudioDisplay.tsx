@@ -6,7 +6,7 @@ import { FbdCanvas } from '../components/FbdCanvas'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
 import { moduleNameError } from '../engine/naming'
-import { traditionalChannels } from '../engine/traditionalIo'
+import { traditionalChannels, type AnalogBindingPort } from '../engine/traditionalIo'
 import { appliedPidOutput, pidIo, readAnalogSignal, signalError } from '../engine/analogStrategy'
 import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
 import type {
@@ -202,6 +202,7 @@ function ParameterView({ module: m, selectedBlock }: {
         </thead>
         <tbody>
           {(m.type === 'DI' || m.type === 'DO') && <DiscreteIoRows m={m} />}
+          {m.type === 'AI' && <AnalogDstRow tag={m.tag} port="input" bad={m.pvBad} />}
           {m.type === 'PID' && selectedBlock === 'SPLTR1' && selectedSplitter ? (
             <SplitterParamRows state={selectedSplitter}
               onChange={(patch) => setPidIo(m.tag, { splitter: patch })} />
@@ -305,6 +306,27 @@ function DiscreteIoRows({ m }: { m: Extract<AnyModule, { type: 'DI' | 'DO' }> })
   </>
 }
 
+function AnalogDstRow({ tag, port, bad }: {
+  tag: string; port: AnalogBindingPort; bad: boolean
+}): JSX.Element {
+  const hardware = useStore(s => s.hardware)
+  const bind = useStore(s => s.bindAnalogDst)
+  const input = port === 'input'
+  const label = input ? 'IO_IN' : port === 'output2' ? 'AO2.IO_OUT' : 'IO_OUT'
+  const choices = traditionalChannels(hardware).filter(item =>
+    item.card.type === (input ? 'AI' : 'AO') && item.channel.dst)
+  const selected = hardware.analogBindings?.[tag]?.[port] ?? ''
+  return <tr><td>{label}</td><td><select aria-label={`${tag} ${label}`} value={selected}
+    onChange={e => bind(tag, port, e.target.value)}>
+    <option value="">(none - local simulation)</option>
+    {selected && !choices.some(item => item.channel.dst === selected) &&
+      <option value={selected}>Missing DST: {selected}</option>}
+    {choices.map(item => <option key={item.channel.dst} value={item.channel.dst}>
+      {item.channel.dst} ({item.card.id} CH{item.channel.channel})
+    </option>)}
+  </select></td><td>{selected ? bad ? 'Bad' : input ? 'Engineering signal' : 'Percent output' : 'Local'}</td></tr>
+}
+
 /** Property Inspector for Math/Logic/Timer/Analog-Control blocks: IN1/IN2
  * wiring (const or any live module tag) plus whichever registers are
  * meaningful for this specific block type — edits apply to the simulation
@@ -373,6 +395,9 @@ function PidIoWiringRows({ m, modules, setPidIo }: {
   const io = pidIo(m)
   return (
     <>
+      <AnalogDstRow tag={m.tag} port="input" bad={io.ai.bad} />
+      <AnalogDstRow tag={m.tag} port="output" bad={io.ao.bad} />
+      {io.ao2 && <AnalogDstRow tag={m.tag} port="output2" bad={io.ao2.bad} />}
       <tr><td>CONTROL STRATEGY</td><td><select aria-label={`${m.tag} control strategy`}
         value={io.splitter ? 'split' : 'simple'} onChange={(e) =>
           setPidIo(m.tag, { splitRange: e.target.value === 'split' })}>
@@ -439,6 +464,7 @@ function AnalogIoParamRows({ m, block, modules, setPidIo }: {
   )
   return (
     <>
+      <AnalogDstRow tag={m.tag} port={input ? 'input' : second ? 'output2' : 'output'} bad={stage.bad} />
       {row('MODE.TARGET', <button className="studio-param-btn" onClick={() =>
         setPidIo(m.tag, input ? { inputMode: mode === 'MAN' ? 'AUTO' : 'MAN' } :
           second ? { output2Mode: mode === 'MAN' ? 'CAS' : 'MAN' } :

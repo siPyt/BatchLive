@@ -1309,7 +1309,11 @@ export function makeModule(s: NewModuleSpec): AnyModule {
         pv: mid,
         unit,
         pvMin,
-        pvMax
+        pvMax,
+        alarms: [
+          { type: 'HI', label: 'HI', priority: 'WARNING', limit: pvMin + (pvMax - pvMin) * 0.9, enabled: false },
+          { type: 'LO', label: 'LO', priority: 'WARNING', limit: pvMin + (pvMax - pvMin) * 0.1, enabled: false }
+        ]
       })
     case 'MOTOR':
       return {

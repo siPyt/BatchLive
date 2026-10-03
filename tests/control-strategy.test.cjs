@@ -1031,6 +1031,392 @@ test('blank project and isolated course-named modules execute without nonexisten
   })
 })
 
+function analogCourseProject(store, split = false) {
+  store.newProject('blank')
+  assert.equal(store.createArea('PLANT_AREA_A'), true)
+  assert.equal(store.createController('CTRL1', 'DV09 analog signal fixture'), true)
+  assert.equal(store.commissionController('CTRL1'), true)
+  assert.equal(store.addTraditionalCard('CTRL1', 1, 'AI'), true)
+  assert.equal(store.addTraditionalCard('CTRL1', 2, 'AO'), true)
+  for (const [slot, channel, dst] of [[1, 1, 'LT-1'], [1, 2, 'FT-2'], [2, 1, 'LY-1'], [2, 2, 'FY-2']]) {
+    assert.equal(store.configureTraditionalChannel(`CTRL1/C0${slot}`, channel, { dst, enabled: true }), true)
+  }
+  assert.equal(store.createModule({ tag: 'LI-101', type: 'AI', area: 'PLANT_AREA_A',
+    description: 'Course input', unit: 'gal', pvMin: 0, pvMax: 1000 }), true)
+  assert.equal(store.createModule({ tag: 'LOOP-101', type: 'PID', area: 'PLANT_AREA_A',
+    description: 'Analog path fixture, not LEVEL-101 AO', unit: 'gal', pvMin: 0, pvMax: 1000 }), true)
+  assert.equal(store.bindAnalogDst('LI-101', 'input', 'LT-1'), true)
+  assert.equal(store.bindAnalogDst('LOOP-101', 'input', 'FT-2'), true)
+  assert.equal(store.bindAnalogDst('LOOP-101', 'output', 'LY-1'), true)
+  if (split) {
+    assert.equal(store.setPidIo('LOOP-101', { splitRange: true }), true)
+    assert.equal(store.bindAnalogDst('LOOP-101', 'output2', 'FY-2'), true)
+  }
+  store.tick(0.1)
+  store.tick(0.1)
+}
+
+test('traditional AI channel drives LI-101 exactly without generic physics or drift', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    const before = useStore.getState()
+    assert.equal(store.setTraditionalInput('LT-1', 725.5), true)
+    store.tick(0.1)
+    for (let scan = 0; scan < 20; scan++) store.tick(0.1)
+    const next = useStore.getState()
+    assert.equal(next.modules['LI-101'].pv, 725.5)
+    assert.equal(next.modules['LI-101'].pvBad, false)
+    assert.equal(findDst(next.hardware, 'LT-1').channel.value, 725.5)
+    assert.equal(findDst(before.hardware, 'LT-1').channel.value, 0)
+    assert.equal(before.modules['LI-101'].pv, 0)
+    assert.equal(store.setTraditionalInput('LT-1', 1200), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LI-101'].pv, 1000)
+    assert.equal(store.setTraditionalInput('LT-1', -20), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LI-101'].pv, 0)
+  })
+})
+
+test('PID AI1 reads its named channel before execution and cannot be overwritten by process physics', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setTraditionalInput('FT-2', 432.1)
+    store.tick(0.1)
+    let m = useStore.getState().modules['LOOP-101']
+    assert.equal(m.pv, 432.1)
+    assert.equal(m.io.ai.raw, 432.1)
+    assert.equal(m.io.ai.out, 432.1)
+    assert.equal(m.pvBad, false)
+    assert.equal(store.setPidIo('LOOP-101', { inputMode: 'MAN', inputManual: 222 }), true)
+    store.tick(0.1)
+    m = useStore.getState().modules['LOOP-101']
+    assert.equal(m.pv, 222)
+    assert.equal(m.io.ai.raw, 432.1)
+    assert.equal(m.io.ai.rawBad, false)
+    assert.equal(store.setPidIo('LOOP-101', { inputMode: 'AUTO' }), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LOOP-101'].pv, 432.1)
+  })
+})
+
+test('AO1 writes real C02 CH1 percent output after execution and obeys limits and manual mode', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setMode('LOOP-101', 'MAN')
+    store.setOutput('LOOP-101', 63)
+    const before = useStore.getState()
+    const previousSignal = findDst(before.hardware, 'LY-1').channel.value
+    assert.notEqual(previousSignal, 63)
+    store.tick(0.1)
+    let next = useStore.getState()
+    assert.equal(next.modules['LOOP-101'].io.ao.out, 63)
+    assert.equal(findDst(next.hardware, 'LY-1').channel.value, 63)
+    assert.equal(findDst(next.hardware, 'LY-1').channel.bad, false)
+    assert.equal(findDst(before.hardware, 'LY-1').channel.value, previousSignal)
+    assert.equal(store.setPidIo('LOOP-101', { outputHigh: 50 }), true)
+    store.tick(0.1)
+    assert.equal(findDst(useStore.getState().hardware, 'LY-1').channel.value, 50)
+    assert.equal(store.setPidIo('LOOP-101', { outputMode: 'MAN', outputManual: 22 }), true)
+    store.tick(0.1)
+    assert.equal(findDst(useStore.getState().hardware, 'LY-1').channel.value, 22)
+  })
+})
+
+test('disabled analog channels hold measurement and hardware output and recover without fictitious feedback', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setTraditionalInput('LT-1', 750)
+    store.setTraditionalInput('FT-2', 600)
+    store.setMode('LOOP-101', 'MAN')
+    store.setOutput('LOOP-101', 40); store.tick(0.1)
+    for (const [card, dst] of [['CTRL1/C01', 'LT-1'], ['CTRL1/C02', 'LY-1']]) {
+      store.configureTraditionalChannel(card, 1, { dst, enabled: false })
+    }
+    store.setTraditionalInput('LT-1', 900)
+    store.setOutput('LOOP-101', 80); store.tick(0.1)
+    let next = useStore.getState()
+    assert.equal(next.modules['LI-101'].pv, 750)
+    assert.equal(next.modules['LI-101'].pvBad, true)
+    assert.equal(next.modules['LOOP-101'].out, 80)
+    assert.equal(next.modules['LOOP-101'].io.ao.out, 40)
+    assert.equal(next.modules['LOOP-101'].io.ao.bad, true)
+    assert.equal(findDst(next.hardware, 'LY-1').channel.value, 40)
+    for (const [card, dst] of [['CTRL1/C01', 'LT-1'], ['CTRL1/C02', 'LY-1']]) {
+      store.configureTraditionalChannel(card, 1, { dst, enabled: true })
+    }
+    store.tick(0.1); store.tick(0.1)
+    next = useStore.getState()
+    assert.equal(next.modules['LI-101'].pv, 900)
+    assert.equal(next.modules['LI-101'].pvBad, false)
+    assert.equal(findDst(next.hardware, 'LY-1').channel.value, 80)
+    assert.equal(next.modules['LOOP-101'].io.ao.bad, false)
+  })
+})
+
+test('analog controller power loss freezes all bound signals and cold restart restores actual channels', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setControllerConfiguration('CTRL1', { coldRestartMinutes: 5 })
+    store.setTraditionalInput('LT-1', 700); store.setTraditionalInput('FT-2', 650)
+    store.setMode('LOOP-101', 'MAN'); store.setOutput('LOOP-101', 35); store.tick(0.1)
+    store.simulateControllerPowerLoss('CTRL1')
+    store.setTraditionalInput('FT-2', 800); store.setOutput('LOOP-101', 90); store.tick(0.1)
+    let next = useStore.getState()
+    assert.equal(next.modules['LOOP-101'].pv, 650)
+    assert.equal(next.modules['LOOP-101'].pvBad, true)
+    assert.equal(next.modules['LI-101'].pvBad, true)
+    assert.equal(findDst(next.hardware, 'LY-1').channel.value, 35)
+    store.restoreControllerPower('CTRL1'); store.tick(0.1); store.tick(0.1)
+    next = useStore.getState()
+    assert.equal(next.modules['LOOP-101'].pv, 800)
+    assert.equal(next.modules['LOOP-101'].pvBad, false)
+    assert.equal(findDst(next.hardware, 'LY-1').channel.value, 90)
+  })
+})
+
+test('analog binding rejects wrong ports/types and duplicate writers including AO1 versus AO2 in one module', () => {
+  withAreaProject((store, alerts) => {
+    analogCourseProject(store, true)
+    const before = useStore.getState().hardware
+    const successCount = useStore.getState().eventLog.filter(e => e.category === 'CONFIGURE').length
+    for (const [tag, port, dst] of [
+      ['LI-101', 'output', 'LY-1'], ['LI-101', 'output2', 'FY-2'],
+      ['LOOP-101', 'input', 'LY-1'], ['LOOP-101', 'output', 'LT-1'],
+      ['LOOP-101', 'invalid', 'LY-1'], ['MISSING', 'input', 'LT-1'],
+      ['LOOP-101', 'output2', 'LY-1'], ['LOOP-101', 'output', 'FY-2'],
+      ['LOOP-101', 'input', 'MISSING']
+    ]) assert.equal(store.bindAnalogDst(tag, port, dst), false)
+    assert.equal(useStore.getState().hardware, before)
+    assert.equal(useStore.getState().eventLog.filter(e => e.category === 'CONFIGURE').length, successCount)
+    assert.equal(alerts.length, 9)
+    store.createModule({ tag: 'OTHER-LOOP', type: 'PID', area: 'PLANT_AREA_A', description: 'Second writer' })
+    assert.equal(store.bindAnalogDst('OTHER-LOOP', 'output', 'LY-1'), false)
+    assert.equal(store.bindAnalogDst('OTHER-LOOP', 'output2', 'FY-2'), false)
+    assert.equal(store.bindAnalogDst('OTHER-LOOP', 'input', ' lt-1 '), true)
+    assert.equal(useStore.getState().hardware.analogBindings['OTHER-LOOP'].input, 'LT-1')
+  })
+})
+
+test('analog referenced DST rename and removing a bound AO2 block require explicit disconnection', () => {
+  withAreaProject((store, alerts) => {
+    analogCourseProject(store, true)
+    const before = useStore.getState()
+    for (const [card, dst] of [['CTRL1/C01', 'NEW-IN'], ['CTRL1/C02', 'NEW-OUT']]) {
+      assert.equal(store.configureTraditionalChannel(card, 1, { dst, enabled: true }), false)
+    }
+    assert.equal(store.setPidIo('LOOP-101', { splitRange: false }), false)
+    assert.match(alerts.at(-1), /Disconnect.*AO2/)
+    assert.equal(useStore.getState().modules, before.modules)
+    assert.equal(useStore.getState().hardware, before.hardware)
+    assert.equal(store.bindAnalogDst('LOOP-101', 'output2', ''), true)
+    assert.equal(store.setPidIo('LOOP-101', { splitRange: false }), true)
+    store.bindAnalogDst('LI-101', 'input', '')
+    assert.equal(store.configureTraditionalChannel('CTRL1/C01', 1, { dst: 'NEW-IN', enabled: true }), true)
+  })
+})
+
+test('analog writes cannot bypass permissions or take over baseline CHARM I/O', () => {
+  withAreaProject((store, alerts) => {
+    store.addTraditionalCard('CTLR-01', 1, 'AI')
+    store.configureTraditionalChannel('CTLR-01/C01', 1, { dst: 'TEACH-IN', enabled: true })
+    const before = useStore.getState()
+    assert.equal(store.bindAnalogDst('FIC-101', 'input', 'TEACH-IN'), false)
+    assert.match(alerts.at(-1), /CHARM binding/)
+    assert.equal(useStore.getState().hardware, before.hardware)
+    analogCourseProject(store)
+    const fixture = useStore.getState()
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    assert.equal(store.bindAnalogDst('LI-101', 'input', ''), false)
+    assert.equal(store.bindAnalogDst('LOOP-101', 'output', 'FY-2'), false)
+    assert.equal(store.setTraditionalInput('LT-1', 800), false)
+    assert.equal(useStore.getState(), fixture)
+  })
+})
+
+test('AO2 independent channel failure does not mark healthy AO1 Bad or alter held readback', () => {
+  withAreaProject(store => {
+    analogCourseProject(store, true)
+    store.setPidIo('LOOP-101', { splitter: { balTimeSec: 1 } })
+    store.setMode('LOOP-101', 'MAN'); store.setOutput('LOOP-101', 75)
+    store.tick(0.1)
+    let next = useStore.getState()
+    assert.equal(findDst(next.hardware, 'LY-1').channel.value, 100)
+    assert.equal(findDst(next.hardware, 'FY-2').channel.value, 50)
+    store.configureTraditionalChannel('CTRL1/C02', 2, { dst: 'FY-2', enabled: false })
+    store.setOutput('LOOP-101', 90); store.tick(0.1)
+    next = useStore.getState()
+    assert.equal(next.modules['LOOP-101'].io.ao.bad, false)
+    assert.equal(next.modules['LOOP-101'].io.ao2.bad, true)
+    assert.equal(findDst(next.hardware, 'FY-2').channel.value, 50)
+    assert.equal(findDst(next.hardware, 'LY-1').channel.bad, false)
+    store.configureTraditionalChannel('CTRL1/C02', 2, { dst: 'FY-2', enabled: true })
+    store.tick(0.1)
+    assert.equal(findDst(useStore.getState().hardware, 'FY-2').channel.value, 50)
+    assert.equal(useStore.getState().modules['LOOP-101'].io.ao2.bad, false)
+    for (let scan = 0; scan < 12; scan++) store.tick(0.1)
+    assert.ok(Math.abs(findDst(useStore.getState().hardware, 'FY-2').channel.value - 80) < 1e-9)
+  })
+})
+
+test('analog input invalid quality propagates through both PV and OUT references, manual input remains usable', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setTraditionalInput('LT-1', 500); store.setTraditionalInput('FT-2', 450); store.tick(0.1)
+    store.configureTraditionalChannel('CTRL1/C01', 1, { dst: 'LT-1', enabled: false })
+    store.configureTraditionalChannel('CTRL1/C01', 2, { dst: 'FT-2', enabled: false })
+    store.tick(0.1)
+    let modules = useStore.getState().modules
+    for (const parameter of ['PV', 'OUT']) {
+      assert.equal(readAnalogSignal({ tag: 'LI-101', parameter }, modules).bad, true)
+    }
+    assert.equal(modules['LOOP-101'].pv, 450)
+    assert.equal(modules['LOOP-101'].pvBad, true)
+    store.setPidIo('LOOP-101', { inputMode: 'MAN', inputManual: 350 }); store.tick(0.1)
+    modules = useStore.getState().modules
+    assert.equal(modules['LOOP-101'].io.ai.rawBad, true)
+    assert.equal(modules['LOOP-101'].pvBad, false)
+    assert.equal(modules['LOOP-101'].pv, 350)
+  })
+})
+
+test('analog auto-sense and deletion track actual ports and release writers for reuse', () => {
+  withAreaProject(store => {
+    analogCourseProject(store, true)
+    assert.equal(store.autoSenseController('CTRL1'), true)
+    let sense = useStore.getState().hardware.controllers.CTRL1.lastAutoSense
+    assert.equal(sense.channelsDetected, 16)
+    assert.equal(sense.channelsBound, 4)
+    store.deleteModule('LOOP-101')
+    assert.equal(useStore.getState().hardware.analogBindings['LOOP-101'], undefined)
+    store.createModule({ tag: 'NEW-LOOP', type: 'PID', area: 'PLANT_AREA_A', description: 'Replacement' })
+    assert.equal(store.bindAnalogDst('NEW-LOOP', 'output', 'LY-1'), true)
+    store.autoSenseController('CTRL1')
+    sense = useStore.getState().hardware.controllers.CTRL1.lastAutoSense
+    assert.equal(sense.channelsBound, 2)
+    store.newProject('pharma')
+    assert.equal(useStore.getState().hardware.analogBindings, undefined)
+    assert.equal(useStore.getState().modules['XV-101'].type, 'VALVE')
+  })
+})
+
+test('binding changes immediately mark unsampled input Bad and use actual hardware output readback', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.bindAnalogDst('LOOP-101', 'output', '')
+    store.setMode('LOOP-101', 'MAN'); store.setOutput('LOOP-101', 90); store.tick(0.1)
+    const before = useStore.getState()
+    const physical = findDst(before.hardware, 'LY-1').channel.value
+    assert.equal(before.modules['LOOP-101'].io.ao.out, 90)
+    assert.notEqual(physical, 90)
+    assert.equal(store.bindAnalogDst('LOOP-101', 'output', 'LY-1'), true)
+    assert.equal(useStore.getState().modules['LOOP-101'].io.ao.out, physical)
+    assert.equal(useStore.getState().modules['LOOP-101'].io.ao.bad, true)
+    assert.equal(before.modules['LOOP-101'].io.ao.out, 90)
+    assert.equal(before.modules['LOOP-101'].io.ao.bad, false)
+    store.bindAnalogDst('LI-101', 'input', 'FT-2')
+    assert.equal(useStore.getState().modules['LI-101'].pvBad, true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LOOP-101'].io.ao.out, 90)
+    assert.equal(useStore.getState().modules['LOOP-101'].io.ao.bad, false)
+    assert.equal(useStore.getState().modules['LI-101'].pvBad, false)
+  })
+})
+
+test('missing bound input and output DSTs report Bad and hold instead of falling back to synthetic physics', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setTraditionalInput('LT-1', 700); store.setTraditionalInput('FT-2', 600)
+    store.setMode('LOOP-101', 'MAN'); store.setOutput('LOOP-101', 40); store.tick(0.1)
+    const snapshot = useStore.getState()
+    useStore.setState({ hardware: { ...snapshot.hardware, traditionalCards: {} } })
+    store.tick(0.1)
+    const next = useStore.getState()
+    assert.equal(next.modules['LI-101'].pv, 700)
+    assert.equal(next.modules['LI-101'].pvBad, true)
+    assert.equal(next.modules['LOOP-101'].pv, 600)
+    assert.equal(next.modules['LOOP-101'].pvBad, true)
+    assert.equal(next.modules['LOOP-101'].io.ao.out, 40)
+    assert.equal(next.modules['LOOP-101'].io.ao.bad, true)
+  })
+})
+
+test('DV09 page 172: LI-101 course HI950 and LO100 thresholds evaluate the bound LT-1 engineering signal', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    const initial = useStore.getState()
+    assert.equal(initial.modules['LI-101'].alarms.find(a => a.type === 'HI').enabled, false)
+    assert.equal(initial.modules['LI-101'].alarms.find(a => a.type === 'LO').enabled, false)
+    store.setAlarmLimit('LI-101', 'HI', { limit: 950, enabled: true })
+    store.setAlarmLimit('LI-101', 'LO', { limit: 100, enabled: true })
+    assert.equal(initial.modules['LI-101'].alarms.find(a => a.type === 'HI').enabled, false)
+    assert.equal(initial.modules['LI-101'].alarms.find(a => a.type === 'HI').limit, 900)
+    for (const [value, hi, lo] of [[100, false, true], [100.1, false, false],
+      [949.9, false, false], [950, true, false], [950.1, true, false]]) {
+      store.setTraditionalInput('LT-1', value); store.tick(0.1)
+      const s = useStore.getState()
+      assert.equal(s.modules['LI-101'].pv, value)
+      assert.equal(s.alarms.some(a => a.id === 'LI-101.HI' && a.active), hi)
+      assert.equal(s.alarms.some(a => a.id === 'LI-101.LO' && a.active), lo)
+    }
+  })
+})
+
+test('invalid analog alarm writes leave limits intact and do not report false configuration success', () => {
+  withAreaProject((store, alerts) => {
+    analogCourseProject(store)
+    const before = useStore.getState()
+    const count = before.eventLog.filter(e => e.category === 'CONFIGURE').length
+    store.setAlarmLimit('LI-101', 'HI', { limit: NaN })
+    store.setAlarmLimit('LI-101', 'LO', { limit: Infinity })
+    store.setAlarmLimit('LI-101', 'HI_HI', { limit: 999 })
+    store.setAlarmLimit('MISSING', 'HI', { limit: 950 })
+    assert.equal(alerts.length, 4)
+    assert.equal(useStore.getState().modules, before.modules)
+    assert.equal(useStore.getState().eventLog.filter(e => e.category === 'CONFIGURE').length, count)
+  })
+})
+
+test('nonfinite loaded analog signal stays held and Bad in module, channel and PV BAD alarm', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setTraditionalInput('LT-1', 500); store.tick(0.1)
+    const s = useStore.getState()
+    const card = s.hardware.traditionalCards['CTRL1/C01']
+    useStore.setState({ hardware: { ...s.hardware, traditionalCards: { ...s.hardware.traditionalCards,
+      [card.id]: { ...card, channels: card.channels.map(c => c.channel === 1 ? { ...c, value: NaN } : c) } } } })
+    store.tick(0.1)
+    const next = useStore.getState()
+    assert.equal(next.modules['LI-101'].pv, 500)
+    assert.equal(next.modules['LI-101'].pvBad, true)
+    assert.equal(findDst(next.hardware, 'LT-1').channel.bad, true)
+    assert.equal(next.alarms.find(a => a.id === 'LI-101.PVBAD').active, true)
+    assert.equal(store.setTraditionalInput('LT-1', NaN), false)
+    assert.equal(store.setTraditionalInput('LT-1', 700), true)
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['LI-101'].pv, 700)
+    assert.equal(useStore.getState().modules['LI-101'].pvBad, false)
+  })
+})
+
+test('invalid hardware output readback cannot inject NaN into applied output or process equations', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setMode('LOOP-101', 'MAN'); store.setOutput('LOOP-101', 40); store.tick(0.1)
+    const s = useStore.getState()
+    const card = s.hardware.traditionalCards['CTRL1/C02']
+    useStore.setState({ hardware: { ...s.hardware, traditionalCards: { ...s.hardware.traditionalCards,
+      [card.id]: { ...card, channels: card.channels.map(c => c.channel === 1 ? { ...c, value: NaN } : c) } } } })
+    store.setOutput('LOOP-101', 80); store.tick(0.1)
+    const m = useStore.getState().modules['LOOP-101']
+    assert.equal(m.out, 80)
+    assert.equal(m.io.ao.out, 40)
+    assert.equal(m.io.ao.bad, true)
+    assert.equal(appliedPidOutput(m), 40)
+    assert.equal(findDst(useStore.getState().hardware, 'LY-1').channel.bad, true)
+  })
+})
+
 test('DV09 pages 87-88: create AREA_A, rename PLANT_AREA_A and add PLANT_AREA_B', () => {
   withAreaProject(store => {
     const originalAreas = store.areas

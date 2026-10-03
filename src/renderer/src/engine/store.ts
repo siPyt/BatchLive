@@ -21,13 +21,13 @@ import type {
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { stepPlant } from './simulate'
-import { configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
+import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
 import {
-  channelConfigurationError, discreteBindingError, findDst, makeTraditionalCard,
-  type TraditionalCardType
+  analogBindingError, channelConfigurationError, discreteBindingError, findDst, makeTraditionalCard,
+  type AnalogBindingPort, type TraditionalCardType
 } from './traditionalIo'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
@@ -73,6 +73,7 @@ interface StoreState extends PlantState {
     patch: { dst: string; enabled: boolean; tiebackDst?: string }) => boolean
   setTraditionalInput: (dst: string, value: number) => boolean
   bindDiscreteDst: (tag: string, dst: string) => boolean
+  bindAnalogDst: (tag: string, port: AnalogBindingPort, dst: string) => boolean
   setDiscreteMode: (tag: string, mode: 'AUTO' | 'OOS') => boolean
   configureDiscreteAlarm: (tag: string, onValue: boolean, enabled: boolean) => boolean
   // operator actions
@@ -389,7 +390,9 @@ export const useStore = create<StoreState>((set, get) => ({
   setPidIo: (tag, patch) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag} analog strategy`)) return false
     const module = get().modules[tag]
-    const error = module?.type === 'PID'
+    const error = patch.splitRange === false && get().hardware.analogBindings?.[tag]?.output2
+      ? 'Disconnect the AO2 DST before removing its block'
+      : module?.type === 'PID'
       ? pidIoPatchError(module, patch, get().modules)
       : `${tag} is not a PID control module`
     if (error) {
@@ -439,12 +442,23 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setAlarmLimit: (tag, type, patch) => {
     if (!useSecurity.getState().requireLock('RESTRICTED_CONTROL', `Configure alarm ${tag}`)) return
+    const error = !get().modules[tag]?.alarms.some(alarm => alarm.type === type)
+      ? `${tag}.${type} is not a configured alarm`
+      : patch.limit !== undefined && !Number.isFinite(patch.limit) ? 'Alarm limit must be finite' : null
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Alarm configuration rejected: ${error}`)
+      window.alert(error)
+      return
+    }
     mutateModule(set, get, tag, (m) => {
-      const lim = m.alarms.find((a) => a.type === type)
-      if (!lim) return
-      if (patch.limit !== undefined) lim.limit = patch.limit
-      if (patch.enabled !== undefined) lim.enabled = patch.enabled
-      if (patch.priority !== undefined) lim.priority = patch.priority
+      m.alarms = m.alarms.map(alarm => {
+        if (alarm.type !== type) return alarm
+        const next = { ...alarm }
+        if (patch.limit !== undefined) next.limit = patch.limit
+        if (patch.enabled !== undefined) next.enabled = patch.enabled
+        if (patch.priority !== undefined) next.priority = patch.priority
+        return next
+      })
     })
     get().logEvent('CONFIGURE', tag, `Alarm ${type} configured: ${JSON.stringify(patch)}`)
   },
@@ -1092,6 +1106,47 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  bindAnalogDst: (tag, port, dst) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Bind ${tag} ${port} traditional I/O`)) return false
+    const normalized = dst.trim().toUpperCase()
+    const error = analogBindingError(get().hardware, get().modules[tag], port, normalized)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Analog I/O binding rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    const bindings = { ...get().hardware.analogBindings }
+    const ports = { ...bindings[tag] }
+    if (normalized) ports[port] = normalized
+    else delete ports[port]
+    if (Object.keys(ports).length) bindings[tag] = ports
+    else delete bindings[tag]
+    set(s => {
+      const module = s.modules[tag]
+      let next = module
+      if (module.type === 'AI') next = { ...module, pvBad: true }
+      else if (module.type === 'PID') {
+        const io = clonePidIo(module)
+        if (port === 'input') {
+          io.ai.rawBad = true
+          io.ai.bad = io.ai.mode === 'AUTO'
+        } else {
+          const stage = port === 'output' ? io.ao : io.ao2
+          const target = findDst(s.hardware, normalized)
+          if (stage) {
+            stage.bad = true
+            if (target?.card.type === 'AO' && Number.isFinite(target.channel.value)) stage.out = target.channel.value
+          }
+        }
+        next = { ...module, io, pvBad: port === 'input' && !io.inputSource ? io.ai.bad : module.pvBad }
+      }
+      return { modules: { ...s.modules, [tag]: next },
+        hardware: { ...s.hardware, analogBindings: bindings }, rev: s.rev + 1 }
+    })
+    get().logEvent('CONFIGURE', tag, `${port} traditional I/O bound to ${normalized || '(none)'}`)
+    return true
+  },
+
   setDiscreteMode: (tag, mode) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Set ${tag} mode`)) return false
     const module = get().modules[tag]
@@ -1139,7 +1194,9 @@ export const useStore = create<StoreState>((set, get) => ({
       delete modules[tag]
       const bindings = { ...s.hardware.discreteBindings }
       delete bindings[tag]
-      return { modules, hardware: { ...s.hardware, discreteBindings: bindings },
+      const analogBindings = { ...s.hardware.analogBindings }
+      delete analogBindings[tag]
+      return { modules, hardware: { ...s.hardware, discreteBindings: bindings, analogBindings },
         alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
     })
     get().logEvent('CONFIGURE', tag, 'Module deleted')

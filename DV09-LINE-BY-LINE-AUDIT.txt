@@ -258,8 +258,11 @@ Verified subset: Physical Network has card/channel DST and Enable properties.
   All eight assignments were configured through the live UI and regression
   fixture; discrete modules bind to the actual designated DI/DO channels.
   Auto-sense counts 32 installed channels on the four eight-channel cards.
-Gaps: AI/AO module binding, native card types/dialog sequence, physical wiring,
-  persistence and downloaded configuration are not implemented.
+Verified analog extension: Standalone AI and PID AI1/AO1/AO2 stages bind to
+  the named AI/AO channels. Input is supplied in engineering units, output
+  is percent; held fault signals/quality and output ownership are tested.
+Gaps: Standalone course AO, native electrical scaling/card dialogs, physical
+  wiring, persistence and downloaded configuration are not implemented.
 Acceptance: Verify exact slots, types, enabled states, names and direction;
   data must reach the designated channel rather than a substitute variable.
 
@@ -428,7 +431,9 @@ Acceptance: Implement specific configurable dynamos and Overview target links;
 Pages: 155-157
 Status: PARTIAL
 Required: Verify DO->DI tieback, valve feedback/discrete alarm and navigation.
-Evidence: Navigation subset verified; exact course tieback and alarm absent.
+Verified subset: Navigation and isolated XV-101/XVSTAT-101 discrete DST
+  tieback/alarm-on-zero are tested in engine and live UI.
+Gaps: Full native picture/template/assignment/download procedure remains absent.
 Acceptance: Demonstrate real channel propagation and correct alarm on false
   input, not merely a completed exercise checklist.
 
@@ -451,6 +456,8 @@ Required: Build standalone LEVEL-101 AO, bind LY-1, scale 0-1000 gal, set SP
   limits and a floating CAS_SP parameter connected to CAS_IN; assign/save.
 Evidence: ModuleType has no standalone AO/user-defined parameter model.
   Palette AO creates a PID strategy substitute.
+  PID AO1/AO2 now write named percent-output channels; that does NOT satisfy
+  the independent LEVEL-101 AO / CAS_SP / engineering-scale procedure.
 Acceptance: Independent AO/parameter creation, true CAS path and actual channel
   output must work before calling this workshop implemented.
 
@@ -470,7 +477,13 @@ Pages: 172-172
 Status: PARTIAL
 Required: Create LI-101 indicator template, bind LT-1, scale 0-1000 gal,
   configure HI950/LO100, assign/display/save/download.
-Evidence: Generic AI scale/limits exist; course template/DST/lifecycle absent.
+Verified subset: Standalone LI-101 reads LT-1 engineering input with range
+  0-1000 gal. Configurable HI950/LO100 alarms have exact boundary tests and
+  live Explorer verification. Bound input does not drift or read PID command.
+  Invalid/disabled input holds PV with Bad and PV BAD alarm; valid recovery
+  resumes sampling. New AI threshold alarms start disabled until configured.
+Gaps: Electrical/XD_SCALE conversion, ANALOG template, controller/display
+  assignment and Save/Download/Online remain absent.
 Acceptance: Verify engineering conversion, channel source and alarm thresholds.
 
 [DV09-037]

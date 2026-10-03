@@ -76,7 +76,7 @@ export function readAnalogSignal(
   const value = source.type === 'PID' && ref.parameter === 'OUT'
     ? source.out : source.type === 'FB' ? source.out : 'pv' in source ? source.pv : NaN
   return { value, bad: !Number.isFinite(value) ||
-    ('pvBad' in source && source.pvBad && ref.parameter === 'PV') ||
+    ('pvBad' in source && source.pvBad && (ref.parameter === 'PV' || source.type === 'AI')) ||
     (source.type === 'FB' && !!source.bad) }
 }
 
@@ -228,7 +228,7 @@ export function appliedPidOutput(m: PidModule): number {
 }
 
 export function executePidOutput(
-  m: PidModule, modules: Record<string, AnyModule>, hardwareBad: boolean, dt = 0
+  m: PidModule, modules: Record<string, AnyModule>, hardwareBad: boolean, dt = 0, hardware2Bad = false
 ): void {
   const io = m.io ?? (m.io = createPidIo(m))
   if (io.splitter && io.ao2) {
@@ -239,7 +239,7 @@ export function executePidOutput(
     executeAnalogOutput(io.ao, io.outputSource ? readAnalogSignal(io.outputSource, modules) :
       { value: split.out1, bad: split.status === 'BAD' }, io.aoConnected, hardwareBad)
     executeAnalogOutput(io.ao2, io.output2Source ? readAnalogSignal(io.output2Source, modules) :
-      { value: split.out2, bad: split.status === 'BAD' }, !!io.ao2Connected, false)
+      { value: split.out2, bad: split.status === 'BAD' }, !!io.ao2Connected, hardware2Bad)
     if (split.mode === 'CAS' && io.bkcalConnected) {
       refreshSplitterStatus(split,
         outputFeedback(io.ao, io.aoConnected && !io.outputSource),

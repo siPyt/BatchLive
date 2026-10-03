@@ -15,8 +15,10 @@ export function TraditionalIoPanel({ controllerTag }: { controllerTag: string })
       <div className="batch-panel-head">Traditional I/O Cards</div>
       <p className="traditional-note">
         Training inventory: eight slots, eight channels per card. Configure a DST and Enable each channel.
-        DI/DO bindings and simulated tiebacks execute on scans. AI/AO module binding and controller
-        downloads are not implemented here; these settings are session-local and immediately live.
+        DI/DO and AI/PID AI1/AO1/AO2 bindings execute on scans. AI signals are engineering values;
+        AO signals are percent output. Discrete tiebacks are explicitly simulated. Standalone AO
+        modules, analog electrical scaling and controller downloads are not implemented here;
+        these settings are session-local and immediately live.
       </p>
       <div className="traditional-toolbar">
         <label>Slot <input aria-label={`${controllerTag} new card slot`} type="number" min={1} max={8}
@@ -52,13 +54,16 @@ function TraditionalChannelEditor({ card, channel }: {
   const label = `${card.id} CH${channel.channel}`
   const bad = channelBad(hardware, card, channel) || channel.bad
   const bindings = Object.entries(hardware.discreteBindings ?? {}).filter(([, bound]) => bound === channel.dst)
+  const analogBindings = Object.entries(hardware.analogBindings ?? {}).flatMap(([tag, ports]) =>
+    Object.entries(ports).filter(([, dst]) => dst === channel.dst).map(([port]) => `${tag}.${port}`))
   const isInput = card.type === 'DI' || card.type === 'AI'
   const sources = traditionalChannels(hardware).filter(item => item.card.type === 'DO' && item.channel.dst)
   return (
     <details className="traditional-channel">
       <summary>
         <span>CH{channel.channel}: <b>{channel.dst || '(unnamed)'}</b></span>
-        <span>{channel.enabled ? 'Enabled' : 'Disabled'} · {bad ? 'Bad' : 'Good'} · Signal {channel.value}</span>
+        <span>{channel.enabled ? 'Enabled' : 'Disabled'} · {bad ? 'Bad' : 'Good'} · Signal {channel.value}
+          {card.type === 'AO' ? ' %' : card.type === 'AI' ? ' (engineering)' : ''}</span>
       </summary>
       <div className="traditional-channel-form">
         <label>DST <input aria-label={`${label} DST`} value={dst}
@@ -76,7 +81,8 @@ function TraditionalChannelEditor({ card, channel }: {
         </label>}
         <button className="tbtn sm" onClick={() => configure(card.id, channel.channel,
           { dst, enabled, tiebackDst: tieback || undefined })}>Apply Channel Properties</button>
-        <span>Module binding: {bindings.map(([tag]) => tag).join(', ') || '(none — select IO_IN/IO_OUT in Control Studio)'}</span>
+        <span>Module binding: {[...bindings.map(([tag]) => tag), ...analogBindings].join(', ') ||
+          '(none — select IO_IN/IO_OUT in Control Studio)'}</span>
         {isInput && <div className="traditional-toolbar">
           <label>Simulated signal <input aria-label={`${label} simulated signal`} type="number"
             value={value} onChange={e => setValue(Number(e.target.value))} /></label>
