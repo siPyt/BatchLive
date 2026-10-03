@@ -3,9 +3,15 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
-import { ModuleIcon, FunctionBlockIcon, engineeringBlockType } from '../components/EngineeringIcons'
+import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
-import type { AnyModule, FbBlockType, FunctionBlockModule, PidModule, ControlMode, MotorModule, ValveModule } from '../engine/types'
+import { appliedPidOutput, pidIo, readAnalogSignal, signalError } from '../engine/analogStrategy'
+import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
+import type {
+  AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
+  PidBlockName, PidIoPatch, SplitterPatch, SplitterState, FbInputRef,
+  ControlMode, MotorModule, ValveModule
+} from '../engine/types'
 import type { ReactNode } from 'react'
 
 // Control Studio: a real Function Block Diagram node editor (drag, wire,
@@ -19,6 +25,11 @@ export function ControlStudioDisplay(): JSX.Element {
   const openFaceplate = useUi((s) => s.openFaceplate)
   const select = useUi((s) => s.select)
   const openStudio = useUi((s) => s.openStudio)
+  const [zoom, setZoom] = useState(1)
+  const [showHierarchy, setShowHierarchy] = useState(true)
+  const [showParameters, setShowParameters] = useState(true)
+  const [showPalette, setShowPalette] = useState(true)
+  const [blockSelection, setBlockSelection] = useState<{ tag: string; block: PidBlockName } | null>(null)
 
   if (!m) {
     return (
@@ -29,91 +40,64 @@ export function ControlStudioDisplay(): JSX.Element {
   }
 
   const visibleTags = connectedModuleTags(modules, m.tag)
+  const selectedBlock = blockSelection?.tag === m.tag ? blockSelection.block : 'PID1'
 
   return (
     <div className="display studio">
-      <StudioRibbon tag={m.tag} onFaceplate={() => openFaceplate(m.tag)} />
+      <StudioRibbon
+        tag={m.tag}
+        onFaceplate={() => openFaceplate(m.tag)}
+        zoom={zoom}
+        onZoom={(value) => setZoom(Math.max(0.5, Math.min(1.5, Math.round(value * 10) / 10)))}
+        panes={{ hierarchy: showHierarchy, parameters: showParameters, palette: showPalette }}
+        onToggle={(pane) => {
+          if (pane === 'hierarchy') setShowHierarchy((value) => !value)
+          else if (pane === 'parameters') setShowParameters((value) => !value)
+          else setShowPalette((value) => !value)
+        }}
+      />
       <div className="studio-main">
-        <HierarchyView module={m} />
+        {showHierarchy && <HierarchyView module={m} selectedBlock={selectedBlock}
+          onSelect={(block) => setBlockSelection({ tag: m.tag, block })} />}
         <div className="studio-center">
           <div className="studio-canvas">
             <FbdCanvas
               areaTags={visibleTags}
               selectedTag={m.tag}
-              onSelect={(tag) => {
+              selectedBlock={selectedBlock}
+              zoom={zoom}
+              onSelect={(tag, block) => {
                 select(tag)
                 openStudio(tag)
+                setBlockSelection({ tag, block: block ?? 'PID1' })
               }}
             />
           </div>
-          <ParameterView module={m} />
+          {showParameters && <ParameterView module={m} selectedBlock={selectedBlock} />}
         </div>
-        <PaletteView area={m.area} />
+        {showPalette && <PaletteView area={m.area} />}
       </div>
     </div>
   )
 }
 
-/** Show the active module's complete connected strategy, not just one hop. */
-function connectedModuleTags(modules: Record<string, AnyModule>, rootTag: string): string[] {
-  const neighbors = new Map<string, Set<string>>()
-  const connect = (tag: string, source: string | undefined): void => {
-    if (!source || !modules[source]) return
-    if (!neighbors.has(tag)) neighbors.set(tag, new Set())
-    if (!neighbors.has(source)) neighbors.set(source, new Set())
-    neighbors.get(tag)?.add(source)
-    neighbors.get(source)?.add(tag)
-  }
-
-  for (const module of Object.values(modules)) {
-    if (module.type === 'FB') {
-      if (module.in1.kind === 'ref') connect(module.tag, module.in1.tag)
-      if (module.in2.kind === 'ref') connect(module.tag, module.in2.tag)
-    } else if (module.type === 'PID') {
-      connect(module.tag, module.casSource)
-      connect(module.tag, module.ffSource)
-      connect(module.tag, module.trackSource)
-      connect(module.tag, module.trackValueSource)
-    } else if (module.type === 'MOTOR' || module.type === 'VALVE') {
-      connect(module.tag, module.interlockSource)
-      connect(module.tag, module.commandSource)
-    }
-  }
-
-  const connected = new Set([rootTag])
-  const pending = [rootTag]
-  while (pending.length > 0) {
-    const tag = pending.pop()
-    if (!tag) continue
-    for (const neighbor of neighbors.get(tag) ?? []) {
-      if (connected.has(neighbor)) continue
-      connected.add(neighbor)
-      pending.push(neighbor)
-    }
-  }
-  return [rootTag, ...Array.from(connected).filter((tag) => tag !== rootTag).sort()]
-}
-
-/** Lists the real blocks inside this Control Module — matches the canvas
- * exactly (the PDF confirms a PID can reference I/O directly, "not using AI
- * and AO function blocks", which is the configuration this engine models:
- * one consolidated PID node, not a fictional separate AI/AO pair). */
-function blocksOf(m: AnyModule): { name: string; type: string }[] {
-  return [{ name: m.tag, type: engineeringBlockType(m) }]
-}
-
-function HierarchyView({ module: m }: { module: AnyModule }): JSX.Element {
+function HierarchyView({ module: m, selectedBlock, onSelect }: {
+  module: AnyModule; selectedBlock: PidBlockName; onSelect: (block: PidBlockName) => void
+}): JSX.Element {
   return (
     <div className="studio-pane studio-hier">
       <div className="studio-tree">
         <div className="studio-tree-root">
           <ModuleIcon kind="control" /> {m.tag}
         </div>
-        {blocksOf(m).map((b) => (
-          <div key={b.name} className="studio-tree-node">
+        {moduleBlocks(m).map((b) => (
+          <button key={b.id} type="button"
+            className={'studio-tree-node studio-block-select' + (b.part === selectedBlock ? ' active' : '')}
+            aria-label={`Select ${b.name}`} aria-pressed={b.part ? b.part === selectedBlock : undefined}
+            onClick={() => onSelect(b.part ?? 'PID1')}>
             <FunctionBlockIcon type={b.type} />
             {b.name}
-          </div>
+          </button>
         ))}
       </div>
       <div className="studio-pane-label">Hierarchy View</div>
@@ -128,7 +112,9 @@ interface ParamRow {
   toggle?: { onClick: () => void; label: string }
 }
 
-function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
+function ParameterView({ module: m, selectedBlock }: {
+  module: AnyModule; selectedBlock: PidBlockName
+}): JSX.Element {
   const setSetpoint = useStore((s) => s.setSetpoint)
   const setOutput = useStore((s) => s.setOutput)
   const setTuning = useStore((s) => s.setTuning)
@@ -146,6 +132,11 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
   const modules = useStore((s) => s.modules)
   const setFbInput = useStore((s) => s.setFbInput)
   const setFbConfig = useStore((s) => s.setFbConfig)
+  const setPidIo = useStore((s) => s.setPidIo)
+  const setSplitterConfig = useStore((s) => s.setSplitterConfig)
+  const selectedSplitter = m.type === 'PID' ? pidIo(m).splitter : undefined
+  const ioBlock = m.type === 'PID' && selectedBlock !== 'PID1'
+  const bad = m.type === 'PID' ? m.pvBad : m.type === 'AI' ? m.pvBad : false
 
   const rows: ParamRow[] = []
   if (m.type === 'PID') {
@@ -205,7 +196,25 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {m.type === 'FB' ? (
+          {m.type === 'PID' && selectedBlock === 'SPLTR1' && selectedSplitter ? (
+            <SplitterParamRows state={selectedSplitter}
+              onChange={(patch) => setPidIo(m.tag, { splitter: patch })} />
+          ) : m.type === 'PID' && ioBlock ? (
+            <AnalogIoParamRows m={m} block={selectedBlock} modules={modules} setPidIo={setPidIo} />
+          ) : m.type === 'FB' && m.fbType === 'SPLTR' && m.splitter ? (
+            <>
+              <FbWireRow label="CAS_IN" tags={Object.keys(modules).filter(t => t !== m.tag)}
+                input={m.in1} onSet={(ref) => setFbInput(m.tag, 'in1', ref)} bad={m.bad} />
+              <SplitterParamRows state={m.splitter} onChange={(patch) => setSplitterConfig(m.tag, patch)} />
+              {([1, 2] as const).map(branch => <tr key={branch}><td>BKCAL_IN_{branch}.SOURCE</td><td>
+                <AnalogSourceSelect module={m} modules={modules}
+                  feedbackOnly
+                  source={branch === 1 ? m.bkcal1Source : m.bkcal2Source}
+                  defaultLabel="(not connected)" onChange={(source) => setSplitterConfig(m.tag,
+                    branch === 1 ? { feedback1Source: source } : { feedback2Source: source })} />
+              </td><td>{(branch === 1 ? m.bkcal1Source : m.bkcal2Source) ? 'Configured' : 'Not connected'}</td></tr>)}
+            </>
+          ) : m.type === 'FB' ? (
             <FbParamRows m={m} tags={Object.keys(modules).filter((t) => t !== m.tag).sort()} setFbInput={setFbInput} setFbConfig={setFbConfig} />
           ) : (
             rows.map((r) => (
@@ -222,11 +231,14 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
                     r.value
                   )}
                 </td>
-                <td className="good">Good</td>
+                <td className={bad ? 'bad' : 'good'}>{bad ? 'Bad' : 'Good'}</td>
               </tr>
             ))
           )}
-          {m.type === 'PID' && (
+          {m.type === 'PID' && !ioBlock && (
+            <PidIoWiringRows m={m} modules={modules} setPidIo={setPidIo} />
+          )}
+          {m.type === 'PID' && !ioBlock && (
             <PidStrategyRows
               m={m}
               tags={Object.keys(modules).filter((t) => t !== m.tag).sort()}
@@ -245,7 +257,7 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
           )}
         </tbody>
       </table>
-      <div className="studio-pane-label">Parameter View — {m.tag}</div>
+      <div className="studio-pane-label">Parameter View — {m.tag}{m.type === 'PID' ? `/${selectedBlock}` : ''}</div>
     </div>
   )
 }
@@ -254,6 +266,234 @@ function ParameterView({ module: m }: { module: AnyModule }): JSX.Element {
  * wiring (const or any live module tag) plus whichever registers are
  * meaningful for this specific block type — edits apply to the simulation
  * on the next scan (10 Hz tick), same as every other module here. */
+function AnalogSourceSelect({ module, modules, source, defaultLabel, onChange, feedbackOnly = false }: {
+  module: AnyModule
+  modules: Record<string, AnyModule>
+  source?: AnalogSignalRef
+  defaultLabel: string
+  onChange: (source: AnalogSignalRef | undefined) => void
+  feedbackOnly?: boolean
+}): JSX.Element {
+  const choices: { label: string; ref: AnalogSignalRef }[] = []
+  for (const other of Object.values(modules)) {
+    if (other.tag === module.tag) continue
+    if (other.type === 'PID') {
+      for (const block of moduleBlocks(other)) {
+        if (!block.part) continue
+        if (feedbackOnly && block.part !== 'AO1' && block.part !== 'AO2') continue
+        const parameters: AnalogSignalRef['parameter'][] = block.part === 'SPLTR1'
+          ? ['OUT_1', 'OUT_2'] : ['OUT']
+        for (const parameter of parameters) choices.push({
+          label: `${other.tag}/${block.part}.${feedbackOnly ? 'BKCAL_OUT' : parameter}`,
+          ref: { tag: other.tag, block: block.part, parameter }
+        })
+      }
+      if (!feedbackOnly) choices.push({ label: `${other.tag}/PID1.PV`, ref: {
+        tag: other.tag, block: 'PID1', parameter: 'PV'
+      } })
+    } else if (!feedbackOnly && (other.type === 'AI' || other.type === 'FB')) {
+      const parameters: AnalogSignalRef['parameter'][] = other.type === 'AI' ? ['PV'] :
+        other.fbType === 'SPLTR' ? ['OUT_1', 'OUT_2'] : ['OUT']
+      for (const parameter of parameters) choices.push({
+        label: `${other.tag}.${parameter}`, ref: { tag: other.tag, parameter }
+      })
+    }
+  }
+  const keyOf = (ref: AnalogSignalRef): string =>
+    `${ref.tag}/${ref.block ?? (modules[ref.tag]?.type === 'PID' ? 'PID1' : '')}.${ref.parameter}`
+  const selected = source ? keyOf(source) : ''
+  return (
+    <select className="studio-ref-select" aria-label={`${module.tag} ${defaultLabel} source`}
+      value={selected} onChange={(e) => {
+        const choice = choices.find((item) => keyOf(item.ref) === e.target.value)
+        if (e.target.value && !choice) {
+          const message = 'The selected signal source is no longer available'
+          useStore.getState().logEvent('DIAGNOSTIC', module.tag, message)
+          window.alert(message)
+          return
+        }
+        onChange(choice?.ref)
+      }}>
+      <option value="">{defaultLabel}</option>
+      {source && !choices.some((choice) => keyOf(choice.ref) === selected) &&
+        <option value={selected}>{signalError(source, modules) ? 'Bad source' : 'Existing source'}: {selected}</option>}
+      {choices.map((choice) =>
+        <option key={keyOf(choice.ref)} value={keyOf(choice.ref)}>{choice.label}</option>)}
+    </select>
+  )
+}
+
+function PidIoWiringRows({ m, modules, setPidIo }: {
+  m: PidModule; modules: Record<string, AnyModule>
+  setPidIo: (tag: string, patch: PidIoPatch) => boolean
+}): JSX.Element {
+  const io = pidIo(m)
+  return (
+    <>
+      <tr><td>CONTROL STRATEGY</td><td><select aria-label={`${m.tag} control strategy`}
+        value={io.splitter ? 'split' : 'simple'} onChange={(e) =>
+          setPidIo(m.tag, { splitRange: e.target.value === 'split' })}>
+        <option value="simple">AI → PID → AO</option>
+        <option value="split">AI → PID → SPLTR → AO1 / AO2</option>
+      </select></td><td>Executable</td></tr>
+      {io.splitter && <tr><td>ACTUATOR MODEL</td><td><select
+        aria-label={`${m.tag} actuator model`} value={io.actuation ?? 'STAGED'}
+        onChange={(e) => setPidIo(m.tag, { actuation: e.target.value === 'HEAT_COOL' ? 'HEAT_COOL' : 'STAGED' })}>
+        <option value="STAGED">Two staged capacities</option>
+        <option value="HEAT_COOL">Heating / cooling pair</option>
+      </select></td><td>Simulated process</td></tr>}
+      <tr><td>APPLIED FIELD OUTPUT</td><td>{fmt(appliedPidOutput(m), 1)} %</td><td>Actual AO actuation</td></tr>
+      <tr><td>BKCAL_IN</td><td>{fmt(io.splitter?.bkcal ?? io.ao.out, 1)} %</td>
+        <td>{!io.bkcalConnected ? 'Disconnected' : io.splitter?.status ??
+          (io.ao.bad ? 'Bad' : io.ao.mode === 'MAN' || io.outputSource ? 'Not Invited' :
+            io.ao.limited ? 'Limited' : 'Good')}</td></tr>
+      <tr><td>IN.SOURCE</td><td>
+        <AnalogSourceSelect module={m} modules={modules} source={io.inputSource}
+          defaultLabel="AI1.OUT" onChange={(source) =>
+            setPidIo(m.tag, { inputSource: source, aiConnected: true })} />
+      </td><td className={m.pvBad ? 'bad' : 'good'}>{m.pvBad ? 'Bad' : 'Good'}</td></tr>
+      <tr><td>AI1.OUT → PID1.IN</td><td>
+        <button className="studio-param-btn" onClick={() => setPidIo(m.tag, {
+          aiConnected: io.inputSource ? true : !io.aiConnected, inputSource: undefined
+        })}>{io.inputSource ? 'External source · Restore AI1' :
+          io.aiConnected ? 'Connected · Disconnect' : 'Disconnected · Connect'}</button>
+      </td><td className={io.aiConnected ? 'good' : 'bad'}>
+        {io.aiConnected ? 'Good' : 'Bad'}</td></tr>
+      <tr><td>BKCAL_IN.CV</td><td>{io.bkcalConnected ? `${fmt(io.splitter ? io.splitter.bkcal : io.ao.out, 1)} %` : 'Disconnected'} · {
+        !io.bkcalConnected ? 'No feedback' : io.splitter ? io.splitter.status :
+          io.ao.bad ? 'Bad output' : io.ao.mode === 'MAN' ? 'Not invited' :
+          io.ao.limited ? 'Limited' : 'Good cascade'}</td>
+        <td className={io.ao.bad ? 'bad' : 'good'}>{io.ao.bad ? 'Bad' : 'Good'}</td></tr>
+      <tr><td>{io.splitter ? 'SPLTR1' : 'AO1'}.BKCAL_OUT → PID1.BKCAL_IN</td><td>
+        <button className="studio-param-btn" onClick={() =>
+          setPidIo(m.tag, { bkcalConnected: !io.bkcalConnected })}>
+          {io.bkcalConnected ? 'Connected · Disconnect' : 'Disconnected · Connect'}
+        </button>
+      </td><td>{io.bkcalConnected ? 'Feedback active' : 'No back-calculation'}</td></tr>
+    </>
+  )
+}
+
+function AnalogIoParamRows({ m, block, modules, setPidIo }: {
+  m: PidModule; block: PidBlockName; modules: Record<string, AnyModule>
+  setPidIo: (tag: string, patch: PidIoPatch) => boolean
+}): JSX.Element {
+  const io = pidIo(m)
+  const input = block === 'AI1'
+  const second = block === 'AO2'
+  const output = second ? io.ao2 : io.ao
+  if (!output) return <tr><td colSpan={3} className="bad">AO2 is not configured</td></tr>
+  const stage = input ? io.ai : output
+  const source = second ? io.output2Source : io.outputSource
+  const command = source ? readAnalogSignal(source, modules) : {
+    value: io.splitter ? second ? io.splitter.out2 : io.splitter.out1 : m.out,
+    bad: io.splitter?.status === 'BAD'
+  }
+  const mode = stage.mode
+  const row = (label: string, content: ReactNode, bad = stage.bad): JSX.Element => (
+    <tr key={label}><td>{label}</td><td className="pv">{content}</td>
+      <td className={bad ? 'bad' : 'good'}>{bad ? 'Bad' : 'Good'}</td></tr>
+  )
+  return (
+    <>
+      {row('MODE.TARGET', <button className="studio-param-btn" onClick={() =>
+        setPidIo(m.tag, input ? { inputMode: mode === 'MAN' ? 'AUTO' : 'MAN' } :
+          second ? { output2Mode: mode === 'MAN' ? 'CAS' : 'MAN' } :
+            { outputMode: mode === 'MAN' ? 'CAS' : 'MAN' })}>
+        {mode} · → {mode === 'MAN' ? input ? 'AUTO' : 'CAS' : 'MAN'}
+      </button>)}
+      {input && row('FIELD_VAL.CV', `${fmt(io.ai.raw, m.decimals)} ${m.unit}`, io.ai.rawBad)}
+      {!input && row('CAS_IN.CV', command.bad ? 'Bad source' : `${fmt(command.value, 1)} %`, command.bad)}
+      {row('OUT.CV', `${fmt(stage.out, input ? m.decimals : 1)} ${input ? m.unit : '%'}`)}
+      {mode === 'MAN' && row('MANUAL_OUT', <ParamStepper
+        value={stage.manualValue} step={input ? (m.pvMax - m.pvMin) / 100 : 1}
+        decimals={input ? m.decimals : 1} onChange={(value) =>
+          setPidIo(m.tag, input ? { inputManual: value } :
+            second ? { output2Manual: value } : { outputManual: value })} />)}
+      {input ? <>
+        {row('OUT_SCALE.LO', `${m.pvMin} ${m.unit}`)}
+        {row('OUT_SCALE.HI', `${m.pvMax} ${m.unit}`)}
+      </> : <>
+        {row('OUT_LO_LIM', <ParamStepper value={output.lowLimit} step={1} decimals={1}
+          onChange={(value) => setPidIo(m.tag, second ? { output2Low: value } : { outputLow: value })} />)}
+        {row('OUT_HI_LIM', <ParamStepper value={output.highLimit} step={1} decimals={1}
+          onChange={(value) => setPidIo(m.tag, second ? { output2High: value } : { outputHigh: value })} />)}
+        {row('CAS_IN.SOURCE', <AnalogSourceSelect module={m} modules={modules}
+          source={source} defaultLabel={io.splitter ? `SPLTR1.OUT_${second ? 2 : 1}` : 'PID1.OUT'}
+          onChange={(value) => setPidIo(m.tag, second
+            ? { output2Source: value, ao2Connected: true } : { outputSource: value, aoConnected: true })} />)}
+        {row('CAS_IN.CONNECTION', <button className="studio-param-btn" onClick={() =>
+          setPidIo(m.tag, second ? { ao2Connected: source ? true : !io.ao2Connected, output2Source: undefined }
+            : { aoConnected: source ? true : !io.aoConnected, outputSource: undefined })}>
+          {source ? 'External source · Restore strategy' :
+            (second ? io.ao2Connected : io.aoConnected) ? 'Connected · Disconnect' : 'Disconnected · Connect'}
+        </button>)}
+        {row('BKCAL_OUT.CV', `${fmt(stage.out, 1)} %`)}
+        {row('SIMULATED I/O FAULT', <button className="studio-param-btn" onClick={() =>
+          setPidIo(m.tag, second ? { output2Failed: !io.ao2?.fault } : { outputFailed: !io.ao.fault })}>
+          {(second ? io.ao2?.fault : io.ao.fault) ? 'Failed · Restore' : 'Healthy · Inject fault'}
+        </button>)}
+      </>}
+    </>
+  )
+}
+
+function SplitterParamRows({ state, onChange }: {
+  state: SplitterState; onChange: (patch: SplitterPatch) => void
+}): JSX.Element {
+  const row = (label: string, content: ReactNode): JSX.Element => (
+    <tr key={label}><td>{label}</td><td className="pv">{content}</td>
+      <td className={state.status === 'BAD' ? 'bad' : 'good'}>
+        {state.status === 'BAD' ? 'Bad' : 'Good'}</td></tr>
+  )
+  return (
+    <>
+      {row('MODE.TARGET', <button className="studio-param-btn" onClick={() =>
+        onChange({ mode: state.mode === 'CAS' ? 'AUTO' : state.mode === 'AUTO' ? 'OOS' : 'CAS' })}>
+        {state.mode} · → {state.mode === 'CAS' ? 'AUTO' : state.mode === 'AUTO' ? 'OOS' : 'CAS'}
+      </button>)}
+      {row('MODE.ACTUAL', state.actualMode)}
+      {row('SP', state.mode === 'AUTO'
+        ? <ParamStepper value={state.autoSp} step={1} decimals={1}
+          onChange={(value) => onChange({ sp: value })} /> : fmt(state.sp, 1))}
+      {row('OUT_1', `${fmt(state.out1, 1)} %`)}
+      {row('OUT_2', `${fmt(state.out2, 1)} %`)}
+      {row('BKCAL_OUT', `${fmt(state.bkcal, 1)} % · ${state.status}`)}
+      {row('BLOCK_ERR', state.error ?? (state.mode === 'OOS' ? 'Out of service' : 'None'))}
+      {(['inArray', 'outArray'] as const).flatMap(key => state[key].map((value, index) =>
+        row(`${key === 'inArray' ? 'IN' : 'OUT'}_ARRAY[${index + 1}]`, <ParamStepper
+          value={value} step={1} decimals={1} onChange={(next) => {
+            const values: [number, number, number, number] = [...state[key]]
+            values[index] = next
+            onChange(key === 'inArray' ? { inArray: values } : { outArray: values })
+          }} />)))}
+      {row('LOCKVAL', <button className="studio-param-btn" onClick={() =>
+        onChange({ lockval: state.lockval === 'HOLD' ? 'Y11' : 'HOLD' })}>
+        {state.lockval} · Toggle
+      </button>)}
+      {row('Hysteresis (% of first span)', <ParamStepper value={state.hysteresisPct}
+        step={1} decimals={1} onChange={(value) => onChange({ hysteresisPct: value })} />)}
+      {row('BAL_TIME (s)', <ParamStepper value={state.balTimeSec} step={1} decimals={1}
+        onChange={(value) => onChange({ balTimeSec: value })} />)}
+      {row('SP_RATE_UP (%/s)', <ParamStepper value={state.spRateUp} step={1} decimals={1}
+        onChange={(value) => onChange({ spRateUp: value })} />)}
+      {row('SP_RATE_DN (%/s)', <ParamStepper value={state.spRateDown} step={1} decimals={1}
+        onChange={(value) => onChange({ spRateDown: value })} />)}
+      {row('CAS_IN.CONNECTION', <button className="studio-param-btn"
+        onClick={() => onChange({ inputConnected: !state.inputConnected })}>
+        {state.inputConnected ? 'Connected · Disconnect' : 'Disconnected · Connect'}
+      </button>)}
+      {([1, 2] as const).map(branch => row(`BKCAL_IN_${branch}.CONNECTION`,
+        <button className="studio-param-btn" onClick={() => onChange(branch === 1
+          ? { feedback1Connected: !state.feedback1Connected }
+          : { feedback2Connected: !state.feedback2Connected })}>
+          {(branch === 1 ? state.feedback1Connected : state.feedback2Connected)
+            ? 'Connected · Disconnect' : 'Disconnected · Connect'}
+        </button>))}
+    </>
+  )
+}
+
 function FbParamRows({
   m,
   tags,
@@ -262,7 +502,7 @@ function FbParamRows({
 }: {
   m: FunctionBlockModule
   tags: string[]
-  setFbInput: (tag: string, which: 'in1' | 'in2', ref: { kind: 'const' | 'ref'; value: number; tag?: string }) => void
+  setFbInput: (tag: string, which: 'in1' | 'in2', ref: FbInputRef) => void
   setFbConfig: (tag: string, patch: Record<string, unknown>) => void
 }): JSX.Element {
   const needsIn2 = FB_NEEDS_IN2[m.fbType]
@@ -287,8 +527,10 @@ function FbParamRows({
         <td className="pv">{m.fbType}</td>
         <td className="good">Good</td>
       </tr>
-      <FbWireRow label="IN1" tags={tags} input={m.in1} onSet={(ref) => setFbInput(m.tag, 'in1', ref)} />
-      {needsIn2 && <FbWireRow label="IN2" tags={tags} input={m.in2} onSet={(ref) => setFbInput(m.tag, 'in2', ref)} />}
+      <FbWireRow label="IN1" tags={tags} input={m.in1} bad={m.bad}
+        onSet={(ref) => setFbInput(m.tag, 'in1', ref)} />
+      {needsIn2 && <FbWireRow label="IN2" tags={tags} input={m.in2} bad={m.bad}
+        onSet={(ref) => setFbInput(m.tag, 'in2', ref)} />}
       {showGain && (
         <tr>
           <td>{gainLabel}</td>
@@ -372,7 +614,7 @@ function FbParamRows({
       <tr>
         <td>OUT</td>
         <td className="pv">{fmt(m.out, 3)}</td>
-        <td className="good">Good</td>
+        <td className={m.bad ? 'bad' : 'good'}>{m.bad ? 'Bad' : 'Good'}</td>
       </tr>
     </>
   )
@@ -384,13 +626,43 @@ function FbWireRow({
   label,
   tags,
   input,
-  onSet
+  onSet,
+  bad
 }: {
   label: string
   tags: string[]
-  input: { kind: 'const' | 'ref'; value: number; tag?: string }
-  onSet: (ref: { kind: 'const' | 'ref'; value: number; tag?: string }) => void
+  input: FbInputRef
+  onSet: (ref: FbInputRef) => void
+  bad?: boolean
 }): JSX.Element {
+  const modules = useStore((s) => s.modules)
+  const qualified = (ref: FbInputRef): string => ref.parameter
+    ? `${ref.tag}${ref.block ? '/' + ref.block : ''}.${ref.parameter}` : ref.tag ?? ''
+  const sourceError = input.kind === 'ref' && (!input.tag || !modules[input.tag] ||
+    ((input.parameter || input.block) && signalError({
+      tag: input.tag, parameter: input.parameter ?? 'OUT', block: input.block
+    }, modules)))
+  const choices: { label: string; ref: FbInputRef }[] = tags.map(tag => ({
+    label: tag, ref: { kind: 'ref', value: 0, tag }
+  }))
+  for (const tag of tags) {
+    const source = modules[tag]
+    if (source?.type === 'PID') {
+      for (const block of moduleBlocks(source)) {
+        if (!block.part) continue
+        const parameters: AnalogSignalRef['parameter'][] = block.part === 'SPLTR1' ? ['OUT_1', 'OUT_2'] :
+          block.part === 'PID1' ? ['OUT', 'PV'] : ['OUT']
+        for (const parameter of parameters) choices.push({
+          label: `${tag}/${block.part}.${parameter}`,
+          ref: { kind: 'ref', value: 0, tag, block: block.part, parameter }
+        })
+      }
+    } else if (source?.type === 'FB' && source.fbType === 'SPLTR') {
+      for (const parameter of ['OUT_1', 'OUT_2'] as const) choices.push({
+        label: `${tag}.${parameter}`, ref: { kind: 'ref', value: 0, tag, parameter }
+      })
+    }
+  }
   return (
     <tr>
       <td>{label}</td>
@@ -398,17 +670,22 @@ function FbWireRow({
         <span className="fb-wirerow">
           <select
             className="fb-select"
-            value={input.kind === 'const' ? 'CONST' : input.tag ?? ''}
+            value={input.kind === 'const' ? 'CONST' : qualified(input)}
             onChange={(e) => {
               const v = e.target.value
               if (v === 'CONST') onSet({ kind: 'const', value: input.value })
-              else onSet({ kind: 'ref', value: 0, tag: v })
+              else {
+                const choice = choices.find(item => qualified(item.ref) === v)
+                if (choice) onSet(choice.ref)
+              }
             }}
           >
             <option value="CONST">Const</option>
-            {tags.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            {input.kind === 'ref' && !choices.some(choice => qualified(choice.ref) === qualified(input)) &&
+              <option value={qualified(input)}>{sourceError ? 'Bad source' : 'Existing source'}: {qualified(input)}</option>}
+            {choices.map((choice) => (
+              <option key={qualified(choice.ref)} value={qualified(choice.ref)}>
+                {choice.label}
               </option>
             ))}
           </select>
@@ -417,7 +694,7 @@ function FbWireRow({
           )}
         </span>
       </td>
-      <td className="good">Good</td>
+      <td className={bad ? 'bad' : 'good'}>{bad ? 'Bad' : 'Good'}</td>
     </tr>
   )
 }
@@ -794,37 +1071,85 @@ function PaletteView({ area }: { area: string }): JSX.Element {
   )
 }
 
-const RIBBON_TABS = ['File', 'Home', 'Diagram', 'View', 'Settings']
+const RIBBON_TABS = ['File', 'Home', 'Diagram', 'View']
 
-function StudioRibbon({ tag, onFaceplate }: { tag: string; onFaceplate: () => void }): JSX.Element {
+type StudioPane = 'hierarchy' | 'parameters' | 'palette'
+type RibbonIconKind = 'module' | 'diagram' | 'parameters' | 'zoomIn' | 'zoomOut' | 'reset' | 'download' | 'edit' | 'alarm' | 'history'
+
+function RibbonIcon({ kind }: { kind: RibbonIconKind }): JSX.Element {
+  if (kind === 'module') return <ModuleIcon kind="control" size={28} />
+  const paths: Record<Exclude<RibbonIconKind, 'module'>, string> = {
+    diagram: 'M3,5 H11 V12 H3 Z M19,18 H27 V25 H19 Z M11,8 H23 V18 M7,12 V21 H19',
+    parameters: 'M5,3 H25 V27 H5 Z M9,9 H21 M9,15 H21 M9,21 H17',
+    zoomIn: 'M21,21 L29,29 M7,13 H19 M13,7 V19',
+    zoomOut: 'M21,21 L29,29 M7,13 H19',
+    reset: 'M5,11 A11,11 0 1 1 5,22 M5,3 V11 H13',
+    download: 'M10,3 H22 V16 H29 L16,29 L3,16 H10 Z',
+    edit: 'M5,22 L21,6 L26,11 L10,27 H5 Z M18,9 L23,14',
+    alarm: 'M7,22 V13 A9,9 0 0 1 18,4 Q25,7 25,13 V22 Z M4,22 H28 M13,26 H19',
+    history: 'M4,4 H28 V28 H4 Z M8,21 L12,13 L17,17 L24,8'
+  }
+  return (
+    <svg width={28} height={28} viewBox="0 0 32 32" aria-hidden="true">
+      {(kind === 'zoomIn' || kind === 'zoomOut') && <circle cx={13} cy={13} r={10} fill="#eef1f5" stroke="#63748b" strokeWidth={1.5} />}
+      <path d={paths[kind]} fill={kind === 'download' ? '#b7bfd1' : kind === 'alarm' ? '#e1cd79' : 'none'} stroke="#63748b" strokeWidth={1.5} strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
+  tag: string; onFaceplate: () => void; zoom: number; onZoom: (value: number) => void
+  panes: Record<StudioPane, boolean>; onToggle: (pane: StudioPane) => void
+}): JSX.Element {
+  const [tab, setTab] = useState('Diagram')
+  const focusExplorer = useUi((s) => s.focusExplorer)
+  const focusAlarms = useUi((s) => s.focusAlarms)
+  const focusTrend = useUi((s) => s.focusTrend)
+  const module = useStore((s) => s.modules[tag])
+  const trendAvailable = module?.type === 'PID' || module?.type === 'AI'
   return (
     <div className="ribbon">
+      <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio</span><span className="studio-caption-status">ONLINE · simulated configuration</span></div>
       <div className="ribbon-tabs">
         {RIBBON_TABS.map((t) => (
-          <span key={t} className={'ribbon-tab' + (t === 'File' ? ' file' : t === 'View' ? ' active' : '')}>
+          <button key={t} type="button" className={'ribbon-tab' + (t === 'File' ? ' file' : t === tab ? ' active' : '')}
+            disabled={t === 'File'}
+            title={t === 'File' ? 'File ribbon commands are not implemented' : `${t} commands`}
+            aria-pressed={t === tab} onClick={() => setTab(t)}>
             {t}
-          </span>
+          </button>
         ))}
-        <span className="ribbon-title">[REACTOR_CELL/{tag}] — Control Studio · ONLINE</span>
+        <span className="ribbon-title">{Math.round(zoom * 100)}%</span>
       </div>
       <div className="ribbon-body">
-        <RibbonGroup label="Diagram">
-          <RibbonBtn ic="▣" label="Show as FBD" active />
-          <RibbonBtn ic="⊟" label="Show as SFC" />
-          <RibbonBtn ic="✓" label="Verify" />
-        </RibbonGroup>
-        <RibbonGroup label="Windows">
-          <RibbonBtn ic="☰" label="Parameters" active />
-          <RibbonBtn ic="🔔" label="Alarm View" />
-          <RibbonBtn ic="▭" label="Status Bar" active />
-        </RibbonGroup>
+        {tab === 'Home' && <RibbonGroup label="Clipboard">
+          <RibbonBtn ic="parameters" label="Copy" unavailable="Block clipboard operations are not implemented" />
+          <RibbonBtn ic="parameters" label="Paste" unavailable="Block clipboard operations are not implemented" />
+        </RibbonGroup>}
+        {tab !== 'View' && <>
+          <RibbonGroup label="Module">
+            <RibbonBtn ic="download" label="Download" unavailable="This simulator has no Control Studio module download command" />
+            <RibbonBtn ic="module" label="Faceplate" onClick={onFaceplate} />
+            <RibbonBtn ic="parameters" label="Properties" onClick={() => focusExplorer(tag)} />
+          </RibbonGroup>
+          <RibbonGroup label="Algorithm">
+            <RibbonBtn ic="diagram" label="Function Block" active onClick={() => setTab('Diagram')} />
+            <RibbonBtn ic="edit" label="Edit Object" onClick={onFaceplate} />
+          </RibbonGroup>
+          <RibbonGroup label="History / Alarms">
+            <RibbonBtn ic="history" label="History View" onClick={trendAvailable ? () => focusTrend(tag) : undefined} unavailable={trendAvailable ? undefined : 'Historian pens are available for PID and AI modules'} />
+            <RibbonBtn ic="alarm" label="Alarm View" onClick={() => focusAlarms(tag)} />
+          </RibbonGroup>
+        </>}
+        {tab === 'View' && <RibbonGroup label="Windows">
+          <RibbonBtn ic="module" label="Hierarchy" active={panes.hierarchy} onClick={() => onToggle('hierarchy')} />
+          <RibbonBtn ic="parameters" label="Parameters" active={panes.parameters} onClick={() => onToggle('parameters')} />
+          <RibbonBtn ic="diagram" label="Palette" active={panes.palette} onClick={() => onToggle('palette')} />
+        </RibbonGroup>}
         <RibbonGroup label="Zoom">
-          <RibbonBtn ic="🔍" label="Zoom In" />
-          <RibbonBtn ic="⊖" label="Zoom Out" />
-        </RibbonGroup>
-        <RibbonGroup label="Module">
-          <RibbonBtn ic="▦" label="Faceplate" onClick={onFaceplate} />
-          <RibbonBtn ic="●" label="Online" active />
+          <RibbonBtn ic="zoomIn" label="Zoom In" onClick={() => onZoom(zoom + 0.1)} unavailable={zoom >= 1.5 ? 'Maximum zoom is 150%' : undefined} />
+          <RibbonBtn ic="zoomOut" label="Zoom Out" onClick={() => onZoom(zoom - 0.1)} unavailable={zoom <= 0.5 ? 'Minimum zoom is 50%' : undefined} />
+          <RibbonBtn ic="reset" label="100%" onClick={() => onZoom(1)} />
         </RibbonGroup>
       </div>
     </div>
@@ -844,17 +1169,20 @@ function RibbonBtn({
   ic,
   label,
   active,
-  onClick
+  onClick,
+  unavailable
 }: {
-  ic: string
+  ic: RibbonIconKind
   label: string
   active?: boolean
   onClick?: () => void
+  unavailable?: string
 }): JSX.Element {
   return (
-    <button className={'ribbon-btn' + (active ? ' active' : '')} onClick={onClick}>
-      <span className="ic">{ic}</span>
-      {label}
+    <button type="button" className={'ribbon-btn' + (active ? ' active' : '')} onClick={onClick} disabled={!!unavailable}
+      title={unavailable ?? label} aria-label={label} aria-pressed={active === undefined ? undefined : active}>
+      <RibbonIcon kind={ic} />
+      <span>{label}</span>
     </button>
   )
 }

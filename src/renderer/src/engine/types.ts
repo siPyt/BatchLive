@@ -124,6 +124,120 @@ export interface PidModule {
   alarms: AlarmLimit[]
   /** STATUS.QUALITY = BAD — PV is frozen (CHARM pulled or controller down). */
   pvBad: boolean
+  /** Explicit AI1 -> PID1 -> AO1 strategy. Optional only for older project files. */
+  io?: PidIoStrategy
+}
+
+export type PidBlockName = 'AI1' | 'PID1' | 'SPLTR1' | 'AO1' | 'AO2'
+
+export interface AnalogSignalRef {
+  tag: string
+  parameter: 'PV' | 'OUT' | 'OUT_1' | 'OUT_2'
+  block?: PidBlockName
+}
+
+export interface PidIoStrategy {
+  ai: {
+    mode: 'AUTO' | 'MAN'
+    raw: number
+    out: number
+    manualValue: number
+    rawBad: boolean
+    bad: boolean
+  }
+  ao: AnalogOutputStage
+  ao2?: AnalogOutputStage
+  splitter?: SplitterState
+  actuation?: 'STAGED' | 'HEAT_COOL'
+  aiConnected: boolean
+  aoConnected: boolean
+  bkcalConnected: boolean
+  inputSource?: AnalogSignalRef
+  outputSource?: AnalogSignalRef
+  output2Source?: AnalogSignalRef
+  ao2Connected?: boolean
+}
+
+export interface AnalogOutputStage {
+  mode: 'CAS' | 'MAN'
+  out: number
+  manualValue: number
+  lowLimit: number
+  highLimit: number
+  bad: boolean
+  limited: boolean
+  fault?: boolean
+  limitStatus?: 'HIGH' | 'LOW' | 'NONE'
+}
+
+export type SplitterCoordinates = [number, number, number, number]
+export interface SplitterState {
+  mode: 'CAS' | 'AUTO' | 'OOS'
+  actualMode: 'CAS' | 'AUTO' | 'IMAN' | 'OOS'
+  sp: number
+  autoSp: number
+  inArray: SplitterCoordinates
+  outArray: SplitterCoordinates
+  lockval: 'HOLD' | 'Y11'
+  hysteresisPct: number
+  balTimeSec: number
+  spRateUp: number
+  spRateDown: number
+  out1: number
+  out2: number
+  bkcal: number
+  status: 'GOOD' | 'HIGH_LIMITED' | 'LOW_LIMITED' | 'NOT_INVITED' | 'BAD'
+  error: string | null
+  inputConnected: boolean
+  feedback1Connected: boolean
+  feedback2Connected: boolean
+  _locked: boolean
+  _invited1: boolean
+  _invited2: boolean
+  _balance1: number
+  _balance2: number
+  _remaining1: number
+  _remaining2: number
+}
+
+export interface SplitterPatch {
+  mode?: SplitterState['mode']
+  sp?: number
+  inArray?: SplitterCoordinates
+  outArray?: SplitterCoordinates
+  lockval?: SplitterState['lockval']
+  hysteresisPct?: number
+  balTimeSec?: number
+  spRateUp?: number
+  spRateDown?: number
+  inputConnected?: boolean
+  feedback1Connected?: boolean
+  feedback2Connected?: boolean
+}
+
+export interface PidIoPatch {
+  inputMode?: 'AUTO' | 'MAN'
+  inputManual?: number
+  outputMode?: 'CAS' | 'MAN'
+  outputManual?: number
+  outputLow?: number
+  outputHigh?: number
+  outputFailed?: boolean
+  output2Mode?: 'CAS' | 'MAN'
+  output2Manual?: number
+  output2Low?: number
+  output2High?: number
+  output2Failed?: boolean
+  splitRange?: boolean
+  actuation?: 'STAGED' | 'HEAT_COOL'
+  splitter?: SplitterPatch
+  aiConnected?: boolean
+  aoConnected?: boolean
+  bkcalConnected?: boolean
+  inputSource?: AnalogSignalRef
+  outputSource?: AnalogSignalRef
+  output2Source?: AnalogSignalRef
+  ao2Connected?: boolean
 }
 
 export interface AnalogIndicator {
@@ -326,6 +440,8 @@ export interface FbInputRef {
   kind: 'const' | 'ref'
   value: number
   tag?: string
+  parameter?: AnalogSignalRef['parameter']
+  block?: PidBlockName
 }
 
 export interface FunctionBlockModule {
@@ -354,6 +470,10 @@ export interface FunctionBlockModule {
   countUp: boolean
   /** Computed result (1/0 for logic/timer/counter types). */
   out: number
+  bad?: boolean
+  splitter?: SplitterState
+  bkcal1Source?: AnalogSignalRef
+  bkcal2Source?: AnalogSignalRef
   alarms: AlarmLimit[]
   _timerElapsed: number
   _timerOutput: boolean

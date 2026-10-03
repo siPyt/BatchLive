@@ -14,10 +14,15 @@ import type {
   EventCategory,
   FbInputRef,
   FbCompareOp,
-  FbBlockType
+  FbBlockType,
+  PidIoPatch,
+  SplitterPatch,
+  AnalogSignalRef
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { stepPlant } from './simulate'
+import { configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
+import { configureSplitter, createSplitter } from './splitter'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
@@ -68,6 +73,10 @@ interface StoreState extends PlantState {
   setFeedforward: (tag: string, patch: { enable?: boolean; gain?: number; source?: string }) => void
   /** Configure tracking (TRK_IN_D trigger tag + TRK_VAL source/constant) on any PID. */
   setTracking: (tag: string, patch: { enable?: boolean; source?: string; valueSource?: string; value?: number }) => void
+  setPidIo: (tag: string, patch: PidIoPatch) => boolean
+  setSplitterConfig: (tag: string, patch: SplitterPatch & {
+    feedback1Source?: AnalogSignalRef; feedback2Source?: AnalogSignalRef
+  }) => boolean
   /** Wire a function block's IN1/IN2 to a constant value or another module's live value. */
   setFbInput: (tag: string, which: 'in1' | 'in2', ref: FbInputRef) => void
   /** Edit a function block's type-specific configuration (gain/bias/cmpOp/expr/delaySec/tripValue/countUp). */
@@ -213,6 +222,18 @@ export const useStore = create<StoreState>((set, get) => ({
     const priorById = new Map(s.alarms.map((a) => [a.id, a]))
     const nextById = new Map(next.alarms.map((a) => [a.id, a]))
     const newEntries: EventLogEntry[] = []
+    for (const [tag, module] of Object.entries(next.modules)) {
+      const old = s.modules[tag]
+      const error = module.type === 'PID' ? module.io?.splitter?.error :
+        module.type === 'FB' ? module.splitter?.error : undefined
+      const previousError = old?.type === 'PID' ? old.io?.splitter?.error :
+        old?.type === 'FB' ? old.splitter?.error : undefined
+      if (error !== previousError && (error || previousError)) {
+        newEntries.push({ id: `${tag}-splitter-${next.time}`, time: next.time,
+          category: 'DIAGNOSTIC', tag, user: 'SYSTEM',
+          description: error ?? 'SPLTR configuration restored' })
+      }
+    }
     for (const a of next.alarms) {
       if (a.active && !priorById.get(a.id)?.active) {
         newEntries.push({
@@ -332,10 +353,65 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setFbInput: (tag, which, ref) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Wire ${tag}.${which.toUpperCase()}`)) return
+    if (ref.kind === 'ref' && (ref.parameter || ref.block)) {
+      const error = ref.tag
+        ? signalError({ tag: ref.tag, parameter: ref.parameter ?? 'OUT', block: ref.block }, get().modules)
+        : 'A signal source tag is required'
+      if (error) {
+        get().logEvent('DIAGNOSTIC', tag, `Function block connection rejected: ${error}`)
+        window.alert(error)
+        return
+      }
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'FB') m[which] = ref
     })
-    get().logEvent('CONFIGURE', tag, `${which.toUpperCase()} wired to ${ref.kind === 'const' ? ref.value : ref.tag}`)
+    const source = ref.kind === 'const' ? ref.value :
+      `${ref.tag}${ref.block ? '/' + ref.block : ''}${ref.parameter ? '.' + ref.parameter : ''}`
+    get().logEvent('CONFIGURE', tag, `${which.toUpperCase()} wired to ${source}`)
+  },
+
+  setPidIo: (tag, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag} analog strategy`)) return false
+    const module = get().modules[tag]
+    const error = module?.type === 'PID'
+      ? pidIoPatchError(module, patch, get().modules)
+      : `${tag} is not a PID control module`
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Analog strategy rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    mutateModule(set, get, tag, (m) => {
+      if (m.type === 'PID') m.io = configurePidIo(m, patch)
+    })
+    get().logEvent('CONFIGURE', tag, `Analog strategy changed: ${JSON.stringify(patch)}`)
+    return true
+  },
+
+  setSplitterConfig: (tag, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag} splitter`)) return false
+    const module = get().modules[tag]
+    let error = module?.type === 'FB' && module.fbType === 'SPLTR'
+      ? null : `${tag} is not a SPLTR block`
+    for (const ref of [patch.feedback1Source, patch.feedback2Source]) {
+      if (ref && !error) error = signalError(ref, get().modules) ??
+        (ref.block !== 'AO1' && ref.block !== 'AO2' ? 'BKCAL feedback must come from an AO stage' : null)
+    }
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Splitter configuration rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    mutateModule(set, get, tag, (m) => {
+      if (m.type !== 'FB' || m.fbType !== 'SPLTR') return
+      const { feedback1Source, feedback2Source, ...settings } = patch
+      m.splitter = configureSplitter(m.splitter ?? createSplitter(), settings)
+      if ('feedback1Source' in patch) m.bkcal1Source = feedback1Source
+      if ('feedback2Source' in patch) m.bkcal2Source = feedback2Source
+    })
+    get().logEvent('CONFIGURE', tag, `SPLTR configuration changed: ${JSON.stringify(patch)}`)
+    return true
   },
 
   setFbConfig: (tag, patch) => {

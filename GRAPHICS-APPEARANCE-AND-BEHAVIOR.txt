@@ -195,12 +195,14 @@ C. Pneumatic/modulating control valve: ClassicControlValve.
    - Bowtie body with a short stem and semicircular/dome actuator.
    - Dome and body share green/black state color.
    - Small horizontal output-position bar beneath the symbol.
-   - Green when clamped PID output > 0; black when output = 0.
+   - Green when applied simulated actuator output > 0; black at output = 0.
    - Clamp displayed output to 0..100.
    - Current output bar: 20 units wide, 3 high; fill width = percent / 5.
    - Test 0%, 0.1% and 100%; do not round a positive output into "closed".
-   - Current state represents PID OUTPUT, not measured physical travel.
-     Tooltip says percent output. Do not claim physical valve feedback.
+   - State represents applied AO actuation, not measured physical travel.
+     A standard loop uses AO1.OUT; a split loop uses the combined simulated
+     actuation described in section 14. Tooltip says percent output.
+     Do not claim physical valve feedback.
    - Clicking opens the bound PID faceplate.
    - Do not restore the old always-black, unbound ClassicBlackValve.
    - Do not substitute a pale shaded diamond without the dome.
@@ -225,9 +227,9 @@ Reference label              Underlying tag / current source
 3T-8120-YV011A               PCV-401.open
 3T-8120-YV014                XV-422.open
 3T-8120-YV009                Reference-only hand valve, open depiction
-3T-8120-TIC001               TIC-401.out; both pneumatic depictions
-3T-8120-TIC011               TIC-411.out; both pneumatic depictions
-3T-8120-PIC016               PIC-401.out; pneumatic pressure valve
+3T-8120-TIC001               TIC-401 applied actuation; both depictions
+3T-8120-TIC011               TIC-411 applied actuation; both depictions
+3T-8120-PIC016               PIC-401/AO1.OUT; pressure valve depiction
 3T-8120-LI005                LIC-401.pv converted to liters
 3T-8120-AI015A               AT-402.pv; TOC
 3T-8120-AI015B               AT-401.pv; conductivity
@@ -235,11 +237,13 @@ Reference label              Underlying tag / current source
 
 Do not assume aliases prove one-to-one fidelity to the physical plant.
 The two inlet aliases currently share XV-411, and the two pneumatic symbols
-for each TIC share that PID's output. The engine's TIC-401 and TIC-411 are
+for each TIC share that module's applied simulated actuation. The engine's
+TIC-401 and TIC-411 are
 still-temperature modules, not independent tank/cooler/heater controllers.
 Do not silently invent split-range cooling/heating semantics or rename
 modules while doing a visual fix. Functional model expansion is a separate
-task requiring verified training/reference requirements.
+task requiring verified training/reference requirements. Section 14 records
+the subsequent executable split-range expansion requested by the user.
 
 Other current limitations, not newly verified plant functionality:
 - Some flow, inlet temperature, pressure and status captions are static.
@@ -441,8 +445,10 @@ Implementation/design details to preserve:
   folder outline #716c51.
 - FunctionBlockIcon defaults to 20 pixels. Each tile rectangle starts
   at (1,1), measures 22 x 22, and uses the family background colors above.
-- FBD header icons render at 18 pixels at (3,2) inside the existing
-  22-pixel-high header. Node width/height, ports and layout were preserved.
+- FBD header icons originally rendered at 18 pixels at (3,2) inside the
+  22-pixel-high header. This was the original icon-only placement.
+  Section 13 supersedes header placement: icon right at (168,2), name left.
+  Icon artwork, dimensions and palette remain unchanged.
 - Canvas icon SVGs use pointer-events:none so dragging remains owned by
   the header. Other icons do not introduce independent command handlers.
 - The .engineering-icon CSS only sets inline-block, flex-shrink:0 and
@@ -517,3 +523,200 @@ Live development:
   Inspect task output for the actual port if 5173 is occupied.
   Use hot reload while working so the user can inspect changes live.
   Do not claim a server is live without checking an HTTP response.
+
+===============================================================================
+13. CONTROL STUDIO BLOCK FRAMES AND RIBBON - REFERENCE-BASED REVISION
+===============================================================================
+
+Scope: IMG_0435 and IMG_0440 function-block frames and Control Studio ribbon.
+This revision is pending user review, not a new approval of plant graphics.
+The main operator toolbar, approved icon artwork, motors, valves, and plant
+palette are untouched.
+
+Block presentation:
+- Actual block type centered above the frame; actual module tag at the left of
+  the header; the approved 18px type icon at the right (x=168, y=2).
+- Flat gray body #eceeef, header #e4e6e7, frame #414141, thin row rules #a3a6a8.
+- Preserve 188px width, 22px header, 17px rows and actual input/output ports.
+- First body row shows the live value and quality; second row contains the
+  output parameter. Configured input rows follow with small terminal crosses.
+- Terminal centers and wire anchors share the same coordinates, including at
+  non-default zoom. Header dragging, input connection hit targets, output wiring,
+  wire selection/deletion, and saved layout remain functional.
+- No fabricated vendor parameter names, composite bodies, execution-order
+  numbers, or physical module paths. Block type captions are not execution IDs.
+
+Ribbon presentation and behavior:
+- Separate pale blue-gray caption strip with actual module tag and explicit
+  simulated configuration status. Do not hardcode a REACTOR_CELL path.
+- Actual selectable Home, Diagram, View tabs; blue File tab is disabled and
+  explains that file ribbon commands are not implemented.
+- Large stable SVG command illustrations, labels underneath, thin vertical
+  separators, group captions below. No emoji command artwork.
+- Home/Diagram expose module faceplate, Explorer properties, algorithm actions,
+  alarm view and supported historian view. Edit Object opens the editable
+  module faceplate, not a pretend vendor editor.
+- View toggles Hierarchy, Parameters, and Palette without altering configuration.
+- Zoom In/Out use 10 percentage-point steps, bounded to 50-150%; 100% resets.
+  SVG viewBox coordinates preserve wiring and layout under zoom.
+- Copy/Paste and Download are disabled with explanatory titles; no command
+  claims to download to a physical controller. History is disabled for module
+  types not supported by the existing historian.
+- Pane visibility and zoom are presentation state, not module configuration.
+
+Regression checks for this revision:
+- Compare both photographs and confirm name-left/icon-right header placement.
+- Check connected graph node/wire counts before and after zoom and pane toggles.
+- Drag at 100% and a non-default zoom; restore the original saved coordinates.
+- Verify supported ribbon actions and disabled-command explanations.
+- Typecheck/build and inspect diagnostics; verify live server remains responsive.
+
+===============================================================================
+14. EXECUTABLE ANALOG AND SPLIT-RANGE CONTROL - FUNCTIONAL EXPANSION
+===============================================================================
+
+Purpose: the user explicitly required actual AI/AO/function-block execution,
+not a single PID rectangle pretending to include the entire signal path.
+IMG_0435 provides the strategy-complexity reference. Behavioral implementation
+is grounded in 175179979-DeltaV-Function.pdf, PDF pages 284-292 (printed
+Function Block Reference pages 278-286), for the SPLTR block.
+
+This is a training-model expansion, NOT approval to redraw plant equipment.
+The approved centrifugal pumps, valve bodies/actuators, blue device frames,
+engineering icon artwork, plant palette, piping and label positions remain
+unchanged. The only WFI symbol behavior adjustment is the source of the
+percentage: applied actuation rather than the unapplied PID command.
+
+Actual model and connections:
+- Standard PID control module: AI1.OUT -> PID1.IN, PID1.OUT -> AO1.CAS_IN,
+  AO1.BKCAL_OUT -> PID1.BKCAL_IN.
+- Split-range control module: AI1.OUT -> PID1.IN -> SPLTR1.CAS_IN,
+  SPLTR1.OUT_1 -> AO1.CAS_IN and SPLTR1.OUT_2 -> AO2.CAS_IN.
+- Both AOs return BKCAL_OUT to their corresponding SPLTR1.BKCAL_IN input;
+  SPLTR1.BKCAL_OUT returns to PID1.BKCAL_IN.
+- TIC-401 and TIC-411 seed this five-block strategy, with FI-401/FI-411
+  respectively connected to FF_VAL. Feedforward remains disabled by default
+  until explicitly enabled. Their initial graphs have six nodes and eight
+  meaningful wires, including three dashed feedback paths.
+- AI1, PID1, SPLTR1, AO1 and AO2 are actual stored strategy state, not
+  cosmetic rectangles disconnected from engine execution.
+- PID.PV is a measured value in engineering units; PID.OUT is a command
+  in percent. They have separate pins and must never be interchanged.
+- External references retain their exact module/block/parameter identity.
+  Dependencies execute upstream first; a cycle back-edge reads prior-scan
+  state, and each module runs only once in a scan.
+- Connected strategy discovery includes AO2 command sources and standalone
+  splitter feedback sources. Missing/deleted sub-blocks produce Bad quality
+  without attempting to draw a nonexistent terminal.
+- Newly placed automatic blocks avoid saved node rectangles and captions.
+  Adding a split-range strategy must not overlay new SPLTR/AI/AO nodes on
+  previously dragged nodes. User-saved coordinates are preserved.
+
+SPLTR behaviors implemented and tested:
+- Two independently configured straight-line curves from four IN_ARRAY
+  and four OUT_ARRAY coordinates; overlap and gap configurations work.
+- X12 > X11, X22 > X21 and X21 >= X11 are required. Invalid coordinates,
+  nonfinite values or invalid timing force OOS with a visible configuration
+  error; correcting configuration restores execution.
+- CAS is normal; AUTO allows local SP testing; OOS is supported.
+  MAN is not a supported SPLTR target. Actual IMAN represents initialization
+  or unavailable/bad downstream control.
+- AUTO retains its requested SP separately from its rate-limited actual SP.
+  SP_RATE_UP/SP_RATE_DN are applied only to AUTO.
+- LOCKVAL=Y11 resets the first branch above X12, with five-percent first-span
+  hysteresis by default. The simulator exposes hysteresis adjustment clearly
+  as a training-model setting, not an invented vendor parameter name.
+- A non-CAS downstream branch tracks its feedback value. Its later return
+  to CAS balances the difference over BAL_TIME. New strategies default
+  BAL_TIME to at least twice upstream PID RESET.
+- When both branches are unavailable, the first return initializes upstream
+  from actual feedback. Limit propagation honors the available branch's
+  slope direction; one unavailable branch does not disable the healthy one.
+- Deleting/reconnecting a drawn link changes real connection state.
+  Dashed lines represent back-calculation, not decorative extra wiring.
+- Standalone palette SPLTR uses the same evaluator, real OUT_1/OUT_2 pins
+  and explicitly configured AO feedback. It is not a threshold shortcut.
+
+Applied actuation and default preservation:
+- AI AUTO samples the simulated physical measurement; AI MAN supplies a
+  deliberate training value. Disconnection/bad input propagates to PID.
+- AO CAS applies the configured source, subject to its own output limits.
+  AO MAN applies its manual value. A simulated/hardware output fault holds
+  the last applied value and reports Bad, rather than silently applying zero.
+- PID command, AO1 applied output, AO2 applied output and combined field
+  actuation are distinct quantities in Control Studio and PID faceplates.
+- Standard physical simulation uses AO1.OUT, not raw PID.OUT.
+- Default STAGED curves: IN [0,50,50,100], OUT [0,100,0,100].
+  Combined actuation is (AO1+AO2)/2. This preserves the former generic process
+  response while making both staged outputs independently operable.
+- Explicit HEAT_COOL preset: IN [0,49,51,100], OUT [100,0,0,100].
+  This has the reference's negative first slope and 49-51 deadband.
+  Combined simulation actuation is (100+AO2-AO1)/2, bounded to 0-100.
+  Selecting this preset is an intentional physical-model change, not a
+  silent reinterpretation of existing WFI aliases.
+- The two pneumatic depictions per TIC continue to share the module's
+  combined actuation. They are NOT independently relabeled as AO1/AO2
+  physical valves without further physical-reference verification.
+
+UI and safety boundaries:
+- Hierarchy selection opens the actual block's parameters. SPLTR coordinates,
+  mode, AUTO SP, lock/hysteresis, balancing/rates and connections are editable.
+  AO1/AO2 expose manual operation, limits, source selection and fault injection.
+- Configuration remains permission-gated and journaled. Rejected sources
+  generate diagnostics/notifications; splitter configuration-error transitions
+  and restoration are journaled rather than reported as successful control.
+- Older PID module data without explicit io state retains the standard strategy
+  and gains initialized state on the next scan, without mutating old snapshots.
+- AO1 can use an OUT-bound hardware AO CHARM fault; AO2 currently uses a virtual
+  actuator and explicit simulated fault injection, not a second claimed CHARM.
+- These are virtual training actuators, not a physical-controller download or
+  an exact reproduction of Fieldbus initialization-status message handshakes.
+- MODELOCK, OP_LMTS and THRESHOLDS composites in the photograph have NOT been
+  fabricated. Full vendor-composite support and a complete line-by-line
+  DV-7009 / O&M training audit are not claimed complete by this implementation.
+
+Regression checklist for future edits:
+- Run npm run test:control and preserve the measured default process response.
+- Verify standard three-block and split five-block graphs and qualified pins.
+- Exercise both AO manual modes, limits, failed/restored actuators, bad AI,
+  disconnection/reconnection, AUTO rates, invalid coordinates and restoration.
+- Verify real process changes use applied AOs rather than PID command.
+- Verify physical failure can leave a held output; Bad is not automatically
+  equivalent to closed or stopped mechanical feedback.
+- Check complete connected strategies, one feedback wire per destination,
+  port/wire alignment, dragging and zoom without losing configuration.
+- Check faceplate command/applied readouts and preserve all protected symbols,
+  palette values, piping and labels. Do not redesign equipment to add logic.
+
+2026-10-03 functional-expansion validation:
+- All 35 focused control-strategy/store/layout regressions passed.
+- Typecheck, production build, editor diagnostics and diff whitespace checks
+  passed. No project dependencies were added for the regression runner.
+- Live TIC-401 displayed AI1, PID1, SPLTR1, AO1, AO2 and FI-401, with eight
+  wires. Zoom to 120% preserved the full graph.
+- Dragged AO2 by (20,15) at 120% and restored its original (908,183) position.
+- Deleted feedback branch 2: seven wires; reconnected its actual BKCAL pins:
+  eight wires again.
+- AO2 manual value changes applied. Injected its fault: applied value held and
+  both parameter view and faceplate showed Bad/held. Restoration returned Good.
+- Made X12 invalid in the live parameter view: SPLTR became OOS, PID actual
+  mode became IMAN, and the configuration error was explicit. Restoring X12
+  to 50 returned SPLTR to CAS, PID to AUTO and BLOCK_ERR to None.
+- Restored test settings, connections, drag coordinates and 100% zoom.
+- Renderer HTTP endpoint returned 200 at http://localhost:5173/.
+- Native browser screenshot tooling clipped this shared browser viewport;
+  live behavior was checked through DOM/controls, not claimed pixel-perfect.
+
+2026-10-03 release record - documented before commit/push:
+- The user explicitly authorized committing and pushing this functional
+  Control Studio revision after recording it in this TXT contract.
+- Release scope includes reference-style block frames/ribbons, executable
+  analog and split-range strategies, applied-output faceplate readouts,
+  dependency execution, I/O quality, saved-layout collision handling,
+  the focused regression suite, and directly related documentation.
+- Preserve the protected equipment artwork and palette in future work.
+  This release does not authorize a new motor/valve redesign.
+- The newly provided 3001.png and 3002.png screenshots remain local reference
+  files, outside this implementation commit.
+- The full DV-7009 / O&M functionality audit remains subsequent work.
+  Do not describe this release as complete coverage of those manuals.

@@ -242,9 +242,12 @@ export function advanceControllers(controllers: Record<string, Controller>, dt: 
 }
 
 /** Resolve whether a bound Control Module's PV or CMD channel is currently Bad. */
-export function computeBadTags(hw: HardwareState): { badPvTags: Set<string>; badCmdTags: Set<string> } {
+export function computeBadTags(hw: HardwareState): {
+  badPvTags: Set<string>; badCmdTags: Set<string>; badOutTags: Set<string>
+} {
   const badPvTags = new Set<string>()
   const badCmdTags = new Set<string>()
+  const badOutTags = new Set<string>()
   for (const bp of Object.values(hw.baseplates)) {
     const carrier = hw.carriers[bp.carrierId]
     const ctrl = carrier ? hw.controllers[carrier.controllerTag] : undefined
@@ -254,7 +257,8 @@ export function computeBadTags(hw: HardwareState): { badPvTags: Set<string>; bad
       if (!ch.pulled && !down) continue
       if (ch.boundField === 'PV') badPvTags.add(ch.boundTag)
       if (ch.boundField === 'CMD') badCmdTags.add(ch.boundTag)
+      if (ch.boundField === 'OUT') badOutTags.add(ch.boundTag)
     }
   }
-  return { badPvTags, badCmdTags }
+  return { badPvTags, badCmdTags, badOutTags }
 }

@@ -132,4 +132,36 @@ export function outputPinLabel(m: AnyModule): string {
     case 'FB':
       return 'OUT'
   }
+
+}
+
+/** Execute upstream references first. A cycle's back-edge reads the previous
+ * scan value, so a feedback strategy is deterministic and each block runs once. */
+export function moduleExecutionOrder(modules: Record<string, AnyModule>): string[] {
+  const done = new Set<string>()
+  const visiting = new Set<string>()
+  const order: string[] = []
+  const visit = (tag: string | undefined): void => {
+    if (!tag || done.has(tag) || visiting.has(tag) || !modules[tag]) return
+    visiting.add(tag)
+    const m = modules[tag]
+    if (m.type === 'PID') {
+      for (const source of [m.casSource, m.ffSource, m.trackSource, m.trackValueSource]) visit(source)
+      for (const source of [m.io?.inputSource, m.io?.outputSource, m.io?.output2Source]) {
+        if (source?.block !== 'AI1') visit(source?.tag)
+      }
+    } else if (m.type === 'FB') {
+      for (const input of [m.in1, ...(FB_NEEDS_IN2[m.fbType] ? [m.in2] : [])]) {
+        if (input.kind === 'ref' && input.block !== 'AI1') visit(input.tag)
+      }
+    } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
+      visit(m.interlockSource)
+      visit(m.commandSource)
+    }
+    visiting.delete(tag)
+    done.add(tag)
+    order.push(tag)
+  }
+  for (const tag of Object.keys(modules)) visit(tag)
+  return order
 }

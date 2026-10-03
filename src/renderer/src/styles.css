@@ -2352,6 +2352,24 @@ button {
 .fbd-canvas-svg {
   display: block;
 }
+.studio-block-select {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.studio-block-select.active {
+  background: #d3e5f7;
+  border-color: #9caebf;
+}
+.studio-block-select:focus-visible {
+  outline: 2px solid #005fb8;
+}
+.studio-param-table .bad {
+  color: #c0392b;
+}
 .studio-main {
   flex: 1;
   display: flex;
@@ -2731,6 +2749,21 @@ button {
   border-bottom: 1px solid var(--dv-border);
   flex-shrink: 0;
 }
+.studio-caption {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 25px;
+  padding: 3px 10px;
+  background: #dfe5ee;
+  color: #34465b;
+  font-size: 11px;
+}
+.studio-caption-status {
+  margin-left: auto;
+  font-size: 10px;
+  color: #49604d;
+}
 .ribbon-tabs {
   display: flex;
   align-items: center;
@@ -2741,11 +2774,21 @@ button {
   border-bottom: 1px solid var(--dv-border);
 }
 .ribbon-tab {
+  background: transparent;
   padding: 5px 14px;
   font-size: 12px;
   color: var(--dv-text-dim);
   border: 1px solid transparent;
   border-bottom: none;
+  cursor: pointer;
+}
+.ribbon-tab:disabled {
+  cursor: not-allowed;
+}
+.ribbon-tab:focus-visible,
+.ribbon-btn:focus-visible {
+  outline: 2px solid #005fb8;
+  outline-offset: -2px;
 }
 .ribbon-tab.active {
   background: #f3f4f6;
@@ -2770,7 +2813,8 @@ button {
 .ribbon-body {
   display: flex;
   padding: 6px 2px;
-  min-height: 72px;
+  min-height: 86px;
+  overflow-x: auto;
 }
 .ribbon-group {
   display: flex;
@@ -2778,6 +2822,7 @@ button {
   align-items: center;
   padding: 0 8px;
   border-right: 1px solid var(--dv-border-light);
+  flex-shrink: 0;
 }
 .ribbon-group-btns {
   display: flex;
@@ -2795,8 +2840,10 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  min-width: 54px;
-  padding: 5px 6px;
+  min-width: 62px;
+  max-width: 78px;
+  min-height: 59px;
+  padding: 5px 7px;
   border: 1px solid transparent;
   border-radius: 3px;
   background: transparent;
@@ -2804,8 +2851,9 @@ button {
   font-size: 10px;
   line-height: 1.1;
   text-align: center;
+  cursor: pointer;
 }
-.ribbon-btn:hover {
+.ribbon-btn:hover:not(:disabled) {
   background: #e2e8f0;
   border-color: var(--dv-border-light);
 }
@@ -2814,10 +2862,12 @@ button {
   border-color: var(--dv-accent);
   color: var(--dv-text);
 }
-.ribbon-btn .ic {
-  font-size: 17px;
-  line-height: 1;
-  color: var(--dv-accent);
+.ribbon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ribbon-btn > svg {
+  flex-shrink: 0;
 }
 
 /* ------------------------------------------------------------------ */

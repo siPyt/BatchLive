@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
-import type { PidModule, ControlMode, AlarmPriority, AlarmType, AlarmLimit } from '../engine/types'
+import type { PidModule, ControlMode, AlarmPriority, AlarmType, AlarmLimit, AnalogOutputStage } from '../engine/types'
 import { fmt, fmtQ, modeColor } from '../utils/format'
+import { appliedPidOutput, pidIo } from '../engine/analogStrategy'
 
 const MODES: ControlMode[] = ['MAN', 'AUTO', 'CAS']
 type Tab = 'operate' | 'tune' | 'alarm' | 'trend'
@@ -22,6 +23,7 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const shed = m.actualMode !== m.mode
   const spEditable = m.actualMode === 'AUTO'
   const outEditable = m.actualMode === 'MAN' || m.actualMode === 'ROUT'
+  const io = pidIo(m)
 
   return (
     <div className="fp-body">
@@ -57,6 +59,15 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
               alarms={m.alarms}
             />
           </div>
+
+          <AppliedOutputRow label="AO1 applied" stage={io.ao} />
+          {io.ao2 && <AppliedOutputRow label="AO2 applied" stage={io.ao2} />}
+          {io.splitter && (
+            <div className="fp-row" title="Simulated combined actuator signal, not measured valve travel">
+              <span className="fp-label">{io.actuation === 'HEAT_COOL' ? 'Net heat/cool' : 'Staged field'}</span>
+              <span>{fmt(appliedPidOutput(m), 1)} % · {io.splitter.actualMode} / {io.splitter.status}</span>
+            </div>
+          )}
 
           <div className="fp-moderow">
             <span className="fp-label">Mode</span>
@@ -140,6 +151,18 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
 
       {tab === 'alarm' && <AlarmTab m={m} />}
       {tab === 'trend' && <TrendTab tag={tag} />}
+    </div>
+  )
+}
+
+function AppliedOutputRow({ label, stage }: { label: string; stage: AnalogOutputStage }): JSX.Element {
+  return (
+    <div className="fp-row" title="Actual simulated AO output; a fault holds the last applied value">
+      <span className="fp-label">{label}</span>
+      <span style={stage.bad ? { color: 'var(--dv-bad)' } : undefined}>
+        {fmt(stage.out, 1)} % · {stage.mode}
+        {stage.bad ? ' · BAD / held' : stage.limited ? ' · LIMITED' : ''}
+      </span>
     </div>
   )
 }

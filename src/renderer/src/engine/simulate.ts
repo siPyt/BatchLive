@@ -13,8 +13,16 @@ import type {
   FbInputRef
 } from './types'
 import { CUSTOM_PHYSICS_TAGS } from './plant'
-import { readModuleValue } from './fb'
+import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue } from './fb'
 import { advanceControllers, computeBadTags, type HardwareState } from './hardware'
+import {
+  appliedPidOutput, clonePidIo, executePidOutput, pidIo, pidOutputUnavailable,
+  readAnalogSignal, resolvePidInput, samplePidInput
+} from './analogStrategy'
+import {
+  cloneSplitter, createSplitter, executeSplitter, outputFeedback, refreshSplitterStatus,
+  type SplitterFeedback
+} from './splitter'
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
 const noise = (amp: number): number => (Math.random() - 0.5) * 2 * amp
@@ -124,7 +132,18 @@ function computePid(m: PidModule, dt: number, ffVal = 0, bkcalLimited = false): 
  * practice but not status-negotiated message-by-message.
  */
 function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, dt: number): void {
+  resolvePidInput(m, modules)
+  const io = pidIo(m)
+  const previousMode = m.actualMode
   m.actualMode = resolveActualMode(m, modules)
+  const outputUnavailable = pidOutputUnavailable(m)
+  if (m.mode !== 'MAN' && m.mode !== 'ROUT' && (m.pvBad || (io.bkcalConnected && outputUnavailable))) {
+    m.actualMode = 'IMAN'
+    if (io.bkcalConnected && outputUnavailable) {
+      m.out = io.splitter ? io.splitter.bkcal : io.ao.out
+      m._integral = m.out
+    }
+  }
   if ((m.actualMode === 'CAS' || m.actualMode === 'RCAS') && m.casSource) {
     const src = modules[m.casSource]
     if (src) m.sp = clamp(src.type === 'PID' ? m.pvMin + (src.out / 100) * (m.pvMax - m.pvMin) : readModuleValue(src), m.pvMin, m.pvMax)
@@ -138,8 +157,19 @@ function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, d
     return
   }
   const ffVal = m.ffEnable && m.ffSource ? readModuleValue(modules[m.ffSource]) * m.ffGain : 0
+  if (previousMode === 'IMAN' && m.actualMode !== 'IMAN' &&
+      m.actualMode !== 'MAN' && m.actualMode !== 'ROUT') {
+    const errorPct = ((m.sp - m.pv) / (m.pvMax - m.pvMin || 1)) * 100 * (m.direct ? -1 : 1)
+    m._integral = clamp(m.out - m.gain * errorPct - ffVal, -100, 100)
+  }
   const child = findCascadeChild(modules, m.tag)
-  const bkcalLimited = !!child && (child.out <= 0.001 || child.out >= 99.999)
+  const errorDirection = (m.sp - m.pv) * (m.direct ? -1 : 1)
+  const outputLimited = io.splitter
+    ? (io.splitter.status === 'HIGH_LIMITED' && errorDirection > 0) ||
+      (io.splitter.status === 'LOW_LIMITED' && errorDirection < 0)
+    : io.ao.limited
+  const bkcalLimited = (!!child && (child.out <= 0.001 || child.out >= 99.999)) ||
+    (io.bkcalConnected && outputLimited)
   m.out = computePid(m, dt, ffVal, bkcalLimited)
 }
 
@@ -317,10 +347,18 @@ function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyMod
 
 /** Reads the live numeric value a function block can wire to: PV for AI/PID,
  * 1/0 for discrete states, and OUT for another function block's result. */
-function resolveFbInput(modules: Record<string, AnyModule>, ref: FbInputRef): number {
-  if (ref.kind === 'const') return ref.value
+function resolveFbInput(
+  modules: Record<string, AnyModule>, ref: FbInputRef
+): { value: number; bad: boolean } {
+  if (ref.kind === 'const') return { value: ref.value, bad: !Number.isFinite(ref.value) }
+  if (ref.tag && (ref.parameter || ref.block)) {
+    return readAnalogSignal({ tag: ref.tag, parameter: ref.parameter ?? 'OUT', block: ref.block }, modules)
+  }
   const m = ref.tag ? modules[ref.tag] : undefined
-  return readModuleValue(m)
+  return {
+    value: readModuleValue(m),
+    bad: !m || ('pvBad' in m && m.pvBad) || (m.type === 'FB' && !!m.bad)
+  }
 }
 
 /** Minimal recursive-descent evaluator for CALC blocks — supports add, subtract,
@@ -371,8 +409,33 @@ function evalExpr(expr: string, in1: number, in2: number): number {
  * per scan, resolving its wired inputs against the current module set. Codes
  * are the exact DeltaV Function Block Reference abbreviations. */
 function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string, AnyModule>, dt: number): void {
-  const a = resolveFbInput(modules, m.in1)
-  const b = resolveFbInput(modules, m.in2)
+  const input1 = resolveFbInput(modules, m.in1)
+  const input2 = resolveFbInput(modules, m.in2)
+  if (m.fbType === 'SPLTR') {
+    const state = m.splitter ?? (m.splitter = createSplitter())
+    const feedback = (ref: FunctionBlockModule['bkcal1Source'], branch: 1 | 2): SplitterFeedback => {
+      const source = ref ? modules[ref.tag] : undefined
+      if (!ref || source?.type !== 'PID' || (ref.block !== 'AO1' && ref.block !== 'AO2')) {
+        return { value: 0, bad: true, invited: false, limit: 'NONE' }
+      }
+      const io = pidIo(source)
+      const stage = ref.block === 'AO1' ? io.ao : io.ao2
+      const command = ref.block === 'AO1' ? io.outputSource : io.output2Source
+      if (!stage) return { value: 0, bad: true, invited: false, limit: 'NONE' }
+      const connected = ref.block === 'AO1' ? io.aoConnected : !!io.ao2Connected
+      return outputFeedback(stage, connected && command?.tag === m.tag &&
+        (command.parameter === (branch === 1 ? 'OUT_1' : 'OUT_2') ||
+          (branch === 1 && command.parameter === 'OUT')))
+    }
+    executeSplitter(state, input1, feedback(m.bkcal1Source, 1), feedback(m.bkcal2Source, 2), dt)
+    m.out = state.out1
+    m.bad = state.status === 'BAD'
+    return
+  }
+  m.bad = input1.bad || (FB_NEEDS_IN2[m.fbType] && input2.bad)
+  if (m.bad) return // Bad input holds the last output; quality is visible to downstream blocks.
+  const a = input1.value
+  const b = input2.value
   const cmp = (x: number, y: number): boolean => {
     if (m.cmpOp === '>') return x > y
     if (m.cmpOp === '<') return x < y
@@ -634,9 +697,6 @@ function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string, AnyMo
       m._timerElapsed += dt
       m.out = m.gain * Math.sin((2 * Math.PI * m._timerElapsed) / Math.max(m.delaySec, 1))
       break
-    case 'SPLTR':
-      m.out = a >= m.bias ? a : 0
-      break
   }
 }
 
@@ -651,11 +711,40 @@ export function stepPlant(
   const dt = dtReal * prev.speed
   const now = prev.time + dt * 1000
   const proc = { ...prev.process }
+  const { badPvTags, badCmdTags, badOutTags } = computeBadTags(prev.hardware)
 
   // Clone modules shallowly so references change for subscribers.
   const modules: Record<string, AnyModule> = {}
   for (const k of Object.keys(prev.modules)) {
-    modules[k] = { ...prev.modules[k] }
+    const module = prev.modules[k]
+    modules[k] = module.type === 'PID' ? { ...module, io: clonePidIo(module) } :
+      module.type === 'FB' && module.splitter ? { ...module, splitter: cloneSplitter(module.splitter) } :
+        { ...module }
+  }
+  for (const module of Object.values(modules)) {
+    if (module.type === 'AI') module.pvBad = badPvTags.has(module.tag)
+    if ((module.type === 'MOTOR' || module.type === 'VALVE') && badCmdTags.has(module.tag)) module.fault = true
+    if (module.type !== 'PID') continue
+    const io = pidIo(module)
+    samplePidInput(module, io.ai.raw, badPvTags.has(module.tag))
+    io.ao.bad = badOutTags.has(module.tag) || !!io.ao.fault ||
+      (io.ao.mode === 'CAS' && !io.aoConnected)
+    if (io.ao2) io.ao2.bad = !!io.ao2.fault || (io.ao2.mode === 'CAS' && !io.ao2Connected)
+    if (io.splitter && io.ao2) {
+      refreshSplitterStatus(io.splitter, outputFeedback(io.ao, io.aoConnected && !io.outputSource),
+        outputFeedback(io.ao2, !!io.ao2Connected && !io.output2Source))
+    }
+  }
+  const executeLoop = (m: PidModule): number => {
+    stepPidWithStrategy(m, modules, dt)
+    executePidOutput(m, modules, badOutTags.has(m.tag), dt)
+    const io = pidIo(m)
+    if (m.actualMode === 'IMAN' && io.bkcalConnected &&
+        pidOutputUnavailable(m)) {
+      m.out = io.splitter ? io.splitter.bkcal : io.ao.out
+      m._integral = m.out
+    }
+    return appliedPidOutput(m)
   }
 
   const fic = modules['FIC-101'] as PidModule
@@ -671,17 +760,24 @@ export function stepPlant(
   const ti101 = modules['TI-101'] as AnalogIndicator
   const lsh101 = modules['LSH-101'] as DiscreteInput
 
-  // --- Discrete device actuation (DeltaV Device Control / DC1 block) ---
-  applyMotorDC(p101, dt, modules)
-  applyMotorDC(p201, dt, modules)
-  applyValveDC(xv101, dt, modules)
-  applyValveDC(xv201, dt, modules)
+  // Inputs, control algorithms and field outputs execute once in dependency order.
+  for (const tag of moduleExecutionOrder(modules)) {
+    const module = modules[tag]
+    if (module.type === 'PID') executeLoop(module)
+    else if (module.type === 'FB') stepFunctionBlock(module, modules, dt)
+    else if (module.type === 'MOTOR') applyMotorDC(module, dt, modules)
+    else if (module.type === 'VALVE') applyValveDC(module, dt, modules)
+    else if (module.type === 'AI' && !CUSTOM_PHYSICS_TAGS.has(tag) && !module.pvBad) {
+      const span = module.pvMax - module.pvMin || 1
+      const mid = module.pvMin + span / 2
+      module.pv = clamp(module.pv + (mid - module.pv) * 0.01 + noise(span * 0.002),
+        module.pvMin, module.pvMax)
+    }
+  }
 
   // --- Cascade: LIC-101 (master) sets remote SP of FIC-101 (slave), via the
   // generic cascade/feedforward/tracking wrapper (same one every user PID uses) ---
-  stepPidWithStrategy(lic101, modules, dt)
-  stepPidWithStrategy(fic, modules, dt)
-  const ficOut = fic.out
+  const ficOut = appliedPidOutput(fic)
 
   // --- Feed flow physics ------------------------------------------------
   const feedEnabled = p101.running && xv101.open
@@ -696,22 +792,22 @@ export function stepPlant(
   proc.feedTankLevel = clamp(proc.feedTankLevel, 0, 100)
 
   // --- Reactor level: feed in minus product out ------------------------
-  stepPidWithStrategy(lic201, modules, dt)
-  const productOut = p201.running ? (lic201.out / 100) * 110 : 0
+  const productCommand = appliedPidOutput(lic201)
+  const productOut = p201.running ? (productCommand / 100) * 110 : 0
   proc.productFlow += (productOut - proc.productFlow) * clamp(dt / 3, 0, 1)
   proc.reactorLevel += (reactorDraw - proc.productFlow) * dt * 0.05
   proc.reactorLevel = clamp(proc.reactorLevel, 0, 100)
 
   // --- Reactor temperature: steam heats, cold feed + losses cool -------
-  stepPidWithStrategy(tic, modules, dt)
-  const steamHeat = (tic.out / 100) * 2.4
+  const temperatureCommand = appliedPidOutput(tic)
+  const steamHeat = (temperatureCommand / 100) * 2.4
   const cooling = 0.012 * (proc.reactorTemp - 25) + proc.feedFlow * 0.004
   proc.reactorTemp += (steamHeat - cooling) * dt
   proc.reactorTemp = clamp(proc.reactorTemp + noise(0.05), 0, 200)
 
   // --- Header pressure: product flow builds it, PIC relief bleeds it ----
-  stepPidWithStrategy(pic, modules, dt)
-  const relief = (pic.out / 100) * 12 + (xv201.open ? 4 : 0)
+  const pressureCommand = appliedPidOutput(pic)
+  const relief = (pressureCommand / 100) * 12 + (xv201.open ? 4 : 0)
   proc.headerPressure += (proc.productFlow * 0.08 + 1.2 - relief) * dt * 4
   proc.headerPressure = clamp(proc.headerPressure + noise(0.5), 0, 500)
 
@@ -722,11 +818,11 @@ export function stepPlant(
   proc.reactorConc = clamp(proc.reactorConc + noise(0.05), 0, 100)
 
   // --- Write PVs back to modules ---------------------------------------
-  fic.pv = proc.feedFlow
-  lic101.pv = proc.feedTankLevel
-  lic201.pv = proc.reactorLevel
-  tic.pv = proc.reactorTemp
-  pic.pv = proc.headerPressure
+  samplePidInput(fic, proc.feedFlow, badPvTags.has(fic.tag))
+  samplePidInput(lic101, proc.feedTankLevel, badPvTags.has(lic101.tag))
+  samplePidInput(lic201, proc.reactorLevel, badPvTags.has(lic201.tag))
+  samplePidInput(tic, proc.reactorTemp, badPvTags.has(tic.tag))
+  samplePidInput(pic, proc.headerPressure, badPvTags.has(pic.tag))
   at301.pv = proc.reactorConc
   ti101.pv = clamp(ti101.pv + (32 - ti101.pv) * 0.02 + noise(0.05), 28, 70)
   lsh101.state = proc.feedTankLevel >= 85
@@ -736,30 +832,21 @@ export function stepPlant(
     if (CUSTOM_PHYSICS_TAGS.has(tag)) continue
     const gm = modules[tag]
     if (gm.type === 'PID') {
-      stepPidWithStrategy(gm, modules, dt)
+      const output = appliedPidOutput(gm)
       const gspan = gm.pvMax - gm.pvMin || 1
       // Self-regulating first-order process: PV rises with controller output.
-      const target = gm.pvMin + (gm.out / 100) * gspan
-      gm.pv = clamp(gm.pv + (target - gm.pv) * clamp(dt / 4, 0, 1) + noise(gspan * 0.0015), gm.pvMin, gm.pvMax)
-    } else if (gm.type === 'AI') {
-      const gspan = gm.pvMax - gm.pvMin || 1
-      const mid = gm.pvMin + gspan / 2
-      gm.pv = clamp(gm.pv + (mid - gm.pv) * 0.01 + noise(gspan * 0.002), gm.pvMin, gm.pvMax)
-    } else if (gm.type === 'MOTOR') {
-      applyMotorDC(gm, dt, modules)
-    } else if (gm.type === 'VALVE') {
-      applyValveDC(gm, dt, modules)
-    } else if (gm.type === 'FB') {
-      stepFunctionBlock(gm, modules, dt)
+      const target = gm.pvMin + (output / 100) * gspan
+      const raw = pidIo(gm).ai.raw
+      samplePidInput(gm, clamp(raw + (target - raw) * clamp(dt / 4, 0, 1) +
+        noise(gspan * 0.0015), gm.pvMin, gm.pvMax), badPvTags.has(tag))
     }
   }
 
   // --- Physical Network: CHARM/controller I/O faults propagate to modules
-  const { badPvTags, badCmdTags } = computeBadTags(prev.hardware)
   for (const tag of badPvTags) {
     const m = modules[tag]
     const prevM = prev.modules[tag]
-    if (m && prevM && (m.type === 'PID' || m.type === 'AI') && 'pv' in prevM) {
+    if (m && prevM && m.type === 'AI' && 'pv' in prevM) {
       m.pv = prevM.pv // Bad I/O: freeze at the last known-good value.
     }
   }
@@ -769,7 +856,7 @@ export function stepPlant(
   }
   for (const tag of Object.keys(modules)) {
     const m = modules[tag]
-    if (m.type === 'PID' || m.type === 'AI') m.pvBad = badPvTags.has(tag)
+    if (m.type === 'AI') m.pvBad = badPvTags.has(tag)
   }
 
   // --- Alarm evaluation -------------------------------------------------
@@ -783,7 +870,7 @@ export function stepPlant(
     if (m.type === 'PID') {
       evalAnalogAlarms(m.tag, m.description, m.pv, m.unit, m.alarms, alarms, now)
       const pvbad = m.alarms.find((a) => a.type === 'PVBAD')
-      if (pvbad) reconcile(alarms, m.tag, m.description, pvbad, badPvTags.has(m.tag), m.pv, m.unit, now)
+      if (pvbad) reconcile(alarms, m.tag, m.description, pvbad, m.pvBad, m.pv, m.unit, now)
     } else if (m.type === 'AI') {
       evalAnalogAlarms(m.tag, m.description, m.pv, m.unit, m.alarms, alarms, now)
       const pvbad = m.alarms.find((a) => a.type === 'PVBAD')

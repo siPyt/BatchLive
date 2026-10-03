@@ -26,6 +26,7 @@ import {
   PALE_RED
 } from '../components/ClassicGraphics'
 import { durationString } from '../utils/format'
+import { appliedPidOutput } from '../engine/analogStrategy'
 import type { PidModule, ValveModule, DiscreteInput, MotorModule, DiscreteOutput, AnalogIndicator } from '../engine/types'
 
 /** P&ID mimic diagrams for the GMP pharma areas, in the same visual language
@@ -153,11 +154,11 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
       <ClassicHex x={550} y={432} w={110} h={34} label={'WFI Recirc\nSani Htr'} />
 
       {/* ===== inline control & isolation valves ===== */}
-      <ClassicControlValve x={612} y={112} position={tic401.out} tag="TIC-401" label="3T-8120-TIC001" />
-      <ClassicControlValve x={760} y={252} position={tic411.out} tag="TIC-411" label="3T-8120-TIC011" />
-      <ClassicControlValve x={725} y={422} position={tic411.out} tag="TIC-411" label="3T-8120-TIC011" labelPosition="above" />
-      <ClassicControlValve x={273} y={200} position={tic401.out} tag="TIC-401" label="3T-8120-TIC001" />
-      <ClassicControlValve x={320} y={382} position={pic401.out} tag="PIC-401" label="3T-8120-PIC016" />
+      <ClassicControlValve x={612} y={112} position={appliedPidOutput(tic401)} tag="TIC-401" label="3T-8120-TIC001" />
+      <ClassicControlValve x={760} y={252} position={appliedPidOutput(tic411)} tag="TIC-411" label="3T-8120-TIC011" />
+      <ClassicControlValve x={725} y={422} position={appliedPidOutput(tic411)} tag="TIC-411" label="3T-8120-TIC011" labelPosition="above" />
+      <ClassicControlValve x={273} y={200} position={appliedPidOutput(tic401)} tag="TIC-401" label="3T-8120-TIC001" />
+      <ClassicControlValve x={320} y={382} position={appliedPidOutput(pic401)} tag="PIC-401" label="3T-8120-PIC016" />
       <ClassicSanitaryValve x={337} y={200} open={xv401.open} tag="XV-401" label="3T-8120-YV001A" labelPosition="above" />
       <ClassicSanitaryValve x={830} y={422} open={pcv401.open} tag="PCV-401" label="3T-8120-YV011A" labelPosition="above" />
       <ClassicSanitaryValve x={461} y={402} open={xv422.open} tag="XV-422" label="3T-8120-YV014" orientation="vertical" labelPosition="right" />

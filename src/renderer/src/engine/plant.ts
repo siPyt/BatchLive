@@ -12,6 +12,8 @@ import type {
   ModuleType
 } from './types'
 import { DEFAULT_MEMBERSHIP } from './equipment'
+import { configurePidIo, createPidIo } from './analogStrategy'
+import { createSplitter } from './splitter'
 
 // Helper builders keep the plant definition compact and readable.
 
@@ -129,7 +131,10 @@ export const BUILTIN_TAGS = new Set([
   'P-821',
   'HS-821'
 ])
-function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>): PidModule {
+function pid(
+  p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>,
+  splitRange = false
+): PidModule {
   const m: PidModule = {
     type: 'PID',
     mode: 'AUTO',
@@ -162,8 +167,7 @@ function pid(p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'ar
   m._prevPv = m.sp
   m._integral = m.out
   m.actualMode = m.mode
-  // Every PID has an implicit AI (PV) and AO (OUT) function block, each of
-  // which can go Bad on an I/O (CHARM) fault.
+  m.io = splitRange ? configurePidIo(m, { splitRange: true }) : createPidIo(m)
   if (!m.alarms.some((a) => a.type === 'PVBAD')) {
     m.alarms = [...m.alarms, { type: 'PVBAD', label: 'PV BAD', priority: 'CRITICAL', enabled: true }]
   }
@@ -246,6 +250,7 @@ function fb(p: Partial<FunctionBlockModule> & Pick<FunctionBlockModule, 'tag' | 
     _prevIn: false,
     _prevValue: 0,
     _buffer: [],
+    splitter: p.fbType === 'SPLTR' ? createSplitter() : undefined,
     ...p
   }
 }
@@ -754,8 +759,9 @@ export function buildInitialPlant(): PlantState {
       mode: 'AUTO',
       gain: 1.5,
       reset: 15,
-      direct: false
-    })
+      direct: false,
+      ffSource: 'FI-401'
+    }, true)
   )
   add(
     ai({
@@ -779,8 +785,9 @@ export function buildInitialPlant(): PlantState {
       mode: 'AUTO',
       gain: 1.5,
       reset: 15,
-      direct: false
-    })
+      direct: false,
+      ffSource: 'FI-411'
+    }, true)
   )
   add(
     ai({
