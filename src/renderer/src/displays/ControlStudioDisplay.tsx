@@ -27,34 +27,7 @@ export function ControlStudioDisplay(): JSX.Element {
     )
   }
 
-  // DeltaV Control Studio opens ONE Control Module at a time: the canvas
-  // shows the active module plus only its direct wiring neighbors (FB
-  // blocks that reference it, PID cascade/feedforward/tracking sources and
-  // sinks), never the whole area.
-  const neighborTags = new Set<string>()
-  for (const t of Object.keys(modules)) {
-    const mm = modules[t]
-    if (mm.type === 'FB') {
-      if ((mm.in1.kind === 'ref' && mm.in1.tag === m.tag) || (mm.in2.kind === 'ref' && mm.in2.tag === m.tag)) neighborTags.add(t)
-    } else if (mm.type === 'PID') {
-      if (mm.casSource === m.tag || mm.ffSource === m.tag || mm.trackSource === m.tag || mm.trackValueSource === m.tag) neighborTags.add(t)
-    } else if (mm.type === 'MOTOR' || mm.type === 'VALVE') {
-      if (mm.interlockSource === m.tag || mm.commandSource === m.tag) neighborTags.add(t)
-    }
-  }
-  if (m.type === 'FB') {
-    if (m.in1.kind === 'ref' && m.in1.tag) neighborTags.add(m.in1.tag)
-    if (m.in2.kind === 'ref' && m.in2.tag) neighborTags.add(m.in2.tag)
-  } else if (m.type === 'PID') {
-    if (m.casSource) neighborTags.add(m.casSource)
-    if (m.ffSource) neighborTags.add(m.ffSource)
-    if (m.trackSource) neighborTags.add(m.trackSource)
-    if (m.trackValueSource) neighborTags.add(m.trackValueSource)
-  } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
-    if (m.interlockSource) neighborTags.add(m.interlockSource)
-    if (m.commandSource) neighborTags.add(m.commandSource)
-  }
-  const visibleTags = [m.tag, ...Array.from(neighborTags).sort()]
+  const visibleTags = connectedModuleTags(modules, m.tag)
 
   return (
     <div className="display studio">
@@ -78,6 +51,46 @@ export function ControlStudioDisplay(): JSX.Element {
       </div>
     </div>
   )
+}
+
+/** Show the active module's complete connected strategy, not just one hop. */
+function connectedModuleTags(modules: Record<string, AnyModule>, rootTag: string): string[] {
+  const neighbors = new Map<string, Set<string>>()
+  const connect = (tag: string, source: string | undefined): void => {
+    if (!source || !modules[source]) return
+    if (!neighbors.has(tag)) neighbors.set(tag, new Set())
+    if (!neighbors.has(source)) neighbors.set(source, new Set())
+    neighbors.get(tag)?.add(source)
+    neighbors.get(source)?.add(tag)
+  }
+
+  for (const module of Object.values(modules)) {
+    if (module.type === 'FB') {
+      if (module.in1.kind === 'ref') connect(module.tag, module.in1.tag)
+      if (module.in2.kind === 'ref') connect(module.tag, module.in2.tag)
+    } else if (module.type === 'PID') {
+      connect(module.tag, module.casSource)
+      connect(module.tag, module.ffSource)
+      connect(module.tag, module.trackSource)
+      connect(module.tag, module.trackValueSource)
+    } else if (module.type === 'MOTOR' || module.type === 'VALVE') {
+      connect(module.tag, module.interlockSource)
+      connect(module.tag, module.commandSource)
+    }
+  }
+
+  const connected = new Set([rootTag])
+  const pending = [rootTag]
+  while (pending.length > 0) {
+    const tag = pending.pop()
+    if (!tag) continue
+    for (const neighbor of neighbors.get(tag) ?? []) {
+      if (connected.has(neighbor)) continue
+      connected.add(neighbor)
+      pending.push(neighbor)
+    }
+  }
+  return [rootTag, ...Array.from(connected).filter((tag) => tag !== rootTag).sort()]
 }
 
 /** Lists the real blocks inside this Control Module — matches the canvas
@@ -845,4 +858,3 @@ function RibbonBtn({
     </button>
   )
 }
-

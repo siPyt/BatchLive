@@ -10,24 +10,43 @@ import type { AnyModule, FbInputRef } from '../engine/types'
 // draggable nodes, click-drag pin-to-pin wiring, orthogonal colored wires,
 // and Delete-key removal — not a static picture of one module.
 
-const NODE_W = 152
-const HEADER_H = 20
-const ROW_H = 15
-const GRID_COLS = 4
-const GRID_SPACING_X = 210
-const GRID_SPACING_Y = 150
+const NODE_W = 188
+const HEADER_H = 22
+const ROW_H = 17
 const CANVAS_W = 2200
 const CANVAS_H = 1400
 
-function nodeHeight(m: AnyModule): number {
-  const pins = m.type === 'FB' ? (FB_NEEDS_IN2[m.fbType] ? 2 : 1) : m.type === 'PID' || m.type === 'MOTOR' || m.type === 'VALVE' ? 1 : 0
-  return HEADER_H + ROW_H * 2 + pins * ROW_H + 6
+interface InputPort {
+  which: string
+  label: string
 }
 
-function defaultPos(idx: number): { x: number; y: number } {
-  const col = idx % GRID_COLS
-  const row = Math.floor(idx / GRID_COLS)
-  return { x: 40 + col * GRID_SPACING_X, y: 40 + row * GRID_SPACING_Y }
+function inputPorts(m: AnyModule): InputPort[] {
+  if (m.type === 'FB') {
+    return [
+      { which: 'in1', label: 'IN1' },
+      ...(FB_NEEDS_IN2[m.fbType] ? [{ which: 'in2', label: 'IN2' }] : [])
+    ]
+  }
+  if (m.type === 'PID') {
+    return [
+      { which: 'cas', label: 'CAS_IN' },
+      { which: 'ff', label: 'FF_VAL' },
+      { which: 'track', label: 'TRK_IN_D' },
+      { which: 'trackValue', label: 'TRK_VAL' }
+    ]
+  }
+  if (m.type === 'MOTOR' || m.type === 'VALVE') {
+    return [
+      { which: 'ilk', label: 'ILK' },
+      { which: 'command', label: 'SP_D' }
+    ]
+  }
+  return []
+}
+
+function nodeHeight(m: AnyModule): number {
+  return HEADER_H + ROW_H * (2 + inputPorts(m).length) + 8
 }
 
 interface Wire {
@@ -49,7 +68,10 @@ export function FbdCanvas({
   const modules = useStore((s) => s.modules)
   const setFbInput = useStore((s) => s.setFbInput)
   const setCasSource = useStore((s) => s.setCasSource)
+  const setFeedforward = useStore((s) => s.setFeedforward)
+  const setTracking = useStore((s) => s.setTracking)
   const setInterlockSource = useStore((s) => s.setInterlockSource)
+  const setCommandSource = useStore((s) => s.setCommandSource)
   const deleteModule = useStore((s) => s.deleteModule)
   const layout = useUi((s) => s.studioLayout)
   const setStudioLayout = useUi((s) => s.setStudioLayout)
@@ -58,8 +80,6 @@ export function FbdCanvas({
   const [dragNode, setDragNode] = useState<{ tag: string; offX: number; offY: number } | null>(null)
   const [wiring, setWiring] = useState<{ fromTag: string; x: number; y: number; curX: number; curY: number } | null>(null)
   const [selectedWire, setSelectedWire] = useState<{ tag: string; which: string } | null>(null)
-
-  const posOf = (tag: string): { x: number; y: number } => layout[tag] ?? defaultPos(areaTags.indexOf(tag))
 
   const toSvgPoint = (e: { clientX: number; clientY: number }): { x: number; y: number } => {
     const rect = svgRef.current?.getBoundingClientRect()
@@ -105,8 +125,14 @@ export function FbdCanvas({
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return
       if (selectedWire) {
         if (selectedWire.which === 'cas') setCasSource(selectedWire.tag, undefined)
+        else if (selectedWire.which === 'ff') setFeedforward(selectedWire.tag, { source: undefined })
+        else if (selectedWire.which === 'track') setTracking(selectedWire.tag, { source: undefined })
+        else if (selectedWire.which === 'trackValue') setTracking(selectedWire.tag, { valueSource: undefined })
         else if (selectedWire.which === 'ilk') setInterlockSource(selectedWire.tag, undefined)
-        else setFbInput(selectedWire.tag, selectedWire.which as 'in1' | 'in2', { kind: 'const', value: 0 })
+        else if (selectedWire.which === 'command') setCommandSource(selectedWire.tag, undefined)
+        else if (selectedWire.which === 'in1' || selectedWire.which === 'in2') {
+          setFbInput(selectedWire.tag, selectedWire.which, { kind: 'const', value: 0 })
+        }
         setSelectedWire(null)
       } else if (selectedTag && !BUILTIN_TAGS.has(selectedTag)) {
         deleteModule(selectedTag)
@@ -114,33 +140,44 @@ export function FbdCanvas({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedWire, selectedTag, setFbInput, setCasSource, setInterlockSource, deleteModule])
+  }, [selectedWire, selectedTag, setFbInput, setCasSource, setFeedforward, setTracking, setInterlockSource, setCommandSource, deleteModule])
 
-  // Build the wire list from every FB block's IN1/IN2 refs, every PID's
-  // CAS_SOURCE, and every MOTOR/VALVE's INTERLOCK_SOURCE that point at a tag on this canvas.
+  // Draw every configured live reference so the canvas reflects the same
+  // cascade, feedforward, tracking, interlock, and command wiring as the engine.
   const wires: Wire[] = []
   for (const tag of areaTags) {
     const m = modules[tag]
     if (!m) continue
+    const addWire = (which: string, source: string | undefined): void => {
+      if (source && areaTags.includes(source)) wires.push({ key: `${tag}.${which}`, fromTag: source, toTag: tag, which })
+    }
     if (m.type === 'FB') {
       const check = (which: 'in1' | 'in2', ref: FbInputRef): void => {
-        if (ref.kind === 'ref' && ref.tag && areaTags.includes(ref.tag)) {
-          wires.push({ key: `${tag}.${which}`, fromTag: ref.tag, toTag: tag, which })
-        }
+        if (ref.kind === 'ref') addWire(which, ref.tag)
       }
       check('in1', m.in1)
       check('in2', m.in2)
-    } else if (m.type === 'PID' && m.casSource && areaTags.includes(m.casSource)) {
-      wires.push({ key: `${tag}.cas`, fromTag: m.casSource, toTag: tag, which: 'cas' })
-    } else if ((m.type === 'MOTOR' || m.type === 'VALVE') && m.interlockSource && areaTags.includes(m.interlockSource)) {
-      wires.push({ key: `${tag}.ilk`, fromTag: m.interlockSource, toTag: tag, which: 'ilk' })
+    } else if (m.type === 'PID') {
+      addWire('cas', m.casSource)
+      addWire('ff', m.ffSource)
+      addWire('track', m.trackSource)
+      addWire('trackValue', m.trackValueSource)
+    } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
+      addWire('ilk', m.interlockSource)
+      addWire('command', m.commandSource)
     }
   }
+
+  const autoPositions = getAutoPositions(areaTags, wires, modules)
+  const posOf = (tag: string): { x: number; y: number } => layout[tag] ?? autoPositions[tag] ?? { x: 48, y: 48 }
+  const canvasWidth = Math.max(CANVAS_W, ...areaTags.map((tag) => posOf(tag).x + NODE_W + 80))
+  const canvasHeight = Math.max(CANVAS_H, ...areaTags.map((tag) => posOf(tag).y + nodeHeight(modules[tag]) + 80))
 
   const pinPos = (tag: string, which: string): { x: number; y: number } => {
     const p = posOf(tag)
     if (which === 'out') return { x: p.x + NODE_W, y: p.y + HEADER_H + ROW_H + ROW_H / 2 }
-    const row = which === 'in1' || which === 'cas' || which === 'ilk' ? 0 : 1
+    const ports = inputPorts(modules[tag])
+    const row = Math.max(0, ports.findIndex((port) => port.which === which))
     return { x: p.x, y: p.y + HEADER_H + ROW_H * 2 + row * ROW_H + ROW_H / 2 }
   }
 
@@ -156,8 +193,12 @@ export function FbdCanvas({
     if (!wiring) return
     if (wiring.fromTag !== toTag) {
       if (which === 'cas') setCasSource(toTag, wiring.fromTag)
+      else if (which === 'ff') setFeedforward(toTag, { source: wiring.fromTag })
+      else if (which === 'track') setTracking(toTag, { source: wiring.fromTag })
+      else if (which === 'trackValue') setTracking(toTag, { valueSource: wiring.fromTag })
       else if (which === 'ilk') setInterlockSource(toTag, wiring.fromTag)
-      else setFbInput(toTag, which as 'in1' | 'in2', { kind: 'ref', value: 0, tag: wiring.fromTag })
+      else if (which === 'command') setCommandSource(toTag, wiring.fromTag)
+      else if (which === 'in1' || which === 'in2') setFbInput(toTag, which, { kind: 'ref', value: 0, tag: wiring.fromTag })
     }
     setWiring(null)
   }
@@ -177,16 +218,13 @@ export function FbdCanvas({
 
   return (
     <div className="fbd-canvas-scroll">
-      <svg ref={svgRef} className="fbd-canvas-svg" width={CANVAS_W} height={CANVAS_H} onMouseDown={() => setSelectedWire(null)}>
+      <svg ref={svgRef} className="fbd-canvas-svg" width={canvasWidth} height={canvasHeight} onMouseDown={() => setSelectedWire(null)}>
         <defs>
-          <pattern id="fbdDots" width={16} height={16} patternUnits="userSpaceOnUse">
-            <circle cx={1.5} cy={1.5} r={1.5} fill="#cfcfd6" />
+          <pattern id="fbdGrid" width={20} height={20} patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e7e9eb" strokeWidth={0.7} />
           </pattern>
-          <filter id="fbdShadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="1" dy="2" stdDeviation="1.5" floodColor="#000" floodOpacity="0.3" />
-          </filter>
         </defs>
-        <rect x={0} y={0} width={CANVAS_W} height={CANVAS_H} fill="url(#fbdDots)" />
+        <rect x={0} y={0} width={canvasWidth} height={canvasHeight} fill="url(#fbdGrid)" />
 
         {wires.map((w) => {
           const a = pinPos(w.fromTag, 'out')
@@ -226,16 +264,7 @@ export function FbdCanvas({
               selected={tag === selectedTag}
               onHeaderDown={(e) => beginDragNode(tag, e)}
               onOutDown={(e) => beginWire(tag, e)}
-              onIn1Up={
-                m.type === 'FB'
-                  ? (e) => dropWire(tag, 'in1', e)
-                  : m.type === 'PID'
-                    ? (e) => dropWire(tag, 'cas', e)
-                    : m.type === 'MOTOR' || m.type === 'VALVE'
-                      ? (e) => dropWire(tag, 'ilk', e)
-                      : undefined
-              }
-              onIn2Up={m.type === 'FB' && FB_NEEDS_IN2[m.fbType] ? (e) => dropWire(tag, 'in2', e) : undefined}
+              onInputUp={(which, e) => dropWire(tag, which, e)}
             />
           )
         })}
@@ -251,8 +280,7 @@ function FbNode({
   selected,
   onHeaderDown,
   onOutDown,
-  onIn1Up,
-  onIn2Up
+  onInputUp
 }: {
   m: AnyModule
   x: number
@@ -260,8 +288,7 @@ function FbNode({
   selected: boolean
   onHeaderDown: (e: React.MouseEvent) => void
   onOutDown: (e: React.MouseEvent) => void
-  onIn1Up?: (e: React.MouseEvent) => void
-  onIn2Up?: (e: React.MouseEvent) => void
+  onInputUp: (which: string, e: React.MouseEvent) => void
 }): JSX.Element {
   const h = nodeHeight(m)
   const badge = m.type === 'FB' ? m.fbType : m.type
@@ -270,21 +297,13 @@ function FbNode({
   const unit = m.type === 'PID' || m.type === 'AI' ? m.unit : ''
   const decimals = m.type === 'PID' || m.type === 'AI' ? m.decimals : m.type === 'FB' ? 2 : 0
   const bad = (m.type === 'PID' || m.type === 'AI') && m.pvBad
-  const inputs: { label: string; up?: (e: React.MouseEvent) => void }[] =
-    m.type === 'FB'
-      ? FB_NEEDS_IN2[m.fbType]
-        ? [{ label: 'IN1', up: onIn1Up }, { label: 'IN2', up: onIn2Up }]
-        : [{ label: 'IN1', up: onIn1Up }]
-      : m.type === 'PID'
-        ? [{ label: 'CAS_IN', up: onIn1Up }]
-        : m.type === 'MOTOR' || m.type === 'VALVE'
-          ? [{ label: 'ILK', up: onIn1Up }]
-          : []
+  const inputs = inputPorts(m)
 
   return (
     <g transform={`translate(${x},${y})`}>
-      <rect x={0} y={0} width={NODE_W} height={h} fill="#E4E4E4" stroke={selected ? '#005FB8' : '#707070'} strokeWidth={selected ? 2 : 1} filter="url(#fbdShadow)" />
-      <rect x={0} y={0} width={NODE_W} height={HEADER_H} fill="#D6D6D6" stroke="#707070" style={{ cursor: 'grab' }} onMouseDown={onHeaderDown} />
+      <title>{m.description}</title>
+      <rect x={0} y={0} width={NODE_W} height={h} fill="#F4F5F6" stroke={selected ? '#005FB8' : '#707070'} strokeWidth={selected ? 2 : 1} />
+      <rect x={0} y={0} width={NODE_W} height={HEADER_H} fill="#E2E5E7" stroke="#707070" style={{ cursor: 'grab' }} onMouseDown={onHeaderDown} />
       <text x={5} y={14} fontSize={9} fontWeight={800} fill="#0a3d6b">
         [{badge}]
       </text>
@@ -299,15 +318,18 @@ function FbNode({
         {bad ? 'Bad' : 'Good'}
       </text>
 
-      {inputs.map((inp, i) => (
-        <g key={inp.label} transform={`translate(0, ${HEADER_H + ROW_H * 2 + i * ROW_H})`}>
-          <polygon points="0,3 8,7.5 0,12" fill="#444" style={{ cursor: 'crosshair' }} onMouseUp={inp.up} />
-          <rect x={0} y={0} width={16} height={ROW_H} fill="transparent" style={{ cursor: 'crosshair' }} onMouseUp={inp.up} />
-          <text x={11} y={11} fontSize={8} fill="#333">
-            {inp.label}
-          </text>
-        </g>
-      ))}
+      {inputs.map((inp, i) => {
+        const onMouseUp = (e: React.MouseEvent): void => onInputUp(inp.which, e)
+        return (
+          <g key={inp.which} transform={`translate(0, ${HEADER_H + ROW_H * 2 + i * ROW_H})`}>
+            <polygon points="0,3 8,8.5 0,14" fill="#444" style={{ cursor: 'crosshair' }} onMouseUp={onMouseUp} />
+            <rect x={0} y={0} width={16} height={ROW_H} fill="transparent" style={{ cursor: 'crosshair' }} onMouseUp={onMouseUp} />
+            <text x={11} y={12} fontSize={8} fill="#333">
+              {inp.label}
+            </text>
+          </g>
+        )
+      })}
 
       <g transform={`translate(${NODE_W - 16}, ${HEADER_H + ROW_H})`}>
         <polygon points="8,3 16,7.5 8,12" fill="#0a3d6b" style={{ cursor: 'crosshair' }} onMouseDown={onOutDown} />
@@ -318,4 +340,57 @@ function FbNode({
       </g>
     </g>
   )
+}
+
+function getAutoPositions(tags: string[], wires: Wire[], modules: Record<string, AnyModule>): Record<string, { x: number; y: number }> {
+  const indegree = new Map(tags.map((tag) => [tag, 0]))
+  const outgoing = new Map(tags.map((tag) => [tag, [] as string[]]))
+  for (const wire of wires) {
+    outgoing.get(wire.fromTag)?.push(wire.toTag)
+    indegree.set(wire.toTag, (indegree.get(wire.toTag) ?? 0) + 1)
+  }
+
+  const ready = tags.filter((tag) => indegree.get(tag) === 0).sort()
+  const rank = new Map(tags.map((tag) => [tag, 0]))
+  const visited = new Set<string>()
+  while (ready.length > 0) {
+    const tag = ready.shift()
+    if (!tag) continue
+    visited.add(tag)
+    for (const target of outgoing.get(tag) ?? []) {
+      rank.set(target, Math.max(rank.get(target) ?? 0, (rank.get(tag) ?? 0) + 1))
+      const remaining = (indegree.get(target) ?? 0) - 1
+      indegree.set(target, remaining)
+      if (remaining === 0) {
+        ready.push(target)
+        ready.sort()
+      }
+    }
+  }
+
+  const cyclicTags = tags.filter((tag) => !visited.has(tag)).sort()
+  if (cyclicTags.length > 0) {
+    const lastRank = Math.max(0, ...rank.values()) + 1
+    for (const tag of cyclicTags) rank.set(tag, lastRank)
+  }
+
+  const layers = new Map<number, string[]>()
+  for (const tag of tags) {
+    const layer = rank.get(tag) ?? 0
+    if (!layers.has(layer)) layers.set(layer, [])
+    layers.get(layer)?.push(tag)
+  }
+
+  const positions: Record<string, { x: number; y: number }> = {}
+  for (const [layer, layerTags] of layers) {
+    layerTags.sort()
+    const layerHeight = Math.max(...layerTags.map((tag) => nodeHeight(modules[tag])))
+    layerTags.forEach((tag, index) => {
+      positions[tag] = {
+        x: 56 + layer * (NODE_W + 96),
+        y: 48 + index * (layerHeight + 42)
+      }
+    })
+  }
+  return positions
 }
