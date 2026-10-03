@@ -5,6 +5,8 @@
 // from the "Control Strategies" (Area/Module) side.
 // ---------------------------------------------------------------------------
 
+import { isValidDeltaVTag } from './naming'
+
 export type CharmType = 'AI' | 'AI_HART' | 'AO' | 'DI' | 'DO' | 'RTD' | 'TC'
 
 export const CHARM_TYPE_LABEL: Record<CharmType, string> = {
@@ -96,7 +98,7 @@ export function allocateControlNetworkAddress(controllers: Record<string, Contro
 }
 
 export function isValidControllerTag(tag: string): boolean {
-  return tag.length > 0 && tag.length <= 16 && /[A-Za-z]/.test(tag) && /^[A-Za-z0-9_$-]+$/.test(tag)
+  return isValidDeltaVTag(tag)
 }
 
 export interface HardwareState {

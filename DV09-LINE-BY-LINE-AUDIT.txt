@@ -1,0 +1,1384 @@
+BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
+=============================================
+
+SOURCE, SCOPE AND HONEST COMPLETION BOUNDARY
+-------------------------------------------
+Primary source: 740124885-Deltav-O-M-Training-Manual.pdf.
+Identity: Course DV-09, Revision 0, DeltaV Engineering Training, 575 PDF pages.
+Local extraction: pdf_om.txt.
+Extraction SHA-256:
+2170d28866a1f82a5930de5e900702888bf0de4a3dfdbff5919422fee4145b61
+
+All substantive extracted text was read in source order through line 12156,
+including optional exercises, tables, diagram labels and chapter summaries.
+The split source has 12157 records; the last is the trailing empty record.
+Classification totals: 575 page markers, 3472 blank records, 2962 repeated
+boilerplate records and 5148 reviewed text records.
+Repeated headings, blank lines and page/footer markers are accounted for
+separately. DV09-LINE-DISPOSITIONS.csv maps EACH source record to its PDF
+page, text classification and the manually reviewed requirement group below.
+No copyrighted source text is reproduced in that ledger.
+
+This completes the EXTRACTED-TEXT review, NOT full operational parity.
+Image-only dialog controls, drawings, waveform plots and screenshots are not
+fully represented by the extraction. Their visual review remains outstanding.
+The line ledger proves traceability and zero unmapped records, not correctness
+of the PDF extraction, visual fidelity, implemented features or test coverage.
+An objective/summary page is context, not a new verified implementation.
+
+This report paraphrases requirements, identifies executable evidence and gives
+acceptance criteria. It does not redistribute the manual or vendor software.
+Page numbers are PDF pages, not the printed chapter-page numbers.
+The audit's implementation baseline is commit 7d425a9 plus the module-name
+validation and alarm-ranking regressions delivered with this report.
+No push is authorized by the user's request to commit and audit.
+
+STATUS DEFINITIONS
+------------------
+CONTEXT: course framing, conceptual explanation, recap or publication data.
+  All applicable functional statements are mapped to adjacent requirement
+  groups; context does not count as working functionality.
+VERIFIED_SUBSET: a specifically bounded operation has engine regressions and
+  live UI evidence. Other operations on the same pages can still be missing.
+PARTIAL: related executable functionality exists, but the specified procedure
+  cannot yet be performed exactly from beginning to end.
+MISSING: the required simulated workflow/model is absent.
+BOUNDARY: real hardware, electrical installation, Windows administration,
+  vendor protocols/tools or licenses cannot be validated by this offline app.
+  Any potential training model is separately described; NOT a parity pass.
+
+EVIDENCE KEY (paths relative to the repository)
+----------------------------------------------
+STORE = src\renderer\src\engine\store.ts
+TYPES = src\renderer\src\engine\types.ts
+PLANT = src\renderer\src\engine\plant.ts
+HW = src\renderer\src\engine\hardware.ts
+SIM = src\renderer\src\engine\simulate.ts
+ANALOG = src\renderer\src\engine\analogStrategy.ts
+FB = src\renderer\src\engine\fb.ts
+SFC = src\renderer\src\engine\sfc.ts
+SECURITY = src\renderer\src\engine\security.ts
+PICTURES = src\renderer\src\engine\pictureStore.ts
+EXPLORER = src\renderer\src\displays\ExplorerDisplay.tsx
+STUDIO = src\renderer\src\displays\ControlStudioDisplay.tsx
+BUILDER = src\renderer\src\displays\DisplayBuilder.tsx
+NETWORK = src\renderer\src\displays\PhysicalNetworkDisplay.tsx
+USERS = src\renderer\src\displays\UserManagerDisplay.tsx
+ALARMS = src\renderer\src\displays\AlarmSummary.tsx
+JOURNAL = src\renderer\src\displays\EventJournalDisplay.tsx
+FLEXLOCK = src\renderer\src\components\FlexLockOverlay.tsx
+BANNER = src\renderer\src\components\AlarmBanner.tsx
+RANK = src\renderer\src\utils\format.ts: compareAlarmRank
+TESTS = tests\control-strategy.test.cjs
+
+Evidence denotes source inspection unless explicitly called a regression or
+live verification. Never treat a label, icon, disabled ribbon control,
+workshop checkmark, simulated number or unrelated tag as operational proof.
+
+CHAPTER 1: OVERVIEW, ARCHITECTURE AND COMMISSIONING
+------------------------------------------------
+
+[DV09-001]
+Pages: 1-4
+Status: CONTEXT
+Review: Course identity, introductory material and learning scope establish
+  which manual is authoritative. Do not substitute the older 7009 extraction.
+Evidence: Original PDF identity and 575-page length verified locally.
+Acceptance: Retain this identity, extraction hash and page-number convention.
+
+[DV09-002]
+Pages: 5-36
+Status: BOUNDARY
+Required: Represent system architecture, controller and workstation roles,
+  traditional I/O carriers/cards, remote zones, power supplies, network
+  infrastructure and SIS hardware. Distinguish actual limits and licensing
+  from conceptual pictures. Course capacities include 120 nodes, 65
+  workstations, 100 controllers and 30000 DSTs, with controller-specific DST
+  limits rather than one unlimited controller model.
+Evidence: HW implements a simplified controller/CIOC/CHARM/baseplate model.
+  It does not model the traditional hardware catalog, SIS SLS1508, switch
+  infrastructure, supply loading, workstation licenses or these capacities.
+Acceptance: Build explicit virtual device types and capability/resource
+  checks if these are to be executable training exercises. Physical assembly,
+  electrical safety and genuine vendor licenses remain outside the app.
+
+[DV09-003]
+Pages: 37-50
+Status: PARTIAL
+Required: Distinguish engineering, operator Run/Configure, Explorer, Control
+  Studio and diagnostics applications and launch the appropriate workflows.
+Evidence: TopBar navigation, EXPLORER, STUDIO, BUILDER and NETWORK provide
+  related views; native application launches and menus are not reproduced.
+Acceptance: Provide executable simulator equivalents with their real action
+  semantics; document unsupported native actions instead of decorative menus.
+
+[DV09-004]
+Pages: 51-52
+Status: BOUNDARY
+Required: Perform workstation/Windows logon, then DeltaV logon and desktop
+  selection before configuration.
+Evidence: FLEXLOCK offers only app-local authentication. No Windows logon.
+Acceptance: A training-only desktop/login sequence must be identified as
+  virtual; never claim the app controls or secures the real Windows desktop.
+
+[DV09-005]
+Pages: 53-56
+Status: PARTIAL
+Required: Discover decommissioned nodes and identify the selected controller
+  using the course indication behavior, stopping identification appropriately.
+Evidence: STORE/HW/NETWORK support decommissioned state and Identify/Stop
+  Identify. Exact LED timing/colors and closing the course dialog to stop the
+  indication have not been matched.
+Acceptance: Test indication start, stop, dismissal and controller identity;
+  independently inspect the PDF screenshots before claiming dialog parity.
+
+[DV09-006]
+Pages: 57-59
+Status: PARTIAL
+Required: Commission through Explorer's physical/control-network hierarchy,
+  including placeholders or node movement and full node properties.
+Evidence: Commissioning changes actual simulated membership/address through
+  NETWORK. Explorer drag/drop/placeholder workflow is missing.
+Acceptance: Verify each entry path, invalid placeholders and node association
+  without conflating a panel button with the complete course procedure.
+
+[DV09-007]
+Pages: 60-61
+Status: VERIFIED_SUBSET
+Required: Validate controller name and description; configure node alarms,
+  area association, time synchronization and controller/network redundancy.
+Verified: 255-character description accepted; 256 rejected with notification
+  and DIAGNOSTIC event. Name character/length rules and redundancy choices
+  exist. Description wrapping/tooltip were verified live in the first pass.
+Gaps: Node-area hardware alarms and time-sync integrity options are absent.
+  Controller redundancy is editable, unlike the hardware-derived course flag.
+Acceptance: Add missing properties and separate hardware capabilities from
+  editable network settings. Do not mark the entire property dialog verified.
+
+[DV09-008]
+Pages: 62-62
+Status: VERIFIED_SUBSET
+Required: Offer Yes/No auto-sense after commissioning.
+Verified: No retains commissioned state without a scan; Yes executes the
+  inventory scan. TESTS and live NETWORK checks cover both paths.
+Gaps: Scanned objects are CHARMs, not the manual's traditional cards.
+Acceptance: Preserve both paths; extend discovery when traditional I/O exists.
+
+[DV09-009]
+Pages: 63-65
+Status: PARTIAL
+Required: Configure cold restart, including disabled/always-enabled behavior,
+  time-window eligibility, nonvolatile values and downloaded configuration.
+Evidence: HW/STORE enforce a minutes window up to 30d23h59m; zero disables.
+  The five-minute inclusive boundary is tested. No separate configured,
+  downloaded, runtime or NVM parameter stores/replay scripts exist.
+Acceptance: Test just below/at/above the window, zero and maximum, power
+  restoration and NVM replay. Reproduce the course selectors/always-enabled
+  semantics rather than relabeling the current minutes input.
+
+[DV09-010]
+Pages: 66-67
+Status: PARTIAL
+Required: Use contextual help and execute identify, redundancy, commission,
+  auto-sense and five-minute cold-restart exercise.
+Evidence: Those simulated lifecycle actions are tested and verified live;
+  What's This help, native dialog sequence and traditional cards are missing.
+Acceptance: Preserve lifecycle regressions; add contextual help and exact
+  prerequisites before marking the complete exercise done.
+
+[DV09-011]
+Pages: 68-71
+Status: BOUNDARY
+Required: Recognize PlantWeb, AMS, OPC, SIS and wireless integration roles.
+Evidence: No executable integrations for these systems; chapter recap does
+  not imply that BatchLive supports them.
+Acceptance: Separate explanatory course material from future training models
+  and real external/vendor integration.
+
+CHAPTER 2: PLANT, AREAS, DSTs AND DOWNLOADS
+-----------------------------------------
+
+[DV09-012]
+Pages: 72-78
+Status: PARTIAL
+Required: Build the specified Tank101/Tank201 teaching process and tags,
+  including LEVEL-101, LI-101, XV-101, XVSTAT-101, MTR-102, FIC-102,
+  SFC-T101, LIC-20X, FIC-20X, MTR-203, LEV2-SIM and PLM-SHUTDOWN.
+Evidence: PLANT contains a different pharma process. Current workshops
+  substitute tags and devices; an existing XV-101 has a different role.
+Acceptance: Add an isolated course scenario with these exact relationships
+  and measurable tiebacks. Do NOT overwrite the approved pharma baseline,
+  hijack its existing tags or recolor protected devices.
+
+[DV09-013]
+Pages: 79-83
+Status: PARTIAL
+Required: Use area-specific privileges and workstation alarm boundaries;
+  represent Area -> Process Cell -> Unit -> Equipment -> Control hierarchy.
+Evidence: Areas and equipment membership exist; EXPLORER's organization is
+  simplified and reverses some displayed relationships. SECURITY is sitewide.
+Acceptance: Exercise the complete hierarchy, unit behavior, area writes and
+  alarm subscription boundaries with cross-area negative tests.
+
+[DV09-014]
+Pages: 84-86
+Status: PARTIAL
+Required: Use named Device Signal Tags for traditional channels, associate
+  module I/O and configure discrete output latching/momentary/pulse options.
+Evidence: CHARM boundTag/boundField are not a traditional DST database.
+  DO has commanded/state/descriptors, not the full channel option model.
+Acceptance: Distinguish a channel's DST from the module tag; test I/O direction,
+  duplicate ownership, enabled state, output options and unbound quality.
+
+[DV09-015]
+Pages: 87-88
+Status: VERIFIED_SUBSET
+Required: Create AREA_A, rename PLANT_AREA_A and create PLANT_AREA_B.
+Verified: EXPLORER/STORE create and rename shared areas; occupied-area rename
+  atomically updates modules, equipment and SFCs without altering references.
+  Invalid/duplicate/denied operations, Enter/Escape and shared selectors tested.
+Gaps: Native Explorer database tree/menu presentation and persistent export.
+Acceptance: Preserve these regressions; add persistence through the lifecycle.
+
+[DV09-016]
+Pages: 89-91
+Status: MISSING
+Required: Configure/enable card channels with course DST assignments:
+  C01 CH1 LT-1 AI, CH2 FT-2 AI; C02 CH1 LY-1 AO, CH2 FY-2 AO;
+  C03 CH1 LSO-1 DI, CH2 XI-2 DI; C04 CH1 XV-1 DO, CH2 ZX-2 DO.
+Evidence: No traditional card/channel Properties and Enable model. CHARMs
+  binding directly to module fields cannot perform these steps.
+Acceptance: Verify exact slots, types, enabled states, names and direction;
+  data must reach the designated channel rather than a substitute variable.
+
+[DV09-017]
+Pages: 92-95
+Status: MISSING
+Required: Distinguish full download, partial module/card download, changed
+  Setup data and unknown/blue/yellow download-status indicators.
+Evidence: STORE configuration is immediately live; STUDIO Download disabled.
+Acceptance: Maintain separate configuration/runtime state; full versus partial
+  transfer must affect the proper scope and update dirty indicators correctly.
+
+[DV09-018]
+Pages: 96-98
+Status: MISSING
+Required: Update download status, manage cold-restart memory separately from
+  working configuration, replay the last successful full/partial sequence
+  without incorporating later database edits, and handle recommissioning.
+Evidence: Current cold restart is a state/time-window check, not script replay.
+Acceptance: Test an undownloaded edit, memory-only update and last-good replay;
+  ensure configured data and live control are not silently overwritten.
+
+[DV09-019]
+Pages: 99-104
+Status: MISSING
+Required: Verify references/dependencies, handle download cautions/abort,
+  upload and pre-download checks, stages/progress/logs and indicator clearing;
+  use diagnostics to verify the result.
+Evidence: NETWORK diagnostics exist, but do not execute this download chain.
+Acceptance: Failed/cancelled transfer must preserve last-good runtime and
+  dirty status. Only successful transfer clears the relevant indicators.
+
+[DV09-020]
+Pages: 105-108
+Status: CONTEXT
+Review: Chapter recap and discrete-control introduction.
+Evidence: Functional requirements follow; headings are not feature evidence.
+Acceptance: Use the following module/workshop entries for actual completion.
+
+CHAPTER 3: DISCRETE MODULES AND FIRST GRAPHICS
+--------------------------------------------
+
+[DV09-021]
+Pages: 109-110
+Status: PARTIAL
+Required: Unique module names of at most 16 permitted characters with at
+  least one letter; independent OOS, module scan, block scan multiples 1-255,
+  execution order and primary/detail/faceplate assignments.
+Verified subset: naming.ts, STORE, EXPLORER and STUDIO now share validation.
+  Normalization, exact boundaries, allowed symbols, duplicate/invalid/denied
+  rejection and absence of false creation logs have regressions.
+Gaps: Independent scan multiples/manual order and full module property model.
+  Only limited automatic dependency execution and block OOS exist.
+Acceptance: Add per-module/per-block scheduling and assignments; do not treat
+  the app's 10 Hz tick as an independently configured scan.
+
+[DV09-022]
+Pages: 111-114
+Status: PARTIAL
+Required: Address module/block/parameter/type/field paths and use library
+  templates to assemble control strategies.
+Evidence: ANALOG/FB support a finite set of qualified analog references.
+  Universal DVSYS paths, composite fields/browser and library drag/drop absent.
+Acceptance: One typed path resolver must serve configuration, operator writes,
+  alarms and SFC expressions; reject unresolved paths with explicit quality.
+
+[DV09-023]
+Pages: 115-116
+Status: PARTIAL
+Required: Use Control Studio hierarchy, diagram, palette, parameters and alarms
+  views to engineer a module.
+Evidence: STUDIO panes/ribbon/FBD have executable subsets. File, clipboard
+  and Download are disabled; configuration is always simulated online.
+Acceptance: Wire offline/save/download/online modes and parameter filters
+  without redesigning the protected IMG_0435/IMG_0440 presentation.
+
+[DV09-024]
+Pages: 117-120
+Status: PARTIAL
+Required: Build XV-101 with a DO block, common/quick parameters, IO_OUT XV-1,
+  AUTO, controller assignment, Tank101 display, Save/Download/Online and
+  SP_D=1 verified on card4/channel1.
+Evidence: Current exercise uses a different VALVE; DO has no course mode,
+  named DST binding, assignment or configuration/runtime lifecycle.
+Acceptance: Trace the write to the actual simulated channel and verify both
+  commanded output and tieback; a valve faceplate is not equivalent.
+
+[DV09-025]
+Pages: 121-124
+Status: PARTIAL
+Required: Create XVSTAT-101 from DISCRETE template; bind IO_IN LSO-1,
+  define discrete alarm ON VALUE 0, assign/display/save/download/operate.
+Evidence: DI state/descriptors exist but no template, input simulation or full
+  discrete alarm condition/mode/DST procedure. Generic alarm logic is not parity.
+Acceptance: Exercise false-triggered alarm, correct feedback and lifecycle.
+
+[DV09-026]
+Pages: 125-128
+Status: PARTIAL
+Required: Work in Operate Configure versus Run, use Quick Edit, object tree,
+  pane/menu operations and native picture controls.
+Evidence: BUILDER has Configure/Run, not the native editing environment.
+Acceptance: Reproduce the functional editing/operating distinction and
+  equivalent entry paths, with unsupported native operations labeled honestly.
+
+[DV09-027]
+Pages: 129-133
+Status: PARTIAL
+Required: Start a picture from the main template, change background, remove
+  default title and save the resulting picture.
+Evidence: PICTURES/BUILDER create basic custom pictures; native template,
+  background expert, grouped title objects and native Save absent.
+Acceptance: Preserve explicit template objects/properties and saved picture
+  identity; adding an empty canvas alone does not satisfy the workshop.
+
+[DV09-028]
+Pages: 134-136
+Status: VERIFIED_SUBSET
+Required: Configure Previous/Next picture targets.
+Verified: Course Ovw_ref and alarmList aliases resolve to real views; custom
+  names, optional .grf and case-insensitive resolution work in Run. Atomic
+  validation, deleted targets, blanks and Can Configure covered by TESTS/live UI.
+Gaps: Native .grf persistence/template/dialog sequence.
+Acceptance: Preserve existing navigation and explicit errors when adding saves.
+
+[DV09-029]
+Pages: 137-144
+Status: PARTIAL
+Required: Configure datalink expressions/type/field, numeric layout, error
+  table, refresh/history/browser and in-place entry with confirmation, including
+  discrete SP_D/PV_D paths.
+Evidence: Builder tag + PV/SP/OUT/MODE/STATE datalinks are read-only.
+Acceptance: Test typed expression resolution, write permissions/confirmation,
+  display widths, failed entry and command/feedback distinction.
+
+[DV09-030]
+Pages: 145-150
+Status: PARTIAL
+Required: Configure text content, fonts/styles/color and position through
+  course text/dialog tools.
+Evidence: Basic content, fontSize, bold and movement work. Color is stored
+  without a complete editor; font family/style/caption expert missing.
+Acceptance: Verify all changed properties persist and remain inside bounds.
+
+[DV09-031]
+Pages: 151-154
+Status: PARTIAL
+Required: Choose Valve17/PumpsAnim and other specified dynamo sets; configure
+  equipment bindings/animation and reverse Overview -> Tank101 navigation.
+Evidence: Builder dynamo is a generic value box opening a faceplate. Approved
+  plant mechanical symbols are separate, not a course dynamo library.
+  Overview is not an editable builder picture for the reverse link.
+Acceptance: Implement specific configurable dynamos and Overview target links;
+  preserve all existing mechanical geometry, feedback colors and piping.
+
+[DV09-032]
+Pages: 155-157
+Status: PARTIAL
+Required: Verify DO->DI tieback, valve feedback/discrete alarm and navigation.
+Evidence: Navigation subset verified; exact course tieback and alarm absent.
+Acceptance: Demonstrate real channel propagation and correct alarm on false
+  input, not merely a completed exercise checklist.
+
+CHAPTER 4: ANALOG MODULES, RESTART AND ALARMS
+-------------------------------------------
+
+[DV09-033]
+Pages: 158-163
+Status: PARTIAL
+Required: Define block/template and Boolean module alarms.
+Evidence: TYPES/SIM contain finite predefined alarm types and module alarms.
+  No arbitrary alarm designer/composite parameter system.
+Acceptance: Configure and evaluate an alarm on the intended block expression,
+  not the module's unrelated PV, with correct state transitions.
+
+[DV09-034]
+Pages: 164-168
+Status: MISSING
+Required: Build standalone LEVEL-101 AO, bind LY-1, scale 0-1000 gal, set SP
+  limits and a floating CAS_SP parameter connected to CAS_IN; assign/save.
+Evidence: ModuleType has no standalone AO/user-defined parameter model.
+  Palette AO creates a PID strategy substitute.
+Acceptance: Independent AO/parameter creation, true CAS path and actual channel
+  output must work before calling this workshop implemented.
+
+[DV09-035]
+Pages: 169-171
+Status: MISSING
+Required: Set module/parameter restart restoration and NVM behavior; partial
+  download chooses configured values, critical-only or all selected runtime
+  preservation. Course example distinguishes configured CAS/500 from live
+  AUTO/555, with critical-only AUTO/500.
+Evidence: There is only one live module object, no separate defaults/runtime.
+Acceptance: Test all three outcomes and cold restart using independent stores,
+  including MODE preservation without incorrectly preserving CAS_SP.
+
+[DV09-036]
+Pages: 172-172
+Status: PARTIAL
+Required: Create LI-101 indicator template, bind LT-1, scale 0-1000 gal,
+  configure HI950/LO100, assign/display/save/download.
+Evidence: Generic AI scale/limits exist; course template/DST/lifecycle absent.
+Acceptance: Verify engineering conversion, channel source and alarm thresholds.
+
+[DV09-037]
+Pages: 173-178
+Status: PARTIAL
+Required: Numeric CAS_SP entry bounded 0-1000, tank/rectangle fill animation
+  using fetched source limits, and LEVEL-101 output->LI-101 input verification.
+Evidence: Basic datalink/text/dynamo model has no fill expert or CAS_SP write;
+  course analog tieback absent.
+Acceptance: Test low/high/out-of-range entry and fill percentage computed from
+  actual source scale, without recoloring the protected baseline tank.
+
+[DV09-038]
+Pages: 179-180
+Status: PARTIAL
+Required: Numeric priorities 4-15, log-only level 3, six banner entries,
+  audible settings/WAV, auto-ack/banner options, captured parameters and
+  controller timestamps.
+Evidence: Three priorities (15/11/7), six tiles, browser audio and memory journal
+  exist; numeric administration/capture/transport behavior missing.
+Acceptance: Test configurable priorities and logging/visibility/audio separately.
+
+[DV09-039]
+Pages: 181-182
+Status: VERIFIED_SUBSET
+Required: Rank unacknowledged before acknowledged, active before inactive,
+  then higher numeric priority, then newer timestamp.
+Verified: RANK implements this exact order. TESTS now prove dominance of
+  each rule, reverse comparisons, sorting and ties.
+Gaps: Only three supported numeric priority values; no arbitrary 4-15 editor.
+Acceptance: Preserve comparator order when extending priorities; do not sort
+  highest priority ahead of unacknowledged return-to-normal events.
+
+[DV09-040]
+Pages: 183-184
+Status: PARTIAL
+Required: Alarm list columns including area/category/message/node/parameter/
+  part-of/time-last/unit/zone, as well as normal alarm operations.
+Evidence: ALARMS exposes static reduced columns, filtering and acknowledgment.
+Acceptance: Add typed selectable/reorderable columns with truthful values;
+  do not populate missing fields with fabricated labels.
+
+[DV09-041]
+Pages: 185-190
+Status: MISSING
+Required: Administer priorities/types (up to 255 types) and captured %P1/%P2
+  parameter messages.
+Evidence: Alarm types/priorities are fixed TS unions; no custom type registry.
+Acceptance: Validate unique definitions, capture time/value and message
+  substitution, including unknown paths and download of changed setup.
+
+[DV09-042]
+Pages: 191-194
+Status: PARTIAL
+Required: Expose CUALM, LAALM, CV, NALM, PRI, ENAB, INV, OPSUP, SUPTMO,
+  SUPTMR and numeric state codes.
+Evidence: Active/acknowledged fields and shelving cover a subset, not the
+  course composite protocol.
+Acceptance: Implement/test every specified field and suppression timer/state
+  transition; distinguish shelving, suppression, disabling and acknowledgment.
+
+[DV09-043]
+Pages: 195-200
+Status: MISSING
+Required: Alarm limit datalinks, ALARMS array members, MACK/ENAB/PRIAD data
+  entry and numeric composites for alarm operation.
+Evidence: Builder has no qualified alarm field/array resolver or writes.
+Acceptance: The same typed alarm paths must work in builder, faceplates and
+  configuration with correct access control and visible errors.
+
+[DV09-044]
+Pages: 201-204
+Status: MISSING
+Required: Consolidate alarms using BOTH workstation subscribed areas and
+  current user's area write keys.
+Evidence: BANNER/audio/ackAll currently operate globally; SECURITY lacks areas.
+Acceptance: Intersection tests: subscribed-but-not-authorized, authorized-but-
+  not-subscribed, both and neither. Counts, tiles, audio and acknowledgment
+  must use a consistent eligible set.
+
+[DV09-045]
+Pages: 205-208
+Status: PARTIAL
+Required: Enable/download workstation Event Chronicle, name/subscriptions/SOE
+  configuration and persistent process history.
+Evidence: STORE/JOURNAL have an in-memory, bounded event list with
+  category/tag/user/search filters, not configured persistent history.
+Acceptance: Save/reload events and workstation options with correct timestamps;
+  do not call a transient array a compliant or tamper-evident archive.
+
+[DV09-046]
+Pages: 209-212
+Status: MISSING
+Required: Configure highest-ranked-alarm visibility through graphics experts.
+Evidence: No equivalent builder visibility/animation expression model.
+Acceptance: Test rank-sensitive visibility and acknowledgment/return-to-normal.
+
+[DV09-047]
+Pages: 213-215
+Status: PARTIAL
+Required: Custom advisory when level exceeds 900 and valve remains closed
+  for over 20 seconds, with a custom word/type and condition delay.
+Evidence: FB logic/timers could compose related behavior; exact course alarm,
+  scenario and type administration are missing.
+Acceptance: Verify conjunction, strict elapsed threshold, reset when either
+  condition clears, reactivation and captured message; not a constant checkbox.
+
+CHAPTER 5: MOTOR CONTROL
+------------------------
+
+[DV09-048]
+Pages: 216-221
+Status: PARTIAL
+Required: Configure device state masks including bit0/bit1, don't-care and
+  unavailable states.
+Evidence: Fixed DcState and feedback fields exist; no editable mask model.
+Acceptance: Exercise each mask against input bits and distinguish unknown
+  feedback from confirmed passive/active and fault.
+
+[DV09-049]
+Pages: 222-225
+Status: MISSING
+Required: Create named sets and separate DC SP/PV descriptors and options,
+  including passive-on-timeout/confirmation, trip and SP tracking behavior.
+Evidence: Fixed descriptors/options are not a named-set editor or full DC
+  option semantics. Some permissive/interlock/reset settings exist.
+Acceptance: Verify stored name/value mappings and each enabled option with
+  active/passive transitions, timeout and recovery.
+
+[DV09-050]
+Pages: 226-230
+Status: PARTIAL
+Required: Use MTR-11_ILOCK template, CND/BFI/OR logic and bypass indication,
+  bind XI-2 and ZX-2, assign/detail/save/download. Permissive depends on
+  XVSTAT and a level condition below 50 sustained four seconds.
+Evidence: FB logic and device command/interlock wiring execute; course template,
+  DST path, first-out/bypass semantics and property/lifecycle parity missing.
+Acceptance: Test timing reset, first-out ordering, permissive versus interlock,
+  bypass reporting and actual card3ch2/card4ch2 effects.
+
+[DV09-051]
+Pages: 231-233
+Status: PARTIAL
+Required: Configure multi-item SP_D entry, active-alarm visibility and custom
+  pump animation using the course's white/yellow example.
+Evidence: No named-set multi-item data entry/custom animation in BUILDER.
+  Protected plant equipment intentionally uses approved green/black feedback.
+Acceptance: Implement course animation only in an explicitly isolated/custom
+  course picture. NEVER replace approved mechanical plant symbols/colors.
+
+[DV09-052]
+Pages: 234-234
+Status: MISSING
+Required: Verify motor/valve/level interaction using course 500 and 10 gal
+  states and the correct permissive/interlock/reset responses.
+Evidence: No exact course process/tieback configuration.
+Acceptance: Demonstrate each outcome on the actual course channels and motor,
+  including preventing invalid start and requiring reset when appropriate.
+
+[DV09-053]
+Pages: 235-237
+Status: MISSING
+Required: Optional XV-OPTION Flush/Hold commands and Flushing/Holding feedback,
+  using additional card4ch4/card3ch4 assignments.
+Evidence: No named sets, course mask configuration or these traditional channels.
+Acceptance: Verify independent command/feedback descriptors and tieback, then
+  recap only the operations actually supported.
+
+CHAPTER 6: REGULATORY CONTROL
+----------------------------
+
+[DV09-054]
+Pages: 238-242
+Status: MISSING
+Required: Determine DST licenses/usage by type, assignment/substitution and
+  system identity/keys.
+Evidence: No license manager or DST usage accounting.
+Acceptance: Count real referenced/enabled DSTs by type before/after module
+  creation and report resource boundaries; real license keys remain external.
+
+[DV09-055]
+Pages: 243-249
+Status: PARTIAL
+Required: Distinguish MAN/AUTO/CAS/IMAN/OOS/LO/RCAS/ROUT and target, actual,
+  normal and permitted modes, named-set bitmasks and remote-host paths.
+Evidence: PID supports MAN/AUTO/CAS/IMAN/RCAS/ROUT; no PID OOS/LO.
+  Tracking does not report LO. RCAS reuses CAS source, not remote-host protocol.
+Acceptance: Test each mode and transition, normal/permitted fields, remote
+  inputs/timeouts and initialization; do not label approximate CAS as RCAS.
+
+[DV09-056]
+Pages: 250-254
+Status: PARTIAL
+Required: PID_LOOP FIC-102: FT-2 in, FY-2 out, gain0.5, reset3s/repeat,
+  rate0, range0-100 GPM, increase-to-open, reverse-acting, LO10/HI90;
+  assign/controller/Tank101/save/download.
+Evidence: ANALOG/SIM/STUDIO execute generic AI/PID/AO/tuning/limits/acting;
+  exact template, tags, traditional DSTs and lifecycle are missing.
+Acceptance: Trace these exact values to their actual block and channels in
+  isolated course scenario; verify control direction and bounded response.
+
+[DV09-057]
+Pages: 255-255
+Status: MISSING
+Required: Record licensing properties/DST counts after FIC-102 configuration.
+Evidence: No before/after license accounting.
+Acceptance: Course additions must change the appropriate counts exactly once;
+  decorative numbers or counting every unused object are not equivalent.
+
+[DV09-058]
+Pages: 256-257
+Status: PARTIAL
+Required: PID SP numeric/OUT ramp/mode multi-item data entry, actual mode and
+  active alarm visibility; valve/actuator animation and PipesAnim connections.
+Evidence: Related faceplate controls and protected pipes exist. Builder lacks
+  these data-entry/animation/dynamo capabilities.
+Acceptance: Configure the specified picture expressions and verify resulting
+  writes/feedback. Course yellow/green custom animation must be isolated;
+  do not globally change approved plant colors or pipe geometry.
+
+[DV09-059]
+Pages: 258-258
+Status: PARTIAL
+Required: Manipulate SP, tune in the detail picture and open real-time trend
+  from the loop faceplate.
+Evidence: PID faceplate/SP/tuning/trends exist for generic loops.
+Acceptance: Verify exact FIC-102 course configuration and picture assignments;
+  generic PID operation is a subset, not completion of prerequisite downloads.
+
+[DV09-060]
+Pages: 259-264
+Status: MISSING
+Required: Upload selected online values to configured defaults; prompt during
+  download when online values differ; selecting none must not copy parameters.
+Evidence: Single live configuration/runtime state; no Upload selection dialog.
+Acceptance: Configured0.5/3/0 versus online0.7/2.5/0 must remain distinguishable.
+  Test subset and none selections, cancellation, logging and subsequent download.
+
+[DV09-061]
+Pages: 265-265
+Status: MISSING
+Required: Apply a 2.6-second input channel filter, download the card and use
+  DeltaV Tune's process-test/update workflow.
+Evidence: FB FLTR is not the channel filter/Tune process or card download.
+Acceptance: Model/test a filtered course input and explicit tuning experiment,
+  review and application. Real DeltaV Tune is a vendor-software boundary.
+
+[DV09-062]
+Pages: 266-267
+Status: MISSING
+Required: Shared flow_color threshold table affecting all linked objects,
+  and red flashing actual-mode indication only when mode is not normal AUTO.
+Evidence: No shared configurable threshold registry or ISAN animation field.
+Acceptance: One table edit updates all linked custom objects; actual mode,
+  not requested mode, controls abnormal visibility. Preserve baseline styling.
+
+[DV09-063]
+Pages: 268-272
+Status: CONTEXT
+Review: Regulatory recap and SFC objectives frame the next chapter.
+Evidence: These statements do not prove DST licensing or full mode support.
+Acceptance: Use regulatory and SFC procedure entries, not chapter checkmarks.
+
+CHAPTER 7: SEQUENTIAL FUNCTION CHARTS
+-------------------------------------
+
+[DV09-064]
+Pages: 273-274
+Status: PARTIAL
+Required: Execute steps/transitions/termination and assignment, Boolean
+  module-parameter and non-Boolean function-block actions.
+Evidence: SFC has linear structured actions/conditions and COMPLETE state.
+  No universal expressions, Boolean action variables or block activation.
+Acceptance: Verify all three action classes and termination independently;
+  command assignment alone is not every type of SFC action.
+
+[DV09-065]
+Pages: 275-278
+Status: PARTIAL
+Required: N/R/L/D/P and stored S/SD/DS/SL semantics, time/expression delays,
+  lifetime across step exit, reset and pulse scheduling.
+Evidence: SFC supports N/P/S/R/D/L only. P only runs on entry; D/L cleanup,
+  stored lifetime and delayed-expression variants differ from course.
+  SD/DS/SL are absent; R inversions are not a general stored-action reset.
+Acceptance: Build action lifecycle state separate from output assignments.
+  Test activation and step exit before/at/after delay, delayed pulse once,
+  stored action continuing after exit, explicit reset and limited expiry.
+  Inspect the timing-chart image before claiming all chart timings matched.
+
+[DV09-066]
+Pages: 279-280
+Status: MISSING
+Required: Selective divergence/convergence and parallel divergence/convergence.
+Evidence: SFC is an ordered array with one active index, no graph/parallel set.
+Acceptance: Model a validated graph, concurrent active steps and correct joins;
+  a UI fork or extra linear steps cannot simulate concurrent execution.
+
+[DV09-067]
+Pages: 281-283
+Status: PARTIAL
+Required: Add action/transition via context properties and Expression Assistant.
+Evidence: Structured SFC UI editing exists; no full expression browser.
+Acceptance: Configure resolvable parameter expressions and explicit validation
+  failures using the same path model as operator/configuration tools.
+
+[DV09-068]
+Pages: 284-285
+Status: PARTIAL
+Required: Identify paths for valve command/feedback, motor command/feedback,
+  PID target/actual mode, setpoint/output and measured flow.
+Evidence: Structured action kinds address tags, not universal path fields.
+Acceptance: Resolve all requested paths, keeping commands and feedback distinct.
+
+[DV09-069]
+Pages: 286-290
+Status: MISSING
+Required: Case-sensitive NS-T101 with visible/selectable STARTUP=1 and visible,
+  non-selectable SELECT SEQUENCE=255; MESSAGE parameter references that set.
+Evidence: No named-set/MESSAGE parameter administration or data-entry model.
+Acceptance: Test exact names/values, visibility versus selection, numeric
+  conversion and protection against selecting the reserved prompt.
+
+[DV09-070]
+Pages: 291-292
+Status: PARTIAL
+Required: Build startup SFC, set prompt, wait for STARTUP, open XV-101,
+  confirm XVSTAT, set 50 GPM, wait output>30%, start/confirm MTR-102,
+  assign/save/download/check and operate MESSAGE datalink.
+Evidence: Generic structured motor/valve/SP/out transitions exist; course
+  parameter, graph, binding, algorithm validation and download missing.
+Acceptance: Execute each state in the exact dependency order with real
+  feedback; failed confirmation must hold the appropriate transition.
+
+[DV09-071]
+Pages: 293-294
+Status: MISSING
+Required: Add shutdown command and divergent path; stop/confirm motor, set
+  FIC MAN/OUT0, wait output<2%, close/confirm block valve, return to prompt.
+Evidence: No graph or named-set-driven operator branch.
+Acceptance: Verify repeated startup/shutdown cycles, correct waits, both
+  command choices and mutually exclusive branches.
+
+[DV09-072]
+Pages: 295-297
+Status: PARTIAL
+Required: Operator waiting messages, startup checks for sufficient level and
+  lock reset, and an SFC alarm when execution exceeds 30 seconds using a
+  non-Boolean function-block action.
+Evidence: Generic steps/conditions/timers exist, but MESSAGE/custom alarm and
+  action-driven block lifecycle are absent.
+Acceptance: Test low-level refusal, required reset, every wait message,
+  timeout boundary and alarm clear/reset on subsequent execution.
+
+[DV09-073]
+Pages: 298-302
+Status: CONTEXT
+Review: SFC recap and security objectives include groups, signatures,
+  workstation options, simulation, AMS and export.
+Evidence: Chapter labels are not implementations.
+Acceptance: Review all security workflows below, not only user creation.
+
+CHAPTER 8: SECURITY, WORKSTATIONS, SIMULATION AND EXPORT
+-------------------------------------------------------
+
+[DV09-074]
+Pages: 303-306
+Status: PARTIAL
+Required: Locks/keys for control, restricted control, tuning, system records,
+  diagnostics, alarms, UserLock01-10, batch operate, recipes, calibration,
+  configuration, download and administration.
+Evidence: SECURITY has a finite sitewide lock set. Custom locks and several
+  corresponding operations are absent; a download key does not enable download.
+Acceptance: Implement a typed configurable lock registry and test each target
+  operation; do not advertise unsupported rights as executable capabilities.
+
+[DV09-075]
+Pages: 307-312
+Status: MISSING
+Required: Reassign writable parameter, field and function locks in Security
+  Properties rather than applying one coarse permission per screen.
+Evidence: STORE uses hardcoded requireLock calls; no configurable assignments.
+Acceptance: Effective permission checks must follow the assigned specific
+  parameter/field/function lock across every write entry point.
+
+[DV09-076]
+Pages: 313-322
+Status: PARTIAL
+Required: User create/delete/general/advanced account status/password settings,
+  group membership and individual key grants.
+Evidence: USERS/SECURITY support app-local users and keys, no full account
+  status/groups. UI says Users & Groups but contains no group model.
+Acceptance: Add real membership/account state, validation and authorization
+  at mutation boundaries, not only a restricted screen.
+
+[DV09-077]
+Pages: 323-328
+Status: MISSING
+Required: Group create/modify, descriptions, member add/remove and group keys.
+Evidence: No groups/inherited-key resolution.
+Acceptance: Verify member changes immediately affect effective keys and area
+  grants; retain independent user grants and reject missing/duplicate members.
+
+[DV09-078]
+Pages: 329-330
+Status: BOUNDARY
+Required: DeltaV/Windows desktop access, restricted desktop switching with
+  administrator override and different FlexLock exit rules.
+Evidence: FLEXLOCK is a login overlay, not an OS desktop boundary.
+Acceptance: A virtual training-only desktop must explicitly disclose its scope;
+  never imply it prevents users from leaving the app or accessing Windows.
+
+[DV09-079]
+Pages: 331-333
+Status: PARTIAL
+Required: OperatorA can operate only PLANT_AREA_A; Supervisor1 has sitewide
+  tuning and download; download workstation and verify after full logoff.
+Evidence: Named users exist, but OperatorA's keys are global, not area-limited.
+  No workstation download/Windows logoff workflow.
+Acceptance: Test correct-area allowed/wrong-area denied writes and alarms,
+  tuning denial for operator, inherited grants and virtual workstation reload.
+
+[DV09-080]
+Pages: 334-342
+Status: MISSING
+Required: Enable signature policies/application/area/module settings; select
+  required parameters; zero/one/two signatures, comment, confirmation/verifier,
+  ACTION_VERIFY key, allowed same-person policy and successful/failed events.
+Evidence: No signature policy, staged write or verification workflow.
+Acceptance: Changes must not apply until required signatures succeed; test
+  failures/cancellation, verifier rights, same-person restrictions and three
+  distinct event outcomes. Native OPC/Excel exclusions are not app integrations.
+
+[DV09-081]
+Pages: 343-349
+Status: BOUNDARY
+Required: Distinguish supported/included/optional/disallowed software by
+  ProfessionalPLUS, Professional, Maintenance, Operator, Base and Application
+  stations, including historian/OPC/batch/AMS/advanced-control options.
+Evidence: Single-station offline app; no station license profiles or these
+  vendor components. Some views offer related local functionality.
+Acceptance: A future station-profile model must enforce actual capability
+  differences rather than showing every option on every station.
+
+[DV09-082]
+Pages: 350-352
+Status: PARTIAL
+Required: Training/development simulation, initialize/coordinate execution,
+  faster/slower time, continuous/batch testing and single-/multi-node options.
+Evidence: Simulation engine, run/hold/speed and batch operate execute locally.
+  No genuine DeltaV Simulate licenses, OPC or networked PPN/PSN/ASN/PRO nodes.
+Acceptance: Clearly distinguish BatchLive's local simulator from vendor
+  Simulate; verify initialization and time scaling without claiming networks.
+
+[DV09-083]
+Pages: 353-354
+Status: BOUNDARY
+Required: Mimic process models/automatic tiebacks; AMS capture, reconcile,
+  monitoring, templates, tag search, calibration and diagnostic workflows.
+Evidence: Custom local PLANT simulation is not Mimic/AMS. No corresponding
+  device configuration/calibration/history subsystem.
+Acceptance: Build explicit virtual workflows if desired; do not masquerade
+  generic plant animation or event journal as AMS.
+
+[DV09-084]
+Pages: 355-361
+Status: MISSING
+Required: Export Physical Network, Control Strategies, NS-T101 and phase
+  failure named sets, and save/copy operator pictures to removable media.
+Evidence: No project export/import or persistent native configuration/picture
+  files. Progress checkmarks in localStorage are unrelated to project backup.
+Acceptance: Simulator-native export must round-trip hardware, strategy,
+  named sets and pictures with validation. Native .fhx/.grf interoperability
+  must not be claimed without format implementation and genuine evidence.
+
+[DV09-085]
+Pages: 362-363
+Status: MISSING
+Required: Signature policy on MESSAGE requiring confirmation/verification of
+  startup/shutdown, with setup/area/module enable prerequisites.
+Evidence: Signature and MESSAGE models absent.
+Acceptance: Test operator request, administrator approval, denied verification,
+  cancellation and resulting SFC behavior without premature command writes.
+
+CHAPTER 9: SERIAL INTERFACE AND MODBUS
+--------------------------------------
+
+[DV09-086]
+Pages: 364-371
+Status: MISSING
+Required: Serial card with two ports, RTU/ASCII master/slave, RS232/RS422/485,
+  per-port device/dataset limits and Modbus coil/input/holding/status tables.
+  Course limits: 16 devices and 16 datasets per port, 100 values per dataset;
+  distinguish 500 DST versus 3200 SCADA capacity descriptions.
+Evidence: HW supports CHARMs only. No Modbus bus/register/card model.
+Acceptance: Build a virtual transport/state machine with explicit addresses,
+  status and resource limits; physical wiring is a separate boundary.
+
+[DV09-087]
+Pages: 372-379
+Status: MISSING
+Required: Add/autosense/placeholder serial card; enable ports; protocol,
+  master/slave, retries/timeouts/transmit delay/startup outputs and communication
+  type/baud/parity/data/stop settings.
+Evidence: No card/port properties; controller scanTimeMs is not a serial port.
+Acceptance: Disabled/mismatched ports must not silently exchange good data;
+  test retry count, timing, startup behavior and invalid settings.
+
+[DV09-088]
+Pages: 380-389
+Status: MISSING
+Required: Create device/address and datasets with direction, complete-block
+  versus single-value output, output readback, typed values/status, dataset
+  tag, PLC type/base address/offset and count.
+Evidence: No dataset objects or register-path resolver.
+Acceptance: Validate map overlap, type/direction/size, write changes and readback.
+  Preserve address offsets instead of treating register labels as arbitrary tags.
+
+[DV09-089]
+Pages: 390-393
+Status: MISSING
+Required: Bind PID input to FT_MODICON holding-register dataset/path.
+Evidence: Qualified ANALOG signals only refer to modules/sub-blocks.
+Acceptance: Dataset I/O must resolve real virtual register value and quality;
+  no constant fabricated PV or renamed CHARM counts as this interface.
+
+[DV09-090]
+Pages: 394-400
+Status: MISSING
+Required: Serial card slot5, master port1/slave port2 virtual tieback,
+  RTU/RS232/9600/even/8/1, retry1/timeout1000ms/delay0 and enabled ports.
+Evidence: No serial transport/configuration. Physical cable hookup outside app.
+Acceptance: Simulated paired ports must exchange data only with compatible
+  settings and record explicit timeout/communication errors otherwise.
+
+[DV09-091]
+Pages: 401-404
+Status: MISSING
+Required: DEV01 address1; FLOW-OUT/FLOW-IN integer-with-status holding register
+  offset0 and MTR-OUT/MTR-IN Boolean-with-status coil offset1, one value each;
+  download card.
+Evidence: No devices/datasets/card download.
+Acceptance: Test corresponding 40001 and 00002 mappings, output/input direction,
+  status propagation, changed values and transfer lifecycle.
+
+[DV09-092]
+Pages: 405-406
+Status: MISSING
+Required: MTR-MODBUS from MTR-11 with dataset IO_IN/IO_OUT, assignment,
+  save/download, bound pump dynamo and verified start/stop.
+Evidence: Generic MOTOR is not the specified Modbus module.
+Acceptance: Command must change the mapped coil; returned coil must determine
+  feedback and confirmation/fault behavior, not command-colored animation.
+
+[DV09-093]
+Pages: 407-410
+Status: MISSING
+Required: FIC-MODBUS from PID_LOOP using FLOW-IN/FLOW-OUT R40001, assign/
+  save/download, loop dynamo and closed-loop verification; serial recap.
+Evidence: Generic PID paths do not read/write Modbus datasets.
+Acceptance: Demonstrate actual register output/input loop with gain/scale/status
+  and failure tests before claiming any Modbus workshop complete.
+
+CHAPTER 10: FOUNDATION FIELDBUS AND AMS
+---------------------------------------
+
+[DV09-094]
+Pages: 411-420
+Status: BOUNDARY
+Required: Understand fieldbus/PlantWeb architecture, control in field devices,
+  OPC/AMS, scalable platform, smart SIS and wireless roles.
+Evidence: No genuine protocol/asset-management/SIS/wireless interfaces.
+Acceptance: Separate explanatory material from virtual training models; no
+  simulated feature can certify industrial/safety interoperability.
+
+[DV09-095]
+Pages: 421-427
+Status: BOUNDARY
+Required: Distinguish analog versus fieldbus, interoperability limits and
+  physical/communication/user application layers.
+Evidence: Local module execution has no FOUNDATION communication stack.
+Acceptance: A future model needs multiple device parameters, status and
+  schedules; a wire drawn between blocks is not digital fieldbus transport.
+
+[DV09-096]
+Pages: 428-433
+Status: MISSING
+Required: Resource, transducer and function blocks, identity/options/write
+  locks, OOS/automatic/calibration data, device-specific block inventory.
+Evidence: TYPES has no fieldbus device/resource/transducer objects.
+Acceptance: Represent independent block state and parameters; calibration
+  requires correct virtual mode without claiming real device calibration.
+
+[DV09-097]
+Pages: 434-437
+Status: MISSING
+Required: Shadow/extended FF blocks, device assignment and manufacturer-specific
+  parameters, including AI/AO/MAI/PID variants.
+Evidence: Palette FFMDI/FFMDO names are generic utility blocks, not a fieldbus
+  device model. Manufacturer parameters/assignment absent.
+Acceptance: Verify every supported extended parameter and actual device
+  execution context; names alone must not imply FOUNDATION support.
+
+[DV09-098]
+Pages: 438-443
+Status: BOUNDARY
+Required: Device descriptions, supplier extensions, matching revision, tested
+  device catalog, unknown manufacturers and verified device downloads.
+Evidence: No DD services/import/catalog.
+Acceptance: A virtual catalog must validate manufacturer/type/revision and
+  replacement compatibility; genuine DD interoperability remains unverified.
+
+[DV09-099]
+Pages: 444-447
+Status: MISSING
+Required: Separate execution/scheduled/unscheduled communication and PID
+  assignment locations; requested macrocycle options and module-driven rates.
+Evidence: HW's controller scanTimeMs is metadata, not an H1 schedule.
+Acceptance: Simulate bus time separately from internal execution, requested
+  versus calculated rates and concurrent fast/slow loops.
+
+[DV09-100]
+Pages: 448-451
+Status: MISSING
+Required: LAS/link master/basic devices, compel-data publish/subscribe,
+  probe/live-list maintenance, pass-token traffic and backup LAS.
+Evidence: No link scheduler or device network state.
+Acceptance: Test device add/remove, scheduled delivery, unscheduled access
+  and takeover, with measurable timing rather than static diagrams.
+
+[DV09-101]
+Pages: 452-456
+Status: MISSING
+Required: AMS audit trail for standby/commissioned devices and resource/
+  transducer changes, date/time/user/type/reason/methods; read-only detail.
+Evidence: JOURNAL is not a device configuration archive or AMS history.
+Acceptance: Record actual virtual device changes and methods, immutable detail
+  and state transitions. Real AMS installation is a vendor boundary.
+
+CHAPTER 11: SEGMENT DESIGN AND LOGON
+------------------------------------
+
+[DV09-102]
+Pages: 457-464
+Status: BOUNDARY
+Required: Segment components/topology and valid terminator location/count,
+  including expansion and long-spur cases.
+Evidence: No physical segment-design model; plant process pipes are unrelated.
+Acceptance: If implemented, provide a virtual checked design exercise; real
+  installation remains subject to current qualified engineering/safety rules,
+  not this app or a historical manual.
+
+[DV09-103]
+Pages: 465-467
+Status: MISSING
+Required: Calculate trunk plus all spurs and mixed-cable length budgets.
+  Course examples distinguish acceptable 0.99 from unacceptable 1.28;
+  maximum lengths A1900/B1200/C400/D200 meters.
+Evidence: No cable/topology calculator.
+Acceptance: In a training-only calculator, test exact numeric examples, zero,
+  negative values, unit conversion and the strict mixed-budget comparison.
+
+[DV09-104]
+Pages: 468-470
+Status: BOUNDARY
+Required: Power/device load/voltage and grounding/shield considerations.
+Evidence: No electrical network model or physical installation verification.
+Acceptance: A virtual lesson must state limitations; do not suggest BatchLive
+  certifies installation, power adequacy or electrical safety.
+
+[DV09-105]
+Pages: 471-472
+Status: BOUNDARY
+Required: Open Books Online and locate installation/troubleshooting manuals.
+Evidence: No native Books Online integration or embedded licensed manuals.
+Acceptance: Add contextual references/help without redistributing proprietary
+  publications or claiming native launch support.
+
+[DV09-106]
+Pages: 473-476
+Status: BOUNDARY
+Required: Windows plus DeltaV credentials and Windows Desktop selection.
+Evidence: App-local FLEXLOCK only; same gap as first logon chapter.
+Acceptance: Clearly labeled virtual workstation flow, never an OS lock claim.
+
+[DV09-107]
+Pages: 477-480
+Status: CONTEXT
+Review: Segment design questions, external design-tool references and recap.
+Evidence: No segment-design assessment/calculator; see DV09-102 through 106.
+Acceptance: Do not mark physical design proficiency from simulator checkmarks.
+
+CHAPTER 12: PREFERENCES, H1 AND SEGMENT CHECKOUT
+----------------------------------------------
+
+[DV09-108]
+Pages: 481-490
+Status: MISSING
+Required: Enable hidden Fieldbus/other system features through Preferences,
+  close database applications and restart server; library visibility changes.
+Evidence: No preference gating/database server lifecycle.
+Acceptance: Pending settings must not appear active until correct simulated
+  restart; denied administration and open-client conflicts must be explicit.
+
+[DV09-109]
+Pages: 491-494
+Status: MISSING
+Required: Acknowledge preference changes, shut down database server and
+  reconnect, observing actual server state and administrative rights.
+Evidence: No Database Administrator/server model.
+Acceptance: Test running/stopped/reconnected state and visibility after restart;
+  a confirmation dialog without state transition is insufficient.
+
+[DV09-110]
+Pages: 495-497
+Status: BOUNDARY
+Required: Assemble course segment with specified supply, H1 interface,
+  junctions, transmitter, termination and verify communications.
+Evidence: No electrical/segment model or physical components.
+Acceptance: Only an explicitly virtual connection exercise is possible here;
+  physical wiring and safety are not verified by BatchLive.
+
+[DV09-111]
+Pages: 498-502
+Status: MISSING
+Required: H1 power/failure/port LEDs, simplex/redundant Series2, class/type/
+  series/slot and odd-slot redundancy placement; 96 total blocks split into
+  at most 64 device and 32 H1 card blocks.
+Evidence: HW has no H1 card/port/block resource inventory.
+Acceptance: Test exact capacity boundaries and LED meanings from actual
+  virtual states; validate screenshots before claiming indicator fidelity.
+
+[DV09-112]
+Pages: 503-506
+Status: MISSING
+Required: Enable H1 port, description, requested/default1s/calculated/actual
+  macrocycle; actual is max(requested, calculated).
+Evidence: Controller scan metadata is not this port scheduler.
+Acceptance: Test all four course rows, including requested1/calculated1.2
+  yielding1.2 and requested0.5/calculated0.8 yielding0.8 seconds.
+
+[DV09-113]
+Pages: 507-507
+Status: MISSING
+Required: Module-driven block rates map into 500/1000/2000/4000ms bands;
+  up to four simultaneous macrocycles and a viewer.
+Evidence: No independent block scheduling/H1 viewer.
+Acceptance: Test rate bands at each inclusive/exclusive boundary and
+  concurrent schedules; do not just display rounded scan numbers.
+
+[DV09-114]
+Pages: 508-512
+Status: MISSING
+Required: Configure minimum CD spacing; inspect schedule/resource totals,
+  publisher/subscriber VCRs and device/H1 blocks. Port maximums include
+  35 publishers, 50 subscribers and 50 total VCRs.
+Evidence: No VCR/link resource accounting.
+Acceptance: Enforce BOTH category and total limits and count direction by
+  actual block placement; test mixed35+15 and5+45 examples.
+
+[DV09-115]
+Pages: 513-515
+Status: MISSING
+Required: Autosense H1 card, enable port, document macros/resources,
+  download card5, rescan device port and show integrity/state/ID/address/revision.
+Evidence: CHARM scan is not fieldbus scan and lacks device identity/revision.
+Acceptance: Observe real virtual inventory and failed/unknown discovery;
+  no fixed table should claim all devices communicating.
+
+[DV09-116]
+Pages: 516-520
+Status: BOUNDARY
+Required: Prepare the specified physical test instrument and isolated segment
+  for checkout, including controls and measurement prerequisites.
+Evidence: No virtual meter/segment or physical measurement support.
+Acceptance: If modeled, clearly distinguish virtual readings from physical
+  safety/checkout; review image-only instrument controls separately.
+
+[DV09-117]
+Pages: 521-523
+Status: BOUNDARY
+Required: Resistance measurement setup and all six conductor/shield/ground
+  result checks, including changing RC readings.
+Evidence: No electrical values/measurement apparatus.
+Acceptance: A virtual fault-training model must handle all specified pairings
+  and dependencies, not label an arbitrary process PV as a resistance result.
+
+[DV09-118]
+Pages: 524-527
+Status: BOUNDARY
+Required: Capacitance setup/results, missing/extra terminator interpretation,
+  shield/ground checks and exactly two total terminators.
+Evidence: No capacitance/topology model.
+Acceptance: Virtual readings must respond to topology/fault changes and unit
+  conversion; actual plant termination is not verified here.
+
+[DV09-119]
+Pages: 528-529
+Status: BOUNDARY
+Required: DC measurement and power-supply-specific voltage ranges.
+Evidence: No supply/device voltage/drop model or physical meter.
+Acceptance: State-specific simulated results must not imply actual electrical
+  safety or successful physical checkout.
+
+[DV09-120]
+Pages: 530-534
+Status: BOUNDARY
+Required: AC waveform setup/hold, amplitude/timing and waveform differences
+  for termination cases; chapter recap.
+Evidence: No scope/waveform model. Plots are image-only review debt.
+Acceptance: Visually inspect original plots and validate a virtual waveform
+  against specified cases; text extraction alone cannot certify plot fidelity.
+
+CHAPTER 13: DEVICE ALARMS, PLANTWEB AND DISPLAY CONFIGURATION
+------------------------------------------------------------
+
+[DV09-121]
+Pages: 535-543
+Status: MISSING
+Required: Device-generated events and Not Communicating/Abnormal alarms,
+  Abnormal disabled by default, editable enabled/priority and prerequisites.
+Evidence: No fieldbus device alarm model. CHARM pulled quality and generic
+  process alarms are different, not a substitute.
+Acceptance: Test communication failure, default-disabled Abnormal, enabling,
+  priority, logging and device versus process classification.
+
+[DV09-122]
+Pages: 544-549
+Status: MISSING
+Required: PlantWeb Advisory, Not Communicating, Failed and Maintenance alerts,
+  default enabling and per-alert priority.
+Evidence: No ADVISE_ALM/COMM_ALM/FAILED_ALM/MAINT_ALM device composites.
+Acceptance: Model each independent cause/category and configurable priority,
+  keeping device state separate from process PV alarm conditions.
+
+[DV09-123]
+Pages: 550-553
+Status: MISSING
+Required: Enable Device Alarms, supported re-annunciation, area association
+  inherited from controller or manually selected module, primary display and
+  FFDEV_FP faceplate.
+Evidence: No device properties/area/display association.
+Acceptance: Test both area-resolution paths and resulting alarm/event scope,
+  faceplate navigation and repeat-annunciation capability checks.
+
+[DV09-124]
+Pages: 554-560
+Status: MISSING
+Required: Customize alarm-summary object columns through Configure/Quick
+  Edit/Properties, add Category, move to fourth position, apply/save/reopen Run.
+Evidence: ALARMS has a static table, no configurable column layout/persistence.
+Acceptance: Configure/reorder/remove columns without fabricated fields;
+  verify saved fourth-position category and correct process/device values.
+
+[DV09-125]
+Pages: 561-568
+Status: MISSING
+Required: Separate process/device banner thresholds, initialization settings
+  and save/run behavior. Defaults: process>3 and device>7; device7 excluded.
+  Changing device threshold to6 permits advisory7 on the banner.
+Evidence: BANNER uses global three-priority alarms; no device category/settings.
+Acceptance: Test strict > comparisons, list-versus-banner independence,
+  initialization and persistence. Simulator settings can replace VB scripting
+  only if disclosed as an equivalent workflow, not native .grf/script support.
+
+[DV09-126]
+Pages: 569-569
+Status: MISSING
+Required: Complete UserSettings save-as/edit/search/threshold/save/close/run
+  exercise and verify advisory device alarms in banner.
+Evidence: No User_Ref/UserSettings picture or scripting environment.
+Acceptance: Ensure settings truly execute on initialization and affect actual
+  device alarms; a renamed file or static banner is insufficient.
+
+[DV09-127]
+Pages: 570-573
+Status: MISSING
+Required: Compare same-type/revision devices/placeholders and historical/current
+  resource/transducer configurations; transfer selected values, show differences
+  and modified field/tab highlighting.
+Evidence: No device configurations/history/compare/transfer model.
+Acceptance: Validate compatibility, each allowed comparison pair, read-only
+  historical state and explicit transfer results with audit events.
+
+[DV09-128]
+Pages: 574-575
+Status: CONTEXT
+Review: Final device-alarm recap and publication/source notices.
+Evidence: Publication information is not an executable feature.
+Acceptance: Preserve source attribution; do not duplicate the manual.
+
+IMPLEMENTATION ORDER BASED ON REAL DEPENDENCIES
+----------------------------------------------
+1. Isolated DV-09 scenario + typed parameters/traditional DSTs.
+   Exact course tags, physical channel assignment and analog/discrete tiebacks;
+   no changes to protected pharma pictures, symbols, colors or physics.
+2. Configuration versus runtime/NVM + download/upload/setup lifecycle.
+   This is prerequisite to most course workshops, not a cosmetic ribbon fix.
+3. Standalone DO/DI/AO/AI module types/properties/templates + named sets.
+   Shared path resolver needed by control, alarms, graphics and SFC writes.
+4. Datatype-aware datalink entry, confirmation, custom animation/visibility,
+   threshold tables, picture templates and simulator-native persistence/export.
+5. Alarm numeric priorities/composites/types + user/workstation area filtering,
+   configurable list columns and durable Event Chronicle.
+6. SFC graph + all action lifecycles/qualifiers + course startup/shutdown.
+   Named-set/MESSAGE interface, graph checking, feedback waits and timeout.
+7. Groups, area keys, configurable lock mappings and staged signature writes.
+   Update all write surfaces, not only screens or default users.
+8. Virtual serial/Modbus card/ports/datasets and actual tieback workshops.
+9. Virtual H1/resource/transducer/DD catalog/scheduling/device alarms/compare.
+   Segment/meter exercises remain explicitly virtual and separately validated.
+10. Original-PDF visual inspection for every screenshot-only workflow.
+    Record exact control labels/options and plots without copying the manual.
+
+VALIDATION AND RELEASE RECORD
+-----------------------------
+Text audit: all 575 PDF page markers mapped; every split source record mapped
+  by scripts\validate-dv09-audit.mjs, including the trailing blank record.
+This source mapping does NOT count implemented requirements or certify parity.
+Code change: module names share the existing controller naming rule; store
+  rejects invalid/duplicate writes visibly and returns actual creation success.
+  Both forms stay open and do not navigate/select a nonexistent module on error.
+Tests: 50 focused regressions pass, including four added naming/permission/
+  duplicate-log/alarm-ranking cases. Typecheck, build and editor diagnostics pass.
+Live UI: verification results are recorded in DV09-FUNCTIONAL-COVERAGE.txt.
+  Both forms reject invalid names with contained error text and successfully
+  create valid modules. Denied creation keeps the forms/selection intact.
+  Fixtures and temporary globals removed; preview remains live on Overview.
+Preservation: no equipment SVG, protected palette/state colors, process
+  equations, piping, approved block positions or ribbon artwork changed.
+Image-only review and exact course functionality remain unfinished.
+User-provided 3001.png and 3002.png stay outside implementation commits.
+Commit permitted; push must wait for explicit user authorization.

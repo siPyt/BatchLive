@@ -6,6 +6,7 @@ import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
 import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engine/types'
 import { ModuleIcon } from '../components/EngineeringIcons'
 import { nextAreaName } from '../engine/areas'
+import { moduleNameError } from '../engine/naming'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -564,9 +565,10 @@ function NewModuleForm({
 
   const analog = type === 'PID' || type === 'AI'
   const normTag = tag.trim().toUpperCase()
+  const nameError = moduleNameError(normTag)
   const exists = normTag.length > 0 && !!modules[normTag]
   const areaExists = areas.includes(area)
-  const valid = normTag.length > 0 && !exists && areaExists
+  const valid = !nameError && !exists && areaExists
   const emsInArea = Object.values(equipment).filter((e) => e.area === area)
 
   const submit = (): void => {
@@ -582,8 +584,7 @@ function NewModuleForm({
       pvMin: analog ? pvMin : undefined,
       pvMax: analog ? pvMax : undefined
     }
-    createModule(spec)
-    if (!useStore.getState().modules[normTag]) return
+    if (!createModule(spec)) return
     select(normTag)
     onDone()
   }
@@ -720,6 +721,7 @@ function NewModuleForm({
         </div>
       )}
       {exists && <div className="exp-newmod-err">Tag already exists</div>}
+      {tag.length > 0 && nameError && <div className="exp-newmod-err">{nameError}</div>}
       {!areaExists && <div className="exp-newmod-err">Select an existing plant area.</div>}
       <div className="exp-newmod-actions">
         <button className="tbtn sm" disabled={!valid} onClick={submit}>

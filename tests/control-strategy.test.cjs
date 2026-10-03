@@ -29,6 +29,8 @@ const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const { nextAreaName } = require('../src/renderer/src/engine/areas.ts')
 const { usePictures, resolvePictureTarget } = require('../src/renderer/src/engine/pictureStore.ts')
+const { moduleNameError, isValidDeltaVTag } = require('../src/renderer/src/engine/naming.ts')
+const { compareAlarmRank } = require('../src/renderer/src/utils/format.ts')
 
 function plant(splitRange = false) {
   const state = { ...buildInitialPlant(), hardware: makeDefaultHardware(), speed: 1 }
@@ -642,6 +644,71 @@ function withAreaProject(run) {
     else global.window = previousWindow
   }
 }
+
+test('DV09 page 110: module names enforce the exact character and 16-character boundaries', () => {
+  for (const tag of ['A', '1A', '$A-_1', 'A'.repeat(16)]) {
+    assert.equal(moduleNameError(tag), null)
+    assert.equal(isValidDeltaVTag(tag), true)
+  }
+  for (const tag of ['', '123', '$_-', 'A'.repeat(17), 'A B', 'A.B', 'A/B', 'A:B', '\u00c4']) {
+    assert.ok(moduleNameError(tag), tag)
+    assert.equal(isValidDeltaVTag(tag), false)
+  }
+})
+
+test('module creation normalizes tags and rejects invalid or duplicate writes without false success', () => {
+  withAreaProject((store, alerts) => {
+    const spec = { tag: ' 1a_$- ', type: 'DI', area: 'FEED', description: 'Course name boundary' }
+    assert.equal(store.createModule(spec), true)
+    assert.equal(spec.tag, ' 1a_$- ')
+    const created = useStore.getState().modules['1A_$-']
+    assert.equal(created.tag, '1A_$-')
+    assert.equal(store.createModule({ ...spec, tag: 'A'.repeat(16) }), true)
+    const before = useStore.getState().modules
+    const rev = useStore.getState().rev
+    const successes = useStore.getState().eventLog.filter(e => e.description === 'Module created').length
+    for (const tag of ['', '123', 'A'.repeat(17), 'TWO WORDS', '1a_$-']) {
+      assert.equal(store.createModule({ ...spec, tag }), false)
+    }
+    assert.equal(useStore.getState().modules, before)
+    assert.equal(useStore.getState().modules['1A_$-'], created)
+    assert.equal(useStore.getState().rev, rev)
+    assert.equal(alerts.length, 5)
+    assert.match(alerts.at(-1), /already exists/)
+    assert.equal(useStore.getState().eventLog.filter(e => e.description === 'Module created').length, successes)
+    assert.equal(useStore.getState().eventLog.filter(e => e.category === 'DIAGNOSTIC').length, 5)
+  })
+})
+
+test('denied module creation returns false and leaves the configuration unchanged', () => {
+  withAreaProject((store, alerts) => {
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    const before = useStore.getState()
+    assert.equal(store.createModule({ tag: 'DV09-DI', type: 'DI', area: 'FEED', description: 'Denied' }), false)
+    assert.equal(useStore.getState(), before)
+    assert.match(useSecurity.getState().lastDenied, /Access Denied.*Can Configure/)
+    assert.equal(alerts.length, 0)
+  })
+})
+
+test('DV09 page 181: alarm ranking applies all four rules in source order', () => {
+  const base = { id: 'base', moduleTag: 'DV09', type: 'HI', priority: 'ADVISORY',
+    time: 1, active: true, acknowledged: false }
+  const pairs = [
+    [base, { ...base, acknowledged: true, priority: 'CRITICAL', time: 99 }],
+    [{ ...base, active: false }, { ...base, acknowledged: true, priority: 'CRITICAL' }],
+    [base, { ...base, active: false, priority: 'CRITICAL', time: 99 }],
+    [{ ...base, priority: 'CRITICAL' }, { ...base, time: 99 }],
+    [{ ...base, priority: 'WARNING' }, { ...base, time: 99 }],
+    [{ ...base, time: 99 }, base]
+  ]
+  for (const [first, second] of pairs) {
+    assert.ok(compareAlarmRank(first, second) < 0)
+    assert.ok(compareAlarmRank(second, first) > 0)
+    assert.deepEqual([second, first].sort(compareAlarmRank), [first, second])
+  }
+  assert.equal(compareAlarmRank(base, { ...base }), 0)
+})
 
 test('DV09 pages 87-88: create AREA_A, rename PLANT_AREA_A and add PLANT_AREA_B', () => {
   withAreaProject(store => {

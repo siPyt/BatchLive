@@ -24,6 +24,7 @@ import { stepPlant } from './simulate'
 import { configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
+import { moduleNameError } from './naming'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
@@ -134,7 +135,7 @@ interface StoreState extends PlantState {
   batchCommand: (cmd: BatchCommand) => void
   /** Edit a phase's logic (requires Can Configure), mirroring setSfcSteps. */
   setPhaseSteps: (phaseName: string, steps: SfcStep[]) => void
-  createModule: (spec: NewModuleSpec) => void
+  createModule: (spec: NewModuleSpec) => boolean
   createArea: (name: string) => boolean
   renameArea: (name: string, nextName: string) => boolean
   deleteModule: (tag: string) => void
@@ -982,18 +983,19 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   createModule: (spec) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create module ${spec.tag}`)) return
-    if (!get().areas.includes(spec.area)) {
-      const message = `Area ${spec.area} does not exist`
-      get().logEvent('DIAGNOSTIC', spec.tag, `Module creation rejected: ${message}`)
-      window.alert(message)
-      return
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create module ${spec.tag}`)) return false
+    const tag = spec.tag.trim().toUpperCase()
+    const state = get()
+    const error = moduleNameError(tag) ?? (state.modules[tag] ? `Module ${tag} already exists` :
+      !state.areas.includes(spec.area) ? `Area ${spec.area} does not exist` : null)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Module creation rejected: ${error}`)
+      window.alert(error)
+      return false
     }
-    set((s) => {
-      if (s.modules[spec.tag]) return {}
-      return { modules: { ...s.modules, [spec.tag]: makeModule(spec) }, rev: s.rev + 1 }
-    })
-    get().logEvent('CONFIGURE', spec.tag, 'Module created')
+    set(s => ({ modules: { ...s.modules, [tag]: makeModule({ ...spec, tag }) }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Module created')
+    return true
   },
 
   deleteModule: (tag) => {

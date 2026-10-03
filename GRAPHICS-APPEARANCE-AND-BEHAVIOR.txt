@@ -787,8 +787,10 @@ Validation:
 ===============================================================================
 
 Primary course is DV-09 Revision 0 in the 575-page O&M training PDF.
-Detailed evidence and unfinished coverage are in DV09-FUNCTIONAL-COVERAGE.txt.
-Do not describe the full manual as implemented or completely audited.
+Verified implementation evidence is in DV09-FUNCTIONAL-COVERAGE.txt.
+The full extracted-text review is now recorded in DV09-LINE-BY-LINE-AUDIT.txt
+and DV09-LINE-DISPOSITIONS.csv. Image-only PDF review and operational parity
+remain incomplete; never describe the complete manual as implemented.
 
 Added executable plant-area create/rename, commissioning auto-sense Yes/No,
 the DV-09 controller-description limit, and Previous/Next builder navigation.
@@ -811,3 +813,24 @@ Temporary verification fixtures were restored; do not leave injected state.
 Workshop progress is explicitly manual and not proof of course completeness.
 2026-10-03: The user authorized committing this verified functional pass and
 continuing the full DV-09 line-by-line audit. No new push was authorized.
+
+DV-09 full textual-audit preservation addendum:
+- All 575 pages' extracted text has been reviewed in source order and mapped
+  to paraphrased requirement groups. The line validator proves mapping,
+  not graphical fidelity, feature completeness or test coverage.
+- DV-09's custom course pictures include white/yellow pump and yellow/green
+  valve examples. Those are NOT authorization to replace IMG_0433's approved
+  green/black feedback colors or mechanical geometry in the pharma baseline.
+  Any such course animation belongs in an explicitly isolated/custom picture.
+- Control module names now follow the course 16-character rule in Explorer,
+  palette and store. Validation uses existing error styles, not new artwork.
+  Invalid/duplicate/denied creation must keep the form/selection consistent
+  and must not log success. Error text must wrap inside the existing form.
+- No equipment SVG, palette value, pipe path, approved FBD coordinate or
+  ribbon artwork was changed to perform the audit or naming fix.
+- Full SFC qualifier/branching, named sets, parameter fields, traditional
+  I/O, download/upload, area security, signatures, Modbus and Fieldbus gaps
+  are documented honestly. Do not solve them by merely adding labels/icons.
+- 50 control regressions and five mapping-validator regressions passed,
+  along with typecheck/build and editor diagnostics. Preserve these checks.
+- Commit permitted by latest user direction; pushing remains unauthorized.

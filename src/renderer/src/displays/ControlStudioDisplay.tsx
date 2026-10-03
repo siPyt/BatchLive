@@ -5,6 +5,7 @@ import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
+import { moduleNameError } from '../engine/naming'
 import { appliedPidOutput, pidIo, readAnalogSignal, signalError } from '../engine/analogStrategy'
 import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
 import type {
@@ -1007,15 +1008,17 @@ function PaletteView({ area }: { area: string }): JSX.Element {
   const [pending, setPending] = useState<PaletteItem | null>(null)
   const [tag, setTag] = useState('')
   const normTag = tag.trim().toUpperCase()
+  const nameError = moduleNameError(normTag)
   const exists = normTag.length > 0 && !!modules[normTag]
 
   const submit = (): void => {
-    if (!pending || !normTag || exists) return
-    createModule(
+    if (!pending || nameError || exists) return
+    const created = createModule(
       pending.create.type === 'FB'
         ? { tag: normTag, type: 'FB', fbType: pending.create.fbType, description: `${pending.label} block`, area }
         : { tag: normTag, type: pending.create.type, description: `${pending.label} block`, area }
     )
+    if (!created) return
     openStudio(normTag)
     setPending(null)
     setTag('')
@@ -1056,8 +1059,9 @@ function PaletteView({ area }: { area: string }): JSX.Element {
             autoFocus
           />
           {exists && <div className="studio-pal-err">Tag already exists</div>}
+          {tag.length > 0 && nameError && <div className="studio-pal-err">{nameError}</div>}
           <div className="studio-pal-create-btns">
-            <button className="tbtn sm" disabled={!normTag || exists} onClick={submit}>
+            <button className="tbtn sm" disabled={!!nameError || exists} onClick={submit}>
               Create
             </button>
             <button className="tbtn sm" onClick={() => setPending(null)}>

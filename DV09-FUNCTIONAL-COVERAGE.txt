@@ -10,8 +10,14 @@ Length verified directly from the original PDF: 575 pages.
 Local searchable reference: pdf_om.txt.
 Page numbers below are PDF page numbers, NOT the printed chapter-page numbers.
 
-This is an IN-PROGRESS coverage ledger, not a certification of full parity.
-The complete 575-page, line-by-line audit is NOT finished.
+This is an IN-PROGRESS implementation ledger, not certification of full parity.
+The complete 575-page EXTRACTED-TEXT line-by-line review is now finished.
+Detailed source-order findings: DV09-LINE-BY-LINE-AUDIT.txt.
+Per-source-record mapping: DV09-LINE-DISPOSITIONS.csv.
+128 manually reviewed groups cover all 575 pages and 12157 split records
+(including the final blank record); the validator reports zero unmapped lines.
+Image-only controls, dialogs, drawings and plots still need original-PDF
+visual review. Textual review is NOT a claim of exact operating parity.
 The existing course screen is an adapted exercise collection, not the complete
 manual. Its checkmarks are manually recorded learner progress, not tests or
 proof that a course operation is implemented.
@@ -151,11 +157,12 @@ pp129-155: New picture, datalinks, text, dynamo and verification.
   Their existence alone does not verify all course expressions, picture
   properties, object grouping, native file handling or verification steps.
 
-FULL-MANUAL CONTINUATION INDEX
-------------------------------
-The following chapter objectives/workshop locations have been indexed from
-the source. Unless an operation is specifically verified above, these remain
-UNREVIEWED at procedure level; this index is not a completed line-by-line pass.
+FULL-MANUAL TEXTUAL REVIEW INDEX
+-------------------------------
+Every chapter below has been read in source order and mapped to detailed
+requirements, source evidence, gaps and acceptance criteria in the full audit.
+Unless specifically verified, its functionality remains incomplete; review
+completion does not automatically change an operation's implementation status.
 
 pp1-71: Overview, architecture, application roles and commissioning.
 pp72-105: Plant definition, areas, hierarchy, DSTs, downloads, diagnostics.
@@ -176,16 +183,16 @@ pp481-534: Preferences, segment wiring/checkout and H1 card configuration.
 pp535-575: Fieldbus device alarms, PlantWeb alerts, alarm-list columns
   and device-alarm banner handling.
 
-NEXT CONTIGUOUS REVIEW WORK
----------------------------
-1. Complete the early chapter text/procedure review; do not skip the
-   controller properties or claim the first 104 pages are fully covered.
-2. Build a real configuration/download/DST lifecycle before marking the
-   controller and discrete module creation workshops complete.
-3. Provide an isolated course process/configuration setup using course tags
+NEXT IMPLEMENTATION AND VISUAL REVIEW WORK
+------------------------------------------
+1. Provide an isolated course process/configuration setup using course tags
    instead of overwriting the existing approved pharma baseline.
-4. Continue each course chapter in source order with exact expected values,
-   permission checks, error cases, UI actions and regression evidence.
+2. Build typed parameters/traditional DSTs and separate configuration/runtime/
+   NVM download/upload/setup lifecycle before marking core workshops complete.
+3. Follow the dependency order in the detailed audit for modules, named sets,
+   graphics, alarms/area access, SFC graphs/qualifiers, signatures and protocols.
+4. Inspect the original PDF's image-only workflows and plots; record exact
+   controls and expected values without reproducing proprietary pages.
 
 VALIDATION AND PRESERVATION
 ---------------------------
@@ -205,3 +212,47 @@ Keep following GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt.
 2026-10-03 release authorization:
 The user requested committing this verified pass and continuing the full
 line-by-line audit. This pass is being committed; no push was authorized.
+
+FULL-TEXT AUDIT AND SECOND VERIFIED PASS
+---------------------------------------
+The first workflow pass was committed as 7d425a9 and was not pushed.
+The full source text is now reviewed through PDF p575, source line12156.
+Exact source SHA-256 and complete mapping are recorded in the detailed audit.
+scripts\validate-dv09-audit.mjs checks page continuity, group uniqueness,
+source identity and stale/missing mappings. Its five regressions test both
+complete coverage and deliberate gaps/overlaps/duplicates/malformed sources.
+Run: node scripts\validate-dv09-audit.mjs
+Test: node --test tests\dv09-audit.test.cjs
+These checks require the local pdf_om.txt extraction; neither PDF nor source
+text is bundled in this commit. Regeneration does not substitute for review.
+
+Module names, DV-09 p110:
+- Shared rule with controller names: 1-16 characters, at least one letter,
+  letters/digits/$/-/_ only; normalize whitespace at the edges and uppercase.
+- STORE enforces the rule and returns true only for actual creation.
+- Duplicate or invalid names explicitly notify and journal DIAGNOSTIC;
+  no module overwrite, revision bump or false "Module created" event.
+- Explorer and Control Studio palette expose the same validation and remain
+  open after denied writes instead of navigating/selecting nonexistent tags.
+- Existing built-in modules are not renamed or retroactively rejected.
+- This does not implement independent module scans, OOS, templates, full
+  properties or the Save/Download/Online lifecycle on the same course page.
+
+Alarm ranking, DV-09 p181:
+- Dedicated regression proves unacknowledged -> active -> priority -> newer
+  timestamp order, reverse comparisons and ties.
+- Existing comparator was already correct; no alarm ordering algorithm changed.
+- Numeric priority administration, area consolidation and composites remain gaps.
+
+Validation: 50 control regressions, five audit validator regressions,
+typecheck, production build and edited-TypeScript diagnostics passed.
+Live Explorer rejects a 17-character tag with contained validation text;
+a valid tag creates/selects an actual module and closes the form.
+Live Control Studio palette rejects a digits-only tag with contained text;
+a valid ADD tag creates the actual block, opens it and closes the form.
+OperatorA denial retains both forms, creates no module and leaves palette
+selection unchanged. All injected modules and test globals were removed;
+original plant/security state restored and current preview left on Overview.
+Renderer HTTP endpoint remains responsive (200) at http://localhost:5173/.
+No approved equipment/pipe/palette/process equations changed.
+Commit allowed; do not push without the user's explicit instruction.

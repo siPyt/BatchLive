@@ -72,8 +72,13 @@ is maintained in [GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt](GRAPHICS-APPEARANCE-AND-
 ## DV-09 functional coverage
 
 The primary DV-09 source is the 575-page Engineering Training manual.
-The full procedure-by-procedure audit is **in progress**, not complete.
-Verified workflows and remaining gaps are recorded in
+The **full extracted-text review is complete**, but exact operating parity and
+image-only PDF review are **not complete**. The source-order findings and
+acceptance criteria are in
+[DV09-LINE-BY-LINE-AUDIT.txt](DV09-LINE-BY-LINE-AUDIT.txt);
+[DV09-LINE-DISPOSITIONS.csv](DV09-LINE-DISPOSITIONS.csv) maps all 12,157 source
+records to 128 reviewed groups across 575 pages without copying the manual.
+Verified workflows and remaining implementation gaps are recorded in
 [DV09-FUNCTIONAL-COVERAGE.txt](DV09-FUNCTIONAL-COVERAGE.txt).
 
 Explorer supports creating and renaming actual plant areas, shared by module,
@@ -83,6 +88,15 @@ Display Builder supports configurable Previous/Next links: `Ovw_ref.grf`
 opens Overview, `alarmList.grf` opens Alarm List, and created picture names
 open custom builder pictures in Run mode. These are session-local simulator
 definitions, not native DeltaV database downloads or `.grf` files.
+
+Module creation in Explorer and Control Studio now enforces the course's
+16-character naming rule and reports invalid/duplicate/denied creation without
+false success. Existing protected equipment and graphics are unchanged.
+
+Validate audit mapping with `node scripts\validate-dv09-audit.mjs` and
+`node --test tests\dv09-audit.test.cjs`. These reference-specific checks require
+the local `pdf_om.txt` extraction identified in the report, not bundled source
+material. Zero unmapped lines proves traceability, **not feature coverage**.
 
 Workshop checkmarks are a manual exercise checklist, **not verified coverage**.
 
