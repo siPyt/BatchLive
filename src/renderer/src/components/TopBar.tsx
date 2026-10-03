@@ -95,8 +95,9 @@ export function TopBar(): JSX.Element {
     <div className="topbar">
       <div className="brand">
         <span className="logo">BL</span>
-        <span>
-          BatchLive - <span className="brand-credit">Charles R. Freeman, software engineer</span>
+        <span className="brand-text" title="BatchLive - Charles R. Freeman, software engineer">
+          <span className="brand-name">BatchLive</span>
+          <span className="brand-credit">Charles R. Freeman, software engineer</span>
         </span>
       </div>
 
@@ -148,7 +149,7 @@ export function TopBar(): JSX.Element {
         </button>
       ))}
 
-      <span className="crumbs" style={{ marginLeft: 10 }}>
+      <span className="crumbs" title={`REACTOR_CELL / ${current?.label ?? 'Engineering'}`}>
         REACTOR_CELL / <b>{current?.label ?? 'Engineering'}</b>
       </span>
 
@@ -179,7 +180,7 @@ export function TopBar(): JSX.Element {
       </div>
       <div className="user">
         <span>👤</span>
-        <span>{fullName}</span>
+        <span className="user-name" title={fullName}>{fullName}</span>
         <button className="navarrow" onClick={lockAndLog} title="Lock Workstation (FlexLock)" style={{ marginLeft: 6 }}>
           🔒
         </button>

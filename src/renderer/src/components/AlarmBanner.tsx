@@ -42,7 +42,7 @@ export function AlarmBanner(): JSX.Element {
 
       <div className="alarm-banner-tiles">
         {tiles.length === 0 && (
-          <div style={{ color: 'var(--dv-text-mute)', paddingLeft: 10, fontSize: 13 }}>
+          <div className="alarm-banner-empty">
             No active alarms
           </div>
         )}
@@ -52,12 +52,12 @@ export function AlarmBanner(): JSX.Element {
             className={
               'alarm-tile ' + a.priority.toLowerCase() + (a.acknowledged ? '' : ' unack')
             }
-            title="Click to open faceplate · double-click to acknowledge"
+            title={`${a.moduleTag}: ${a.moduleDesc} · ${a.label}${!a.active ? ' (RTN)' : ''} — Click to open faceplate · double-click to acknowledge`}
             onClick={() => openFaceplate(a.moduleTag)}
             onDoubleClick={() => ackAlarm(a.id)}
           >
             <span className="tag">{a.moduleTag}</span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span className="description">
               {a.moduleDesc}
             </span>
             <span className="atype">

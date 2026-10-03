@@ -720,3 +720,64 @@ Regression checklist for future edits:
   files, outside this implementation commit.
 - The full DV-7009 / O&M functionality audit remains subsequent work.
   Do not describe this release as complete coverage of those manuals.
+
+===============================================================================
+15. MAIN TOOLBAR / ALARM BANNER TEXT CONTAINMENT - 3002.PNG REPAIR
+===============================================================================
+
+2026-10-03 user direction:
+- Inspect 3002.png for writing outside its blocks and formatting problems.
+- That screenshot shows the MAIN operator toolbar and alarm banner, not
+  Control Studio function blocks. Repair the demonstrated surfaces rather
+  than moving the intentionally external type/path captions on FBD nodes.
+
+Root cause and repair:
+- The toolbar previously had a fixed 40px height while flex children shrank.
+  Brand/credit, File arrow, Running label and date/time wrapped, extending
+  above/below their controls and overlapping the alarm banner/content.
+- The toolbar now has a 40px minimum height and wraps whole controls onto
+  another row when needed. Wide screens retain a single toolbar row.
+  Narrow screens or enlarged text may increase toolbar height; this is an
+  intentional containment repair, not permission to hide navigation/actions.
+- Toolbar button labels, menu arrows and date/time stay on one line.
+  Controls size to their content with explicit line height and minimum height,
+  rather than squeezing multiline text inside fixed-height boxes.
+- Branding uses two deliberate lines: BatchLive, then the existing credit.
+  The BL artwork/colors are unchanged. Long credit/user/breadcrumb text uses
+  bounded ellipsis with full text in a tooltip, not arbitrary overflow.
+- File/Utilities menus are anchored dropdowns above content. Opening a menu
+  must not increase toolbar height or push other toolbar controls sideways.
+- Alarm tag, description and alarm-type fields remain single-line within
+  their colored tile. Long descriptions truncate with ellipsis; a full tile
+  tooltip retains tag, description, alarm label and return-to-normal state.
+- Alarm actions do not shrink into wrapped labels. Banner/tile heights can
+  accommodate text; counters and colored tiles remain contained in the banner.
+- Critical red, warning yellow, advisory purple, unacknowledged blinking,
+  click-to-faceplate and double-click-to-acknowledge semantics are unchanged.
+- No plant palette, motors, valves, piping, engineering icon artwork, FBD
+  geometry, saved diagrams or control/simulation algorithms changed.
+
+Validation:
+- Live toolbar bounding-box/overflow checks passed at actual CSS viewport
+  widths 1920, 1660, 1152, 960 and 768. The wide toolbar stayed 40px high.
+- Enlarged 24px toolbar text passed containment checks at 1660/1152/768px.
+  Temporary font styling was removed after checking.
+- Rendered real AlarmBanner components with temporary AT-401 and TI-402 alarm
+  fixtures matching the screenshot's content. Both tiles and all text fields
+  stayed inside their bounds; the long description used ellipsis. Critical
+  remained rgb(255,0,0); warning remained rgb(255,255,0). Fixtures were restored.
+- Run -> Hold -> Run worked. Alarms navigation opened Alarm List.
+  Utilities -> DeltaV Explorer worked; dropdown opening preserved toolbar
+  height and closed after selection.
+- Typecheck, production build and editor diagnostics passed for the repair.
+  Future edits must repeat containment checks, not just confirm compilation.
+- Shared-browser screenshot capture clips the inspected region. Geometry and
+  actual control behavior were checked; do not claim full-screen pixel fidelity.
+
+2026-10-03 formatting-repair release record:
+- The user explicitly requested documenting this repair in TXT, committing it
+  and pushing it. This section records the behavior before publication.
+- Commit scope is this contract, TopBar.tsx, AlarmBanner.tsx and styles.css.
+  The local 3001.png / 3002.png reference screenshots remain outside the commit.
+- Preserve these containment rules in future toolbar/banner changes; do not
+  restore fixed-height controls that allow labels to spill into adjacent rows.
