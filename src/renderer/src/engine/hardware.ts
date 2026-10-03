@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { isValidDeltaVTag } from './naming'
+import type { TraditionalCard } from './traditionalIo'
 
 export type CharmType = 'AI' | 'AI_HART' | 'AO' | 'DI' | 'DO' | 'RTD' | 'TC'
 
@@ -105,6 +106,9 @@ export interface HardwareState {
   controllers: Record<string, Controller>
   carriers: Record<string, IoCarrier>
   baseplates: Record<string, CharmBaseplate>
+  traditionalCards?: Record<string, TraditionalCard>
+  /** DI IO_IN / DO IO_OUT keyed by module, independently of channel DST names. */
+  discreteBindings?: Record<string, string>
 }
 
 function channel(slot: number, type: CharmType | null, boundTag?: string, boundField?: BoundField): CharmChannel {
@@ -208,16 +212,20 @@ export function scanControllerIo(
     (hw.carriers[id]?.baseplateIds ?? []).map((baseplateId) => hw.baseplates[baseplateId]).filter((plate) => !!plate && plate.carrierId === id)
   )
   const installedChannels = baseplates.flatMap((plate) => plate.channels.filter((channel) => channel.type !== null))
+  const traditionalCards = Object.values(hw.traditionalCards ?? {}).filter(card => card.controllerTag === controllerTag)
+  const dsts = new Set(traditionalCards.flatMap(card => card.channels.map(channel => channel.dst).filter(Boolean)))
+  const traditionalBindings = Object.entries(hw.discreteBindings ?? {}).filter(([, dst]) => dsts.has(dst))
   const unresolvedBindings = Array.from(
-    new Set(installedChannels.filter((channel) => channel.boundTag && !moduleTags.has(channel.boundTag)).map((channel) => channel.boundTag!))
+    new Set([...installedChannels.filter((channel) => channel.boundTag && !moduleTags.has(channel.boundTag)).map((channel) => channel.boundTag!),
+      ...traditionalBindings.filter(([tag]) => !moduleTags.has(tag)).map(([tag]) => tag)])
   ).sort()
 
   return {
     scannedAt,
     carriersScanned: carrierIds.length,
     baseplatesScanned: baseplates.length,
-    channelsDetected: installedChannels.length,
-    channelsBound: installedChannels.filter((channel) => !!channel.boundTag && !!channel.boundField).length,
+    channelsDetected: installedChannels.length + traditionalCards.reduce((sum, card) => sum + card.channels.length, 0),
+    channelsBound: installedChannels.filter((channel) => !!channel.boundTag && !!channel.boundField).length + traditionalBindings.length,
     unresolvedBindings
   }
 }

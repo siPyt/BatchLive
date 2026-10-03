@@ -31,7 +31,7 @@ export const COURSE: WModule[] = [
         id: 'dv09-commissioning',
         title: 'Commissioning the Controller',
         objective: 'Identify, commission, auto-sense and configure a five-minute cold restart (DV-09 PDF pages 55-67).',
-        note: 'Physical Network provides simulated controllers and CHARM I/O. Windows logon, Explorer drag-and-drop commissioning, traditional cards, full controller alarm properties and real downloads are not implemented equivalents.',
+        note: 'Physical Network provides simulated controllers, CHARM I/O and a traditional AI/AO/DI/DO card subset. Windows logon, Explorer drag-and-drop commissioning, full controller alarm properties and real downloads are not implemented equivalents.',
         steps: [
           { id: 'dv09-ctlr-1', text: 'Open Physical Network. Use Add Decommissioned Controller to create a named training controller, or decommission CTLR-01 if you intend to test the existing I/O.', goto: 'hardware' },
           { id: 'dv09-ctlr-2', text: 'Click Identify and confirm IDENTIFY FLASHING. Click Stop Identify to stop it.' },
@@ -60,9 +60,27 @@ export const COURSE: WModule[] = [
         ]
       },
       {
+        id: 'dv09-traditional-discrete',
+        title: 'Course DSTs and XV-101 / XVSTAT-101 Discrete Signals',
+        objective: 'Configure the course channel assignments and trace command, applied output, feedback and alarm-on-zero (DV-09 PDF pages 89-91, 117-124 and 155).',
+        note: 'Verified simulator subset, not the complete native workshop. Use a separate preview/session for a blank training project: File → New Blank Project discards the active project after confirmation. Do not replace the pharma baseline XV-101 valve. Settings are immediately live/session-local; CAS, DISCRETE templates, Tank101 assignment and Save/Download/Online are still absent. The DO-to-DI tieback is simulated, not physical wiring.',
+        steps: [
+          { id: 'dv09-io-1', text: 'In a separate training session, choose File → New Blank Project. Create PLANT_AREA_A in Explorer, then add and commission a training controller in Physical Network.', goto: 'hardware' },
+          { id: 'dv09-io-2', text: 'Under that controller, use New Card to create C01 AI, C02 AO, C03 DI and C04 DO in slots 1, 2, 3 and 4.' },
+          { id: 'dv09-io-3', text: 'Expand channels 1 and 2 in each card, set DST, select Enable and Apply Channel Properties: C01 LT-1 / FT-2; C02 LY-1 / FY-2; C03 LSO-1 / XI-2; C04 XV-1 / ZX-2. AI/AO names are inventory only in this pass.' },
+          { id: 'dv09-io-4', text: 'Set C03 channel 1 Simulated tieback to XV-1 and apply. Auto-sense I/O should detect 32 installed channels on the four eight-channel cards, regardless of which channels are enabled.' },
+          { id: 'dv09-io-5', text: 'In Explorer, create Type DO, Tag XV-101, Area PLANT_AREA_A; create Type DI, Tag XVSTAT-101 in the same area.', goto: 'explorer' },
+          { id: 'dv09-io-6', text: 'Open XV-101 in Control Studio. Select IO_OUT XV-1 and MODE.TARGET AUTO. Open XVSTAT-101, select IO_IN LSO-1, ON VALUE 0 and enable the discrete alarm.', goto: 'studio' },
+          { id: 'dv09-io-7', text: 'Run the simulation. With output 0 and valid feedback 0, confirm the XVSTAT-101 discrete alarm is active. Toggle XV-101 SP_D to 1: C04 channel 1 must become 1, then XVSTAT-101 feedback becomes 1 on the following scan and the alarm returns.' },
+          { id: 'dv09-io-8', text: 'Select output OOS, or disable C04 channel 1. Confirm the last applied signal holds, both bound modules report Bad after the scan boundary, and OOS removes/disables output commands. Restore AUTO and Enable, then verify recovery.' },
+          { id: 'dv09-io-9', text: 'Disconnect the C03 channel 1 simulated tieback to use Set Simulated Input with 0 or 1. A connected tieback cannot be overridden. Rename an in-use DST only after disconnecting its module bindings and tiebacks.' }
+        ]
+      },
+      {
         id: 'xv101',
-        title: 'Creating Module XV-301 (Discrete Output / On-off Valve)',
+        title: 'Supplemental XV-301 On-off Valve Exercise',
         objective: 'Define a new discrete output (valve) control module and operate it.',
+        note: 'Supplemental pharma device exercise, not the DV-09 XV-101 DO block / DST / download procedure. Use the course DST exercise above for verified discrete channel behavior.',
         steps: [
           { id: 'xv-1', text: 'In DeltaV Explorer, click ＋ New Module.', goto: 'explorer' },
           { id: 'xv-2', text: 'Set Type = VALVE (on/off), Tag = XV-301, Description = TEST VALVE, Area = FEED.' },
@@ -76,8 +94,9 @@ export const COURSE: WModule[] = [
       },
       {
         id: 'xvstat',
-        title: 'Creating Module XVSTAT-301 (Discrete Input)',
+        title: 'Supplemental XVSTAT-301 Local Discrete Input',
         objective: 'Define a discrete input used to monitor a device status.',
+        note: 'This local-input introduction does not bind a DST or reproduce the DISCRETE template and download lifecycle.',
         steps: [
           { id: 'xvs-1', text: 'In DeltaV Explorer, click ＋ New Module.', goto: 'explorer' },
           { id: 'xvs-2', text: 'Set Type = DI (Discrete Input), Tag = XVSTAT-301, Area = FEED.' },

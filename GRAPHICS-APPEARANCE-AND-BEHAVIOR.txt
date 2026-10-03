@@ -834,3 +834,41 @@ DV-09 full textual-audit preservation addendum:
 - 50 control regressions and five mapping-validator regressions passed,
   along with typecheck/build and editor diagnostics. Preserve these checks.
 - Commit permitted by latest user direction; pushing remains unauthorized.
+
+===============================================================================
+17. DV-09 TRADITIONAL I/O - DISCRETE FUNCTIONAL PASS
+===============================================================================
+
+Traditional card/channel forms are added inside existing Physical Network
+controller panels. Toolbars/labels wrap, inputs/selects are bounded, and
+status summaries wrap. At a 900-pixel viewport, new controls remained
+inside their forms and Studio parameter cells.
+
+Control Studio DI/DO parameter rows now expose IO_IN/IO_OUT DST, AUTO/OOS
+and DI alarm ON VALUE 0/1 plus Enable. SP_D shows commanded output;
+PV_D shows applied output or sampled input, not an optimistic command.
+Discrete faceplates show mode/quality and reject commands in OOS.
+FBD uses its existing Bad / ???? indication for discrete Bad quality,
+rather than continuing to show Good when the bound hardware is unavailable.
+This is a functional quality correction, NOT new icon or state-color artwork.
+
+DO-channel-to-DI-channel tieback is explicitly simulated. The output writes
+after module execution; input reads on the following scan. Held feedback
+must not become a success-shaped commanded state during disable/down/OOS.
+The baseline's existing unbound DO behavior remains immediate.
+
+No ClassicPump, ClassicAgitatorDrive, valve SVG, approved green/black state
+color, pipe route, FBD coordinate, engineering icon or ribbon geometry changed.
+Use separate blank-project sessions for exact course XV-101 DO / XVSTAT-101 DI
+names. Do not replace the pharma XV-101 valve or recolor baseline equipment.
+Blank/partial projects now avoid nonexistent reactor-train dereferences;
+the complete baseline's process equations are unchanged.
+
+Verified: all eight course DST properties through live forms, Explorer DO/DI
+creation, Studio binding/alarm configuration, command/applied/feedback scan
+sequence, alarm return, held Bad signals, OOS disabled commands and denied
+OperatorA binding. Temporary fixtures were restored and removed.
+65 control regressions and five audit regressions passed; typecheck/build
+passed. The complete course, native downloads and image-only review remain
+incomplete. Preserve the explicit limitations in the coverage ledger.
+Commit is permitted; push remains unauthorized.

@@ -15,6 +15,7 @@ import type {
 import { CUSTOM_PHYSICS_TAGS } from './plant'
 import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue } from './fb'
 import { advanceControllers, computeBadTags, type HardwareState } from './hardware'
+import { advanceTraditionalIo, sampleDiscreteInputs } from './traditionalIo'
 import {
   appliedPidOutput, clonePidIo, executePidOutput, pidIo, pidOutputUnavailable,
   readAnalogSignal, resolvePidInput, samplePidInput
@@ -357,7 +358,7 @@ function resolveFbInput(
   const m = ref.tag ? modules[ref.tag] : undefined
   return {
     value: readModuleValue(m),
-    bad: !m || ('pvBad' in m && m.pvBad) || (m.type === 'FB' && !!m.bad)
+    bad: !m || ('pvBad' in m && m.pvBad) || ('ioBad' in m && !!m.ioBad) || (m.type === 'FB' && !!m.bad)
   }
 }
 
@@ -721,6 +722,7 @@ export function stepPlant(
       module.type === 'FB' && module.splitter ? { ...module, splitter: cloneSplitter(module.splitter) } :
         { ...module }
   }
+  sampleDiscreteInputs(prev.hardware, modules)
   for (const module of Object.values(modules)) {
     if (module.type === 'AI') module.pvBad = badPvTags.has(module.tag)
     if ((module.type === 'MOTOR' || module.type === 'VALVE') && badCmdTags.has(module.tag)) module.fault = true
@@ -759,6 +761,10 @@ export function stepPlant(
   const at301 = modules['AT-301'] as AnalogIndicator
   const ti101 = modules['TI-101'] as AnalogIndicator
   const lsh101 = modules['LSH-101'] as DiscreteInput
+  const hasReactorTrain = fic?.type === 'PID' && lic101?.type === 'PID' && lic201?.type === 'PID' &&
+    tic?.type === 'PID' && pic?.type === 'PID' && p101?.type === 'MOTOR' &&
+    p201?.type === 'MOTOR' && xv101?.type === 'VALVE' && xv201?.type === 'VALVE' &&
+    at301?.type === 'AI' && ti101?.type === 'AI' && lsh101?.type === 'DI'
 
   // Inputs, control algorithms and field outputs execute once in dependency order.
   for (const tag of moduleExecutionOrder(modules)) {
@@ -767,7 +773,10 @@ export function stepPlant(
     else if (module.type === 'FB') stepFunctionBlock(module, modules, dt)
     else if (module.type === 'MOTOR') applyMotorDC(module, dt, modules)
     else if (module.type === 'VALVE') applyValveDC(module, dt, modules)
-    else if (module.type === 'AI' && !CUSTOM_PHYSICS_TAGS.has(tag) && !module.pvBad) {
+    else if (module.type === 'DO' && !prev.hardware.discreteBindings?.[tag] && module.mode !== 'OOS') {
+      module.state = module.commanded
+    }
+    else if (module.type === 'AI' && !(hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) && !module.pvBad) {
       const span = module.pvMax - module.pvMin || 1
       const mid = module.pvMin + span / 2
       module.pv = clamp(module.pv + (mid - module.pv) * 0.01 + noise(span * 0.002),
@@ -777,59 +786,62 @@ export function stepPlant(
 
   // --- Cascade: LIC-101 (master) sets remote SP of FIC-101 (slave), via the
   // generic cascade/feedforward/tracking wrapper (same one every user PID uses) ---
-  const ficOut = appliedPidOutput(fic)
+  // Blank/course projects do not contain the complete pharma reactor train.
+  if (hasReactorTrain) {
+    const ficOut = appliedPidOutput(fic)
 
-  // --- Feed flow physics ------------------------------------------------
-  const feedEnabled = p101.running && xv101.open
-  const feedCmd = feedEnabled ? (ficOut / 100) * fic.pvMax : 0
-  // First-order lag toward commanded flow.
-  proc.feedFlow += (feedCmd - proc.feedFlow) * clamp(dt / 3, 0, 1)
-  proc.feedFlow = clamp(proc.feedFlow + noise(0.3), 0, fic.pvMax)
+    // --- Feed flow physics ------------------------------------------------
+    const feedEnabled = p101.running && xv101.open
+    const feedCmd = feedEnabled ? (ficOut / 100) * fic.pvMax : 0
+    // First-order lag toward commanded flow.
+    proc.feedFlow += (feedCmd - proc.feedFlow) * clamp(dt / 3, 0, 1)
+    proc.feedFlow = clamp(proc.feedFlow + noise(0.3), 0, fic.pvMax)
 
-  // --- Feed tank level: inflow (feed) minus outflow (to reactor) -------
-  const reactorDraw = p101.running ? 55 : 0
-  proc.feedTankLevel += (proc.feedFlow - reactorDraw) * dt * 0.05
-  proc.feedTankLevel = clamp(proc.feedTankLevel, 0, 100)
+    // --- Feed tank level: inflow (feed) minus outflow (to reactor) -------
+    const reactorDraw = p101.running ? 55 : 0
+    proc.feedTankLevel += (proc.feedFlow - reactorDraw) * dt * 0.05
+    proc.feedTankLevel = clamp(proc.feedTankLevel, 0, 100)
 
-  // --- Reactor level: feed in minus product out ------------------------
-  const productCommand = appliedPidOutput(lic201)
-  const productOut = p201.running ? (productCommand / 100) * 110 : 0
-  proc.productFlow += (productOut - proc.productFlow) * clamp(dt / 3, 0, 1)
-  proc.reactorLevel += (reactorDraw - proc.productFlow) * dt * 0.05
-  proc.reactorLevel = clamp(proc.reactorLevel, 0, 100)
+    // --- Reactor level: feed in minus product out ------------------------
+    const productCommand = appliedPidOutput(lic201)
+    const productOut = p201.running ? (productCommand / 100) * 110 : 0
+    proc.productFlow += (productOut - proc.productFlow) * clamp(dt / 3, 0, 1)
+    proc.reactorLevel += (reactorDraw - proc.productFlow) * dt * 0.05
+    proc.reactorLevel = clamp(proc.reactorLevel, 0, 100)
 
-  // --- Reactor temperature: steam heats, cold feed + losses cool -------
-  const temperatureCommand = appliedPidOutput(tic)
-  const steamHeat = (temperatureCommand / 100) * 2.4
-  const cooling = 0.012 * (proc.reactorTemp - 25) + proc.feedFlow * 0.004
-  proc.reactorTemp += (steamHeat - cooling) * dt
-  proc.reactorTemp = clamp(proc.reactorTemp + noise(0.05), 0, 200)
+    // --- Reactor temperature: steam heats, cold feed + losses cool -------
+    const temperatureCommand = appliedPidOutput(tic)
+    const steamHeat = (temperatureCommand / 100) * 2.4
+    const cooling = 0.012 * (proc.reactorTemp - 25) + proc.feedFlow * 0.004
+    proc.reactorTemp += (steamHeat - cooling) * dt
+    proc.reactorTemp = clamp(proc.reactorTemp + noise(0.05), 0, 200)
 
-  // --- Header pressure: product flow builds it, PIC relief bleeds it ----
-  const pressureCommand = appliedPidOutput(pic)
-  const relief = (pressureCommand / 100) * 12 + (xv201.open ? 4 : 0)
-  proc.headerPressure += (proc.productFlow * 0.08 + 1.2 - relief) * dt * 4
-  proc.headerPressure = clamp(proc.headerPressure + noise(0.5), 0, 500)
+    // --- Header pressure: product flow builds it, PIC relief bleeds it ----
+    const pressureCommand = appliedPidOutput(pic)
+    const relief = (pressureCommand / 100) * 12 + (xv201.open ? 4 : 0)
+    proc.headerPressure += (proc.productFlow * 0.08 + 1.2 - relief) * dt * 4
+    proc.headerPressure = clamp(proc.headerPressure + noise(0.5), 0, 500)
 
-  // --- Concentration: best at the ideal reactor temperature -------------
-  const idealTemp = 85
-  const target = 97 - Math.abs(proc.reactorTemp - idealTemp) * 0.35 - Math.abs(proc.reactorLevel - 50) * 0.05
-  proc.reactorConc += (target - proc.reactorConc) * clamp(dt / 6, 0, 1)
-  proc.reactorConc = clamp(proc.reactorConc + noise(0.05), 0, 100)
+    // --- Concentration: best at the ideal reactor temperature -------------
+    const idealTemp = 85
+    const target = 97 - Math.abs(proc.reactorTemp - idealTemp) * 0.35 - Math.abs(proc.reactorLevel - 50) * 0.05
+    proc.reactorConc += (target - proc.reactorConc) * clamp(dt / 6, 0, 1)
+    proc.reactorConc = clamp(proc.reactorConc + noise(0.05), 0, 100)
 
-  // --- Write PVs back to modules ---------------------------------------
-  samplePidInput(fic, proc.feedFlow, badPvTags.has(fic.tag))
-  samplePidInput(lic101, proc.feedTankLevel, badPvTags.has(lic101.tag))
-  samplePidInput(lic201, proc.reactorLevel, badPvTags.has(lic201.tag))
-  samplePidInput(tic, proc.reactorTemp, badPvTags.has(tic.tag))
-  samplePidInput(pic, proc.headerPressure, badPvTags.has(pic.tag))
-  at301.pv = proc.reactorConc
-  ti101.pv = clamp(ti101.pv + (32 - ti101.pv) * 0.02 + noise(0.05), 28, 70)
-  lsh101.state = proc.feedTankLevel >= 85
+    // --- Write PVs back to modules ---------------------------------------
+    samplePidInput(fic, proc.feedFlow, badPvTags.has(fic.tag))
+    samplePidInput(lic101, proc.feedTankLevel, badPvTags.has(lic101.tag))
+    samplePidInput(lic201, proc.reactorLevel, badPvTags.has(lic201.tag))
+    samplePidInput(tic, proc.reactorTemp, badPvTags.has(tic.tag))
+    samplePidInput(pic, proc.headerPressure, badPvTags.has(pic.tag))
+    at301.pv = proc.reactorConc
+    ti101.pv = clamp(ti101.pv + (32 - ti101.pv) * 0.02 + noise(0.05), 28, 70)
+    lsh101.state = proc.feedTankLevel >= 85
+  }
 
   // --- Generic simulation for operator-created modules -----------------
   for (const tag of Object.keys(modules)) {
-    if (CUSTOM_PHYSICS_TAGS.has(tag)) continue
+    if (hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) continue
     const gm = modules[tag]
     if (gm.type === 'PID') {
       const output = appliedPidOutput(gm)
@@ -883,7 +895,8 @@ export function stepPlant(
       if (fail) reconcile(alarms, m.tag, m.description, fail, m.fault, 0, '', now)
     } else if (m.type === 'DI') {
       const hi = m.alarms.find((a) => a.type === 'HI')
-      if (hi) reconcile(alarms, m.tag, m.description, hi, m.state, 0, '', now)
+      if (hi) reconcile(alarms, m.tag, m.description, hi,
+        hi.enabled && !m.ioBad && m.mode !== 'OOS' && m.state === (m.alarmOnValue ?? true), Number(m.state), '', now)
     }
   }
 
@@ -893,6 +906,7 @@ export function stepPlant(
     modules,
     alarms,
     process: proc,
-    hardware: { ...prev.hardware, controllers: advanceControllers(prev.hardware.controllers, dt) }
+    hardware: { ...advanceTraditionalIo(prev.hardware, modules),
+      controllers: advanceControllers(prev.hardware.controllers, dt) }
   }
 }

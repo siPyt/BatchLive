@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
+import { TraditionalIoPanel } from './TraditionalIoPanel'
 import {
   CHARM_TYPE_LABEL,
   controllerIsDown,
@@ -101,6 +102,7 @@ export function PhysicalNetworkDisplay(): JSX.Element {
             openPowerLoss={openPowerLoss}
             restorePower={restorePower}
           >
+            <TraditionalIoPanel controllerTag={c.tag} />
             {c.carrierIds.map((carrierId) => {
               const carrier = hardware.carriers[carrierId]
               if (!carrier) return null

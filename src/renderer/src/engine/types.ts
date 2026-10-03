@@ -347,6 +347,9 @@ export interface DiscreteInput {
   /** Equipment Module this Control Module belongs to, if any. */
   equipmentModule?: string
   state: boolean
+  mode?: 'AUTO' | 'OOS'
+  ioBad?: boolean
+  alarmOnValue?: boolean
   activeDescriptor: string
   inactiveDescriptor: string
   alarms: AlarmLimit[]
@@ -361,6 +364,8 @@ export interface DiscreteOutput {
   equipmentModule?: string
   state: boolean
   commanded: boolean
+  mode?: 'AUTO' | 'OOS'
+  ioBad?: boolean
   activeDescriptor: string
   inactiveDescriptor: string
   alarms: AlarmLimit[]

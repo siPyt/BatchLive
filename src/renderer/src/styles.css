@@ -1618,6 +1618,55 @@ button {
   font-size: 11px;
   font-weight: 600;
 }
+.traditional-io {
+  padding: 0 14px 14px;
+  min-width: 0;
+}
+.traditional-note {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.traditional-toolbar,
+.traditional-channel-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.traditional-toolbar label,
+.traditional-channel-form label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.traditional-toolbar input {
+  width: 80px;
+}
+.traditional-card {
+  border: 1px solid var(--dv-border);
+  margin-top: 10px;
+  padding: 8px;
+}
+.traditional-channel {
+  border-top: 1px solid var(--dv-border-light);
+  font-size: 11px;
+}
+.traditional-channel summary {
+  cursor: pointer;
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+.traditional-channel summary span {
+  margin-right: 12px;
+}
+.traditional-channel-form {
+  padding: 6px 0 12px;
+}
+.traditional-channel-form input,
+.traditional-channel-form select {
+  max-width: 100%;
+}
 .exp-newmod-actions {
   display: flex;
   gap: 6px;

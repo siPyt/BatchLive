@@ -2,8 +2,11 @@ import { useStore } from '../engine/store'
 import type { DiscreteInput, DiscreteOutput } from '../engine/types'
 
 export function DiscreteFaceplate({ tag }: { tag: string }): JSX.Element | null {
-  const m = useStore((s) => s.modules[tag]) as DiscreteInput | DiscreteOutput | undefined
+  const module = useStore((s) => s.modules[tag])
+  const m: DiscreteInput | DiscreteOutput | undefined =
+    module?.type === 'DI' || module?.type === 'DO' ? module : undefined
   const toggleDO = useStore((s) => s.toggleDO)
+  const setMode = useStore(s => s.setDiscreteMode)
   if (!m) return null
 
   const descriptor = m.state ? m.activeDescriptor : m.inactiveDescriptor
@@ -26,18 +29,28 @@ export function DiscreteFaceplate({ tag }: { tag: string }): JSX.Element | null 
           {isOutput ? 'Discrete Output' : 'Discrete Input'}
         </span>
       </div>
+      <div className="fp-row">
+        <span className="fp-label">Mode / I/O quality</span>
+        <select aria-label={`${tag} discrete mode`} value={m.mode ?? 'AUTO'}
+          onChange={e => setMode(tag, e.target.value === 'OOS' ? 'OOS' : 'AUTO')}>
+          <option>AUTO</option><option>OOS</option>
+        </select>
+        <span>{m.ioBad ? 'Bad — held signal' : 'Good'}</span>
+      </div>
 
-      {isOutput && (
+      {m.type === 'DO' && (
         <div className="fp-row" style={{ marginTop: 4 }}>
           <button
-            className={'fp-btn run' + (m.state ? ' active' : '')}
-            onClick={() => !m.state && toggleDO(tag)}
+            className={'fp-btn run' + (m.commanded ? ' active' : '')}
+            disabled={m.mode === 'OOS'}
+            onClick={() => !m.commanded && toggleDO(tag)}
           >
             {m.activeDescriptor}
           </button>
           <button
-            className={'fp-btn stop' + (!m.state ? ' active' : '')}
-            onClick={() => m.state && toggleDO(tag)}
+            className={'fp-btn stop' + (!m.commanded ? ' active' : '')}
+            disabled={m.mode === 'OOS'}
+            onClick={() => m.commanded && toggleDO(tag)}
           >
             {m.inactiveDescriptor}
           </button>

@@ -76,7 +76,8 @@ FIRST VERIFIED IMPLEMENTATION PASS
    A newly created controller without carriers correctly scans zero channels.
    Remaining differences:
      - Physical Network panels, not Explorer drag/drop commissioning.
-     - CHARM inventory, not the manual's traditional I/O cards.
+     - Traditional-card inventory added in the third pass below; native
+       hardware discovery and the complete card catalog remain absent.
      - No full node alarm/event-area, hardware-alarm or time-sync property model.
      - No real Windows/DeltaV logon or nonvolatile download script.
 
@@ -134,9 +135,10 @@ pp79-83: Plant areas and equipment hierarchy.
   from the current sitewide lock/key and global alarm model.
 
 pp85-91: Device Signal Tags and traditional channel configuration.
-  PARTIAL. Current CHARM bindings do not reproduce the course's four
-  traditional cards, named DST properties and Enable channel configuration.
-  The eight specified analog/discrete channel assignments are not verified.
+  PARTIAL. The third pass verifies the four card slots, eight named/enabled
+  DST assignments and executable DI/DO binding. Analog module binding,
+  native hardware/dialog coverage and configuration/download lifecycle remain
+  absent. CHARM bindings are still a separate, preserved path.
 
 pp92-104: Downloads and system checks.
   MISSING/PARTIAL. Configuration edits are immediately live in BatchLive.
@@ -256,3 +258,68 @@ original plant/security state restored and current preview left on Overview.
 Renderer HTTP endpoint remains responsive (200) at http://localhost:5173/.
 No approved equipment/pipe/palette/process equations changed.
 Commit allowed; do not push without the user's explicit instruction.
+
+THIRD VERIFIED PASS: TRADITIONAL I/O AND DISCRETE COURSE SIGNALS
+--------------------------------------------------------------
+Sources: pp84-91, pp117-124 and the command/feedback check on p155.
+Status: VERIFIED WORKFLOW for the subset below; associated course groups
+remain PARTIAL, not certified native operating parity.
+
+Physical Network:
+- Training controllers accept slots 1-8 and eight channels per AI/AO/DI/DO
+  card. Channels begin disabled, unnamed, Bad and signal 0.
+- DST and Enable properties are separate from module tags and CHARM binding.
+- Exact configured table verified live and in tests:
+    C01 AI: CH1 LT-1; CH2 FT-2.
+    C02 AO: CH1 LY-1; CH2 FY-2.
+    C03 DI: CH1 LSO-1; CH2 XI-2.
+    C04 DO: CH1 XV-1; CH2 ZX-2.
+- Installed-channel auto-sense counts 32 on these four cards; enabled/name
+  counts are not mislabeled as installed-channel counts.
+- Invalid slots/names, duplicate DSTs, wrong-direction binding, multiple
+  output writers and conflicts with existing CHARM bindings fail explicitly.
+  Referenced DSTs require disconnecting bindings/tiebacks before rename.
+- Manual DI simulation accepts only 0 or 1, requires Restricted Control,
+  and cannot override a connected tieback. Analog tiebacks are unsupported.
+
+Control Studio and faceplates:
+- Isolated blank-project XV-101 is DO, not the pharma baseline VALVE.
+- IO_OUT XV-1 drives actual card 4/channel 1 after module execution.
+- IO_IN LSO-1 feeds XVSTAT-101 from the previous hardware scan.
+- Explicit simulated DO-to-DI tieback is not physical wiring or proof of
+  actual device position. Applied output and sampled feedback remain distinct.
+- SP_D is command; PV_D is applied/sample state. AUTO/OOS is supported.
+  OOS rejects operator output commands; disabled/down/OOS signals hold last
+  values and report Bad. Controller recovery respects existing cold restart.
+- DI alarm ON VALUE 0 activates on valid feedback 0 and returns on 1.
+  Bad/OOS and disabled alarms do not create a false closed-feedback alarm.
+- Parameter table, faceplate and FBD quality agree. The diagram uses its
+  existing Bad indication; no icon geometry, coordinates or palette changed.
+- Multiple DI readers can share an input; downstream FBs receive Bad quality.
+- Blank and partial projects now tick without accessing nonexistent pharma
+  reactor modules; the complete baseline retains its original physics.
+
+Live evidence:
+All eight DSTs were entered and enabled through channel forms. DO/DI modules
+were created through Explorer; bindings, AUTO and alarm-on-zero were set
+through Control Studio. SP_D=1 left applied signal 0 before the scan,
+then C04 CH1 became 1 on the first scan; DI became 1 and alarm returned
+on the second. OOS removed the Studio toggle and disabled faceplate commands,
+held output 1 and propagated Bad. Disabling the output channel also held
+signal 1 with Bad on both modules. OperatorA binding denial preserved
+the selected and stored DST. At a 900-pixel viewport, channel forms and
+Studio parameter controls stayed inside their containing rows/cells.
+Fixture plants/security/UI/viewports were restored and temporary globals
+removed. The current preview is running on Overview.
+
+Validation: 65 control regressions plus five audit-validator regressions
+passed; typecheck and production build passed. Preserve these regressions.
+The training guide identifies the verified course subset and labels the
+older XV-301/XVSTAT-301 examples as supplemental, not exact course workflows.
+
+Remaining: AI/AO module binding, full traditional hardware catalog and
+output options, CAS, DISCRETE library templates, independent controller/
+primary-display assignments, save/download/online, persistent configuration/
+runtime/NVM and native dialogs. Settings are immediately live/session-local.
+No complete-course or image-only-review completion claim is made.
+Commit allowed; no push without explicit authorization.

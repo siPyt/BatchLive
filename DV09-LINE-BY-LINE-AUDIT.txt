@@ -31,6 +31,8 @@ acceptance criteria. It does not redistribute the manual or vendor software.
 Page numbers are PDF pages, not the printed chapter-page numbers.
 The audit's implementation baseline is commit 7d425a9 plus the module-name
 validation and alarm-ranking regressions delivered with this report.
+Later verified traditional-I/O/discrete subsets are recorded in the updated
+groups below and DV09-FUNCTIONAL-COVERAGE.txt; download parity remains absent.
 No push is authorized by the user's request to commit and audit.
 
 STATUS DEFINITIONS
@@ -53,6 +55,7 @@ STORE = src\renderer\src\engine\store.ts
 TYPES = src\renderer\src\engine\types.ts
 PLANT = src\renderer\src\engine\plant.ts
 HW = src\renderer\src\engine\hardware.ts
+TRADITIONAL_IO = src\renderer\src\engine\traditionalIo.ts
 SIM = src\renderer\src\engine\simulate.ts
 ANALOG = src\renderer\src\engine\analogStrategy.ts
 FB = src\renderer\src\engine\fb.ts
@@ -161,8 +164,10 @@ Status: VERIFIED_SUBSET
 Required: Offer Yes/No auto-sense after commissioning.
 Verified: No retains commissioned state without a scan; Yes executes the
   inventory scan. TESTS and live NETWORK checks cover both paths.
-Gaps: Scanned objects are CHARMs, not the manual's traditional cards.
-Acceptance: Preserve both paths; extend discovery when traditional I/O exists.
+Verified extension: Traditional eight-channel cards are included in installed
+  channel totals; discrete bindings and unresolved module tags are counted.
+Gaps: Native hardware discovery/catalog and all card models remain absent.
+Acceptance: Preserve both CHARM and traditional inventory scan regressions.
 
 [DV09-009]
 Pages: 63-65
@@ -226,7 +231,10 @@ Status: PARTIAL
 Required: Use named Device Signal Tags for traditional channels, associate
   module I/O and configure discrete output latching/momentary/pulse options.
 Evidence: CHARM boundTag/boundField are not a traditional DST database.
-  DO has commanded/state/descriptors, not the full channel option model.
+Verified subset: Traditional named/enabled channels and independent DI/DO
+  bindings now execute. Duplicate DSTs, wrong direction, multiple output
+  writers and simultaneous CHARM binding are rejected with diagnostics.
+Gaps: DO latching/momentary/pulse options and full channel model remain absent.
 Acceptance: Distinguish a channel's DST from the module tag; test I/O direction,
   duplicate ownership, enabled state, output options and unbound quality.
 
@@ -242,12 +250,16 @@ Acceptance: Preserve these regressions; add persistence through the lifecycle.
 
 [DV09-016]
 Pages: 89-91
-Status: MISSING
+Status: PARTIAL
 Required: Configure/enable card channels with course DST assignments:
   C01 CH1 LT-1 AI, CH2 FT-2 AI; C02 CH1 LY-1 AO, CH2 FY-2 AO;
   C03 CH1 LSO-1 DI, CH2 XI-2 DI; C04 CH1 XV-1 DO, CH2 ZX-2 DO.
-Evidence: No traditional card/channel Properties and Enable model. CHARMs
-  binding directly to module fields cannot perform these steps.
+Verified subset: Physical Network has card/channel DST and Enable properties.
+  All eight assignments were configured through the live UI and regression
+  fixture; discrete modules bind to the actual designated DI/DO channels.
+  Auto-sense counts 32 installed channels on the four eight-channel cards.
+Gaps: AI/AO module binding, native card types/dialog sequence, physical wiring,
+  persistence and downloaded configuration are not implemented.
 Acceptance: Verify exact slots, types, enabled states, names and direction;
   data must reach the designated channel rather than a substitute variable.
 
@@ -330,8 +342,13 @@ Status: PARTIAL
 Required: Build XV-101 with a DO block, common/quick parameters, IO_OUT XV-1,
   AUTO, controller assignment, Tank101 display, Save/Download/Online and
   SP_D=1 verified on card4/channel1.
-Evidence: Current exercise uses a different VALVE; DO has no course mode,
-  named DST binding, assignment or configuration/runtime lifecycle.
+Verified subset: In a separate blank project, DO XV-101 binds IO_OUT XV-1,
+  supports AUTO/OOS and SP_D drives C04 CH1 on the output scan. Simulated
+  tieback reaches DI feedback on the following scan; command and applied
+  state remain distinct during faults. Bad/OOS holds the last signal.
+Gaps: CAS, exact palette/filter procedure, controller/display assignment and
+  configuration/runtime Save/Download/Online lifecycle remain absent.
+  The existing pharma XV-101 VALVE is preserved, not silently replaced.
 Acceptance: Trace the write to the actual simulated channel and verify both
   commanded output and tieback; a valve faceplate is not equivalent.
 
@@ -340,8 +357,12 @@ Pages: 121-124
 Status: PARTIAL
 Required: Create XVSTAT-101 from DISCRETE template; bind IO_IN LSO-1,
   define discrete alarm ON VALUE 0, assign/display/save/download/operate.
-Evidence: DI state/descriptors exist but no template, input simulation or full
-  discrete alarm condition/mode/DST procedure. Generic alarm logic is not parity.
+Verified subset: DI XVSTAT-101 binds IO_IN LSO-1 and accepts manual 0/1 input
+  or an explicitly simulated DO-channel tieback. ON VALUE 0 alarm activates
+  on valid closed feedback and returns on open. Bad/OOS/disabled alarm states
+  suppress that process alarm, retaining normal journal/ack lifecycle.
+Gaps: Native DISCRETE template, controller/display assignments and
+  configuration/runtime Save/Download/Online lifecycle remain absent.
 Acceptance: Exercise false-triggered alarm, correct feedback and lifecycle.
 
 [DV09-026]

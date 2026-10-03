@@ -6,6 +6,7 @@ import { FbdCanvas } from '../components/FbdCanvas'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
 import { moduleNameError } from '../engine/naming'
+import { traditionalChannels } from '../engine/traditionalIo'
 import { appliedPidOutput, pidIo, readAnalogSignal, signalError } from '../engine/analogStrategy'
 import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
 import type {
@@ -137,7 +138,8 @@ function ParameterView({ module: m, selectedBlock }: {
   const setSplitterConfig = useStore((s) => s.setSplitterConfig)
   const selectedSplitter = m.type === 'PID' ? pidIo(m).splitter : undefined
   const ioBlock = m.type === 'PID' && selectedBlock !== 'PID1'
-  const bad = m.type === 'PID' ? m.pvBad : m.type === 'AI' ? m.pvBad : false
+  const bad = m.type === 'PID' ? m.pvBad : m.type === 'AI' ? m.pvBad :
+    m.type === 'DI' || m.type === 'DO' ? !!m.ioBad : false
 
   const rows: ParamRow[] = []
   if (m.type === 'PID') {
@@ -181,9 +183,11 @@ function ParameterView({ module: m, selectedBlock }: {
       { key: 'INTERLOCK', value: m.interlock ? '1' : '0' }
     )
   } else if (m.type === 'DO') {
-    rows.push({ key: 'OUT_D.CV', value: m.commanded ? '1' : '0', toggle: { onClick: () => toggleDO(m.tag), label: 'Toggle' } })
+    rows.push({ key: 'SP_D.CV', value: m.commanded ? '1' : '0',
+      toggle: m.mode === 'OOS' ? undefined : { onClick: () => toggleDO(m.tag), label: 'Toggle' } },
+      { key: 'PV_D.CV', value: m.state ? '1' : '0' })
   } else if (m.type !== 'FB') {
-    rows.push({ key: 'OUT_D.CV', value: m.state ? '1' : '0' })
+    rows.push({ key: 'PV_D.CV', value: m.state ? '1' : '0' })
   }
 
   return (
@@ -197,6 +201,7 @@ function ParameterView({ module: m, selectedBlock }: {
           </tr>
         </thead>
         <tbody>
+          {(m.type === 'DI' || m.type === 'DO') && <DiscreteIoRows m={m} />}
           {m.type === 'PID' && selectedBlock === 'SPLTR1' && selectedSplitter ? (
             <SplitterParamRows state={selectedSplitter}
               onChange={(patch) => setPidIo(m.tag, { splitter: patch })} />
@@ -261,6 +266,43 @@ function ParameterView({ module: m, selectedBlock }: {
       <div className="studio-pane-label">Parameter View — {m.tag}{m.type === 'PID' ? `/${selectedBlock}` : ''}</div>
     </div>
   )
+}
+
+function DiscreteIoRows({ m }: { m: Extract<AnyModule, { type: 'DI' | 'DO' }> }): JSX.Element {
+  const hardware = useStore(s => s.hardware)
+  const bind = useStore(s => s.bindDiscreteDst)
+  const setMode = useStore(s => s.setDiscreteMode)
+  const configureAlarm = useStore(s => s.configureDiscreteAlarm)
+  const choices = traditionalChannels(hardware).filter(item => item.card.type === m.type && item.channel.dst)
+  const selected = hardware.discreteBindings?.[m.tag] ?? ''
+  const alarm = m.alarms.find(item => item.type === 'HI')
+  return <>
+    <tr><td>{m.type === 'DI' ? 'IO_IN' : 'IO_OUT'}</td><td>
+      <select aria-label={`${m.tag} ${m.type === 'DI' ? 'IO_IN' : 'IO_OUT'}`} value={selected}
+        onChange={e => bind(m.tag, e.target.value)}>
+        <option value="">(none — local simulation)</option>
+        {selected && !choices.some(item => item.channel.dst === selected) &&
+          <option value={selected}>Missing DST: {selected}</option>}
+        {choices.map(item => <option key={item.channel.dst} value={item.channel.dst}>
+          {item.channel.dst} ({item.card.id} CH{item.channel.channel})
+        </option>)}
+      </select>
+    </td><td>{selected ? m.ioBad ? 'Bad' : 'Bound' : 'Local'}</td></tr>
+    <tr><td>MODE.TARGET</td><td><select aria-label={`${m.tag} discrete mode`}
+      value={m.mode ?? 'AUTO'} onChange={e => setMode(m.tag, e.target.value === 'OOS' ? 'OOS' : 'AUTO')}>
+      <option>AUTO</option><option>OOS</option>
+    </select></td><td>{m.ioBad ? 'Bad' : 'Good'}</td></tr>
+    {m.type === 'DI' && <>
+      <tr><td>DISCRETE_ALM.ON VALUE</td><td><select aria-label={`${m.tag} alarm on value`}
+        value={Number(m.alarmOnValue ?? true)} onChange={e =>
+          configureAlarm(m.tag, e.target.value === '1', alarm?.enabled ?? false)}>
+        <option value={0}>0</option><option value={1}>1</option>
+      </select></td><td>Configured</td></tr>
+      <tr><td>DISCRETE_ALM.ENAB</td><td><input type="checkbox"
+        aria-label={`${m.tag} discrete alarm enabled`} checked={alarm?.enabled ?? false}
+        onChange={e => configureAlarm(m.tag, m.alarmOnValue ?? true, e.target.checked)} /></td><td>Configured</td></tr>
+    </>}
+  </>
 }
 
 /** Property Inspector for Math/Logic/Timer/Analog-Control blocks: IN1/IN2

@@ -89,6 +89,21 @@ opens Overview, `alarmList.grf` opens Alarm List, and created picture names
 open custom builder pictures in Run mode. These are session-local simulator
 definitions, not native DeltaV database downloads or `.grf` files.
 
+Physical Network now supports a traditional eight-slot/eight-channel AI/AO/DI/DO
+training inventory with independent, enabled Device Signal Tags. Control Studio
+binds DI `IO_IN` and DO `IO_OUT` to actual discrete channels, offers AUTO/OOS,
+separates `SP_D` command from `PV_D` applied state, and configures discrete
+alarm ON VALUE 0 or 1. Explicit simulated DO-to-DI tiebacks update after output
+execution; DI reads that signal on the following scan. Faults hold the last
+signal with Bad quality rather than reporting the command as confirmed feedback.
+
+The course DST exercise uses a separate blank training session so the existing
+pharma `XV-101` valve is not overwritten. Creating a blank project discards that
+session's current project after confirmation. AI/AO module binding, CAS,
+native templates, controller/display assignment, and the configuration/runtime/
+Save/Download/Online lifecycle remain gaps. These channel settings are
+immediately live and session-local, not saved controller configuration.
+
 Module creation in Explorer and Control Studio now enforces the course's
 16-character naming rule and reports invalid/duplicate/denied creation without
 false success. Existing protected equipment and graphics are unchanged.

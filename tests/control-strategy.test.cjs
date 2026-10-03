@@ -31,6 +31,7 @@ const { nextAreaName } = require('../src/renderer/src/engine/areas.ts')
 const { usePictures, resolvePictureTarget } = require('../src/renderer/src/engine/pictureStore.ts')
 const { moduleNameError, isValidDeltaVTag } = require('../src/renderer/src/engine/naming.ts')
 const { compareAlarmRank } = require('../src/renderer/src/utils/format.ts')
+const { findDst, channelConfigurationError } = require('../src/renderer/src/engine/traditionalIo.ts')
 
 function plant(splitRange = false) {
   const state = { ...buildInitialPlant(), hardware: makeDefaultHardware(), speed: 1 }
@@ -708,6 +709,326 @@ test('DV09 page 181: alarm ranking applies all four rules in source order', () =
     assert.deepEqual([second, first].sort(compareAlarmRank), [first, second])
   }
   assert.equal(compareAlarmRank(base, { ...base }), 0)
+})
+
+function discreteCourseProject(store) {
+  store.newProject('blank')
+  assert.equal(store.createArea('PLANT_AREA_A'), true)
+  assert.equal(store.createController('CTLR', 'DV09 discrete I/O training'), true)
+  assert.equal(store.commissionController('CTLR'), true)
+  for (const [slot, type] of [[1, 'AI'], [2, 'AO'], [3, 'DI'], [4, 'DO']]) {
+    assert.equal(store.addTraditionalCard('CTLR', slot, type), true)
+  }
+  const assignments = [
+    [1, 1, 'LT-1'], [1, 2, 'FT-2'], [2, 1, 'LY-1'], [2, 2, 'FY-2'],
+    [3, 1, 'LSO-1'], [3, 2, 'XI-2'], [4, 1, 'XV-1'], [4, 2, 'ZX-2']
+  ]
+  for (const [slot, channel, dst] of assignments) {
+    assert.equal(store.configureTraditionalChannel(`CTLR/C0${slot}`, channel, { dst, enabled: true }), true)
+  }
+  assert.equal(store.createModule({ tag: 'XV-101', type: 'DO', area: 'PLANT_AREA_A', description: 'Course block valve' }), true)
+  assert.equal(store.createModule({ tag: 'XVSTAT-101', type: 'DI', area: 'PLANT_AREA_A', description: 'Course valve status' }), true)
+  assert.equal(store.bindDiscreteDst('XV-101', 'XV-1'), true)
+  assert.equal(store.bindDiscreteDst('XVSTAT-101', 'LSO-1'), true)
+  assert.equal(store.configureTraditionalChannel('CTLR/C03', 1,
+    { dst: 'LSO-1', enabled: true, tiebackDst: 'XV-1' }), true)
+  store.tick(0.1)
+  store.tick(0.1)
+}
+
+test('DV09 page 91: exact eight DST assignments remain independent from module tags', () => {
+  withAreaProject(store => {
+    discreteCourseProject(store)
+    const hw = useStore.getState().hardware
+    for (const [dst, type, slot, channel] of [
+      ['LT-1', 'AI', 1, 1], ['FT-2', 'AI', 1, 2], ['LY-1', 'AO', 2, 1], ['FY-2', 'AO', 2, 2],
+      ['LSO-1', 'DI', 3, 1], ['XI-2', 'DI', 3, 2], ['XV-1', 'DO', 4, 1], ['ZX-2', 'DO', 4, 2]
+    ]) {
+      const target = findDst(hw, dst)
+      assert.equal(target.card.type, type)
+      assert.equal(target.card.slot, slot)
+      assert.equal(target.channel.channel, channel)
+      assert.equal(target.channel.enabled, true)
+    }
+    assert.equal(hw.discreteBindings['XV-101'], 'XV-1')
+    assert.equal(hw.discreteBindings['XVSTAT-101'], 'LSO-1')
+    assert.equal(Object.keys(hw.traditionalCards).length, 4)
+    assert.ok(Object.values(hw.traditionalCards).every(card => card.channels.length === 8))
+    assert.equal(store.autoSenseController('CTLR'), true)
+    assert.equal(useStore.getState().hardware.controllers.CTLR.lastAutoSense.channelsDetected, 32)
+    assert.equal(useStore.getState().hardware.controllers.CTLR.lastAutoSense.channelsBound, 2)
+  })
+})
+
+test('DV09 pages 120 and 155: SP_D drives card4ch1 and DI reads the actual preceding-scan tieback', () => {
+  withAreaProject(store => {
+    discreteCourseProject(store)
+    const before = useStore.getState()
+    store.toggleDO('XV-101')
+    assert.equal(useStore.getState().modules['XV-101'].commanded, true)
+    assert.equal(useStore.getState().modules['XV-101'].state, false)
+    store.tick(0.1)
+    let next = useStore.getState()
+    assert.equal(findDst(next.hardware, 'XV-1').channel.value, 1)
+    assert.equal(findDst(next.hardware, 'LSO-1').channel.value, 1)
+    assert.equal(next.modules['XV-101'].state, true)
+    assert.equal(next.modules['XVSTAT-101'].state, false)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['XVSTAT-101'].state, true)
+    assert.equal(useStore.getState().modules['XVSTAT-101'].ioBad, false)
+    assert.equal(findDst(before.hardware, 'XV-1').channel.value, 0)
+    assert.equal(before.modules['XV-101'].commanded, false)
+    store.toggleDO('XV-101')
+    store.tick(0.1)
+    store.tick(0.1)
+    next = useStore.getState()
+    assert.equal(next.modules['XVSTAT-101'].state, false)
+    assert.equal(findDst(next.hardware, 'XV-1').channel.value, 0)
+  })
+})
+
+test('disabled output holds hardware feedback instead of coloring the command as a successful output', () => {
+  withAreaProject(store => {
+    discreteCourseProject(store)
+    assert.equal(store.configureTraditionalChannel('CTLR/C04', 1, { dst: 'XV-1', enabled: false }), true)
+    store.toggleDO('XV-101')
+    store.tick(0.1)
+    store.tick(0.1)
+    let next = useStore.getState()
+    assert.equal(next.modules['XV-101'].commanded, true)
+    assert.equal(next.modules['XV-101'].state, false)
+    assert.equal(next.modules['XV-101'].ioBad, true)
+    assert.equal(next.modules['XVSTAT-101'].ioBad, true)
+    assert.equal(findDst(next.hardware, 'XV-1').channel.value, 0)
+    assert.equal(store.configureTraditionalChannel('CTLR/C04', 1, { dst: 'XV-1', enabled: true }), true)
+    store.tick(0.1)
+    store.tick(0.1)
+    next = useStore.getState()
+    assert.equal(next.modules['XV-101'].state, true)
+    assert.equal(next.modules['XVSTAT-101'].state, true)
+    assert.equal(next.modules['XVSTAT-101'].ioBad, false)
+  })
+})
+
+test('controller power loss freezes channels, propagates Bad and recovers on power restoration', () => {
+  withAreaProject(store => {
+    discreteCourseProject(store)
+    assert.equal(store.setControllerConfiguration('CTLR', { coldRestartMinutes: 5 }), true)
+    store.toggleDO('XV-101')
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(store.simulateControllerPowerLoss('CTLR'), true)
+    store.toggleDO('XV-101')
+    store.tick(0.1); store.tick(0.1)
+    let next = useStore.getState()
+    assert.equal(next.modules['XV-101'].commanded, false)
+    assert.equal(next.modules['XV-101'].state, true)
+    assert.equal(next.modules['XVSTAT-101'].state, true)
+    assert.equal(next.modules['XVSTAT-101'].ioBad, true)
+    assert.equal(store.restoreControllerPower('CTLR'), true)
+    store.tick(0.1); store.tick(0.1)
+    next = useStore.getState()
+    assert.equal(next.modules['XVSTAT-101'].state, false)
+    assert.equal(next.modules['XVSTAT-101'].ioBad, false)
+  })
+})
+
+test('discrete OOS holds output and rejects operator writes; AUTO recovers', () => {
+  withAreaProject((store, alerts) => {
+    discreteCourseProject(store)
+    store.toggleDO('XV-101')
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(store.setDiscreteMode('XV-101', 'OOS'), true)
+    store.toggleDO('XV-101')
+    assert.match(alerts.at(-1), /AUTO.*SP_D/)
+    assert.equal(useStore.getState().modules['XV-101'].commanded, true)
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['XV-101'].ioBad, true)
+    assert.equal(useStore.getState().modules['XVSTAT-101'].ioBad, true)
+    assert.equal(findDst(useStore.getState().hardware, 'XV-1').channel.value, 1)
+    assert.equal(store.setDiscreteMode('XV-101', 'AUTO'), true)
+    assert.equal(useStore.getState().modules['XV-101'].ioBad, true)
+    store.toggleDO('XV-101')
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['XVSTAT-101'].state, false)
+    assert.equal(useStore.getState().modules['XV-101'].ioBad, false)
+  })
+})
+
+test('DV09 page 124: ON VALUE 0 alarm is active on closed feedback and returns on open; disabled/OOS clears', () => {
+  withAreaProject(store => {
+    discreteCourseProject(store)
+    assert.equal(store.configureDiscreteAlarm('XVSTAT-101', false, true), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().alarms.find(a => a.moduleTag === 'XVSTAT-101').active, true)
+    assert.ok(useStore.getState().eventLog.some(e => e.tag === 'XVSTAT-101' && e.category === 'ALARM'))
+    store.toggleDO('XV-101'); store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().alarms.find(a => a.moduleTag === 'XVSTAT-101').active, false)
+    store.toggleDO('XV-101'); store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().alarms.find(a => a.moduleTag === 'XVSTAT-101').active, true)
+    assert.equal(store.configureDiscreteAlarm('XVSTAT-101', false, false), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().alarms.find(a => a.moduleTag === 'XVSTAT-101').active, false)
+    store.configureDiscreteAlarm('XVSTAT-101', false, true)
+    store.setDiscreteMode('XVSTAT-101', 'OOS'); store.tick(0.1)
+    assert.equal(useStore.getState().alarms.find(a => a.moduleTag === 'XVSTAT-101').active, false)
+  })
+})
+
+test('manual input simulation refuses tieback override and accepts only Boolean DI values', () => {
+  withAreaProject((store, alerts) => {
+    discreteCourseProject(store)
+    assert.equal(store.setTraditionalInput('LSO-1', 1), false)
+    assert.match(alerts.at(-1), /Disconnect.*tieback/)
+    assert.equal(store.configureTraditionalChannel('CTLR/C03', 1, { dst: 'LSO-1', enabled: true }), true)
+    for (const value of [NaN, Infinity, -1, 0.5, 2]) assert.equal(store.setTraditionalInput('LSO-1', value), false)
+    assert.equal(store.setTraditionalInput('LSO-1', 1), true)
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['XVSTAT-101'].state, true)
+    assert.equal(store.setTraditionalInput('LSO-1', 0), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['XVSTAT-101'].state, false)
+    assert.equal(store.setTraditionalInput('XV-1', 1), false)
+    assert.equal(store.setTraditionalInput('', 1), false)
+  })
+})
+
+test('traditional DST length boundaries and unsupported analog tieback are validated explicitly', () => {
+  withAreaProject(store => {
+    discreteCourseProject(store)
+    const hw = useStore.getState().hardware
+    assert.equal(channelConfigurationError(hw, 'CTLR/C03', 3, { dst: 'A'.repeat(16), enabled: true }), null)
+    assert.match(channelConfigurationError(hw, 'CTLR/C03', 3, { dst: 'A'.repeat(17), enabled: true }), /1-16/)
+    assert.match(channelConfigurationError(hw, 'CTLR/C03', 3, { dst: '1234', enabled: true }), /letter/)
+    assert.equal(channelConfigurationError(hw, 'CTLR/C03', 3, { dst: 'A_$-1', enabled: true }), null)
+    assert.match(channelConfigurationError(hw, 'CTLR/C01', 1,
+      { dst: 'LT-1', enabled: true, tiebackDst: 'LY-1' }), /Only DI/)
+    assert.equal(findDst(hw, ''), undefined)
+  })
+})
+
+test('unbound legacy DO remains immediate; rapid toggles use commanded rather than held feedback', () => {
+  withAreaProject(store => {
+    const initial = useStore.getState().modules['HS-201'].commanded
+    store.toggleDO('HS-201')
+    assert.equal(useStore.getState().modules['HS-201'].state, !initial)
+    store.toggleDO('HS-201')
+    assert.equal(useStore.getState().modules['HS-201'].state, initial)
+    discreteCourseProject(store)
+    store.toggleDO('XV-101')
+    store.toggleDO('XV-101')
+    assert.equal(useStore.getState().modules['XV-101'].commanded, false)
+    store.tick(0.1)
+    assert.equal(findDst(useStore.getState().hardware, 'XV-1').channel.value, 0)
+  })
+})
+
+test('traditional configuration rejects invalid slots, duplicate DSTs and wrong-direction/multiple output bindings', () => {
+  withAreaProject((store, alerts) => {
+    discreteCourseProject(store)
+    const before = useStore.getState().hardware
+    const successes = useStore.getState().eventLog.filter(e => e.category === 'CONFIGURE').length
+    for (const slot of [0, 9, 1.5, NaN, 4]) assert.equal(store.addTraditionalCard('CTLR', slot, 'DO'), false)
+    assert.equal(store.addTraditionalCard('MISSING', 1, 'DO'), false)
+    assert.equal(store.configureTraditionalChannel('CTLR/C03', 3, { dst: 'XV-1', enabled: true }), false)
+    assert.equal(store.configureTraditionalChannel('CTLR/C03', 3, { dst: '', enabled: true }), false)
+    assert.equal(store.configureTraditionalChannel('CTLR/C03', 3, { dst: 'NO SPACE', enabled: true }), false)
+    assert.equal(store.configureTraditionalChannel('MISSING', 1, { dst: 'TEST', enabled: true }), false)
+    assert.equal(store.bindDiscreteDst('XV-101', 'LSO-1'), false)
+    assert.equal(store.bindDiscreteDst('XVSTAT-101', 'XV-1'), false)
+    assert.equal(store.bindDiscreteDst('MISSING', 'XV-1'), false)
+    assert.equal(useStore.getState().hardware, before)
+    assert.equal(useStore.getState().eventLog.filter(e => e.category === 'CONFIGURE').length, successes)
+    assert.equal(alerts.length, 13)
+    store.createModule({ tag: 'OTHER-DO', type: 'DO', area: 'PLANT_AREA_A', description: 'Second writer' })
+    assert.equal(store.bindDiscreteDst('OTHER-DO', 'XV-1'), false)
+    assert.match(alerts.at(-1), /already has a writer/)
+  })
+})
+
+test('in-use DST rename and invalid tiebacks are rejected without partial mutation', () => {
+  withAreaProject((store, alerts) => {
+    discreteCourseProject(store)
+    const before = useStore.getState().hardware
+    for (const [card, channel, patch] of [
+      ['CTLR/C04', 1, { dst: 'RENAMED', enabled: true }],
+      ['CTLR/C03', 1, { dst: 'RENAMED', enabled: true }],
+      ['CTLR/C04', 1, { dst: 'XV-1', enabled: true, tiebackDst: 'LSO-1' }],
+      ['CTLR/C03', 1, { dst: 'LSO-1', enabled: true, tiebackDst: 'LT-1' }],
+      ['CTLR/C03', 1, { dst: 'LSO-1', enabled: true, tiebackDst: 'MISSING' }]
+    ]) assert.equal(store.configureTraditionalChannel(card, channel, patch), false)
+    assert.equal(useStore.getState().hardware, before)
+    assert.equal(alerts.length, 5)
+    store.bindDiscreteDst('XVSTAT-101', '')
+    store.configureTraditionalChannel('CTLR/C03', 1, { dst: 'LSO-1', enabled: true })
+    store.bindDiscreteDst('XV-101', '')
+    assert.equal(store.configureTraditionalChannel('CTLR/C04', 1, { dst: ' new-dst ', enabled: true }), true)
+    assert.equal(findDst(useStore.getState().hardware, 'NEW-DST').channel.enabled, true)
+  })
+})
+
+test('traditional writes require their correct keys and cannot replace existing pharma CHARM bindings', () => {
+  withAreaProject((store, alerts) => {
+    assert.equal(store.addTraditionalCard('CTLR-01', 4, 'DO'), true)
+    assert.equal(store.configureTraditionalChannel('CTLR-01/C04', 1, { dst: 'COURSE-OUT', enabled: true }), true)
+    const baseline = useStore.getState()
+    assert.equal(store.bindDiscreteDst('HS-201', 'COURSE-OUT'), false)
+    assert.match(alerts.at(-1), /already has a CHARM/)
+    assert.equal(useStore.getState().modules, baseline.modules)
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    const before = useStore.getState()
+    assert.equal(store.addTraditionalCard('CTLR-01', 3, 'DI'), false)
+    assert.equal(store.configureTraditionalChannel('CTLR-01/C04', 1, { dst: 'OTHER', enabled: true }), false)
+    assert.equal(store.bindDiscreteDst('HS-201', ''), false)
+    assert.equal(store.setTraditionalInput('MISSING', 1), false)
+    assert.equal(store.configureDiscreteAlarm('LSH-101', false, true), false)
+    assert.equal(useStore.getState(), before)
+  })
+})
+
+test('deleting a bound module releases its writer and project reset removes training cards and bindings', () => {
+  withAreaProject(store => {
+    discreteCourseProject(store)
+    store.deleteModule('XV-101')
+    assert.equal(useStore.getState().hardware.discreteBindings['XV-101'], undefined)
+    store.createModule({ tag: 'OTHER-DO', type: 'DO', area: 'PLANT_AREA_A', description: 'Replacement writer' })
+    assert.equal(store.bindDiscreteDst('OTHER-DO', 'XV-1'), true)
+    store.newProject('pharma')
+    assert.equal(useStore.getState().hardware.traditionalCards, undefined)
+    assert.equal(useStore.getState().hardware.discreteBindings, undefined)
+    assert.equal(useStore.getState().modules['XV-101'].type, 'VALVE')
+  })
+})
+
+test('multiple DI readers share one input while bad quality reaches downstream function blocks', () => {
+  withAreaProject(store => {
+    discreteCourseProject(store)
+    store.createModule({ tag: 'SECOND-DI', type: 'DI', area: 'PLANT_AREA_A', description: 'Second reader' })
+    assert.equal(store.bindDiscreteDst('SECOND-DI', 'LSO-1'), true)
+    store.createModule({ tag: 'STATUS-AND', type: 'FB', fbType: 'AND', area: 'PLANT_AREA_A', description: 'Status consumer' })
+    store.setFbInput('STATUS-AND', 'in1', { kind: 'ref', tag: 'XVSTAT-101', value: 0 })
+    store.setFbInput('STATUS-AND', 'in2', { kind: 'const', value: 1 })
+    store.toggleDO('XV-101'); store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['SECOND-DI'].state, true)
+    assert.equal(useStore.getState().modules['STATUS-AND'].bad, false)
+    store.setDiscreteMode('XV-101', 'OOS')
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['SECOND-DI'].state, true)
+    assert.equal(useStore.getState().modules['SECOND-DI'].ioBad, true)
+    assert.equal(useStore.getState().modules['STATUS-AND'].bad, true)
+  })
+})
+
+test('blank project and isolated course-named modules execute without nonexistent pharma physics', () => {
+  withAreaProject(store => {
+    store.newProject('blank')
+    store.tick(0.1)
+    assert.deepEqual(useStore.getState().modules, {})
+    store.createModule({ tag: 'FIC-101', type: 'PID', area: 'FEED', description: 'Isolated loop' })
+    for (let scan = 0; scan < 20; scan++) store.tick(0.1)
+    assert.ok(Number.isFinite(useStore.getState().modules['FIC-101'].pv))
+    assert.ok(Number.isFinite(useStore.getState().modules['FIC-101'].out))
+    assert.equal(Object.keys(useStore.getState().modules).length, 1)
+  })
 })
 
 test('DV09 pages 87-88: create AREA_A, rename PLANT_AREA_A and add PLANT_AREA_B', () => {

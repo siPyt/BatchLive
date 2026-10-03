@@ -25,6 +25,10 @@ import { configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
+import {
+  channelConfigurationError, discreteBindingError, findDst, makeTraditionalCard,
+  type TraditionalCardType
+} from './traditionalIo'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
@@ -64,6 +68,13 @@ interface StoreState extends PlantState {
   equipment: Record<string, EquipmentModule>
   /** Physical Network: Controllers / I/O Carriers / CHARM baseplates. */
   hardware: HardwareState
+  addTraditionalCard: (controllerTag: string, slot: number, type: TraditionalCardType) => boolean
+  configureTraditionalChannel: (cardId: string, channel: number,
+    patch: { dst: string; enabled: boolean; tiebackDst?: string }) => boolean
+  setTraditionalInput: (dst: string, value: number) => boolean
+  bindDiscreteDst: (tag: string, dst: string) => boolean
+  setDiscreteMode: (tag: string, mode: 'AUTO' | 'OOS') => boolean
+  configureDiscreteAlarm: (tag: string, onValue: boolean, enabled: boolean) => boolean
   // operator actions
   setMode: (tag: string, mode: ControlMode) => void
   setSetpoint: (tag: string, sp: number) => void
@@ -472,11 +483,17 @@ export const useStore = create<StoreState>((set, get) => ({
 
   toggleDO: (tag) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Toggle ${tag}`)) return
+    const module = get().modules[tag]
+    if (module?.type !== 'DO' || module.mode === 'OOS') {
+      const message = `${tag} must be a DO module in AUTO to accept SP_D writes`
+      get().logEvent('DIAGNOSTIC', tag, message)
+      window.alert(message)
+      return
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'DO') {
-        const d = m as DiscreteOutput
-        d.commanded = !d.commanded
-        d.state = d.commanded
+        m.commanded = !m.commanded
+        if (!get().hardware.discreteBindings?.[tag]) m.state = m.commanded
       }
     })
     get().logEvent('OPERATOR', tag, 'Discrete output toggled')
@@ -998,13 +1015,132 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  addTraditionalCard: (controllerTag, slot, type) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Add traditional card to ${controllerTag}`)) return false
+    const hw = get().hardware
+    const error = !hw.controllers[controllerTag] ? 'Controller does not exist' :
+      !Number.isInteger(slot) || slot < 1 || slot > 8 ? 'Training card slot must be 1-8' :
+      !['AI', 'AO', 'DI', 'DO'].includes(type) ? 'Unsupported traditional card type' :
+      Object.values(hw.traditionalCards ?? {}).some(card => card.controllerTag === controllerTag && card.slot === slot)
+        ? `Slot ${slot} already has a traditional card` : null
+    if (error) {
+      get().logEvent('DIAGNOSTIC', controllerTag, `Add card rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    const card = makeTraditionalCard(controllerTag, slot, type)
+    set(s => ({ hardware: { ...s.hardware,
+      traditionalCards: { ...s.hardware.traditionalCards, [card.id]: card } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', card.id, `Traditional ${type} card added`)
+    return true
+  },
+
+  configureTraditionalChannel: (cardId, channelNumber, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${cardId} channel ${channelNumber}`)) return false
+    const normalized = { ...patch, dst: patch.dst.trim().toUpperCase(),
+      tiebackDst: patch.tiebackDst?.trim().toUpperCase() || undefined }
+    const card = get().hardware.traditionalCards?.[cardId]
+    const error = channelConfigurationError(get().hardware, cardId, channelNumber, normalized)
+    if (error || !card) {
+      const message = error ?? 'Traditional card does not exist'
+      get().logEvent('DIAGNOSTIC', cardId, `Channel configuration rejected: ${message}`)
+      window.alert(message)
+      return false
+    }
+    set(s => ({ hardware: { ...s.hardware, traditionalCards: { ...s.hardware.traditionalCards,
+      [cardId]: { ...card, channels: card.channels.map(channel => channel.channel === channelNumber
+        ? { ...channel, ...normalized, bad: true } : channel) } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', cardId, `Channel ${channelNumber}: DST ${normalized.dst || '(none)'}, enabled ${normalized.enabled}, simulated tieback ${normalized.tiebackDst ?? '(none)'}`)
+    return true
+  },
+
+  setTraditionalInput: (dst, value) => {
+    if (!useSecurity.getState().requireLock('RESTRICTED_CONTROL', `Simulate input ${dst}`)) return false
+    const target = findDst(get().hardware, dst)
+    const error = !target || (target.card.type !== 'AI' && target.card.type !== 'DI') ? 'Select a named input channel' :
+      target.channel.tiebackDst ? 'Disconnect the simulated tieback before forcing this input' :
+      !Number.isFinite(value) || (target.card.type === 'DI' && value !== 0 && value !== 1)
+        ? 'Input value must be finite; discrete inputs accept only 0 or 1' : null
+    if (error) {
+      get().logEvent('DIAGNOSTIC', dst, `Input simulation rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    if (!target) return false
+    const { card, channel } = target
+    set(s => ({ hardware: { ...s.hardware, traditionalCards: { ...s.hardware.traditionalCards,
+      [card.id]: { ...card, channels: card.channels.map(item => item.channel === channel.channel
+        ? { ...item, value } : item) } } } }))
+    get().logEvent('DIAGNOSTIC', dst, `Simulated input set to ${value}`)
+    return true
+  },
+
+  bindDiscreteDst: (tag, dst) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Bind ${tag} traditional I/O`)) return false
+    const normalized = dst.trim().toUpperCase()
+    const error = discreteBindingError(get().hardware, get().modules[tag], normalized)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `I/O binding rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    const bindings = { ...get().hardware.discreteBindings }
+    if (normalized) bindings[tag] = normalized
+    else delete bindings[tag]
+    set(s => ({ hardware: { ...s.hardware, discreteBindings: bindings }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, `Traditional I/O bound to ${normalized || '(none)'}`)
+    return true
+  },
+
+  setDiscreteMode: (tag, mode) => {
+    if (!useSecurity.getState().requireLock('CONTROL', `Set ${tag} mode`)) return false
+    const module = get().modules[tag]
+    if (!module || (module.type !== 'DI' && module.type !== 'DO') || !['AUTO', 'OOS'].includes(mode)) {
+      const error = 'Discrete mode requires a DI/DO module and AUTO or OOS'
+      get().logEvent('DIAGNOSTIC', tag, error)
+      window.alert(error)
+      return false
+    }
+    mutateModule(set, get, tag, m => {
+      if (m.type === 'DI' || m.type === 'DO') {
+        m.mode = mode
+        if (mode === 'OOS') m.ioBad = true
+      }
+    })
+    get().logEvent('OPERATOR', tag, `Discrete mode target set to ${mode}`)
+    return true
+  },
+
+  configureDiscreteAlarm: (tag, onValue, enabled) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag} discrete alarm`)) return false
+    if (get().modules[tag]?.type !== 'DI') {
+      const error = 'Discrete input alarm configuration requires a DI module'
+      get().logEvent('DIAGNOSTIC', tag, error)
+      window.alert(error)
+      return false
+    }
+    mutateModule(set, get, tag, m => {
+      if (m.type !== 'DI') return
+      m.alarmOnValue = onValue
+      const existing = m.alarms.find(alarm => alarm.type === 'HI')
+      m.alarms = [...m.alarms.filter(alarm => alarm.type !== 'HI'),
+        { ...existing, type: 'HI', label: existing?.label ?? 'DISCRETE',
+          priority: existing?.priority ?? 'WARNING', enabled }]
+    })
+    get().logEvent('CONFIGURE', tag, `Discrete alarm ON VALUE ${Number(onValue)}, enabled ${enabled}`)
+    return true
+  },
+
   deleteModule: (tag) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Delete module ${tag}`)) return
     set((s) => {
       if (!s.modules[tag]) return {}
       const modules = { ...s.modules }
       delete modules[tag]
-      return { modules, alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
+      const bindings = { ...s.hardware.discreteBindings }
+      delete bindings[tag]
+      return { modules, hardware: { ...s.hardware, discreteBindings: bindings },
+        alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
     })
     get().logEvent('CONFIGURE', tag, 'Module deleted')
   },

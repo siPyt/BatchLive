@@ -433,7 +433,8 @@ function FbNode({
   const bad = m.type === 'PID' && io
     ? inputStage ? io.ai.bad : outputStage ? ao?.bad ?? true :
       split ? split.status === 'BAD' : m.pvBad
-    : m.type === 'AI' ? m.pvBad : m.type === 'FB' ? !!m.bad : false
+    : m.type === 'AI' ? m.pvBad : m.type === 'FB' ? !!m.bad :
+      m.type === 'DI' || m.type === 'DO' ? !!m.ioBad : false
   const inputs = inputPorts(m, block.part)
   const outputs = outputPorts(m, block.part)
 
