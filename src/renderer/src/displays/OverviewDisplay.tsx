@@ -13,7 +13,8 @@ import {
   ClassicAgitatorDrive,
   ClassicReadout,
   ClassicVessel,
-  PALE_BORDER
+  PALE_BORDER,
+  PALE_BG
 } from '../components/ClassicGraphics'
 import { DeltaVCanvas, type DeltaVCanvasHandle } from '../components/DeltaVCanvas'
 import { durationString } from '../utils/format'
@@ -69,6 +70,8 @@ export function OverviewDisplay(): JSX.Element {
       <DeltaVCanvas ref={canvasRef} initialX={AREAS.REACTOR.x + 40} initialY={AREAS.REACTOR.y + 173} initialScale={0.9}>
         {/* ================= REACTOR TRAIN ================= */}
         <g transform={`translate(${AREAS.REACTOR.x}, ${AREAS.REACTOR.y})`}>
+          {/* pale area card so the reactor matches the pharma areas' background */}
+          <rect x={-30} y={-190} width={1150} height={710} fill={PALE_BG} />
           {/* ---------------- Piping ---------------- */}
           {/* Feed supply -> FIC-101 -> XV-101 -> top inlet nozzle of TK-101 */}
           <ClassicPipe d="M40,70 H110" />

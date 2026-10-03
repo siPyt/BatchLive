@@ -1484,6 +1484,139 @@ button {
   gap: 6px;
   margin-top: 2px;
 }
+.hardware-lifecycle-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--dv-bg-2);
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+}
+.hardware-lifecycle-toolbar > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hardware-lifecycle-toolbar strong {
+  color: var(--dv-text);
+  font-size: 13px;
+}
+.hardware-lifecycle-toolbar span {
+  color: var(--dv-text-mute);
+  font-size: 11px;
+}
+.hardware-create {
+  width: min(420px, calc(100% - 20px));
+}
+.hardware-controller-head {
+  flex-wrap: wrap;
+}
+.hardware-controller-description {
+  color: var(--dv-text-dim);
+  font-size: 12px;
+}
+.hardware-controller-state {
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+.hardware-controller-state.online {
+  color: var(--dv-run);
+}
+.hardware-controller-state.offline {
+  color: var(--dv-critical);
+}
+.hardware-controller-load {
+  color: var(--dv-text-dim);
+  font-size: 11px;
+}
+.hardware-controller-status {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+}
+.hardware-network-badge {
+  padding: 2px 6px;
+  background: #e8f0f8;
+  border: 1px solid #7c9fbd;
+  border-radius: 3px;
+  color: #275678;
+  font-size: 10px;
+  font-weight: 700;
+}
+.hardware-network-address {
+  color: var(--dv-text-dim);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.hardware-identify-indicator {
+  color: #a33f16;
+  font-size: 10px;
+  font-weight: 800;
+  animation: hardware-identify-flash 0.8s steps(2, start) infinite;
+}
+@keyframes hardware-identify-flash {
+  to {
+    opacity: 0.25;
+  }
+}
+.hardware-controller-down {
+  color: var(--dv-critical);
+  font-size: 11px;
+}
+.hardware-controller-settings {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--dv-border);
+  background: var(--dv-bg-2);
+}
+.hardware-controller-settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--dv-text-mute);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.hardware-controller-settings label.hardware-setting-check {
+  flex-direction: row;
+  align-items: center;
+}
+.hardware-controller-settings input[type='number'] {
+  width: 132px;
+  padding: 4px 6px;
+  background: #fff;
+  border: 1px solid var(--dv-border);
+  border-radius: 3px;
+  color: var(--dv-text);
+}
+.hardware-autosense-result {
+  color: var(--dv-text-dim);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.hardware-action-message {
+  color: var(--dv-ok);
+  font-size: 10px;
+  font-weight: 700;
+}
+.hardware-action-message.error {
+  color: var(--dv-critical);
+}
+.hardware-unresolved {
+  padding: 0 14px 8px;
+  color: var(--dv-critical);
+  font-size: 11px;
+}
 .tbtn.danger {
   background: #b42318;
   border-color: #c0392b;

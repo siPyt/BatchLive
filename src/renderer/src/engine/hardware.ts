@@ -50,13 +50,53 @@ export type RedundancyRole = 'ACTIVE' | 'STANDBY' | 'FAILED' | 'N/A'
 export interface Controller {
   tag: string
   description: string
+  commissioned: boolean
   redundant: boolean
+  networkRedundant: boolean
+  controlNetworkAddress: string | null
+  identified: boolean
+  /** Zero disables cold restart; otherwise the allowed power-loss window in minutes. */
+  coldRestartMinutes: number
+  powerDownAt: number | null
+  lastAutoSense: AutoSenseResult | null
   primary: RedundancyRole
   secondary: RedundancyRole
   /** Macrocycle scan time, milliseconds. */
   scanTimeMs: number
   cpuLoadPct: number
   carrierIds: string[]
+}
+
+export interface AutoSenseResult {
+  scannedAt: number
+  carriersScanned: number
+  baseplatesScanned: number
+  channelsDetected: number
+  channelsBound: number
+  unresolvedBindings: string[]
+}
+
+export interface ControllerConfiguration {
+  redundant: boolean
+  networkRedundant: boolean
+  coldRestartMinutes: number
+}
+
+export const MAX_COLD_RESTART_MINUTES = 30 * 24 * 60 + 23 * 60 + 59
+export const MAX_CONTROLLER_DESCRIPTION_LENGTH = 48
+
+/** Allocate from a documentation-only subnet so simulated addresses cannot route onto a real plant network. */
+export function allocateControlNetworkAddress(controllers: Record<string, Controller>): string | null {
+  const assigned = new Set(Object.values(controllers).map((controller) => controller.controlNetworkAddress))
+  for (let host = 1; host <= 254; host += 1) {
+    const address = `192.0.2.${host}`
+    if (!assigned.has(address)) return address
+  }
+  return null
+}
+
+export function isValidControllerTag(tag: string): boolean {
+  return tag.length > 0 && tag.length <= 16 && /[A-Za-z]/.test(tag) && /^[A-Za-z0-9_$-]+$/.test(tag)
 }
 
 export interface HardwareState {
@@ -119,7 +159,14 @@ export function makeDefaultHardware(): HardwareState {
       'CTLR-01': {
         tag: 'CTLR-01',
         description: 'Reactor Train Controller',
+        commissioned: true,
         redundant: true,
+        networkRedundant: true,
+        controlNetworkAddress: '192.0.2.1',
+        identified: false,
+        coldRestartMinutes: 5,
+        powerDownAt: null,
+        lastAutoSense: null,
         primary: 'ACTIVE',
         secondary: 'STANDBY',
         scanTimeMs: 100,
@@ -141,7 +188,36 @@ export function makeBlankHardware(): HardwareState {
 
 /** True if the owning controller cannot service I/O (simplex failed, or both legs of a redundant pair down). */
 export function controllerIsDown(c: Controller): boolean {
-  return c.redundant ? c.primary === 'FAILED' && c.secondary === 'FAILED' : c.primary === 'FAILED'
+  return !c.commissioned || c.powerDownAt !== null || (c.redundant ? c.primary === 'FAILED' && c.secondary === 'FAILED' : c.primary === 'FAILED')
+}
+
+/** Simulate controller auto-sensing against the configured carrier/baseplate inventory. */
+export function scanControllerIo(
+  hw: HardwareState,
+  controllerTag: string,
+  moduleTags: ReadonlySet<string>,
+  scannedAt = Date.now()
+): AutoSenseResult | null {
+  const controller = hw.controllers[controllerTag]
+  if (!controller) return null
+
+  const carrierIds = controller.carrierIds.filter((id) => hw.carriers[id]?.controllerTag === controllerTag)
+  const baseplates = carrierIds.flatMap((id) =>
+    (hw.carriers[id]?.baseplateIds ?? []).map((baseplateId) => hw.baseplates[baseplateId]).filter((plate) => !!plate && plate.carrierId === id)
+  )
+  const installedChannels = baseplates.flatMap((plate) => plate.channels.filter((channel) => channel.type !== null))
+  const unresolvedBindings = Array.from(
+    new Set(installedChannels.filter((channel) => channel.boundTag && !moduleTags.has(channel.boundTag)).map((channel) => channel.boundTag!))
+  ).sort()
+
+  return {
+    scannedAt,
+    carriersScanned: carrierIds.length,
+    baseplatesScanned: baseplates.length,
+    channelsDetected: installedChannels.length,
+    channelsBound: installedChannels.filter((channel) => !!channel.boundTag && !!channel.boundField).length,
+    unresolvedBindings
+  }
 }
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))

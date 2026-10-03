@@ -22,7 +22,18 @@ import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, type BatchRun
 import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
 import { makeDefaultEquipment, makeBlankEquipment, type EquipmentModule } from './equipment'
-import { makeDefaultHardware, makeBlankHardware, type HardwareState } from './hardware'
+import {
+  makeDefaultHardware,
+  makeBlankHardware,
+  allocateControlNetworkAddress,
+  controllerIsDown,
+  isValidControllerTag,
+  MAX_COLD_RESTART_MINUTES,
+  MAX_CONTROLLER_DESCRIPTION_LENGTH,
+  scanControllerIo,
+  type ControllerConfiguration,
+  type HardwareState
+} from './hardware'
 
 const TREND_SECONDS = 600 // 10 minutes of history
 const TREND_HZ = 2
@@ -89,8 +100,16 @@ interface StoreState extends PlantState {
   /** CAS_IN_D connection health; false sheds a Cas/RCas PID to Auto. */
   setCasHealthy: (tag: string, healthy: boolean) => void
   /** Fail a controller leg (primary, or both legs if not redundant) — bound I/O goes Bad. */
-  failController: (tag: string) => void
-  restoreController: (tag: string) => void
+  failController: (tag: string) => boolean
+  restoreController: (tag: string) => boolean
+  createController: (tag: string, description: string) => boolean
+  setControllerConfiguration: (tag: string, patch: Partial<ControllerConfiguration>) => boolean
+  commissionController: (tag: string) => boolean
+  decommissionController: (tag: string) => boolean
+  identifyController: (tag: string, identifying: boolean) => boolean
+  autoSenseController: (tag: string) => boolean
+  simulateControllerPowerLoss: (tag: string) => boolean
+  restoreControllerPower: (tag: string) => boolean
   /** Simulate a loose/removed CHARM on a baseplate channel. */
   pullCharm: (baseplateId: string, slot: number) => void
   reinsertCharm: (baseplateId: string, slot: number) => void
@@ -453,10 +472,12 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   failController: (tag) => {
-    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Fail controller ${tag}`)) return
+    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Fail controller ${tag}`)) return false
+    let failed = false
     set((s) => {
       const c = s.hardware.controllers[tag]
-      if (!c) return {}
+      if (!c || !c.commissioned || c.powerDownAt !== null) return {}
+      failed = true
       const next = c.redundant
         ? c.primary === 'ACTIVE'
           ? { ...c, primary: 'FAILED' as const, secondary: 'ACTIVE' as const }
@@ -464,20 +485,282 @@ export const useStore = create<StoreState>((set, get) => ({
         : { ...c, primary: 'FAILED' as const }
       return { hardware: { ...s.hardware, controllers: { ...s.hardware.controllers, [tag]: next } }, rev: s.rev + 1 }
     })
-    get().logEvent('DIAGNOSTIC', tag, 'Controller leg failed')
+    if (failed) get().logEvent('DIAGNOSTIC', tag, 'Controller leg failed')
+    return failed
   },
 
   restoreController: (tag) => {
-    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Restore controller ${tag}`)) return
+    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Restore controller ${tag}`)) return false
+    let restored = false
     set((s) => {
       const c = s.hardware.controllers[tag]
-      if (!c) return {}
+      if (!c || !c.commissioned || c.powerDownAt !== null) return {}
+      restored = true
       const next = c.redundant
         ? { ...c, primary: 'ACTIVE' as const, secondary: 'STANDBY' as const }
         : { ...c, primary: 'ACTIVE' as const }
       return { hardware: { ...s.hardware, controllers: { ...s.hardware.controllers, [tag]: next } }, rev: s.rev + 1 }
     })
-    get().logEvent('DIAGNOSTIC', tag, 'Controller restored')
+    if (restored) get().logEvent('DIAGNOSTIC', tag, 'Controller restored')
+    return restored
+  },
+
+  createController: (tag, description) => {
+    if (!useSecurity.getState().requireLock('SYSTEM_ADMIN', `Create controller ${tag}`)) return false
+    const normalizedTag = tag.trim()
+    const normalizedDescription = description.trim()
+    if (!isValidControllerTag(normalizedTag) || normalizedDescription.length > MAX_CONTROLLER_DESCRIPTION_LENGTH) return false
+
+    let created = false
+    set((s) => {
+      if (Object.keys(s.hardware.controllers).some((existing) => existing.toLowerCase() === normalizedTag.toLowerCase())) return {}
+      created = true
+      return {
+        hardware: {
+          ...s.hardware,
+          controllers: {
+            ...s.hardware.controllers,
+            [normalizedTag]: {
+              tag: normalizedTag,
+              description: normalizedDescription,
+              commissioned: false,
+              redundant: false,
+              networkRedundant: false,
+              controlNetworkAddress: null,
+              identified: false,
+              coldRestartMinutes: 0,
+              powerDownAt: null,
+              lastAutoSense: null,
+              primary: 'N/A' as const,
+              secondary: 'N/A' as const,
+              scanTimeMs: 0,
+              cpuLoadPct: 0,
+              carrierIds: []
+            }
+          }
+        },
+        rev: s.rev + 1
+      }
+    })
+    if (created) get().logEvent('CONFIGURE', normalizedTag, `Decommissioned controller created: ${normalizedDescription}`)
+    return created
+  },
+
+  setControllerConfiguration: (tag, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure controller ${tag}`)) return false
+    if (
+      patch.coldRestartMinutes !== undefined &&
+      (!Number.isInteger(patch.coldRestartMinutes) || patch.coldRestartMinutes < 0 || patch.coldRestartMinutes > MAX_COLD_RESTART_MINUTES)
+    ) {
+      return false
+    }
+
+    let updated = false
+    set((s) => {
+      const c = s.hardware.controllers[tag]
+      if (!c || c.powerDownAt !== null || (controllerIsDown(c) && c.commissioned)) return {}
+      const redundant = patch.redundant ?? c.redundant
+      let primary = c.primary
+      let secondary = c.secondary
+      if (!c.commissioned) {
+        primary = 'N/A'
+        secondary = 'N/A'
+      } else if (!redundant) {
+        secondary = 'N/A'
+      } else if (!c.redundant) {
+        primary = 'ACTIVE'
+        secondary = 'STANDBY'
+      } else if (secondary === 'N/A') {
+        secondary = 'STANDBY'
+      }
+      updated = true
+      return {
+        hardware: {
+          ...s.hardware,
+          controllers: {
+            ...s.hardware.controllers,
+            [tag]: {
+              ...c,
+              ...patch,
+              redundant,
+              primary,
+              secondary
+            }
+          }
+        },
+        rev: s.rev + 1
+      }
+    })
+    if (updated) get().logEvent('CONFIGURE', tag, `Controller properties changed: ${JSON.stringify(patch)}`)
+    return updated
+  },
+
+  commissionController: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_DOWNLOAD', `Commission controller ${tag}`)) return false
+    let commissioned = false
+    set((s) => {
+      const c = s.hardware.controllers[tag]
+      if (!c || c.commissioned || c.powerDownAt !== null) return {}
+      const controlNetworkAddress = c.controlNetworkAddress ?? allocateControlNetworkAddress(s.hardware.controllers)
+      if (!controlNetworkAddress) return {}
+      commissioned = true
+      return {
+        hardware: {
+          ...s.hardware,
+          controllers: {
+            ...s.hardware.controllers,
+            [tag]: {
+              ...c,
+              commissioned: true,
+              controlNetworkAddress,
+              identified: false,
+              primary: 'ACTIVE',
+              secondary: c.redundant ? 'STANDBY' : 'N/A'
+            }
+          }
+        },
+        rev: s.rev + 1
+      }
+    })
+    if (commissioned) get().logEvent('CONFIGURE', tag, 'Controller commissioned and added to the control network')
+    return commissioned
+  },
+
+  decommissionController: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Decommission controller ${tag}`)) return false
+    let decommissioned = false
+    set((s) => {
+      const c = s.hardware.controllers[tag]
+      if (!c || !c.commissioned || c.powerDownAt !== null) return {}
+      decommissioned = true
+      return {
+        hardware: {
+          ...s.hardware,
+          controllers: {
+            ...s.hardware.controllers,
+            [tag]: { ...c, commissioned: false, identified: false, primary: 'N/A', secondary: 'N/A' }
+          }
+        },
+        rev: s.rev + 1
+      }
+    })
+    if (decommissioned) get().logEvent('CONFIGURE', tag, 'Controller decommissioned; bound I/O is unavailable')
+    return decommissioned
+  },
+
+  identifyController: (tag, identifying) => {
+    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Identify controller ${tag}`)) return false
+    let changed = false
+    set((s) => {
+      const c = s.hardware.controllers[tag]
+      if (!c || c.powerDownAt !== null || c.identified === identifying) return {}
+      changed = true
+      return {
+        hardware: {
+          ...s.hardware,
+          controllers: { ...s.hardware.controllers, [tag]: { ...c, identified: identifying } }
+        },
+        rev: s.rev + 1
+      }
+    })
+    if (changed) get().logEvent('DIAGNOSTIC', tag, identifying ? 'Controller identify flashing started' : 'Controller identify flashing stopped')
+    return changed
+  },
+
+  autoSenseController: (tag) => {
+    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Auto-sense I/O for controller ${tag}`)) return false
+    const state = get()
+    const controller = state.hardware.controllers[tag]
+    if (!controller || !controller.commissioned || controllerIsDown(controller)) return false
+    const result = scanControllerIo(state.hardware, tag, new Set(Object.keys(state.modules)))
+    if (!result) return false
+    set((s) => ({
+      hardware: {
+        ...s.hardware,
+        controllers: { ...s.hardware.controllers, [tag]: { ...s.hardware.controllers[tag], lastAutoSense: result } }
+      },
+      rev: s.rev + 1
+    }))
+    get().logEvent(
+      'DIAGNOSTIC',
+      tag,
+      `I/O auto-sense complete: ${result.carriersScanned} carriers, ${result.baseplatesScanned} baseplates, ${result.channelsDetected} channels detected, ${result.unresolvedBindings.length} unresolved bindings`
+    )
+    return true
+  },
+
+  simulateControllerPowerLoss: (tag) => {
+    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Simulate power loss for controller ${tag}`)) return false
+    let poweredDown = false
+    set((s) => {
+      const c = s.hardware.controllers[tag]
+      if (!c || !c.commissioned || c.powerDownAt !== null) return {}
+      poweredDown = true
+      return {
+        hardware: {
+          ...s.hardware,
+          controllers: {
+            ...s.hardware.controllers,
+            [tag]: {
+              ...c,
+              identified: false,
+              powerDownAt: Date.now(),
+              primary: 'FAILED',
+              secondary: c.redundant ? 'FAILED' : 'N/A'
+            }
+          }
+        },
+        rev: s.rev + 1
+      }
+    })
+    if (poweredDown) get().logEvent('DIAGNOSTIC', tag, 'Controller power loss simulated; all bound I/O is Bad')
+    return poweredDown
+  },
+
+  restoreControllerPower: (tag) => {
+    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Restore power to controller ${tag}`)) return false
+    let restored = false
+    let coldRestartSucceeded = false
+    let outageMinutes = 0
+    set((s) => {
+      const c = s.hardware.controllers[tag]
+      if (!c || c.powerDownAt === null) return {}
+      outageMinutes = Math.max(0, (Date.now() - c.powerDownAt) / 60_000)
+      coldRestartSucceeded = c.coldRestartMinutes > 0 && outageMinutes <= c.coldRestartMinutes
+      restored = true
+      return {
+        hardware: {
+          ...s.hardware,
+          controllers: {
+            ...s.hardware.controllers,
+            [tag]: coldRestartSucceeded
+              ? {
+                  ...c,
+                  commissioned: true,
+                  powerDownAt: null,
+                  primary: 'ACTIVE',
+                  secondary: c.redundant ? 'STANDBY' : 'N/A'
+                }
+              : {
+                  ...c,
+                  commissioned: false,
+                  identified: false,
+                  powerDownAt: null,
+                  primary: 'N/A',
+                  secondary: 'N/A'
+                }
+          }
+        },
+        rev: s.rev + 1
+      }
+    })
+    if (restored) {
+      const message = coldRestartSucceeded
+        ? `Cold restart succeeded after ${outageMinutes.toFixed(2)} minutes; controller returned to service`
+        : `Cold restart unavailable after ${outageMinutes.toFixed(2)} minutes; controller requires commissioning and download`
+      get().logEvent('DIAGNOSTIC', tag, message)
+    }
+    return restored
   },
 
   pullCharm: (baseplateId, slot) => {

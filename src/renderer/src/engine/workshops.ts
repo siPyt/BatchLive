@@ -274,12 +274,21 @@ export const COURSE: WModule[] = [
     workshops: [
       {
         id: 'infra',
-        title: 'Commissioning, Downloads, I/O, Fieldbus, Export',
-        objective: 'Understand the workshops that require real DeltaV hardware and host software.',
+        title: 'Controller Commissioning, Auto-sense & Cold Restart',
+        objective: 'Identify and commission a controller, discover configured I/O, and verify cold-restart behavior.',
         note:
-          'These DV-09 workshops configure physical infrastructure (controller commissioning and downloads, Traditional/CHARM DSTs, Fieldbus segments) and host-level export/FHX/electronic-signature policy setup. BatchLive is an offline operator/engineering simulator with no controllers or DeltaV database, so these steps have no literal equivalent. Everything they lead to — live modules, loops, alarms, graphics, SFCs and batches — is already running here without a download. (User/Lock administration now has a real equivalent — see DeltaV Security below.)',
+          'This workshop follows the controller commissioning objectives in DeltaV Training 7009. Controller state, redundancy, I/O discovery, identify indication, and cold-restart eligibility are simulated locally; the displayed 192.0.2.x addresses are documentation-only and no physical network is contacted. The course’s 2001 system-capacity and license tables are not enforced by this single-station simulator. Actual controller downloads, traditional card hardware, fieldbus wiring, and host-level database export still require the real DeltaV environment.',
         steps: [
-          { id: 'inf-1', text: 'Read the note above: these steps are informational in BatchLive (no physical hardware/host).' }
+          { id: 'infra-1', text: 'Add a decommissioned controller named CTLR-02. Click Identify while it is decommissioned; verify the flashing indicator, then stop it.', goto: 'hardware' },
+          { id: 'infra-2', text: 'Enable controller redundancy and control-network redundancy for CTLR-02, set Cold Restart to 5 minutes, and apply the properties.' },
+          { id: 'infra-3', text: 'Commission CTLR-02. Verify Primary ACTIVE / Secondary STANDBY and that a simulated control-network address is assigned.' },
+          { id: 'infra-4', text: 'Auto-sense CTLR-01 and verify its existing I/O scan reports CIOC-01, three baseplates, and 18 installed channels.' },
+          { id: 'infra-5', text: 'Auto-sense CTLR-02; it has no assigned carriers, so the scan correctly reports zero detected channels.' },
+          { id: 'infra-6', text: 'Decommission and recommission CTLR-02 to observe its inactive/active state transition and retained network address.' },
+          { id: 'infra-7', text: 'On CTLR-01, simulate Power Loss and immediately click Restore Power. Verify the cold restart succeeds and bound I/O returns to service.' },
+          { id: 'infra-8', text: 'Set CTLR-01 Cold Restart to 0, apply, and repeat Power Loss / Restore Power. The controller remains decommissioned and requires commissioning before I/O returns.' },
+          { id: 'infra-9', text: 'Restore CTLR-01 Cold Restart to 5 minutes, apply, then Commission it to return the controller and bound I/O to service.' },
+          { id: 'infra-10', text: 'Log on as OperatorA and confirm Identify/Auto-sense/Power Loss require the Diagnostic key, commissioning requires Can Download, property changes require Can Configure, and adding a controller requires System Admin.' }
         ]
       }
     ]

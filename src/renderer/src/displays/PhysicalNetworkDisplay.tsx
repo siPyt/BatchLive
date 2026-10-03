@@ -1,6 +1,15 @@
+import { useEffect, useState, type ReactNode } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
-import { CHARM_TYPE_LABEL, controllerIsDown, type CharmChannel } from '../engine/hardware'
+import {
+  CHARM_TYPE_LABEL,
+  controllerIsDown,
+  isValidControllerTag,
+  MAX_COLD_RESTART_MINUTES,
+  MAX_CONTROLLER_DESCRIPTION_LENGTH,
+  type CharmChannel,
+  type Controller
+} from '../engine/hardware'
 
 // DeltaV Explorer "Physical Network" view: Controller -> I/O Carrier (CIOC)
 // -> CHARM Baseplate -> CHARM (one field signal per CHARM, auto-characterized).
@@ -14,47 +23,84 @@ const ROLE_COLOR: Record<string, string> = {
 
 export function PhysicalNetworkDisplay(): JSX.Element {
   const hardware = useStore((s) => s.hardware)
+  const createController = useStore((s) => s.createController)
   const failController = useStore((s) => s.failController)
   const restoreController = useStore((s) => s.restoreController)
+  const openPowerLoss = useStore((s) => s.simulateControllerPowerLoss)
+  const restorePower = useStore((s) => s.restoreControllerPower)
+  const modules = useStore((s) => s.modules)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newTag, setNewTag] = useState('')
+  const [newDescription, setNewDescription] = useState('')
+  const [createError, setCreateError] = useState('')
   const pullCharm = useStore((s) => s.pullCharm)
   const reinsertCharm = useStore((s) => s.reinsertCharm)
   const openFaceplate = useUi((s) => s.openFaceplate)
-  const modules = useStore((s) => s.modules)
+  const tagExists = Object.keys(hardware.controllers).some((tag) => tag.toLowerCase() === newTag.trim().toLowerCase())
+  const canCreate =
+    isValidControllerTag(newTag.trim()) && newDescription.trim().length <= MAX_CONTROLLER_DESCRIPTION_LENGTH && !tagExists
+
+  const submitController = (): void => {
+    if (!canCreate) return
+    if (!createController(newTag, newDescription)) {
+      setCreateError('Controller could not be created. Verify your System Admin key and the controller details.')
+      return
+    }
+    setNewTag('')
+    setNewDescription('')
+    setCreateError('')
+    setCreateOpen(false)
+  }
 
   return (
     <div className="display" style={{ display: 'flex', flexDirection: 'column', overflow: 'auto', padding: 14, gap: 16 }}>
+      <div className="hardware-lifecycle-toolbar">
+        <div>
+          <strong>Controller Lifecycle</strong>
+          <span>Identify · commission · auto-sense I/O · cold restart</span>
+        </div>
+        <button className="tbtn sm" onClick={() => setCreateOpen((open) => !open)}>
+          {createOpen ? 'Cancel' : '＋ Add Decommissioned Controller'}
+        </button>
+      </div>
+      {createOpen && (
+        <div className="hardware-create exp-newmod">
+          <div className="exp-newmod-title">Add Decommissioned Controller</div>
+          <label>
+            Controller name
+            <input value={newTag} maxLength={16} onChange={(e) => setNewTag(e.target.value)} placeholder="e.g. CTLR-02" />
+          </label>
+          <label>
+            Description
+            <input
+              value={newDescription}
+              maxLength={MAX_CONTROLLER_DESCRIPTION_LENGTH}
+              onChange={(e) => setNewDescription(e.target.value)}
+              placeholder="Optional controller description"
+            />
+          </label>
+          {tagExists && <div className="exp-newmod-err">A controller with that name already exists.</div>}
+          {newTag.trim() && !isValidControllerTag(newTag.trim()) && (
+            <div className="exp-newmod-err">Use up to 16 letters, digits, $, - or _, with at least one letter.</div>
+          )}
+          {createError && <div className="exp-newmod-err">{createError}</div>}
+          <div className="exp-newmod-actions">
+            <button className="tbtn sm" disabled={!canCreate} onClick={submitController}>Create</button>
+          </div>
+        </div>
+      )}
       {Object.values(hardware.controllers).map((c) => {
         const down = controllerIsDown(c)
         return (
-          <div key={c.tag} className="exp-props" style={{ padding: 0 }}>
-            <div className="batch-toolbar" style={{ borderRadius: '4px 4px 0 0' }}>
-              <span className="batch-title">{c.tag}</span>
-              <span style={{ color: 'var(--dv-text-dim)', fontSize: 12 }}>{c.description}</span>
-              <span style={{ flex: 1 }} />
-              <span style={{ fontSize: 11, color: 'var(--dv-text-dim)' }}>
-                Scan {c.scanTimeMs.toFixed(0)} ms &nbsp;·&nbsp; CPU {c.cpuLoadPct.toFixed(0)}%
-              </span>
-              <button className="tbtn sm" disabled={down} onClick={() => failController(c.tag)}>
-                Fail {c.redundant ? (c.primary === 'FAILED' ? 'Secondary' : 'Primary') : ''}
-              </button>
-              <button className="tbtn sm" disabled={!down && c.primary === 'ACTIVE' && c.secondary !== 'FAILED'} onClick={() => restoreController(c.tag)}>
-                Restore
-              </button>
-            </div>
-            <div className="fp-row" style={{ padding: '8px 14px' }}>
-              <span className="fp-label">Primary</span>
-              <span style={{ color: ROLE_COLOR[c.primary], fontWeight: 700 }}>{c.primary}</span>
-              {c.redundant && (
-                <>
-                  <span className="fp-label" style={{ marginLeft: 16 }}>
-                    Secondary
-                  </span>
-                  <span style={{ color: ROLE_COLOR[c.secondary], fontWeight: 700 }}>{c.secondary}</span>
-                </>
-              )}
-              {down && <span style={{ color: 'var(--dv-critical)', fontWeight: 800, marginLeft: 16 }}>CONTROLLER DOWN — all bound I/O is BAD</span>}
-            </div>
-
+          <ControllerPanel
+            key={c.tag}
+            controller={c}
+            down={down}
+            failController={failController}
+            restoreController={restoreController}
+            openPowerLoss={openPowerLoss}
+            restorePower={restorePower}
+          >
             {c.carrierIds.map((carrierId) => {
               const carrier = hardware.carriers[carrierId]
               if (!carrier) return null
@@ -92,9 +138,252 @@ export function PhysicalNetworkDisplay(): JSX.Element {
                 </div>
               )
             })}
-          </div>
+          </ControllerPanel>
         )
       })}
+    </div>
+  )
+}
+
+function ControllerPanel({
+  controller: c,
+  down,
+  failController,
+  restoreController,
+  openPowerLoss,
+  restorePower,
+  children
+}: {
+  controller: Controller
+  down: boolean
+  failController: (tag: string) => boolean
+  restoreController: (tag: string) => boolean
+  openPowerLoss: (tag: string) => boolean
+  restorePower: (tag: string) => boolean
+  children: ReactNode
+}): JSX.Element {
+  const setControllerConfiguration = useStore((s) => s.setControllerConfiguration)
+  const commissionController = useStore((s) => s.commissionController)
+  const decommissionController = useStore((s) => s.decommissionController)
+  const identifyController = useStore((s) => s.identifyController)
+  const autoSenseController = useStore((s) => s.autoSenseController)
+  const [settings, setSettings] = useState({
+    redundant: c.redundant,
+    networkRedundant: c.networkRedundant,
+    coldRestartMinutes: c.coldRestartMinutes
+  })
+  const [error, setError] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
+
+  useEffect(() => {
+    setSettings({
+      redundant: c.redundant,
+      networkRedundant: c.networkRedundant,
+      coldRestartMinutes: c.coldRestartMinutes
+    })
+  }, [c.tag, c.redundant, c.networkRedundant, c.coldRestartMinutes])
+
+  const applySettings = (): void => {
+    if (!Number.isInteger(settings.coldRestartMinutes) || settings.coldRestartMinutes < 0 || settings.coldRestartMinutes > MAX_COLD_RESTART_MINUTES) {
+      setError(`Cold Restart must be an integer from 0 to ${MAX_COLD_RESTART_MINUTES} minutes (0 disables automatic restart).`)
+      return
+    }
+    if (!setControllerConfiguration(c.tag, settings)) {
+      setError('Controller properties were not changed. Check controller state and your Can Configure key.')
+      return
+    }
+    setError('')
+    setActionMessage('Controller properties applied.')
+  }
+
+  const commission = (): void => {
+    if (!setControllerConfiguration(c.tag, settings)) {
+      setError('Set valid controller properties before commissioning; Can Configure is required.')
+      return
+    }
+    if (!commissionController(c.tag)) {
+      setError('Commissioning failed. The controller may already be commissioned or your Can Download key is missing.')
+      return
+    }
+    setError('')
+    setActionMessage('Controller commissioned on the control network.')
+  }
+
+  const identify = (): void => {
+    if (!identifyController(c.tag, !c.identified)) {
+      setError('Identify could not be changed. Verify controller state and the Diagnostic key.')
+      return
+    }
+    setError('')
+    setActionMessage(c.identified ? 'Identify flashing stopped.' : 'Identify flashing started.')
+  }
+
+  const failLeg = (): void => {
+    if (!failController(c.tag)) {
+      setError('Controller failure could not be simulated. Verify controller state and the Diagnostic key.')
+      return
+    }
+    setError('')
+    setActionMessage('Controller leg failure simulated.')
+  }
+
+  const decommission = (): void => {
+    if (!decommissionController(c.tag)) {
+      setError('Controller could not be decommissioned. Verify controller state and your Can Configure key.')
+      return
+    }
+    setError('')
+    setActionMessage('Controller decommissioned; bound I/O is now unavailable.')
+  }
+
+  const autoSense = (): void => {
+    if (!autoSenseController(c.tag)) {
+      setError('I/O auto-sense requires an available commissioned controller and the Diagnostic key.')
+      return
+    }
+    setError('')
+    setActionMessage('I/O auto-sense completed; review the detected-channel summary below.')
+  }
+
+  const powerLoss = (): void => {
+    if (!openPowerLoss(c.tag)) {
+      setError('Power loss could not be simulated; verify controller state and the Diagnostic key.')
+      return
+    }
+    setError('')
+    setActionMessage('Controller power is off. Restore it to test the configured cold-restart window.')
+  }
+
+  const restorePowerNow = (): void => {
+    if (!restorePower(c.tag)) {
+      setError('Controller power could not be restored; verify the Diagnostic key.')
+      return
+    }
+    setError('')
+    setActionMessage('Power restored. Check the controller status and Event Journal for the cold-restart result.')
+  }
+
+  const restoreFault = (): void => {
+    if (!restoreController(c.tag)) {
+      setError('Controller fault could not be restored. Verify controller state and the Diagnostic key.')
+      return
+    }
+    setError('')
+    setActionMessage('Controller fault restore requested.')
+  }
+
+  const downMessage = c.powerDownAt !== null
+    ? 'POWER OFF — all bound I/O is BAD'
+    : !c.commissioned
+      ? 'DECOMMISSIONED — all bound I/O is BAD'
+      : down
+        ? 'CONTROLLER DOWN — all bound I/O is BAD'
+        : ''
+
+  return (
+    <div className="exp-props hardware-controller" style={{ padding: 0 }}>
+      <div className="batch-toolbar hardware-controller-head">
+        <span className="batch-title">{c.tag}</span>
+        <span className="hardware-controller-description">{c.description}</span>
+        <span className={`hardware-controller-state ${c.commissioned ? 'online' : 'offline'}`}>
+          {c.commissioned ? 'COMMISSIONED' : 'DECOMMISSIONED'}
+        </span>
+        <span className="hardware-controller-load">
+          Scan {c.scanTimeMs.toFixed(0)} ms · CPU {c.cpuLoadPct.toFixed(0)}%
+        </span>
+        <button className="tbtn sm" disabled={c.powerDownAt !== null} onClick={identify}>
+          {c.identified ? 'Stop Identify' : 'Identify'}
+        </button>
+        {c.commissioned ? (
+          <button className="tbtn sm" disabled={down || c.powerDownAt !== null} onClick={decommission}>
+            Decommission
+          </button>
+        ) : (
+          <button className="tbtn sm" disabled={c.powerDownAt !== null} onClick={commission}>
+            Commission
+          </button>
+        )}
+        <button className="tbtn sm" disabled={!c.commissioned || down} onClick={autoSense}>Auto-sense I/O</button>
+        <button className="tbtn sm" disabled={!c.commissioned || down || c.powerDownAt !== null} onClick={powerLoss}>Power Loss</button>
+        {c.powerDownAt !== null ? (
+          <button className="tbtn sm" onClick={restorePowerNow}>Restore Power</button>
+        ) : (
+          <button className="tbtn sm" disabled={!c.commissioned || !down} onClick={restoreFault}>Restore Fault</button>
+        )}
+        {c.commissioned && !down && c.powerDownAt === null && (
+          <button className="tbtn sm" onClick={failLeg}>
+            Fail {c.redundant && c.primary === 'FAILED' ? 'Secondary' : 'Primary'}
+          </button>
+        )}
+      </div>
+      <div className="fp-row hardware-controller-status">
+        <span className="fp-label">Primary</span>
+        <span style={{ color: ROLE_COLOR[c.primary], fontWeight: 700 }}>{c.primary}</span>
+        {c.redundant && (
+          <>
+            <span className="fp-label">Secondary</span>
+            <span style={{ color: ROLE_COLOR[c.secondary], fontWeight: 700 }}>{c.secondary}</span>
+          </>
+        )}
+        <span className="hardware-network-address">
+          Control network address: {c.controlNetworkAddress ?? 'not assigned'} (simulated)
+        </span>
+        {c.networkRedundant && <span className="hardware-network-badge">Network redundant</span>}
+        {c.identified && <span className="hardware-identify-indicator">IDENTIFY FLASHING</span>}
+        {downMessage && <strong className="hardware-controller-down">{downMessage}</strong>}
+      </div>
+      <div className="hardware-controller-settings">
+        <label className="hardware-setting-check">
+          Redundant controller
+          <input
+            type="checkbox"
+            checked={settings.redundant}
+            onChange={(e) => setSettings((current) => ({ ...current, redundant: e.target.checked }))}
+          />
+        </label>
+        <label className="hardware-setting-check">
+          Redundant control network
+          <input
+            type="checkbox"
+            checked={settings.networkRedundant}
+            onChange={(e) => setSettings((current) => ({ ...current, networkRedundant: e.target.checked }))}
+          />
+        </label>
+        <label>
+          Cold Restart (minutes; 0 disables)
+          <input
+            type="number"
+            min={0}
+            max={MAX_COLD_RESTART_MINUTES}
+            step={1}
+            value={Number.isNaN(settings.coldRestartMinutes) ? '' : settings.coldRestartMinutes}
+            onChange={(e) =>
+              setSettings((current) => ({ ...current, coldRestartMinutes: e.target.value.trim() ? Number(e.target.value) : Number.NaN }))
+            }
+          />
+        </label>
+        <button className="tbtn sm" disabled={down && c.commissioned} onClick={applySettings}>Apply Properties</button>
+        {c.lastAutoSense ? (
+          <span className="hardware-autosense-result">
+            Last scan {new Date(c.lastAutoSense.scannedAt).toLocaleTimeString()} · {c.lastAutoSense.carriersScanned} carriers ·{' '}
+            {c.lastAutoSense.baseplatesScanned} baseplates · {c.lastAutoSense.channelsDetected} channels detected ·{' '}
+            {c.lastAutoSense.channelsBound} bound · {c.lastAutoSense.unresolvedBindings.length} unresolved
+          </span>
+        ) : (
+          <span className="hardware-autosense-result">I/O has not been auto-sensed.</span>
+        )}
+        {(error || actionMessage) && (
+          <span className={error ? 'hardware-action-message error' : 'hardware-action-message'} role={error ? 'alert' : 'status'}>
+            {error || actionMessage}
+          </span>
+        )}
+      </div>
+      {c.lastAutoSense?.unresolvedBindings.length ? (
+        <div className="hardware-unresolved">
+          Unresolved I/O references: {c.lastAutoSense.unresolvedBindings.join(', ')}
+        </div>
+      ) : null}
+      {children}
     </div>
   )
 }
