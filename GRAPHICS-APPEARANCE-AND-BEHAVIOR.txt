@@ -1,0 +1,400 @@
+BATCHLIVE GRAPHICS: APPEARANCE AND BEHAVIOR CONTRACT
+=================================================
+Recorded: 2026-10-03
+Scope: Plant graphics, equipment GEMs/dynamos, palette, piping, captions,
+       live equipment states, and related Control Studio presentation.
+
+READ THIS BEFORE CHANGING GRAPHICS
+---------------------------------
+This file records the user's requirements and the current implemented
+baseline so another session does not repeat costly visual regressions.
+It is a project reference, not a claim that every current graphic has
+received final user approval or is a pixel-perfect copy of the photographs.
+
+The user has repeatedly requested:
+- Restore recognizable motors/pumps rather than generic green circles.
+- Match the DIFFERENT valve types in IMG_0433.jpeg.
+- Show valves green when open/on and motors green when running/on.
+- Fix formatting, including boxes drawn over pipes.
+- Make Control Studio match the complexity/look of IMG_0435.jpeg.
+- Prioritize actual training functionality, not cosmetic substitutes.
+- Stop repeatedly changing established appearance and making the user
+  spend time and money correcting it again.
+
+Do not reinterpret these requirements as a request for a new theme.
+Do not replace them with a generic ISA-101 palette or personal preferences.
+Do not "modernize," simplify, recolor, or redesign equipment during an
+unrelated task. Preserve appearance and behavior unless the user explicitly
+requests that change. If a requested task conflicts with this contract,
+explain the conflict and ask before changing protected visual behavior.
+
+1. SOURCE OF TRUTH AND ORDER OF AUTHORITY
+---------------------------------------
+1) The user's latest explicit direction.
+2) Reference photographs for the specific screen/symbol.
+3) The requirements in this file.
+4) The current shared components and their verified live behavior.
+
+Primary plant-graphic reference:
+  IMG_0433.jpeg, at the repository root.
+  Screen: "3T-8120 WFI Storage Tank and Loop".
+  This is the reference for distinct valve bodies/actuators, blue device
+  frames, green energized equipment, black inactive equipment, and compact
+  centrifugal pump silhouettes.
+
+Control Studio reference:
+  IMG_0435.jpeg, at the repository root.
+  This governs function-block-diagram complexity and connected strategy
+  presentation. Do not confuse this with the WFI equipment-symbol reference.
+
+View the photograph upright and enlarge individual symbols before editing.
+Image metadata/viewers may apply orientation differently. Check the title
+is upright instead of assuming a rotation angle. Do not reproduce monitor
+perspective, camera tint, glare, photographic blur, or screen bezel.
+
+The photograph is a moment in time. Its green/black states are NOT an
+instruction to hardcode simulated devices permanently green or black.
+
+2. PROTECTED PLANT-GRAPHIC PALETTE
+---------------------------------
+The classic plant display is pale gray-blue, with neutral equipment shells,
+dark readable text, green active devices and black inactive devices.
+These are the current exact code values in ClassicGraphics.tsx:
+
+Role                         Constant / purpose        Hex
+---------------------------  ------------------------  -------
+Canvas background            PALE_BG                   #cdd6de
+Neutral equipment palette    PALE_EQUIP                #aebdc9
+Equipment structural border  PALE_BORDER               #5b7384
+Process pipe                 PALE_PIPE                 #6b8296
+Main text                    PALE_TEXT                 #17222b
+RUNNING / OPEN device        PALE_GREEN                #3f8f32
+STOPPED / CLOSED device      DEVICE_OFF                #171d18
+Device-control frame/chip    DEVICE_BLUE               #252887
+Trip/permissive warning      PALE_RED                  #c0392b
+Running pump casing outline                            #24551b
+
+Important distinctions:
+- Black, not generic light gray, is the inactive device-body color.
+- Green belongs to the active mechanical symbol, not only a tiny LED.
+- Blue device-control frames remain blue regardless of open/closed state.
+- Tank, chamber, jacket and exchanger shells remain neutral.
+- Do not flood tanks, pipes or the whole display green because a pump runs.
+- Do not use the modern Graphics.tsx slate-cyan energized palette as a
+  substitute for these classic green/black equipment symbols.
+- Do not globally change application chrome, faceplate alarm colors or
+  alarm priorities to match plant equipment-body colors.
+- Normal equipment-state colors and alarm indication are separate concerns.
+
+Existing auxiliary styling, preserved rather than globally homogenized:
+- Named-value boxes: white #ffffff, border #6b7680.
+- Plain info/status boxes: #eceeef.
+- PID box fill: #eef2f6; PID box border: #2f5f96.
+- PID mode text: #1a4a7a; secondary row text: #3a4550.
+- PID output bar currently uses #4a9f4a. This is an existing auxiliary
+  bar color, NOT the equipment-body PALE_GREEN value.
+- Utility/off-page flags: fill #f4ecd0; border #9a8a4a.
+- Neutral chamber shell: #dfe6ec.
+- Tank gradient: #96a9b8, #d9e1e8, #d4dce3, #8ea2b1.
+- Tank level track: #eef2f5; level fill: #5f7f94.
+- Exchanger gradient: #c6d2db, #e4ebf0, #b7c5d0.
+
+These auxiliary values describe the implemented baseline, not permission
+to replace everything with one green, one blue or a dark dashboard theme.
+
+3. PUMPS: SHAPE MUST REMAIN RECOGNIZABLE
+---------------------------------------
+Shared component: ClassicPump in
+  src\renderer\src\components\ClassicGraphics.tsx
+
+Required appearance:
+- Small centrifugal volute/casing with a circular center shaft hub.
+- A mechanical foot/base below the casing.
+- A tangential discharge/outlet connected to the correct pipe.
+- Entire casing/outlet/base changes between green and black with feedback.
+- Dark outlined hub, not a white play button.
+- Keep the label readable and clear of pipelines/readouts.
+
+FORBIDDEN REGRESSIONS:
+- Plain green circle standing in for a complete pump/motor GEM.
+- Circle with the letter M.
+- Pale circle with a triangular "play" impeller.
+- Generic status dot, LED, emoji or button replacing mechanical geometry.
+- A large motor assembly invented from a different reference.
+- Moving/resizing the symbol while leaving old pipe endpoints behind.
+
+Current geometry, in local SVG coordinates centered on (x,y):
+- Casing radius: 10.5.
+- Inner hub radius: 5, unfilled, outlined.
+- Foot path: M-6,7 H6 L10,13 H-10 Z.
+- Up discharge: M5,-4 H13 V-15 H7 V-10 H5 Z.
+- Right discharge: M4,-10 H15 V-4 H8 Z.
+- Casing outline width: 1.2; hub outline width: 1.5.
+- Up outlet pipe connects around (x+10,y-15).
+- Right outlet pipe connects around (x+15,y-7).
+- Left suction pipe connects at the casing around (x-11,y).
+
+Component options:
+- discharge: 'up' (default) or 'right'.
+- labelPosition: 'below' (default), 'left', or 'right'.
+- label defaults to the actual simulator tag.
+- WFI aliases are explicit labels; they do not rename engine modules.
+
+Behavior:
+- Use MotorModule.running, NOT commanded, to color a pump.
+- START initiates the existing device lifecycle; green reflects confirmed
+  running feedback, not merely pressing START.
+- STOP reflects stopped feedback; the body becomes black.
+- Preserve interlocks, permissives, faults, confirmation/travel timing,
+  reset requirements, runtime accumulation and security checks.
+- Clicking a bound pump opens the underlying motor faceplate.
+- Tooltip includes reference label, actual tag, and Running/Stopped state.
+- Preserve data-equipment-tag and data-state hooks for validation.
+
+4. AGITATOR / VESSEL-ROOF MOTOR
+------------------------------
+Shared component: ClassicAgitatorDrive.
+- Rectangular finned drive housing mounted on the vessel roof.
+- Coupling/shaft beneath, aligned with the vessel connection.
+- Active housing AND coupling are green; inactive housing/coupling black.
+- Do not replace the motor with a circle or color only a small run dot.
+- Keep the motor tag clear above the housing.
+- Current reactor drive binds SIC-201 and treats pv > 1 as running.
+  This is a speed-PV proxy, not a dedicated MotorModule feedback signal.
+  Do not silently change the threshold or invent a motor module.
+
+5. THREE DISTINCT VALVE FAMILIES
+--------------------------------
+A. Blue-framed automated/isolation valve: ClassicSanitaryValve.
+   ClassicValve delegates to this shared implementation.
+   - Solid bowtie body, short stem, rectangular actuator block.
+   - Blue rectangular frame, small blue status chip, mode lettering.
+   - Canvas-colored frame interior, not a bright colored panel.
+   - Green open body/actuator; black closed body/actuator.
+   - Frame/chip remain blue in both states.
+   - Horizontal and vertical variants rotate the mechanical symbol only.
+     Captions and mode letters stay upright.
+   - Vertical symbol naturally resembles the H-like reference silhouette;
+     it is NOT the literal letter H in a circle.
+   - Current horizontal frame: 46 x 34, stroke width 2.
+   - Current vertical frame: 44 x 38, stroke width 2.
+   - Default mode text is CA. This is baseline presentation, not proof
+     that the simulator implements an independent device-mode variable.
+   - Bound valves use ValveModule.open feedback, NOT commandedOpen.
+
+B. Unboxed hand/manual valve: ClassicHandValve.
+   - Bowtie body with stem and short handwheel crossbar.
+   - No automatic blue CA frame around an ordinary manual valve.
+   - Green open, black closed.
+   - Horizontal/vertical variants follow the pipe.
+   - If bound, clicking opens its real faceplate.
+   - If unbound, it is a reference-only depiction: no fake command or
+     fake live feedback. Tooltip explicitly identifies reference-only use.
+
+C. Pneumatic/modulating control valve: ClassicControlValve.
+   - Bowtie body with a short stem and semicircular/dome actuator.
+   - Dome and body share green/black state color.
+   - Small horizontal output-position bar beneath the symbol.
+   - Green when clamped PID output > 0; black when output = 0.
+   - Clamp displayed output to 0..100.
+   - Current output bar: 20 units wide, 3 high; fill width = percent / 5.
+   - Test 0%, 0.1% and 100%; do not round a positive output into "closed".
+   - Current state represents PID OUTPUT, not measured physical travel.
+     Tooltip says percent output. Do not claim physical valve feedback.
+   - Clicking opens the bound PID faceplate.
+   - Do not restore the old always-black, unbound ClassicBlackValve.
+   - Do not substitute a pale shaded diamond without the dome.
+
+Shared bowtie baseline:
+  M-8,-6 L0,-1 L8,-6 V6 L0,1 L-8,6 Z
+Stem baseline: M0,0 V-10.
+Block actuator: x=-8,y=-15,width=16,height=5.
+Handwheel: M-5,-10 H5.
+Pneumatic dome: M-9,-10 A9,7 0 0 1 9,-10 Z.
+
+6. WFI REFERENCE LABELS VS. REAL SIMULATOR TAGS
+---------------------------------------------
+Reference label              Underlying tag / current source
+---------------------------  ---------------------------------------------
+3T-8120-XC002                P-401.running; distribution pump 1
+3T-8120-XC010                P-402.running; standby pump 2
+3WFI-8110-YV007              XV-411.open; vertical inlet symbol
+3T-8120-YV006 (horizontal)   XV-411.open; shared inlet alias
+3T-8120-YV006 (lower vert.)  Reference-only, fixed closed depiction
+3T-8120-YV001A               XV-401.open
+3T-8120-YV011A               PCV-401.open
+3T-8120-YV014                XV-422.open
+3T-8120-YV009                Reference-only hand valve, open depiction
+3T-8120-TIC001               TIC-401.out; both pneumatic depictions
+3T-8120-TIC011               TIC-411.out; both pneumatic depictions
+3T-8120-PIC016               PIC-401.out; pneumatic pressure valve
+3T-8120-LI005                LIC-401.pv converted to liters
+3T-8120-AI015A               AT-402.pv; TOC
+3T-8120-AI015B               AT-401.pv; conductivity
+3T-8120-TI013                TI-402.pv; return temperature
+
+Do not assume aliases prove one-to-one fidelity to the physical plant.
+The two inlet aliases currently share XV-411, and the two pneumatic symbols
+for each TIC share that PID's output. The engine's TIC-401 and TIC-411 are
+still-temperature modules, not independent tank/cooler/heater controllers.
+Do not silently invent split-range cooling/heating semantics or rename
+modules while doing a visual fix. Functional model expansion is a separate
+task requiring verified training/reference requirements.
+
+Other current limitations, not newly verified plant functionality:
+- Some flow, inlet temperature, pressure and status captions are static.
+- Lower inlet/manual reference-only valves are not simulated controls.
+- The sanitization panel is derived from a simulated recurring clock.
+- "Not In Use" and "Not Filling" are existing display captions, not newly
+  implemented equipment sequence feedback.
+- CA lettering is not a device-mode lifecycle implementation.
+Document limitations honestly; never turn static text into claimed training
+functionality without wiring and testing the actual underlying behavior.
+
+7. PIPING, SPACING AND CAPTIONS
+------------------------------
+Current WFI viewBox/background: 0 0 1040 600.
+Standalone and embedded overview use the SAME WfiDiagram implementation.
+WFI overview world origin: (0,700); jump center: (520,1000), scale 0.85.
+Changing canvas height must also preserve overview navigation/framing.
+
+Layout rules:
+- Information/readout/status boxes MUST NOT hide or overlap process pipes.
+- Device frames intentionally surround an inline valve. That is different
+  from an unrelated value box obscuring a pipe.
+- Pipe endpoints must meet the pump hub/outlet or equipment nozzle.
+- Do not route pipes through the base, tag text or empty old symbol space.
+- Keep all labels upright; rotate bodies, not complete labeled groups.
+- Avoid placing long reference aliases between adjacent crowded symbols.
+- Keep independent tags, readouts, faceplate boxes and panels separated.
+- Do not remove captions simply to hide bad layout.
+- Move boxes/labels or reroute appropriate pipe segments deliberately.
+- Keep click targets attached to the intended symbol/module.
+- Check at normal operator scale and inspect enlarged symbols.
+- Do not change the application's responsive layout to accommodate a
+  browser-tool viewport issue. Temporary inspection styling is not code.
+
+Current key WFI coordinates:
+  Tank: (55,174), width=128, height=120.
+  "Not In Use" caption center X=55, explicitly left of bottom pipes.
+  Pump 1: (390,350), upward outlet, label to right.
+  Pump 2: (356,488), right outlet, label to left.
+  Trim cooler: (440,140), 110 x 34.
+  Recirc cooler: (600,260), 110 x 34.
+  Sani heater: (550,432), 110 x 34.
+  TIC-401 PID box: (295,75), 120 x 46.
+  PIC-401 PID box: (220,415), 120 x 46.
+  TIC-411 PID box: (785,326), 120 x 46.
+  Sani panel: (720,495), 190 x 85, clear of condensate pipe y=481.
+  WFI pipe stroke width: 1.3.
+
+Current reactor pump connections:
+  P-101 at (350,360): suction terminates (339,360);
+  upward discharge connects (360,345).
+  P-201 at (660,470): suction terminates (649,470);
+  upward discharge connects (670,455).
+
+CIP and TCU use right-discharge pump variants with their own routed
+hub/outlet pipes. Their old top/bottom circle endpoints must not return.
+
+8. SHARED SURFACES THAT MUST BE CHECKED
+--------------------------------------
+src\renderer\src\components\ClassicGraphics.tsx
+  Shared palette, symbols, neutral equipment, readouts and labels.
+src\renderer\src\displays\PharmaDiagrams.tsx
+  WFI, Autoclave, Lyophilizer, CIP and TCU diagrams/bindings.
+src\renderer\src\displays\OverviewDisplay.tsx
+  Reactor graphics and embedded versions of the pharma diagrams.
+src\renderer\src\components\Graphics.tsx
+  Alternative modern primitives. They are NOT authority to override the
+  classic reference palette or substitute different pump/valve geometry.
+src\renderer\src\styles.css
+  Global style changes can affect readability/layout beyond one diagram.
+src\renderer\src\engine\types.ts, plant.ts, store.ts
+  Actual state/command/lifecycle definitions and initial module wiring.
+src\renderer\src\faceplates\
+  Preserve real motor, valve and PID operations.
+
+Do not fix one display by breaking all other consumers of a shared symbol.
+Check Reactor, WFI, CIP, TCU, Autoclave and Lyophilizer after shared changes.
+
+9. CONTROL STUDIO: PRESERVE THE COMPLEXITY WORK
+----------------------------------------------
+IMG_0435.jpeg is the reference for Control Studio.
+Earlier work expanded the diagram to a connected strategy rather than a
+simplified handful of disconnected blocks. Preserve the full connected
+strategy, flow-based layout, tracking/feedforward/device-command wiring,
+and readable ports/labels.
+Earlier Reactor validation reported 17 connected blocks and 19 wires.
+That is a historical baseline for that strategy, not a required block count
+for every module or evidence that every training feature is complete.
+
+Do not undo Control Studio behavior during a palette or equipment-GEM task.
+
+10. REQUIRED REGRESSION CHECKLIST FOR FUTURE GRAPHICS EDITS
+----------------------------------------------------------
+Before editing:
+[ ] Read this file and both relevant shared symbol/diagram sources.
+[ ] Inspect the appropriate reference image upright and enlarged.
+[ ] Inspect working-tree changes; do not discard unrelated user work.
+[ ] Identify every display consuming the symbol being changed.
+[ ] Separate visual changes from engine/functional model changes.
+[ ] If changing protected aesthetics rather than repairing them, obtain
+    explicit user direction first.
+
+After editing code:
+[ ] npm run typecheck
+[ ] npm run build
+[ ] git diff --check
+[ ] Check editor diagnostics for all changed code files.
+[ ] Reload the current build; avoid screenshots of stale compiled output.
+[ ] Compare shapes against the reference, not only against memory.
+[ ] Verify a running pump is green and a stopped pump is black.
+[ ] START/STOP through the faceplate and wait for confirmed feedback.
+[ ] OPEN/CLOSE a bound valve and wait for confirmed feedback.
+[ ] Verify green/black body colors AND unchanged blue device frames.
+[ ] Test pneumatic output 0%, 0.1% and 100%.
+[ ] Verify output bar widths 0, 0.02 and 20 SVG units respectively.
+[ ] Confirm the alias opens the correct underlying faceplate.
+[ ] Confirm reference-only valves do not pretend to be live controls.
+[ ] Check tank, chamber and exchanger shells remain neutral.
+[ ] Check no information/status box overlaps process pipes or other labels.
+[ ] Check pump suction/discharge endpoints and vertical valve orientations.
+[ ] Check standalone area views AND embedded overview navigation.
+[ ] Restore temporary browser inspection styling/state after validation.
+[ ] State what was actually verified; do not claim pixel-perfect fidelity
+    or complete physical-plant functionality without evidence.
+
+2026-10-03 verification record:
+- Typecheck and production build passed.
+- Editor diagnostics reported no errors in the three changed TSX files.
+- Whitespace/diff check passed.
+- P-401 STOP -> black #171d18; START -> green #3f8f32.
+- XV-401 CLOSE -> black; OPEN -> green.
+- TIC-401 output at 0%, 0.1% and 100% produced the expected body colors
+  and bar widths on BOTH symbols bound to that PID.
+- Browser inspection covered the shared area symbols.
+- Final WFI geometric check sampled 20 process pipe paths against
+  19 white/PID/plain information-box rectangles: zero interior overlaps.
+- A separate readout-box/text intersection check returned no intersections
+  before the final tank-caption clearance adjustment.
+- This was browser validation, not a committed automated test suite.
+- Final user visual approval has not yet been recorded.
+
+11. CHANGE CONTROL AND FUTURE SESSION HANDOFF
+----------------------------------------------
+This file lives at the repository root, not only in chat history or a
+temporary session folder. AGENTS.md and .github\copilot-instructions.md
+reference it so future assistants know to read it.
+
+Do not weaken/delete this contract because a new theme looks preferable.
+Do not mark untested behavior as verified.
+If the user approves a changed shape/palette/state rule, update this file
+with the exact approved change and re-run relevant validation.
+Keep unresolved simulation limitations separate from appearance rules.
+Do not treat an earlier completed "commit then push" as ongoing permission
+to publish every subsequent change. Follow the user's current Git direction.
+
+Persistent documentation improves continuity, but cannot guarantee an AI
+will never regress the graphics. Enforce it with reference comparison,
+state-transition checks and shared-surface validation on each future edit.

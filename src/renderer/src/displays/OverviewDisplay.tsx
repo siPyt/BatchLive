@@ -25,7 +25,7 @@ import { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } from
  * plane — a DCS spatial canvas, not stacked HTML page sections. */
 const AREAS = {
   REACTOR: { x: 0, y: 0, cx: 530, cy: 150, scale: 0.9 },
-  WFI: { x: 0, y: 700, cx: 520, cy: 880, scale: 0.85 },
+  WFI: { x: 0, y: 700, cx: 520, cy: 1000, scale: 0.85 },
   AUTOCLAVE: { x: 1150, y: 0, cx: 1670, cy: 120, scale: 1 },
   LYO: { x: 1150, y: 320, cx: 1670, cy: 435, scale: 1 },
   CIP: { x: 1150, y: 600, cx: 1670, cy: 740, scale: 0.9 },
@@ -78,12 +78,11 @@ export function OverviewDisplay(): JSX.Element {
           <ClassicPipe d="M110,70 H180" />
           <ClassicPipe d="M180,70 H260" />
           <ClassicPipe d="M260,70 V120" />
-          {/* feed tank bottom nozzle -> P-101 suction (enters bottom, never the side) -> discharge spout -> reactor top roof nozzle */}
-          <ClassicPipe d="M250,300 V378 H350" />
-          <ClassicPipe d="M337,336 V300 H500 V250" />
-          {/* reactor bottom nozzle -> P-201 suction (enters bottom) -> discharge spout -> header side nozzle */}
-          <ClassicPipe d="M530,430 V488 H660" />
-          <ClassicPipe d="M647,446 H880 V250" />
+          {/* vessel bottom nozzles -> pump hubs -> tangential outlets */}
+          <ClassicPipe d="M250,300 V360 H339" />
+          <ClassicPipe d="M360,345 V300 H500 V250" />
+          <ClassicPipe d="M530,430 V470 H649" />
+          <ClassicPipe d="M670,455 H880 V250" />
           {/* header overhead product outlet (starts at the vessel's own wall, not through its body) */}
           <ClassicPipe d="M880,150 H1010" />
           {/* steam header (full module span, off-sheet both ends) -> XV-201 -> jacket top utility connection */}
@@ -112,7 +111,7 @@ export function OverviewDisplay(): JSX.Element {
           />
           <ClassicLabel x={455} y={255} text="JACKET" anchor="end" />
           {/* headspace safety relief valve, centered on the roof nozzle */}
-          <ClassicValve x={530} y={185} open={psv201.open} tag="PSV-201" />
+          <ClassicValve x={530} y={185} open={psv201.open} tag="PSV-201" orientation="vertical" />
           <ClassicFlag x={530} y={115} w={60} text="To Flare" pointRight={false} />
           {/* agitator drive mounted on the vessel roof, clear of the centerline relief nozzle */}
           <ClassicAgitatorDrive x={560} y={250} running={sic201.pv > 1} tag="SIC-201" />

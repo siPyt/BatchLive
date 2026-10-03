@@ -3,18 +3,35 @@ import { useUi } from '../ui/uiStore'
 import { fmt, isPid } from '../utils/format'
 
 // Classic DeltaV Operate (pre-"DeltaV Live") graphic primitives: pale
-// gray-blue canvas, flat uncolored equipment, plain black-on-gray data
-// boxes. Used across every plant area diagram for one consistent site
-// aesthetic (validated GMP sites commonly keep process graphics this muted
-// so alarm colors are the only thing that stands out).
+// gray-blue canvas, green energized / black inactive device symbols,
+// and plain black-on-gray data boxes.
 
 export const PALE_BG = '#cdd6de'
 export const PALE_EQUIP = '#aebdc9'
 export const PALE_BORDER = '#5b7384'
 export const PALE_PIPE = '#6b8296'
 export const PALE_TEXT = '#17222b'
-export const PALE_GREEN = '#4a9f4a'
+export const PALE_GREEN = '#3f8f32'
 export const PALE_RED = '#c0392b'
+const DEVICE_OFF = '#171d18'
+const DEVICE_BLUE = '#252887'
+type ValveOrientation = 'horizontal' | 'vertical'
+
+function ValveBody({ color, orientation = 'horizontal', actuator = 'block' }: {
+  color: string
+  orientation?: ValveOrientation
+  actuator?: 'block' | 'hand' | 'pneumatic'
+}): JSX.Element {
+  return (
+    <g transform={orientation === 'vertical' ? 'rotate(90)' : undefined} fill={color} stroke={color} strokeWidth={0.8}>
+      <path d="M-8,-6 L0,-1 L8,-6 V6 L0,1 L-8,6 Z" />
+      <path d="M0,0 V-10" fill="none" strokeWidth={2} />
+      {actuator === 'block' && <rect x={-8} y={-15} width={16} height={5} />}
+      {actuator === 'hand' && <path d="M-5,-10 H5" fill="none" strokeWidth={2} />}
+      {actuator === 'pneumatic' && <path d="M-9,-10 A9,7 0 0 1 9,-10 Z" />}
+    </g>
+  )
+}
 
 /** Full-bleed pale background rectangle — call once behind everything else. */
 export function ClassicBackground({ w, h }: { w: number; h: number }): JSX.Element {
@@ -37,7 +54,7 @@ export function ClassicLabel({ x, y, text, anchor = 'middle' }: { x: number; y: 
  * three splayed support legs, and a thin internal level column — styled to
  * match the classic DeltaV Operate WFI storage-tank graphic. An optional
  * `below` caption renders a small boxed word (e.g. "Not In Use") under it. */
-export function ClassicTank({ x, y, w, h, level, label, below }: { x: number; y: number; w: number; h: number; level: number; label: string; below?: string }): JSX.Element {
+export function ClassicTank({ x, y, w, h, level, label, below, belowX }: { x: number; y: number; w: number; h: number; level: number; label: string; below?: string; belowX?: number }): JSX.Element {
   const uid = `${label}${x}${y}`.replace(/[^a-zA-Z0-9]/g, '')
   const lv = Math.max(0, Math.min(100, level))
   const domeH = 12
@@ -48,6 +65,7 @@ export function ClassicTank({ x, y, w, h, level, label, below }: { x: number; y:
   const bodyH = bodyBot - bodyTop
   const fillH = (lv / 100) * (bodyH - 6)
   const legY = y + h
+  const captionX = belowX ?? cx
   return (
     <g>
       {label && <ClassicLabel x={cx} y={y - 6} text={label} />}
@@ -69,76 +87,73 @@ export function ClassicTank({ x, y, w, h, level, label, below }: { x: number; y:
       <line x1={cx + w * 0.28} y1={bodyBot + 2} x2={cx + w * 0.42} y2={legY + 18} stroke={PALE_BORDER} strokeWidth={3} />
       {below && (
         <g>
-          <rect x={cx - 36} y={legY + 22} width={72} height={16} fill="#eceeef" stroke="#6b7680" strokeWidth={1} />
-          <text x={cx} y={legY + 33} fill={PALE_TEXT} fontSize={8.5} fontWeight={700} textAnchor="middle">{below}</text>
+          <rect x={captionX - 36} y={legY + 22} width={72} height={16} fill="#eceeef" stroke="#6b7680" strokeWidth={1} />
+          <text x={captionX} y={legY + 33} fill={PALE_TEXT} fontSize={8.5} fontWeight={700} textAnchor="middle">{below}</text>
         </g>
       )}
     </g>
   )
 }
 
-/** Plain green/gray "H" hand-valve icon, with an optional blue mode/status
- * badge next to it (the "CA" box seen on the reference screen). */
-export function ClassicValve({ x, y, open, tag, statusBadge }: { x: number; y: number; open: boolean; tag: string; statusBadge?: string }): JSX.Element {
-  const openFp = useUi((s) => s.openFaceplate)
-  const color = open ? PALE_GREEN : '#8b97a0'
-  return (
-    <g style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
-      <rect x={x - 9} y={y - 9} width={18} height={18} rx={2} fill="#eef1f3" stroke={PALE_BORDER} strokeWidth={1.3} />
-      <circle cx={x} cy={y} r={6} fill={color} stroke={PALE_BORDER} strokeWidth={1} />
-      <text x={x} y={y + 3.5} fill="#ffffff" fontSize={8} fontWeight={800} textAnchor="middle">
-        H
-      </text>
-      {statusBadge && (
-        <g>
-          <rect x={x + 12} y={y - 7} width={20} height={14} fill="#dfe9f5" stroke="#3a6ea5" strokeWidth={1} />
-          <text x={x + 22} y={y + 3} fill="#1a4a7a" fontSize={7} fontWeight={700} textAnchor="middle">
-            {statusBadge}
-          </text>
-        </g>
-      )}
-      <ClassicLabel x={x} y={y + 24} text={tag} />
-    </g>
-  )
+export function ClassicValve({ x, y, open, tag, statusBadge, orientation }: { x: number; y: number; open: boolean; tag: string; statusBadge?: string; orientation?: ValveOrientation }): JSX.Element {
+  return <ClassicSanitaryValve x={x} y={y} open={open} tag={tag} mode={statusBadge} orientation={orientation} />
 }
 
-/** Restore the earlier pale pump symbol with a status-colored impeller. */
+/** Compact volute, shaft hub, foot and tangential outlet from IMG_0433. */
 export function ClassicPump({
   x,
   y,
   running,
-  tag
+  tag,
+  label = tag,
+  labelPosition = 'below',
+  discharge = 'up'
 }: {
   x: number
   y: number
   running: boolean
   tag: string
+  label?: string
+  labelPosition?: 'below' | 'left' | 'right'
+  discharge?: 'up' | 'right'
 }): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
-  const stateColor = running ? PALE_GREEN : '#8b97a0'
+  const stateColor = running ? PALE_GREEN : DEVICE_OFF
+  const outline = running ? '#24551b' : DEVICE_OFF
   return (
-    <g style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
-      <circle cx={x} cy={y} r={16} fill="#eef1f3" stroke={stateColor} strokeWidth={2.5} />
-      <polygon points={`${x - 6},${y - 8} ${x - 6},${y + 8} ${x + 10},${y}`} fill={stateColor} />
-      <ClassicLabel x={x} y={y + 30} text={tag} />
+    <g data-equipment-tag={tag} data-state={running ? 'running' : 'stopped'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
+      <title>{`${label} (${tag}): ${running ? 'Running' : 'Stopped'}`}</title>
+      <g transform={`translate(${x} ${y})`} fill={stateColor} stroke={outline} strokeWidth={1.2}>
+        <path d="M-6,7 H6 L10,13 H-10 Z" />
+        <path d={discharge === 'up' ? 'M5,-4 H13 V-15 H7 V-10 H5 Z' : 'M4,-10 H15 V-4 H8 Z'} />
+        <circle r={10.5} />
+        <circle r={5} fill="none" strokeWidth={1.5} />
+      </g>
+      <ClassicLabel
+        x={labelPosition === 'right' ? x + 24 : labelPosition === 'left' ? x - 22 : x}
+        y={labelPosition === 'below' ? y + 27 : y + 3}
+        text={label}
+        anchor={labelPosition === 'right' ? 'start' : labelPosition === 'left' ? 'end' : 'middle'}
+      />
     </g>
   )
 }
 
-/** Modulating control valve: a diamond body (shaded by % open) plus a plain
- * pneumatic actuator dome on top — the automated counterpart to the H-icon
- * hand valve, in the same flat classic style. */
-export function ClassicControlValve({ x, y, position, tag }: { x: number; y: number; position: number; tag: string }): JSX.Element {
+export function ClassicControlValve({ x, y, position, tag, label = tag, labelPosition = 'below' }: {
+  x: number; y: number; position: number; tag: string; label?: string; labelPosition?: 'above' | 'below'
+}): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
-  const s = 10
   const pct = Math.max(0, Math.min(100, position))
-  const fill = `rgb(${Math.round(190 - pct * 0.6)}, ${Math.round(205 - pct * 0.3)}, ${Math.round(214)})`
+  const color = pct > 0 ? PALE_GREEN : DEVICE_OFF
   return (
-    <g style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
-      <polygon points={`${x - s},${y - s} ${x + s},${y + s} ${x + s},${y - s} ${x - s},${y + s}`} fill={fill} stroke={PALE_BORDER} strokeWidth={1.3} />
-      <line x1={x} y1={y} x2={x} y2={y - 13} stroke={PALE_BORDER} strokeWidth={1.8} />
-      <path d={`M ${x - 9},${y - 13} A 9 8 0 0 1 ${x + 9},${y - 13} Z`} fill="#eef1f3" stroke={PALE_BORDER} strokeWidth={1.3} />
-      <ClassicLabel x={x} y={y + s + 13} text={tag} />
+    <g data-equipment-tag={tag} data-state={pct > 0 ? 'open' : 'closed'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
+      <title>{`${label} (${tag}): ${pct.toFixed(1)}% output`}</title>
+      <g transform={`translate(${x} ${y})`}>
+        <ValveBody color={color} actuator="pneumatic" />
+        <rect x={-10} y={10} width={20} height={3} fill="#eef1f3" stroke={PALE_BORDER} strokeWidth={0.5} />
+        <rect x={-10} y={10} width={pct / 5} height={3} fill={color} />
+      </g>
+      <ClassicLabel x={x} y={labelPosition === 'above' ? y - 24 : y + 26} text={label} />
     </g>
   )
 }
@@ -147,13 +162,14 @@ export function ClassicControlValve({ x, y, position, tag }: { x: number; y: num
  * palette, plain box + shaft lines, no mechanical housing detail. */
 export function ClassicAgitatorDrive({ x, y, running, tag }: { x: number; y: number; running: boolean; tag: string }): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
+  const color = running ? PALE_GREEN : DEVICE_OFF
   return (
-    <g transform={`translate(${x} ${y})`} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
-      <rect x={-13} y={-22} width={26} height={22} rx={2} fill="#dfe6ec" stroke={PALE_BORDER} strokeWidth={1.5} />
+    <g transform={`translate(${x} ${y})`} data-equipment-tag={tag} data-state={running ? 'running' : 'stopped'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
+      <title>{`${tag}: ${running ? 'Running' : 'Stopped'}`}</title>
+      <rect x={-13} y={-22} width={26} height={22} rx={2} fill={color} stroke={PALE_BORDER} strokeWidth={1.5} />
       <line x1={-6} y1={-22} x2={-6} y2={0} stroke={PALE_BORDER} strokeWidth={1} />
       <line x1={1} y1={-22} x2={1} y2={0} stroke={PALE_BORDER} strokeWidth={1} />
-      <rect x={-5} y={0} width={10} height={9} fill={PALE_EQUIP} stroke={PALE_BORDER} strokeWidth={1.2} />
-      <rect x={8} y={-19} width={5} height={5} rx={1} fill={running ? PALE_GREEN : '#8b97a0'} stroke="#eef1f3" strokeWidth={0.7} />
+      <rect x={-5} y={0} width={10} height={9} fill={color} stroke={PALE_BORDER} strokeWidth={1.2} />
       <text x={0} y={-27} fill={PALE_TEXT} fontSize={9} fontWeight={700} textAnchor="middle">
         {tag}
       </text>
@@ -323,54 +339,38 @@ export function ClassicTitle({ x, y, text }: { x: number; y: number; text: strin
   )
 }
 
-/** Green sanitary diaphragm valve drawn as an ISA bowtie inside the blue "CA"
- * device-control box seen on the WFI loop (mode chip + mode word). */
-export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label }: { x: number; y: number; open: boolean; tag: string; mode?: string; label?: string }): JSX.Element {
+export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label = tag ?? 'Reference valve', orientation = 'horizontal', labelPosition = 'below' }: {
+  x: number; y: number; open: boolean; tag?: string; mode?: string; label?: string
+  orientation?: ValveOrientation; labelPosition?: 'above' | 'below' | 'right'
+}): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
-  const color = open ? PALE_GREEN : '#8b97a0'
+  const color = open ? PALE_GREEN : DEVICE_OFF
+  const vertical = orientation === 'vertical'
   return (
-    <g style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
-      <rect x={x - 21} y={y - 14} width={42} height={28} fill="#e7eef6" stroke="#2f5f96" strokeWidth={1.3} />
-      <polygon points={`${x - 9},${y - 7} ${x - 9},${y + 7} ${x},${y}`} fill={color} stroke={PALE_BORDER} strokeWidth={0.8} />
-      <polygon points={`${x + 9},${y - 7} ${x + 9},${y + 7} ${x},${y}`} fill={color} stroke={PALE_BORDER} strokeWidth={0.8} />
-      <rect x={x - 19} y={y - 5} width={7} height={10} fill="#2f5f96" />
-      <text x={x + 6} y={y + 12.5} fill="#1a4a7a" fontSize={7} fontWeight={700} textAnchor="middle">{mode}</text>
-      <ClassicLabel x={x} y={y + 26} text={label ?? tag} />
+    <g data-equipment-tag={tag} data-state={open ? 'open' : 'closed'} style={{ cursor: tag ? 'pointer' : 'default' }} onClick={tag ? () => openFp(tag) : undefined}>
+      <title>{`${label}${tag ? ` (${tag})` : ' (reference symbol only)'}: ${open ? 'Open' : 'Closed'}`}</title>
+      <rect x={x - (vertical ? 26 : 23)} y={y - (vertical ? 19 : 20)} width={vertical ? 44 : 46} height={vertical ? 38 : 34} fill={PALE_BG} stroke={DEVICE_BLUE} strokeWidth={2} />
+      <g transform={`translate(${x} ${y})`}><ValveBody color={color} orientation={orientation} /></g>
+      <rect x={x - 20} y={y + 7} width={4} height={5} fill={DEVICE_BLUE} />
+      <line x1={x - 18} y1={y + 8} x2={x - 18} y2={y + 11} stroke="#eef1f3" strokeWidth={0.6} />
+      <text x={vertical ? x - 17 : x} y={vertical ? y + 3 : y + 11} fill={PALE_TEXT} fontSize={7} textAnchor="middle">{mode}</text>
+      <ClassicLabel x={labelPosition === 'right' ? x + 23 : x} y={labelPosition === 'above' ? y - 25 : labelPosition === 'right' ? y + 3 : y + 29} text={label} anchor={labelPosition === 'right' ? 'start' : 'middle'} />
     </g>
   )
 }
 
-/** Manual sanitary valve (bowtie with a hand-wheel stem) plus a small blue
- * "CA" status chip \u2014 the "CA H" symbol on the reference WFI graphic. */
-export function ClassicHandValve({ x, y, open = true, tag, label }: { x: number; y: number; open?: boolean; tag?: string; label?: string }): JSX.Element {
+export function ClassicHandValve({ x, y, open = true, tag, label, orientation = 'horizontal', labelPosition = 'below' }: {
+  x: number; y: number; open?: boolean; tag?: string; label?: string
+  orientation?: ValveOrientation; labelPosition?: 'below' | 'right'
+}): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
-  const color = open ? PALE_GREEN : '#8b97a0'
+  const color = open ? PALE_GREEN : DEVICE_OFF
   const click = tag ? () => openFp(tag) : undefined
   return (
     <g style={{ cursor: tag ? 'pointer' : 'default' }} onClick={click}>
-      <rect x={x - 27} y={y - 9} width={16} height={18} fill="#dfe9f5" stroke="#2f5f96" strokeWidth={1} />
-      <text x={x - 19} y={y + 3.5} fill="#1a4a7a" fontSize={7.5} fontWeight={700} textAnchor="middle">CA</text>
-      <polygon points={`${x - 8},${y - 7} ${x - 8},${y + 7} ${x},${y}`} fill={color} stroke={PALE_BORDER} strokeWidth={0.8} />
-      <polygon points={`${x + 8},${y - 7} ${x + 8},${y + 7} ${x},${y}`} fill={color} stroke={PALE_BORDER} strokeWidth={0.8} />
-      <line x1={x} y1={y - 7} x2={x} y2={y - 13} stroke={PALE_BORDER} strokeWidth={1} />
-      <line x1={x - 5} y1={y - 13} x2={x + 5} y2={y - 13} stroke={PALE_BORDER} strokeWidth={1.5} />
-      {label && <ClassicLabel x={x} y={y + 22} text={label} />}
-    </g>
-  )
-}
-
-/** Automated control valve with a solid black pneumatic actuator \u2014 the inline
- * TIC valves drawn on the WFI cooler / heater lines. */
-export function ClassicBlackValve({ x, y, tag, label }: { x: number; y: number; tag?: string; label?: string }): JSX.Element {
-  const openFp = useUi((s) => s.openFaceplate)
-  const click = tag ? () => openFp(tag) : undefined
-  return (
-    <g style={{ cursor: tag ? 'pointer' : 'default' }} onClick={click}>
-      <polygon points={`${x - 9},${y - 6} ${x - 9},${y + 6} ${x},${y}`} fill="#cfd8df" stroke="#1b2a33" strokeWidth={1} />
-      <polygon points={`${x + 9},${y - 6} ${x + 9},${y + 6} ${x},${y}`} fill="#cfd8df" stroke="#1b2a33" strokeWidth={1} />
-      <line x1={x} y1={y - 6} x2={x} y2={y - 11} stroke="#1b2a33" strokeWidth={1.5} />
-      <path d={`M ${x - 9},${y - 11} A 9 7 0 0 1 ${x + 9},${y - 11} Z`} fill="#1b2a33" />
-      {label && <ClassicLabel x={x} y={y + 17} text={label} />}
+      <title>{`${label ?? tag ?? 'Manual valve'}: ${open ? 'Open' : 'Closed'}${tag ? '' : ' (reference symbol only)'}`}</title>
+      <g transform={`translate(${x} ${y})`}><ValveBody color={color} orientation={orientation} actuator="hand" /></g>
+      {label && <ClassicLabel x={labelPosition === 'right' ? x + 22 : x} y={labelPosition === 'right' ? y + 3 : y + 24} text={label} anchor={labelPosition === 'right' ? 'start' : 'middle'} />}
     </g>
   )
 }

@@ -17,7 +17,7 @@ import {
   ClassicTitle,
   ClassicSanitaryValve,
   ClassicHandValve,
-  ClassicBlackValve,
+  ClassicControlValve,
   ClassicPidBox,
   ClassicNamedValue,
   ClassicNavButton,
@@ -62,7 +62,7 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
   const at402 = modules['AT-402'] as AnalogIndicator
   const ti402 = modules['TI-402'] as AnalogIndicator
   const proc = modules['LIC-401'] as PidModule
-  if (!tic401 || !tic411 || !pic401 || !p401 || !p402 || !proc) return null
+  if (!tic401 || !tic411 || !pic401 || !p401 || !p402 || !proc || !xv411 || !xv401 || !xv422 || !pcv401) return null
 
   // Live display strings for the many 3T-8120 indicator tags.
   const liters = (((proc?.pv ?? 0) / 100) * 7000).toFixed(1)
@@ -89,106 +89,112 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
 
   // Right-edge off-page utility connectors, in the reference screen's order.
   const rightFlags: [number, string][] = [
-    [72, 'WFI Hot (Waste)'],
-    [98, 'Glycol Return'],
-    [150, 'Glycol Supply'],
-    [176, 'Plant Steam'],
-    [202, 'WFI Cold to Users'],
-    [228, 'Glycol Return'],
-    [306, 'Glycol Supply'],
-    [335, 'WFI Cold from Users'],
-    [361, 'Plant Steam'],
-    [402, 'Plant Condensate']
+    [58, 'WFI Hot (Waste)'],
+    [102, 'Glycol Return'],
+    [176, 'Glycol Supply'],
+    [190, 'Plant Steam'],
+    [216, 'WFI Cold to Users'],
+    [242, 'Glycol Return'],
+    [298, 'Glycol Supply'],
+    [372, 'WFI Cold from Users'],
+    [412, 'Plant Steam'],
+    [471, 'Plant Condensate']
   ]
 
   return (
-    <Wrap height={500} embedded={embedded}>
-      <ClassicBackground w={1040} h={500} />
+    <Wrap height={600} embedded={embedded}>
+      <ClassicBackground w={1040} h={600} />
       <ClassicTitle x={520} y={24} text="3T-8120 WFI Storage Tank and Loop" />
 
       {/* loop temperature-high switch row */}
       {tahTags.map((t, i) => (
-        <ClassicStatusWord key={t} x={560 + i * 90} y={46} tag={t} tripped={tahTripped} />
+        <ClassicStatusWord key={t} x={400 + i * 110} y={46} tag={t} tripped={tahTripped} />
       ))}
 
       {/* ===== process piping skeleton ===== */}
-      {/* tank side nozzle -> recirc header -> coolers */}
-      <ClassicPipe d="M270,235 H700 V192" />
-      {/* trim cooler -> cooler */}
-      <ClassicPipe d="M775,171 H815 V250" />
-      {/* cooler -> sani heater */}
-      <ClassicPipe d="M790,292 H775 V351 H775" />
-      <ClassicPipe d="M790,292 V320 H707 V330" />
-      {/* sani heater -> users (right) */}
-      <ClassicPipe d="M775,351 H905" />
-      {/* tank bottom suction header -> pumps */}
-      <ClassicPipe d="M195,383 V405 H575 V326" />
-      <ClassicPipe d="M195,405 H545 V399" />
-      <ClassicPipe d="M545,431 V450" />
-      {/* tank top recirc return (spray ball) */}
-      <ClassicPipe d="M195,203 V150 H470" />
-      <circle cx={195} cy={205} r={4} fill={PALE_BORDER} />
+      <ClassicPipe d="M95,33 H115 V174" width={1.3} />
+      <ClassicPipe d="M115,85 H275 V68 H930" width={1.3} />
+      <ClassicPipe d="M190,174 V132 H480 V140" width={1.3} />
+      <ClassicPipe d="M530,140 V112 H930" width={1.3} />
+      <ClassicPipe d="M530,174 V186 H930" width={1.3} />
+      <ClassicPipe d="M183,200 H930" width={1.3} />
+      <ClassicPipe d="M550,157 H580 V226 H930" width={1.3} />
+      <ClassicPipe d="M580,226 V277 H600" width={1.3} />
+      <ClassicPipe d="M640,260 V252 H930" width={1.3} />
+      <ClassicPipe d="M640,294 V308 H930" width={1.3} />
+      <ClassicPipe d="M125,294 V350 H379" width={1.3} />
+      <ClassicPipe d="M400,335 V157 H440" width={1.3} />
+      <ClassicPipe d="M125,330 H170 V488 H345" width={1.3} />
+      <ClassicPipe d="M371,481 H500 V449 H550" width={1.3} />
+      <ClassicPipe d="M170,400 H230 V382 H930" width={1.3} />
+      <ClassicPipe d="M461,382 V530" width={1.3} />
+      <ClassicPipe d="M550,382 V432" width={1.3} />
+      <ClassicPipe d="M660,449 H680 V422 H930" width={1.3} />
+      <ClassicPipe d="M630,466 V481 H930" width={1.3} />
+      <ClassicPipe d="M115,294 V481 H95" width={1.3} />
 
       {/* ===== storage tank ===== */}
-      <ClassicTank x={120} y={215} w={150} h={150} level={proc?.pv ?? 0} label="" below="Not In Use" />
-      <ClassicNamedValue x={300} y={250} tag="3T-8120-LI005" value={`${liters} liter`} bindTag="LIC-401" />
-      <ClassicNamedValue x={300} y={275} tag="3T-8120-TIC001" value="82.0 °C" bindTag="TIC-401" />
+      <ClassicTank x={55} y={174} w={128} h={120} level={proc.pv} label="" below="Not In Use" belowX={55} />
+      <ClassicNamedValue x={205} y={242} tag="3T-8120-LI005" value={`${liters} liter`} bindTag="LIC-401" />
+      <ClassicNamedValue x={205} y={278} tag="3T-8120-TIC001" value={`${tic401.pv.toFixed(1)} °C`} bindTag="TIC-401" />
 
       {/* ===== inlet (hot WFI from still) ===== */}
-      <ClassicFlag x={150} y={58} w={82} text="Hot WFI from Still" pointRight={false} />
-      <ClassicNamedValue x={40} y={96} tag="3T-8120-TI004" value="101.7 °C" />
-      <ClassicHandValve x={205} y={100} tag="XV-411" label="3WFI-8110-YV007" />
-      <ClassicSanitaryValve x={320} y={100} open={xv411?.open ?? true} tag="XV-411" label="3T-8120-YV006" />
-      <ClassicNamedValue x={40} y={150} tag="3T-8120-PI047" value="-0.1 psi" />
-      <ClassicHandValve x={205} y={152} label="3T-8120-YV006" />
-      <ClassicNamedValue x={40} y={190} tag="3T-8120-ZSA007" value="Normal" w={80} />
+      <ClassicFlag x={95} y={23} w={82} text="Hot WFI from Still" pointRight={false} />
+      <ClassicNamedValue x={10} y={63} tag="3T-8120-TI004" value="101.7 °C" w={78} />
+      <ClassicSanitaryValve x={115} y={53} open={xv411.open} tag="XV-411" label="3WFI-8110-YV007" orientation="vertical" labelPosition="right" />
+      <ClassicSanitaryValve x={245} y={85} open={xv411.open} tag="XV-411" label="3T-8120-YV006" labelPosition="above" />
+      <ClassicNamedValue x={10} y={122} tag="3T-8120-PI047" value="-0.1 psi" w={78} />
+      <ClassicSanitaryValve x={115} y={125} open={false} label="3T-8120-YV006" orientation="vertical" labelPosition="right" />
+      <ClassicNamedValue x={10} y={155} tag="3T-8120-ZSA007" value="Normal" w={78} />
 
       {/* ===== heat exchangers ===== */}
-      <ClassicHex x={640} y={150} w={135} h={42} label={'WFI Recirc\nTrim Cooler'} />
-      <ClassicHex x={790} y={250} w={135} h={42} label={'WFI Recirc\nCooler'} />
-      <ClassicHex x={640} y={330} w={135} h={42} label={'WFI Recirc\nSani Htr'} />
+      <ClassicHex x={440} y={140} w={110} h={34} label={'WFI Recirc\nTrim Cooler'} />
+      <ClassicHex x={600} y={260} w={110} h={34} label={'WFI Recirc\nCooler'} />
+      <ClassicHex x={550} y={432} w={110} h={34} label={'WFI Recirc\nSani Htr'} />
 
       {/* ===== inline control & isolation valves ===== */}
-      <ClassicBlackValve x={760} y={130} label="3T-8120-TIC001" />
-      <ClassicBlackValve x={815} y={228} label="3T-8120-TIC011" />
-      <ClassicBlackValve x={640} y={308} label="3T-8120-TIC011" />
-      <ClassicSanitaryValve x={560} y={200} open={xv401?.open ?? false} tag="XV-401" label="3T-8120-YV001A" />
-      <ClassicSanitaryValve x={905} y={355} open={pcv401?.open ?? true} tag="PCV-401" label="3T-8120-YV011A" />
-      <ClassicSanitaryValve x={700} y={378} open={xv422?.open ?? false} tag="XV-422" label="3T-8120-YV014" />
-      <ClassicHandValve x={310} y={335} label="3T-8120-YV009" />
+      <ClassicControlValve x={612} y={112} position={tic401.out} tag="TIC-401" label="3T-8120-TIC001" />
+      <ClassicControlValve x={760} y={252} position={tic411.out} tag="TIC-411" label="3T-8120-TIC011" />
+      <ClassicControlValve x={725} y={422} position={tic411.out} tag="TIC-411" label="3T-8120-TIC011" labelPosition="above" />
+      <ClassicControlValve x={273} y={200} position={tic401.out} tag="TIC-401" label="3T-8120-TIC001" />
+      <ClassicControlValve x={320} y={382} position={pic401.out} tag="PIC-401" label="3T-8120-PIC016" />
+      <ClassicSanitaryValve x={337} y={200} open={xv401.open} tag="XV-401" label="3T-8120-YV001A" labelPosition="above" />
+      <ClassicSanitaryValve x={830} y={422} open={pcv401.open} tag="PCV-401" label="3T-8120-YV011A" labelPosition="above" />
+      <ClassicSanitaryValve x={461} y={402} open={xv422.open} tag="XV-422" label="3T-8120-YV014" orientation="vertical" labelPosition="right" />
+      <ClassicHandValve x={170} y={370} label="3T-8120-YV009" orientation="vertical" labelPosition="right" />
 
       {/* ===== recirculation pumps ===== */}
-      <ClassicPump x={575} y={310} running={p401?.running ?? false} tag="P-401" />
-      <ClassicPump x={545} y={415} running={p402?.running ?? false} tag="P-402" />
+      <ClassicPump x={390} y={350} running={p401.running} tag="P-401" label="3T-8120-XC002" labelPosition="right" />
+      <ClassicPump x={356} y={488} running={p402.running} tag="P-402" label="3T-8120-XC010" labelPosition="left" discharge="right" />
 
       {/* ===== indicator value boxes ===== */}
-      <ClassicNamedValue x={390} y={278} tag="3T-8120-FI003" value="49.4 GPM" />
-      <ClassicNamedValue x={640} y={255} tag="3T-8120-ZSA017" value="Normal" w={80} />
-      <ClassicNamedValue x={810} y={300} tag="3T-8120-TI013" value={returnTemp} bindTag="TI-402" />
-      <ClassicNamedValue x={810} y={326} tag="3T-8120-FI012" value="35.8 GPM" />
+      <ClassicNamedValue x={410} y={285} tag="3T-8120-FI003" value="49.4 GPM" />
+      <ClassicNamedValue x={455} y={221} tag="3T-8120-ZSA017" value="Normal" w={80} />
+      <ClassicNamedValue x={455} y={254} tag="3T-8120-TIC011" value={`${tic411.pv.toFixed(1)} °C`} bindTag="TIC-411" />
+      <ClassicNamedValue x={560} y={359} tag="3T-8120-TI013" value={returnTemp} bindTag="TI-402" />
+      <ClassicNamedValue x={665} y={359} tag="3T-8120-FI012" value="35.8 GPM" />
 
       {/* ===== live PID faceplate dynamos ===== */}
-      <ClassicPidBox tag="TIC-401" label="3T-8120-TIC001" x={470} y={108} />
-      <ClassicPidBox tag="PIC-401" label="3T-8120-PIC016" x={410} y={352} />
-      <ClassicPidBox tag="TIC-411" label="3T-8120-TIC011" x={905} y={252} />
+      <ClassicPidBox tag="TIC-401" label="3T-8120-TIC001" x={295} y={75} />
+      <ClassicPidBox tag="PIC-401" label="3T-8120-PIC016" x={220} y={415} />
+      <ClassicPidBox tag="TIC-411" label="3T-8120-TIC011" x={785} y={326} />
 
       {/* ===== analytics (TOC + conductivity) ===== */}
-      <ClassicNamedValue x={10} y={230} tag="3T-8120-AI015A" value={tocVal} bindTag="AT-402" />
-      <ClassicNamedValue x={10} y={270} tag="3T-8120-AI015B" value={condVal} bindTag="AT-401" />
-      <ClassicNamedValue x={575} y={438} tag="3T-8120-XA015" value="Normal" w={80} />
+      <ClassicNamedValue x={360} y={432} tag="3T-8120-AI015A" value={tocVal} bindTag="AT-402" w={80} />
+      <ClassicNamedValue x={360} y={463} tag="3T-8120-AI015B" value={condVal} bindTag="AT-401" w={80} />
+      <ClassicNamedValue x={490} y={495} tag="3T-8120-XA015" value="Normal" w={80} />
 
       {/* ===== WFI level control + product-water drain ===== */}
-      <ClassicNamedValue x={688} y={420} tag="WFI-LVL-CTRL" value="Not Filling" w={92} />
-      <ClassicPipe d="M734,438 V462" />
-      <polygon points="729,458 739,458 734,468" fill={PALE_BORDER} />
-      <ClassicLabel x={734} y={482} text="PW" />
+      <ClassicNamedValue x={590} y={503} tag="WFI-LVL-CTRL" value="Not Filling" w={92} />
+      <polygon points="456,526 466,526 461,536" fill={PALE_BORDER} />
+      <ClassicLabel x={461} y={550} text="PW" />
 
       {/* ===== Sani Schedule panel ===== */}
       <ClassicPanel
-        x={800}
-        y={392}
-        w={150}
-        h={70}
+        x={720}
+        y={495}
+        w={190}
+        h={85}
         title="N1-WFI-SANI"
         rows={[
           ['Time Until Next Sani', durationString(untilNextS)],
@@ -200,15 +206,15 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
 
       {/* ===== off-page utility connectors ===== */}
       {rightFlags.map(([fy, ft], i) => (
-        <ClassicFlag key={i} x={962} y={fy} w={68} text={ft} />
+        <ClassicFlag key={i} x={930} y={fy + 3} w={90} h={14} text={ft} />
       ))}
-      <ClassicFlag x={150} y={410} w={82} text="Plant Condensate" pointRight={false} />
+      <ClassicFlag x={95} y={471} w={82} text="Plant Condensate" pointRight={false} />
 
       {/* ===== bottom navigation ===== */}
-      <ClassicNavButton x={120} y={462} w={104} text={'N1BP WFI Tank\nand Loop'} />
-      <ClassicNavButton x={232} y={462} w={92} text="WFI STILL" />
-      <ClassicNavButton x={332} y={462} w={104} text={'WFI STILL\nComms'} />
-      <ClassicNavButton x={444} y={462} w={104} text={'N3 WFI Tank\nand Loop'} />
+      <ClassicNavButton x={55} y={525} w={104} text={'N1BP WFI Tank\nand Loop'} />
+      <ClassicNavButton x={167} y={525} w={92} text="WFI STILL" />
+      <ClassicNavButton x={267} y={525} w={104} text={'WFI STILL\nComms'} />
+      <ClassicNavButton x={575} y={525} w={104} text={'N3 WFI Tank\nand Loop'} />
     </Wrap>
   )
 }
@@ -364,13 +370,13 @@ function CipUnit({
     <g>
       <ClassicLabel x={offsetX + 60} y={20} text={`CIP SKID ${n}`} />
       <ClassicTank x={offsetX} y={30} w={80} h={100} level={60} label="" />
-      <ClassicPipe d={`M${offsetX + 40},130 V150`} />
-      <ClassicPump x={offsetX + 40} y={170} running={p.running} tag={p.tag} />
-      <ClassicPipe d={`M${offsetX + 40},190 V210 H${offsetX + 140}`} />
+      <ClassicPipe d={`M${offsetX + 40},130 V144 H${offsetX + 20} V170 H${offsetX + 29}`} />
+      <ClassicPump x={offsetX + 40} y={170} running={p.running} tag={p.tag} discharge="right" />
+      <ClassicPipe d={`M${offsetX + 55},163 H${offsetX + 70} V210 H${offsetX + 140}`} />
       <ClassicValve x={offsetX + 140} y={210} open={xvS.open} tag={xvS.tag} />
-      <ClassicLabel x={offsetX + 140} y={235} text="SUPPLY" anchor="middle" />
+      <ClassicLabel x={offsetX + 140} y={252} text="SUPPLY" anchor="middle" />
       <ClassicPipe d={`M${offsetX},60 H${offsetX - 20} V210 H${offsetX + 20}`} />
-      <ClassicValve x={offsetX - 20} y={130} open={xvR.open} tag={xvR.tag} />
+      <ClassicValve x={offsetX - 20} y={130} open={xvR.open} tag={xvR.tag} orientation="vertical" />
       <ClassicLabel x={offsetX - 20} y={108} text="RETURN" anchor="middle" />
       <ClassicReadout tag={tic.tag} x={offsetX + 90} y={30} />
       <ClassicReadout tag={fic.tag} x={offsetX + 90} y={80} />
@@ -444,9 +450,9 @@ function TcuUnit({
       <text x={offsetX + 70} y={78} fill="#3a4550" fontSize={9} textAnchor="middle">
         HEATER
       </text>
-      <ClassicPipe d={`M${offsetX + 70},100 V110`} />
-      <ClassicPump x={offsetX + 70} y={130} running={p.running} tag={p.tag} />
-      <ClassicPipe d={`M${offsetX + 70},150 V170`} />
+      <ClassicPipe d={`M${offsetX + 70},100 V110 H${offsetX + 50} V130 H${offsetX + 59}`} />
+      <ClassicPump x={offsetX + 70} y={130} running={p.running} tag={p.tag} discharge="right" />
+      <ClassicPipe d={`M${offsetX + 85},123 H${offsetX + 100} V170 H${offsetX + 70}`} />
       <ClassicLabel x={offsetX + 70} y={185} text={`TO ${serves}`} anchor="middle" />
       <ClassicReadout tag={tic.tag} x={offsetX - 100} y={38} />
       <ClassicReadout tag={fic.tag} x={offsetX + 150} y={38} />

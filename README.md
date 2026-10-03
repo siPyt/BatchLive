@@ -13,6 +13,7 @@ An offline **operator HMI sandbox** that recreates the look and feel of an Emers
 - **Device faceplates** — motors (start/stop, interlock, fault injection, runtime), on/off valves, analog indicators, and discrete I/O.
 - **Alarm system** — Critical / Warning / Advisory priorities, blinking unacknowledged banner tiles, acknowledge-per-point or acknowledge-all, and a sortable/filterable alarm list.
 - **Process graphics** — interactive SVG tanks, pumps, valves and piping with live dynamos; click any element to open its faceplate.
+- **Classic equipment symbols** — compact centrifugal pumps, blue-framed isolation valves, unboxed hand valves and dome-actuated control valves based on the WFI reference display. Running/open equipment is green; stopped/closed equipment is black. Pump/valve feedback and PID output drive the colors, not commands. WFI reference captions are aliases for the simulator's existing modules; tooltips identify the underlying tag. Unbound valves are reference-only symbols, not simulated controls.
 - **Historian trends** — multi-pen real-time charts with selectable pens and time windows.
 - **Navigation** — display hierarchy, favorites shelf, run/hold and simulation-speed controls.
 
