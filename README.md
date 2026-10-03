@@ -16,6 +16,7 @@ An offline **operator HMI sandbox** that recreates the look and feel of an Emers
 - **Classic equipment symbols** — compact centrifugal pumps, blue-framed isolation valves, unboxed hand valves and dome-actuated control valves based on the WFI reference display. Running/open equipment is green; stopped/closed equipment is black. Pump/valve feedback and PID output drive the colors, not commands. WFI reference captions are aliases for the simulator's existing modules; tooltips identify the underlying tag. Unbound valves are reference-only symbols, not simulated controls.
 - **Historian trends** — multi-pen real-time charts with selectable pens and time windows.
 - **Navigation** — display hierarchy, favorites shelf, run/hold and simulation-speed controls.
+- **Engineering icons** — shared SVG Control Module, Equipment Module and function-block icons in Explorer, Control Studio hierarchy/palette, and diagram headers, based on IMG_0440. Equipment Modules retain an explicit EM identifier; unsupported reference composites are not fabricated.
 
 ## Tech stack
 

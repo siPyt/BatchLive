@@ -4,6 +4,7 @@ import { useUi } from '../ui/uiStore'
 import { BUILTIN_TAGS } from '../engine/plant'
 import { FB_NEEDS_IN2, isDiscreteModule, readModuleValue, outputPinLabel } from '../engine/fb'
 import { fmt } from '../utils/format'
+import { FunctionBlockIcon, engineeringBlockType } from './EngineeringIcons'
 import type { AnyModule, FbInputRef } from '../engine/types'
 
 // A true IEC 61131-3 / DeltaV-style Function Block Diagram node editor:
@@ -291,7 +292,7 @@ function FbNode({
   onInputUp: (which: string, e: React.MouseEvent) => void
 }): JSX.Element {
   const h = nodeHeight(m)
-  const badge = m.type === 'FB' ? m.fbType : m.type
+  const badge = engineeringBlockType(m)
   const outLabel = outputPinLabel(m)
   const liveValue = readModuleValue(m)
   const unit = m.type === 'PID' || m.type === 'AI' ? m.unit : ''
@@ -304,9 +305,7 @@ function FbNode({
       <title>{m.description}</title>
       <rect x={0} y={0} width={NODE_W} height={h} fill="#F4F5F6" stroke={selected ? '#005FB8' : '#707070'} strokeWidth={selected ? 2 : 1} />
       <rect x={0} y={0} width={NODE_W} height={HEADER_H} fill="#E2E5E7" stroke="#707070" style={{ cursor: 'grab' }} onMouseDown={onHeaderDown} />
-      <text x={5} y={14} fontSize={9} fontWeight={800} fill="#0a3d6b">
-        [{badge}]
-      </text>
+      <FunctionBlockIcon type={badge} size={18} x={3} y={2} />
       <text x={NODE_W - 5} y={14} fontSize={10} fontWeight={700} fill="#1a1a1a" textAnchor="end">
         {m.tag}
       </text>

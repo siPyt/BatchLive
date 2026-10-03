@@ -3,6 +3,7 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
+import { ModuleIcon, FunctionBlockIcon, engineeringBlockType } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
 import type { AnyModule, FbBlockType, FunctionBlockModule, PidModule, ControlMode, MotorModule, ValveModule } from '../engine/types'
 import type { ReactNode } from 'react'
@@ -98,8 +99,7 @@ function connectedModuleTags(modules: Record<string, AnyModule>, rootTag: string
  * and AO function blocks", which is the configuration this engine models:
  * one consolidated PID node, not a fictional separate AI/AO pair). */
 function blocksOf(m: AnyModule): { name: string; type: string }[] {
-  if (m.type === 'MOTOR' || m.type === 'VALVE') return [{ name: m.tag, type: 'DC' }]
-  return [{ name: m.tag, type: m.type }]
+  return [{ name: m.tag, type: engineeringBlockType(m) }]
 }
 
 function HierarchyView({ module: m }: { module: AnyModule }): JSX.Element {
@@ -107,11 +107,11 @@ function HierarchyView({ module: m }: { module: AnyModule }): JSX.Element {
     <div className="studio-pane studio-hier">
       <div className="studio-tree">
         <div className="studio-tree-root">
-          <span className="exp-ico">▦</span> {m.tag}
+          <ModuleIcon kind="control" /> {m.tag}
         </div>
         {blocksOf(m).map((b) => (
           <div key={b.name} className="studio-tree-node">
-            <span className="fb-type">{b.type}</span>
+            <FunctionBlockIcon type={b.type} />
             {b.name}
           </div>
         ))}
@@ -760,7 +760,7 @@ function PaletteView({ area }: { area: string }): JSX.Element {
                   setTag('')
                 }}
               >
-                <span className="fb-type">{it.label}</span>
+                <FunctionBlockIcon type={it.label} />
                 <span>{it.label} block</span>
               </div>
             ))}

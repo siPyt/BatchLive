@@ -4,6 +4,7 @@ import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt } from '../utils/format'
 import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
 import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engine/types'
+import { ModuleIcon } from '../components/EngineeringIcons'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -106,6 +107,7 @@ export function ExplorerDisplay(): JSX.Element {
         }}
       >
         <span className="exp-caret" />
+        <ModuleIcon kind="control" />
         <span className="exp-badge">{TYPE_BADGE[m.type]}</span>
         <b className="exp-tag">{m.tag}</b>
         <span className="exp-desc">{m.description}</span>
@@ -141,7 +143,7 @@ export function ExplorerDisplay(): JSX.Element {
         )}
         <div className="exp-node exp-cell" onClick={() => toggle('CELL')}>
           <span className="exp-caret">{open.CELL ? '▾' : '▸'}</span>
-          <span className="exp-ico">▦</span>
+          <ModuleIcon kind="cell" />
           <b>REACTOR_CELL</b>
           <span className="exp-sub">Process Cell</span>
         </div>
@@ -161,7 +163,7 @@ export function ExplorerDisplay(): JSX.Element {
                   }}
                 >
                   <span className="exp-caret">{open[area] ? '▾' : '▸'}</span>
-                  <span className="exp-ico">▧</span>
+                  <ModuleIcon kind="area" />
                   {AREA_LABEL[area]}
                   <span className="exp-sub">{mods.length} modules</span>
                 </div>
@@ -181,7 +183,7 @@ export function ExplorerDisplay(): JSX.Element {
                             }}
                           >
                             <span className="exp-caret">{open[emKey] ? '▾' : '▸'}</span>
-                            <span className="exp-ico">◧</span>
+                            <ModuleIcon kind="equipment" />
                             {em.tag}
                             <span className="exp-sub">
                               {em.description} · {emMods.length} modules
@@ -195,7 +197,7 @@ export function ExplorerDisplay(): JSX.Element {
                       <div>
                         <div className="exp-node exp-em unassigned">
                           <span className="exp-caret">▾</span>
-                          <span className="exp-ico">◧</span>
+                          <ModuleIcon kind="unassigned" />
                           (Unassigned)
                           <span className="exp-sub">{unassigned.length} modules</span>
                         </div>

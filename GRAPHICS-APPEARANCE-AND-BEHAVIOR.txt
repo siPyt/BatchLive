@@ -398,3 +398,122 @@ to publish every subsequent change. Follow the user's current Git direction.
 Persistent documentation improves continuity, but cannot guarantee an AI
 will never regress the graphics. Enforce it with reference comparison,
 state-transition checks and shared-surface validation on each future edit.
+
+12. ENGINEERING ICONS: IMG_0440 REFERENCE
+----------------------------------------
+Added: 2026-10-03, following explicit user direction.
+Reference: IMG_0440.jpeg, repository root.
+
+USER APPROVAL: 2026-10-03, 13:16 local time.
+The user inspected the live implementation and said "looks good", requesting
+that it be committed/pushed and its design recorded here. The engineering
+icons described in this section are now a user-approved visual baseline.
+Preserve them in future sessions; do not replace them during unrelated work.
+This approval applies to the displayed engineering-icon design, not to
+unimplemented vendor composites or a claim of exact physical-plant fidelity.
+
+This photograph shows Control Studio's Control Module root icon, composite
+submodule tiles, function-block list and block-header icons. The clearly
+visible CM mark has three overlapping colored lobes: green at the top,
+rust/red to the left, and blue/violet to the right. Function blocks use
+small square tiles with dark/blue/green grounds and yellow/light glyphs.
+Do not replace these with emoji, unrelated Unicode symbols, or only text
+badges. Keep labels/tags readable beside the icon.
+
+Shared source: src\renderer\src\components\EngineeringIcons.tsx.
+Current module-lobe colors:
+  green #589c36, rust #a34932, blue/violet #34338c.
+Current block tile colors:
+  analog #292e25, logic/timer #173b2b, other/PID #242486.
+Current glyph colors:
+  #e4df66 / #eee997; neutral tile outline #969a9c.
+
+Implementation/design details to preserve:
+- Reusable inline SVGs, not platform-dependent fonts, emoji or copied
+  raster screenshots. Both icon components use a 24 x 24 SVG viewBox.
+- ModuleIcon defaults to 20 x 20 rendered pixels. The CM circles have
+  radius 5, centered at (12,6.5), (6.5,14) and (17.5,14).
+- Circle outlines: green #356e24, rust #783721, blue #232369;
+  outline width 0.7. Do not rearrange the colored lobes.
+- EM frame: (1,1), 22 x 22, fill #eceeef, outline #64727a.
+  The small EM caption is dark, centered below the lobes within the tile.
+- Area folder fill #e4c45b; unassigned folder fill #d5d8da;
+  folder outline #716c51.
+- FunctionBlockIcon defaults to 20 pixels. Each tile rectangle starts
+  at (1,1), measures 22 x 22, and uses the family background colors above.
+- FBD header icons render at 18 pixels at (3,2) inside the existing
+  22-pixel-high header. Node width/height, ports and layout were preserved.
+- Canvas icon SVGs use pointer-events:none so dragging remains owned by
+  the header. Other icons do not introduce independent command handlers.
+- The .engineering-icon CSS only sets inline-block, flex-shrink:0 and
+  vertical-align:middle; it does not change the application palette.
+- SVGs use role=img, accessible type labels and title tooltips.
+- Preserve data-icon-kind and data-block-icon attributes for inspection.
+- engineeringBlockType is shared: FB -> actual fbType; MOTOR/VALVE -> DC;
+  all other modules -> their actual module type.
+- This helper keeps hierarchy and canvas icons consistent without altering
+  the engine's actual stored types or adding fictional function blocks.
+
+Icon variants:
+- Control Module: three-lobe mark.
+- Equipment Module: framed three-lobe mark with a small EM identifier.
+  The photograph does NOT clearly establish an exact standalone EM icon;
+  this is a distinguishable simulator variant, not a claimed exact copy.
+- Process Cell: module mark plus a structural cell silhouette.
+- Area: gold folder.
+- Unassigned: neutral folder, NOT an Equipment Module.
+- AI/AO/MAI blocks: small yellow analog-waveform tile.
+- PID: blue K/s tile.
+- SPLTR: blue branching-arrow tile.
+- Logical/discrete blocks: green tile with signal/logic geometry.
+- Timer/counter blocks: green clock tile.
+- Other supported block types: blue tile with readable type lettering.
+  Those generic/family variants are not exact vendor glyph reproductions.
+
+The reference also shows colored composite submodule tiles such as MODELOCK,
+OP_LMTS and THRESHOLDS. This change does NOT invent those composites or
+create nonexistent nested blocks simply to look like the photograph.
+Any future composite-module implementation must have real backing data and
+functionality before presenting it as an actual configured hierarchy.
+
+Wired surfaces:
+- Explorer: cell, area, Equipment Module, unassigned folder and CM rows.
+  Existing PID/AI/MTR/XV/etc. text badges remain secondary information.
+- Control Studio hierarchy: CM root and actual block type.
+  FunctionBlockModule uses fbType, not the generic label FB.
+  Motor/Valve block icons use DC, matching their existing device semantics.
+- Control Studio creation palette: each supported item has its type icon.
+- FBD canvas: type icon in each node header; tag remains readable.
+
+These icons identify engineering OBJECT TYPES, not device running states.
+Do not recolor them green/black based on pump or valve state. Do not use
+engineering-icon colors to change the protected plant equipment palette.
+
+Validation required:
+- Each visible CM/EM row has the corresponding accessible type icon.
+- Expanding/collapsing Equipment Modules and opening Control Studio works.
+- Hierarchy FB subtype, palette subtype and canvas subtype agree.
+- Node dragging, selection, pins, wires and palette creation still work.
+- Keep full connected strategies; do not reduce block/wire counts for icons.
+- SVG icons have accessible labels and do not swallow header drag events.
+- No change to module engine types, simulation logic, permissions or storage.
+
+2026-10-03 icon validation:
+- Typecheck/build and editor diagnostics passed.
+- Explorer initially displayed 18 CM icons for 18 visible module rows,
+  and 3 EM icons for 3 visible Equipment Module rows.
+- Expanded Feed Supply and opened LIC-101 in Control Studio.
+- All 55 creation-palette items had an accessible block-type icon.
+- Opened PT201-HIALM: hierarchy correctly showed CMP, not generic FB.
+  Its connected strategy displayed 17 nodes and 17 header icons.
+- Opened/canceled the SPLTR creation form without creating a module.
+- Dragged a node by (20,15), then restored its original position.
+  Wire count remained 18 before/after on that selected strategy.
+- No plant equipment components or engine sources changed in this task.
+
+Live development:
+  npm run dev (VS Code task: "BatchLive live development").
+  Current renderer URL: http://localhost:5173/
+  Inspect task output for the actual port if 5173 is occupied.
+  Use hot reload while working so the user can inspect changes live.
+  Do not claim a server is live without checking an HTTP response.

@@ -1175,6 +1175,11 @@ button {
 .exp-ico {
   color: var(--dv-accent-2);
 }
+.engineering-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
 .exp-cell {
   color: var(--dv-text);
   font-size: 13px;
