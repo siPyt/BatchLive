@@ -8,6 +8,7 @@ export interface DiagramBlock {
   name: string
   type: string
   part?: PidBlockName
+  parameter?: string
 }
 
 export interface DiagramWire {
@@ -88,6 +89,12 @@ export function connectedModuleTags(modules: Record<string, AnyModule>, rootTag:
 }
 
 export function moduleBlocks(m: AnyModule): DiagramBlock[] {
+  if (m.type === 'AO') return [
+    ...Object.keys(m.parameters).map(name => ({
+      id: `${m.tag}/${name}`, moduleTag: m.tag, name, type: 'PARAMETER', parameter: name
+    })),
+    { id: m.tag, moduleTag: m.tag, name: 'AO1', type: 'AO' }
+  ]
   if (m.type === 'PID') {
     const split = pidIo(m).splitter
     return [
@@ -120,7 +127,7 @@ export function buildControlDiagram(tags: string[], modules: Record<string, AnyM
       key: `${toTag}.${which}`,
       fromTag,
       fromPort: source.parameter === 'OUT_1' ? 'out1' : source.parameter === 'OUT_2' ? 'out2' :
-        from?.type === 'PID' && source.parameter === 'PV' ? 'pv' :
+        (from?.type === 'PID' || from?.type === 'AO') && source.parameter === 'PV' ? 'pv' :
           from?.type === 'FB' && from.fbType === 'SPLTR' ? 'out1' : 'out',
       toTag, which
     })
@@ -129,6 +136,10 @@ export function buildControlDiagram(tags: string[], modules: Record<string, AnyM
     const m = modules[tag]
     if (!m) continue
     for (const block of moduleBlocks(m)) blocks[block.id] = block
+    if (m.type === 'AO' && m.casParameter && m.parameters[m.casParameter]) {
+      wires.push({ key: `${tag}.standaloneCas`, fromTag: `${tag}/${m.casParameter}`,
+        fromPort: 'out', toTag: tag, which: 'standaloneCas' })
+    }
     const ref = (source: string | undefined, parameter: AnalogSignalRef['parameter'] = 'OUT'): AnalogSignalRef | undefined =>
       source ? { tag: source, parameter: modules[source]?.type === 'AI' ? 'PV' : parameter } : undefined
     if (m.type === 'PID') {

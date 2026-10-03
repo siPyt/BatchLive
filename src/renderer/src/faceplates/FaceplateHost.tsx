@@ -6,6 +6,7 @@ import { MotorFaceplate } from './MotorFaceplate'
 import { ValveFaceplate } from './ValveFaceplate'
 import { AiFaceplate } from './AiFaceplate'
 import { DiscreteFaceplate } from './DiscreteFaceplate'
+import { AoFaceplate } from './AoFaceplate'
 import { PEN_TAGS } from '../displays/TrendDisplay'
 
 /** Renders every open faceplate window. */
@@ -62,6 +63,9 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
       break
     case 'AI':
       body = <AiFaceplate tag={tag} />
+      break
+    case 'AO':
+      body = <AoFaceplate tag={tag} />
       break
     case 'DI':
     case 'DO':

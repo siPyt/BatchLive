@@ -208,10 +208,24 @@ export const COURSE: WModule[] = [
     module: 'DV-09 · Analog & Regulatory Control',
     workshops: [
       {
+        id: 'dv09-standalone-ao',
+        title: 'LEVEL-101 Standalone AO and CAS_SP',
+        objective: 'Build the actual AO/CAS_SP path and verify applied channel output with a simulated LI-101 tieback.',
+        note: 'Use a separate blank training session. This is the executable AO/signal subset of pp164-168 and pp173-178, not the complete workshop. Assignment, native properties, Save/Download/Online, restore flags/NVM and picture-level bounded data entry remain absent. Floating Point parameters allow finite values; the AO applies its SP limits. No electrical 4-20 mA conversion is claimed.',
+        steps: [
+          { id: 'dv09-ao-1', text: 'Create PLANT_AREA_A, commission CTRL1, add C01 AI and C02 AO, and name/enable LT-1 at C01 CH1 and LY-1 at C02 CH1.', goto: 'hardware' },
+          { id: 'dv09-ao-2', text: 'Create AO LEVEL-101 in Explorer, range 0-1000 gal. Alternatively create AO from the Studio I/O palette and Apply AO Scale / Limits: Scale Low 0, High 1000, SP Low 0, SP High 1000, Unit gal.', goto: 'explorer' },
+          { id: 'dv09-ao-3', text: 'Open LEVEL-101 in Studio, bind IO_OUT LY-1, and use New Floating Point Input to create CAS_SP with value 500. Drag its CV output pin to AO1 CAS_IN or select CAS_SP as CAS_IN source.', goto: 'studio' },
+          { id: 'dv09-ao-4', text: 'Run with target CAS. Confirm actual CAS, SP500 gal, applied OUT50%, and LY-1 signal50%. CAS_SP0 gives0%; CAS_SP1000 gives100%. Out-of-limit finite parameter values are clamped by AO SP limits and report Limited.' },
+          { id: 'dv09-ao-5', text: 'Delete the CAS_IN wire: output holds Bad. Reconnect to recover. AUTO uses SP independently of CAS_SP; MAN uses percent output. OOS or a disabled output channel holds the last actual channel signal with Bad.' },
+          { id: 'dv09-ao-6', text: 'Create AI LI-101 range0-1000 gal, bind IO_IN LT-1, then configure LT-1 simulated tieback source LY-1 in Physical Network. At CAS_SP500 confirm LI-101 becomes500 on the following input scan. This is simulated percent-to-engineering tieback, not physical feedback.', goto: 'hardware' }
+        ]
+      },
+      {
         id: 'dv09-analog-dst',
         title: 'LI-101 Input and Analog Channel Signal Paths',
         objective: 'Read LT-1 into LI-101, verify HI950/LO100, and exercise real PID analog output channels.',
-        note: 'Use a separate blank training session, not the approved pharma plant. This is an executable subset of DV-09 p172 plus a PID I/O path check, not the standalone LEVEL-101 AO / CAS_SP procedure. Input signals are supplied in engineering units, outputs in percent; 4-20 mA/XD_SCALE conversion, analog tiebacks, templates, assignment and Save/Download/Online remain absent. File → New Blank Project discards that session after confirmation.',
+        note: 'Use a separate blank training session, not the approved pharma plant. This is an executable subset of DV-09 p172 plus a PID I/O path check; use the LEVEL-101 exercise above for standalone AO/CAS_SP. Manual inputs are engineering units, outputs percent. Explicit simulated analog tiebacks now exist; 4-20 mA/XD_SCALE conversion, templates, assignment and Save/Download/Online remain absent. File → New Blank Project discards that session after confirmation.',
         steps: [
           { id: 'dv09-ai-1', text: 'In the blank training project, create PLANT_AREA_A and commission CTRL1. Add C01 AI and C02 AO. Name/Enable C01 CH1 LT-1, CH2 FT-2 and C02 CH1 LY-1, CH2 FY-2.', goto: 'hardware' },
           { id: 'dv09-ai-2', text: 'In Explorer create AI LI-101, Area PLANT_AREA_A, Unit gal, Min 0, Max 1000. In Configured Alarms set HI 950 and LO 100 and enable both. New AI threshold alarms start disabled.', goto: 'explorer' },

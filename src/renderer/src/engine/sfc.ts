@@ -78,15 +78,16 @@ function cmp(a: number, op: CompareOp, b: number): boolean {
   }
 }
 
-export function describeAction(a: SfcAction): string {
+export function describeAction(a: SfcAction, module?: AnyModule): string {
   const q = a.qualifier && a.qualifier !== 'S' ? `[${a.qualifier}${a.seconds !== undefined ? ' ' + a.seconds + 's' : ''}] ` : ''
+  const block = module?.type === 'AO' ? 'AO1' : 'PID1'
   switch (a.kind) {
     case 'mode':
-      return `${q}^/${a.tag}/PID1/MODE.TARGET := ${a.mode}`
+      return `${q}^/${a.tag}/${block}/MODE.TARGET := ${a.mode}`
     case 'sp':
-      return `${q}^/${a.tag}/PID1/SP.CV := ${a.value}`
+      return `${q}^/${a.tag}/${block}/SP.CV := ${a.value}`
     case 'out':
-      return `${q}^/${a.tag}/PID1/OUT.CV := ${a.value}`
+      return `${q}^/${a.tag}/${block}/OUT.CV := ${a.value}`
     case 'motor':
       return `${q}^/${a.tag}/DC1/OUT_D.CV := ${a.run ? 1 : 0} (${a.run ? 'START' : 'STOP'})`
     case 'valve':
@@ -131,7 +132,7 @@ export function evalCondition(c: SfcCondition, state: PlantState, elapsed: numbe
     case 'pv':
       return m && 'pv' in m ? cmp(m.pv, c.op, c.value) : false
     case 'out':
-      return m && m.type === 'PID' ? cmp((m as PidModule).out, c.op, c.value) : false
+      return m && (m.type === 'PID' || m.type === 'AO') ? cmp(m.out, c.op, c.value) : false
     case 'motorRunning':
       return m && m.type === 'MOTOR' ? m.running === c.running : false
     case 'valveOpen':
@@ -140,6 +141,15 @@ export function evalCondition(c: SfcCondition, state: PlantState, elapsed: numbe
 }
 
 export function applyAction(m: AnyModule, a: SfcAction): void {
+  if (m.type === 'AO') {
+    if (a.kind === 'mode' && (a.mode === 'MAN' || a.mode === 'AUTO' || a.mode === 'CAS')) {
+      if (a.mode === 'MAN' && m.mode !== 'MAN') m.manualOutput = m.out
+      if (a.mode === 'AUTO' && m.mode !== 'AUTO') m.sp = m.pv
+      m.mode = a.mode
+    } else if (a.kind === 'sp' && Number.isFinite(a.value)) m.sp = clamp(a.value, m.spLow, m.spHigh)
+    else if (a.kind === 'out' && m.mode === 'MAN' && Number.isFinite(a.value)) m.manualOutput = clamp(a.value, 0, 100)
+    return
+  }
   if ((a.kind === 'mode' || a.kind === 'sp' || a.kind === 'out') && m.type === 'PID') {
     const p = m as PidModule
     if (a.kind === 'mode') {

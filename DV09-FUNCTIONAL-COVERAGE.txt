@@ -137,8 +137,9 @@ pp79-83: Plant areas and equipment hierarchy.
 pp85-91: Device Signal Tags and traditional channel configuration.
   PARTIAL. The third pass verifies the four card slots, eight named/enabled
   DST assignments and executable DI/DO binding. The fourth pass adds
-  standalone AI and PID AI1/AO1/AO2 physical-channel binding. Standalone
-  course AO, electrical scaling, native hardware/dialog coverage and download
+  standalone AI and PID AI1/AO1/AO2 physical-channel binding. The fifth adds
+  standalone course AO/CAS_SP and simulated analog tieback. Electrical scaling,
+  native hardware/dialog coverage and download
   lifecycle remain absent. CHARM bindings are a separate, preserved path.
 
 pp92-104: Downloads and system checks.
@@ -281,7 +282,8 @@ Physical Network:
   output writers and conflicts with existing CHARM bindings fail explicitly.
   Referenced DSTs require disconnecting bindings/tiebacks before rename.
 - Manual DI simulation accepts only 0 or 1, requires Restricted Control,
-  and cannot override a connected tieback. Analog tiebacks are unsupported.
+  and cannot override a connected tieback. At this checkpoint analog tiebacks
+  were unsupported; the fifth pass adds explicit simulated AO-to-AI tieback.
 
 Control Studio and faceplates:
 - Isolated blank-project XV-101 is DO, not the pharma baseline VALVE.
@@ -377,9 +379,61 @@ typecheck, production build and editor diagnostics passed.
 Protected equipment geometry/colors/piping and FBD/ribbon geometry unchanged.
 Complete baseline process equations and unbound control behavior retained.
 
-Remaining: standalone LEVEL-101 AO with CAS_SP and 0-1000 gal output scale,
+Remaining at the fourth-pass checkpoint: standalone LEVEL-101 AO with CAS_SP and 0-1000 gal output scale,
 electrical input/output conversion, analog tiebacks, native templates,
 assignment/display properties, persistent configured/runtime/NVM separation,
 Save/Download/Online and original-PDF image-only review. A PID output stage
 is not a substitute for the standalone course module. No full-parity claim.
+Commit permitted; no push without explicit authorization.
+
+FIFTH PASS: STANDALONE LEVEL-101 AO AND SIMULATED ANALOG TIEBACK
+--------------------------------------------------------------
+Sources: standalone module procedure pp164-168 and signal check pp173-178.
+Status: VERIFIED WORKFLOW for this subset; DV09-034 remains PARTIAL because
+assignment/properties/Save/Download are not implemented as the course specifies.
+
+- Explorer and the I/O palette create AO, not a PID strategy substitute.
+- Create a Floating Point input named CAS_SP. Connecting it through the
+  parameter selector or dragging its CV pin to AO1.CAS_IN creates the real
+  executable wire. Delete removes the wire and holds CAS output Bad.
+  Parameter nodes cannot accidentally delete their whole module with Delete;
+  module deletion remains an explicit Explorer/Studio operation.
+- PV_SCALE 0-1000 gal, SP_LO_LIM 0 and SP_HI_LIM 1000 convert command 500 gal
+  into applied output 50%. Floating Point parameters accept finite values;
+  the AO block clamps CAS input to its SP limits and reports Limited.
+  This is not the course picture's separately bounded data-entry dialog.
+- CAS uses the wired parameter; AUTO uses independent SP; MAN uses percent
+  manual output; OOS holds. Mode entry preserves current actuation when
+  entering MAN/AUTO. Target, actual, requested and held/applied values differ.
+- IO_OUT binds to the actual LY-1 traditional AO channel. The stage initializes
+  from hardware readback. Missing, disabled, down, disconnected or nonfinite
+  signals hold finite readback with Bad. Valid recovery does not latch old Bad.
+- Output ownership is shared with PID AO1/AO2. Wrong port/direction, duplicate
+  writers, invalid scale/limits, missing/duplicate parameter and nonfinite
+  values are rejected with diagnostics and notification. Writes preserve
+  snapshots and use the existing configuration/control security keys.
+- Explicit simulated LY-1 -> LT-1 tieback writes percent after AO execution.
+  LI-101 samples it on the next scan and converts through its own PV_SCALE;
+  50% gives 500 gal. PID inputs use their own independent receiving scale.
+  Manual AI simulation still supplies engineering values, not percent.
+  Bad tieback holds the last valid input and propagates PV BAD.
+- Studio, faceplate, Explorer, area cards, value/readout dynamos, builder
+  numeric fields, FB references, PID cascade sources, SFC action/condition
+  editors and recorded PV/SP/OUT trend samples recognize standalone AO.
+  Existing modules retain their original paths and protected appearance.
+
+Live evidence: actual UI created CAS_SP and connected the selector; CAS500
+gave 50% at LY-1. Deleting its diagram wire held 50% Bad; dragging CV back to
+CAS_IN recovered Good with one wire. CAS_SP555 gave 55.5%; AUTO SP700 gave
+70%; faceplate MAN25 gave 25%. The 292-pixel faceplate contained all fields.
+Temporary course plant/security/UI state was restored to the 96-module
+pharma baseline. No controller download, cold-restart memory or persistence
+claim is made. The browser preview uses the renderer-only development server.
+
+Remaining: arbitrary typed parameters/paths, electrical/XD_SCALE conversion,
+native templates and property/controller/display assignment, isolated saved
+configuration/runtime/NVM and Save/Download/Online/upload lifecycle, later
+course operations and original-PDF image-only review. No full-parity claim.
+Validation: 94 control regressions and five audit-validator regressions
+passed, along with typecheck, production build and editor diagnostics.
 Commit permitted; no push without explicit authorization.

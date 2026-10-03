@@ -95,7 +95,7 @@ export function isDiscreteModule(m: AnyModule): boolean {
 }
 
 /** Reads the single live numeric value a module exposes on its output pin:
- * PV for AI/PID, 1/0 for discrete states, OUT for a function block. */
+ * PV for AI/PID, 1/0 for discrete states, OUT for AO/function blocks. */
 export function readModuleValue(m: AnyModule | undefined): number {
   if (!m) return 0
   switch (m.type) {
@@ -110,6 +110,7 @@ export function readModuleValue(m: AnyModule | undefined): number {
     case 'DO':
       return m.state ? 1 : 0
     case 'FB':
+    case 'AO':
       return m.out
     default:
       return 0
@@ -130,6 +131,7 @@ export function outputPinLabel(m: AnyModule): string {
     case 'DO':
       return 'ST'
     case 'FB':
+    case 'AO':
       return 'OUT'
   }
 

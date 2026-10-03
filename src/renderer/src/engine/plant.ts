@@ -1315,6 +1315,14 @@ export function makeModule(s: NewModuleSpec): AnyModule {
           { type: 'LO', label: 'LO', priority: 'WARNING', limit: pvMin + (pvMax - pvMin) * 0.1, enabled: false }
         ]
       })
+    case 'AO':
+      return {
+        tag: s.tag, type: 'AO', description: s.description, area: s.area,
+        equipmentModule: s.equipmentModule, unit, pvMin, pvMax, decimals: 1,
+        spLow: pvMin, spHigh: pvMax, sp: mid, pv: pvMin, out: 0,
+        manualOutput: 0, mode: 'CAS', actualMode: 'OOS', bad: true, limited: false,
+        parameters: {}, alarms: []
+      }
     case 'MOTOR':
       return {
         tag: s.tag,

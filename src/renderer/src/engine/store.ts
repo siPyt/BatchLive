@@ -17,11 +17,14 @@ import type {
   FbBlockType,
   PidIoPatch,
   SplitterPatch,
-  AnalogSignalRef
+  AnalogSignalRef,
+  AnalogOutputModule,
+  AnalogOutputPatch
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { stepPlant } from './simulate'
 import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
+import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
@@ -74,6 +77,12 @@ interface StoreState extends PlantState {
   setTraditionalInput: (dst: string, value: number) => boolean
   bindDiscreteDst: (tag: string, dst: string) => boolean
   bindAnalogDst: (tag: string, port: AnalogBindingPort, dst: string) => boolean
+  configureStandaloneAo: (tag: string, patch: AnalogOutputPatch) => boolean
+  setStandaloneAoMode: (tag: string, mode: AnalogOutputModule['mode']) => boolean
+  setStandaloneAoValue: (tag: string, value: number) => boolean
+  addAoParameter: (tag: string, name: string, value: number) => boolean
+  setAoParameter: (tag: string, name: string, value: number) => boolean
+  connectAoParameter: (tag: string, name?: string) => boolean
   setDiscreteMode: (tag: string, mode: 'AUTO' | 'OOS') => boolean
   configureDiscreteAlarm: (tag: string, onValue: boolean, enabled: boolean) => boolean
   // operator actions
@@ -220,9 +229,10 @@ export const useStore = create<StoreState>((set, get) => ({
       const values: Record<string, number> = {}
       for (const t of Object.keys(next.modules)) {
         const gm = next.modules[t]
-        if (gm.type === 'PID') {
+        if (gm.type === 'PID' || gm.type === 'AO') {
           values[`${t}.PV`] = gm.pv
           values[`${t}.SP`] = gm.sp
+          if (gm.type === 'AO') values[`${t}.OUT`] = gm.out
         } else if (gm.type === 'AI') {
           values[`${t}.PV`] = gm.pv
         }
@@ -1024,7 +1034,12 @@ export const useStore = create<StoreState>((set, get) => ({
       window.alert(error)
       return false
     }
-    set(s => ({ modules: { ...s.modules, [tag]: makeModule({ ...spec, tag }) }, rev: s.rev + 1 }))
+    const module = makeModule({ ...spec, tag })
+    if (module.type === 'AO') {
+      const scaleError = aoConfigurationError(module)
+      if (scaleError) return rejectAo(get, tag, scaleError)
+    }
+    set(s => ({ modules: { ...s.modules, [tag]: module }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', tag, 'Module created')
     return true
   },
@@ -1106,6 +1121,101 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  configureStandaloneAo: (tag, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag} AO`)) return false
+    const module = get().modules[tag]
+    const error = module?.type !== 'AO' ? 'Select a standalone AO module' : aoConfigurationError(module, patch)
+    if (error) return rejectAo(get, tag, error)
+    mutateModule(set, get, tag, m => {
+      if (m.type === 'AO') {
+        Object.assign(m, patch)
+        m.bad = true
+        m.actualMode = 'OOS'
+        m.pv = aoEngineeringValue(m, m.out)
+      }
+    })
+    get().logEvent('CONFIGURE', tag, `AO scale/limits changed: ${JSON.stringify(patch)}`)
+    return true
+  },
+
+  setStandaloneAoMode: (tag, mode) => {
+    if (!useSecurity.getState().requireLock('CONTROL', `Set ${tag} AO mode`)) return false
+    const module = get().modules[tag]
+    if (module?.type !== 'AO' || !['CAS', 'AUTO', 'MAN', 'OOS'].includes(mode)) {
+      return rejectAo(get, tag, 'AO mode requires CAS, AUTO, MAN or OOS')
+    }
+    mutateModule(set, get, tag, m => {
+      if (m.type !== 'AO') return
+      if (mode === 'MAN' && m.mode !== 'MAN') m.manualOutput = m.out
+      if (mode === 'AUTO' && m.mode !== 'AUTO') m.sp = m.pv
+      m.mode = mode
+      if (mode === 'OOS') { m.bad = true; m.actualMode = 'OOS' }
+    })
+    get().logEvent('OPERATOR', tag, `AO target mode ${mode}`)
+    return true
+  },
+
+  setStandaloneAoValue: (tag, value) => {
+    if (!useSecurity.getState().requireLock('CONTROL', `Write ${tag} AO setpoint/output`)) return false
+    const module = get().modules[tag]
+    const error = module?.type !== 'AO' ? 'Select a standalone AO module' :
+      module.mode !== 'AUTO' && module.mode !== 'MAN' ? 'AO direct value entry requires AUTO or MAN' :
+      !Number.isFinite(value) || value < (module.mode === 'MAN' ? 0 : module.spLow) ||
+        value > (module.mode === 'MAN' ? 100 : module.spHigh) ? 'AO value is outside the configured limits' : null
+    if (error) return rejectAo(get, tag, error)
+    mutateModule(set, get, tag, m => {
+      if (m.type === 'AO') {
+        if (m.mode === 'MAN') m.manualOutput = value
+        else m.sp = value
+      }
+    })
+    get().logEvent('OPERATOR', tag, `AO requested value ${value}`)
+    return true
+  },
+
+  addAoParameter: (tag, name, value) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create ${tag} input parameter`)) return false
+    const key = name.trim().toUpperCase()
+    const module = get().modules[tag]
+    const error = module?.type !== 'AO' ? 'Input parameters currently require a standalone AO module' :
+      moduleNameError(key) ?? (['AO1', 'PV', 'SP', 'OUT', 'MODE', 'CAS_IN', 'IO_OUT'].includes(key)
+        ? 'Parameter name conflicts with an AO block/parameter' :
+        module.parameters[key] ? `Parameter ${key} already exists` :
+        !Number.isFinite(value) ? 'Floating Point input value must be finite' : null)
+    if (error) return rejectAo(get, tag, error)
+    mutateModule(set, get, tag, m => {
+      if (m.type === 'AO') m.parameters = { ...m.parameters, [key]: { type: 'FLOAT', value } }
+    })
+    get().logEvent('CONFIGURE', tag, `Floating Point input ${key} created`)
+    return true
+  },
+
+  setAoParameter: (tag, name, value) => {
+    if (!useSecurity.getState().requireLock('CONTROL', `Write ${tag}/${name}`)) return false
+    const module = get().modules[tag]
+    const error = module?.type !== 'AO' || !module.parameters[name] ? 'Floating Point input parameter does not exist' :
+      !Number.isFinite(value) ? 'Floating Point input value must be finite' : null
+    if (error) return rejectAo(get, tag, error)
+    mutateModule(set, get, tag, m => {
+      if (m.type === 'AO') m.parameters = { ...m.parameters, [name]: { ...m.parameters[name], value } }
+    })
+    get().logEvent('OPERATOR', tag, `${name}.CV set to ${value}`)
+    return true
+  },
+
+  connectAoParameter: (tag, name) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Wire ${tag} CAS_IN`)) return false
+    const module = get().modules[tag]
+    if (module?.type !== 'AO' || (name !== undefined && !module.parameters[name])) {
+      return rejectAo(get, tag, 'Select an existing Floating Point input parameter')
+    }
+    mutateModule(set, get, tag, m => {
+      if (m.type === 'AO') { m.casParameter = name; m.bad = true }
+    })
+    get().logEvent('CONFIGURE', tag, `AO1.CAS_IN connected to ${name ?? '(none)'}`)
+    return true
+  },
+
   bindAnalogDst: (tag, port, dst) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Bind ${tag} ${port} traditional I/O`)) return false
     const normalized = dst.trim().toUpperCase()
@@ -1125,6 +1235,11 @@ export const useStore = create<StoreState>((set, get) => ({
       const module = s.modules[tag]
       let next = module
       if (module.type === 'AI') next = { ...module, pvBad: true }
+      else if (module.type === 'AO') {
+        const target = findDst(s.hardware, normalized)
+        const out = target?.card.type === 'AO' && Number.isFinite(target.channel.value) ? target.channel.value : module.out
+        next = { ...module, out, pv: aoEngineeringValue(module, out), bad: true, actualMode: 'OOS' }
+      }
       else if (module.type === 'PID') {
         const io = clonePidIo(module)
         if (port === 'input') {
@@ -1314,6 +1429,12 @@ export const useStore = create<StoreState>((set, get) => ({
     })
   }
 }))
+
+function rejectAo(get: () => StoreState, tag: string, message: string): false {
+  get().logEvent('DIAGNOSTIC', tag, `AO action rejected: ${message}`)
+  window.alert(message)
+  return false
+}
 
 function mutateModule(
   set: (fn: (s: StoreState) => Partial<StoreState>) => void,

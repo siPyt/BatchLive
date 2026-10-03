@@ -25,6 +25,7 @@ interface InputPort {
 }
 
 function inputPorts(m: AnyModule, part?: PidBlockName): InputPort[] {
+  if (m.type === 'AO') return [{ which: 'standaloneCas', label: 'CAS_IN' }]
   if (m.type === 'FB') {
     if (m.fbType === 'SPLTR') return [
       { which: 'in1', label: 'CAS_IN' }, { which: 'bkcal1', label: 'BKCAL_IN_1' },
@@ -66,6 +67,7 @@ function inputPorts(m: AnyModule, part?: PidBlockName): InputPort[] {
 function outputPorts(m: AnyModule, part?: PidBlockName): {
   which: DiagramWire['fromPort']; label: string
 }[] {
+  if (m.type === 'AO') return [{ which: 'out', label: 'OUT' }, { which: 'pv', label: 'PV' }]
   if (m.type === 'PID') {
     if (part === 'AI1') return [{ which: 'out', label: 'OUT' }]
     if (part === 'AO1' || part === 'AO2') return [
@@ -110,6 +112,7 @@ export function FbdCanvas({
   const setInterlockSource = useStore((s) => s.setInterlockSource)
   const setCommandSource = useStore((s) => s.setCommandSource)
   const setPidIo = useStore((s) => s.setPidIo)
+  const connectAoParameter = useStore(s => s.connectAoParameter)
   const setSplitterConfig = useStore((s) => s.setSplitterConfig)
   const logEvent = useStore((s) => s.logEvent)
   const deleteModule = useStore((s) => s.deleteModule)
@@ -166,7 +169,8 @@ export function FbdCanvas({
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return
       if (selectedWire) {
-        if (selectedWire.which === 'pv') {
+        if (selectedWire.which === 'standaloneCas') connectAoParameter(selectedWire.tag, undefined)
+        else if (selectedWire.which === 'pv') {
           setPidIo(selectedWire.tag, { aiConnected: false, inputSource: undefined })
         } else if (selectedWire.which === 'ao') {
           setPidIo(selectedWire.tag, { aoConnected: false, outputSource: undefined })
@@ -191,13 +195,14 @@ export function FbdCanvas({
           setFbInput(selectedWire.tag, selectedWire.which, { kind: 'const', value: 0 })
         }
         setSelectedWire(null)
-      } else if (selectedTag && modules[selectedTag]?.type !== 'PID' && !BUILTIN_TAGS.has(selectedTag)) {
+      } else if (selectedTag && modules[selectedTag]?.type !== 'PID' &&
+          modules[selectedTag]?.type !== 'AO' && !BUILTIN_TAGS.has(selectedTag)) {
         deleteModule(selectedTag)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedWire, selectedTag, modules, setPidIo, setSplitterConfig, setFbInput, setCasSource, setFeedforward, setTracking, setInterlockSource, setCommandSource, deleteModule])
+  }, [selectedWire, selectedTag, modules, setPidIo, connectAoParameter, setSplitterConfig, setFbInput, setCasSource, setFeedforward, setTracking, setInterlockSource, setCommandSource, deleteModule])
 
   // Draw every configured live reference so the canvas reflects the same
   // cascade, feedforward, tracking, interlock, and command wiring as the engine.
@@ -218,7 +223,8 @@ export function FbdCanvas({
     const block = blocks[tag]
     const m = modules[block.moduleTag]
     if (output) {
-      const row = Math.max(0, outputPorts(m, block.part).findIndex((port) => port.which === which))
+      const row = block.parameter ? 0 :
+        Math.max(0, outputPorts(m, block.part).findIndex((port) => port.which === which))
       return { x: p.x + NODE_W, y: p.y + HEADER_H + ROW_H * (1 + row) + ROW_H / 2 }
     }
     const ports = inputPorts(m, block.part)
@@ -248,6 +254,15 @@ export function FbdCanvas({
       tag: from.moduleTag, parameter: wiring.fromPort === 'pv' ? 'PV' :
         wiring.fromPort === 'out1' ? 'OUT_1' : wiring.fromPort === 'out2' ? 'OUT_2' : 'OUT',
       block: from.part
+    }
+    if (which === 'standaloneCas') {
+      if (sameModule && from.parameter) connectAoParameter(to.moduleTag, from.parameter)
+      else reject('Standalone AO.CAS_IN currently accepts a Floating Point input parameter in this module')
+      return
+    }
+    if (from.parameter) {
+      reject('This input parameter must be connected to its standalone AO.CAS_IN')
+      return
     }
     if (which === 'splitterFeedback1' || which === 'splitterFeedback2') {
       const first = which === 'splitterFeedback1'
@@ -303,6 +318,10 @@ export function FbdCanvas({
       })
       return
     }
+    if (modules[from.moduleTag].type === 'AO' && wiring.fromPort === 'pv') {
+      reject('This input uses module.OUT. Use AO.OUT, or connect AO.PV through an explicit PID input or FB reference.')
+      return
+    }
     if ((from.part && from.part !== 'PID1') || wiring.fromPort === 'out2' ||
         (from.part === 'PID1' && wiring.fromPort !== (which === 'cas' ? 'out' : 'pv'))) {
       reject('This input uses a live module value. Use PID.PV, a separate AI, or a logic block.')
@@ -344,7 +363,7 @@ export function FbdCanvas({
           const b = pinPos(w.toTag, w.which)
           const source = blocks[w.fromTag]
           const target = blocks[w.toTag]
-          const discrete = !source.part && isDiscreteModule(modules[source.moduleTag])
+          const discrete = !source.part && !source.parameter && isDiscreteModule(modules[source.moduleTag])
           const selected = selectedWire?.id === w.toTag && selectedWire.which === w.which
           const feedbackY = Math.max(
             posOf(w.fromTag).y + nodeHeight(modules[source.moduleTag], source.part),
@@ -424,19 +443,21 @@ function FbNode({
   const outputStage = block.part === 'AO1' || block.part === 'AO2'
   const ao = block.part === 'AO2' ? io?.ao2 : io?.ao
   const split = block.part === 'SPLTR1' ? io?.splitter : undefined
-  const liveValue = m.type === 'PID' && io
+  const parameter = m.type === 'AO' && block.parameter ? m.parameters[block.parameter] : undefined
+  const liveValue = parameter ? parameter.value : m.type === 'PID' && io
     ? inputStage ? io.ai.out : outputStage ? ao?.out ?? NaN :
       split ? split.sp : m.out : readModuleValue(m)
-  const unit = m.type === 'PID' ? inputStage ? m.unit : '%' : m.type === 'AI' ? m.unit : ''
+  const unit = m.type === 'PID' ? inputStage ? m.unit : '%' :
+    m.type === 'AO' ? parameter ? m.unit : '%' : m.type === 'AI' ? m.unit : ''
   const decimals = m.type === 'PID' ? inputStage ? m.decimals : 1 :
-    m.type === 'AI' ? m.decimals : m.type === 'FB' ? 2 : 0
-  const bad = m.type === 'PID' && io
+    m.type === 'AI' || m.type === 'AO' ? m.decimals : m.type === 'FB' ? 2 : 0
+  const bad = parameter ? !Number.isFinite(parameter.value) : m.type === 'PID' && io
     ? inputStage ? io.ai.bad : outputStage ? ao?.bad ?? true :
       split ? split.status === 'BAD' : m.pvBad
-    : m.type === 'AI' ? m.pvBad : m.type === 'FB' ? !!m.bad :
+    : m.type === 'AI' ? m.pvBad : m.type === 'FB' || m.type === 'AO' ? !!m.bad :
       m.type === 'DI' || m.type === 'DO' ? !!m.ioBad : false
-  const inputs = inputPorts(m, block.part)
-  const outputs = outputPorts(m, block.part)
+  const inputs = parameter ? [] : inputPorts(m, block.part)
+  const outputs = parameter ? [{ which: 'out' as const, label: 'CV' }] : outputPorts(m, block.part)
 
   return (
     <g transform={`translate(${x},${y})`} data-block-id={block.id} data-block-type={badge}>
@@ -480,6 +501,8 @@ function FbNode({
       ))}
       {block.part && <text x={NODE_W / 2} y={h + 13} fontSize={9} fill="#303030"
         textAnchor="middle">{m.tag}/{block.part}</text>}
+      {m.type === 'AO' && <text x={NODE_W / 2} y={h + 13} fontSize={9} fill="#303030"
+        textAnchor="middle">{m.tag}/{block.parameter ?? 'AO1'}</text>}
     </g>
   )
 }

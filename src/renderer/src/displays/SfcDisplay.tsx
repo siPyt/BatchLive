@@ -221,7 +221,7 @@ function SfcChart({ sfc, selected, onSelect }: { sfc: SfcDef; selected: number |
               <g transform={`translate(${CENTER_X + STEP_W / 2}, ${y + 6})`}>
                 <line x1={0} y1={step.actions.length === 1 ? 17 : 21} x2={14} y2={step.actions.length === 1 ? 17 : 21} className={isActive ? 'sfc-line-active' : 'sfc-line'} />
                 {step.actions.map((a, ai) => {
-                  const [param, value] = splitAction(a)
+                  const [param, value] = splitAction(a, modules[a.tag])
                   return (
                     <g key={ai} transform={`translate(14, ${ai * 22})`}>
                       <rect x={0} y={0} width={20} height={20} className="qual-box" />
@@ -262,8 +262,8 @@ function SfcChart({ sfc, selected, onSelect }: { sfc: SfcDef; selected: number |
 
 /** Splits a described action into [parameter path, assigned value] for the
  * two-column IEC action block (e.g. "XV-101/SET_PV.CV" | "OPEN"). */
-function splitAction(a: SfcAction): [string, string] {
-  const full = describeAction(a)
+function splitAction(a: SfcAction, module?: AnyModule): [string, string] {
+  const full = describeAction(a, module)
   const i = full.lastIndexOf(':=')
   if (i === -1) return [full, '']
   return [full.slice(0, i).replace(/^\[[^\]]*\]\s*/, '').trim(), full.slice(i + 2).trim()]
@@ -357,10 +357,11 @@ export function ActionEditor({
 }): JSX.Element {
   const typeFor = (k: SfcAction['kind']): AnyModule['type'] =>
     k === 'motor' ? 'MOTOR' : k === 'valve' ? 'VALVE' : k === 'do' ? 'DO' : 'PID'
-  const tags = tagsOf(modules, typeFor(action.kind))
+  const tags = [...tagsOf(modules, typeFor(action.kind)),
+    ...(['mode', 'sp', 'out'].includes(action.kind) ? tagsOf(modules, 'AO') : [])]
 
   const changeKind = (k: SfcAction['kind']): void => {
-    const tag = firstTag(modules, typeFor(k))
+    const tag = firstTag(modules, typeFor(k)) || (['mode', 'sp', 'out'].includes(k) ? firstTag(modules, 'AO') : '')
     if (k === 'mode') onChange({ kind: 'mode', tag, mode: 'AUTO' })
     else if (k === 'sp') onChange({ kind: 'sp', tag, value: 50 })
     else if (k === 'out') onChange({ kind: 'out', tag, value: 0 })
@@ -459,13 +460,15 @@ export function TransitionEditor({
   const changeKind = (k: SfcCondition['kind']): void => {
     if (k === 'always') onChange({ kind: 'always' })
     else if (k === 'timer') onChange({ kind: 'timer', seconds: 5 })
-    else if (k === 'pv') onChange({ kind: 'pv', tag: firstTag(modules, 'PID'), op: '>', value: 50 })
-    else if (k === 'out') onChange({ kind: 'out', tag: firstTag(modules, 'PID'), op: '>', value: 30 })
+    else if (k === 'pv') onChange({ kind: 'pv', tag: firstTag(modules, 'PID') || firstTag(modules, 'AI') ||
+      firstTag(modules, 'AO'), op: '>', value: 50 })
+    else if (k === 'out') onChange({ kind: 'out', tag: firstTag(modules, 'PID') || firstTag(modules, 'AO'), op: '>', value: 30 })
     else if (k === 'motorRunning') onChange({ kind: 'motorRunning', tag: firstTag(modules, 'MOTOR'), running: true })
     else onChange({ kind: 'valveOpen', tag: firstTag(modules, 'VALVE'), open: true })
   }
   const tagType = cond.kind === 'motorRunning' ? 'MOTOR' : cond.kind === 'valveOpen' ? 'VALVE' : 'PID'
-  const tags = cond.kind === 'pv' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AI')] : tagsOf(modules, tagType)
+  const tags = cond.kind === 'pv' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AI'), ...tagsOf(modules, 'AO')] :
+    cond.kind === 'out' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AO')] : tagsOf(modules, tagType)
 
   return (
     <div className="sfc-edit-row sfc-trans-edit">

@@ -92,6 +92,11 @@ function ModuleCard({ module: m }: { module: AnyModule }): JSX.Element {
 }
 
 function CardBody({ module: m }: { module: AnyModule }): JSX.Element {
+  if (m.type === 'AO') return <div style={{ marginTop: 4 }}>
+    <Stat label={`OUT / ${m.actualMode}`} value={m.bad ? '????' : fmt(m.out, 1)}
+      unit="%" color={m.bad ? 'var(--dv-critical)' : 'var(--dv-out)'} />
+    <Stat label="SP" value={fmt(m.sp, m.decimals)} unit={m.unit} color="var(--dv-sp)" />
+  </div>
   if (m.type === 'PID') {
     return (
       <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>

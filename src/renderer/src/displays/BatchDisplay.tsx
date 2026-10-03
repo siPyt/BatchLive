@@ -222,7 +222,7 @@ function PhaseEditor({
                         onRemove={() => setStep(i, { actions: step.actions.filter((_, idx) => idx !== ai) })}
                       />
                     ) : (
-                      <span>• {describeAction(a)}</span>
+                      <span>• {describeAction(a, modules[a.tag])}</span>
                     )}
                   </div>
                 ))}
@@ -257,4 +257,3 @@ function PhaseEditor({
     </div>
   )
 }
-

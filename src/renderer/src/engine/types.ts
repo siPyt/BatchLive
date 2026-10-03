@@ -3,7 +3,7 @@
 // Mirrors DeltaV control-module concepts: modules, parameters, modes, alarms.
 // ---------------------------------------------------------------------------
 
-export type ModuleType = 'PID' | 'AI' | 'DI' | 'DO' | 'MOTOR' | 'VALVE' | 'FB'
+export type ModuleType = 'PID' | 'AI' | 'AO' | 'DI' | 'DO' | 'MOTOR' | 'VALVE' | 'FB'
 
 /** DeltaV control modes for a function block. IMAN (Initialization Manual) is
  * an actual-mode-only state: the block has a downstream cascade consumer that
@@ -257,6 +257,44 @@ export interface AnalogIndicator {
   pvBad: boolean
 }
 
+export interface FloatingInputParameter {
+  type: 'FLOAT'
+  value: number
+}
+
+export interface AnalogOutputModule {
+  tag: string
+  type: 'AO'
+  description: string
+  area: string
+  equipmentModule?: string
+  mode: 'CAS' | 'AUTO' | 'MAN' | 'OOS'
+  actualMode: 'CAS' | 'AUTO' | 'MAN' | 'OOS'
+  unit: string
+  pvMin: number
+  pvMax: number
+  decimals: number
+  spLow: number
+  spHigh: number
+  sp: number
+  pv: number
+  out: number
+  manualOutput: number
+  bad: boolean
+  limited: boolean
+  parameters: Record<string, FloatingInputParameter>
+  casParameter?: string
+  alarms: AlarmLimit[]
+}
+
+export interface AnalogOutputPatch {
+  pvMin?: number
+  pvMax?: number
+  unit?: string
+  spLow?: number
+  spHigh?: number
+}
+
 /**
  * DeltaV Device Control (DC1) block state, DC_STATE. Mirrors the real block:
  * two steady states (Passive/Active), their transient "Going to" states, and
@@ -493,6 +531,7 @@ export interface FunctionBlockModule {
 export type AnyModule =
   | PidModule
   | AnalogIndicator
+  | AnalogOutputModule
   | MotorModule
   | ValveModule
   | DiscreteInput

@@ -451,15 +451,18 @@ Acceptance: Configure and evaluate an alarm on the intended block expression,
 
 [DV09-034]
 Pages: 164-168
-Status: MISSING
+Status: PARTIAL
 Required: Build standalone LEVEL-101 AO, bind LY-1, scale 0-1000 gal, set SP
   limits and a floating CAS_SP parameter connected to CAS_IN; assign/save.
-Evidence: ModuleType has no standalone AO/user-defined parameter model.
-  Palette AO creates a PID strategy substitute.
-  PID AO1/AO2 now write named percent-output channels; that does NOT satisfy
-  the independent LEVEL-101 AO / CAS_SP / engineering-scale procedure.
-Acceptance: Independent AO/parameter creation, true CAS path and actual channel
-  output must work before calling this workshop implemented.
+Verified subset: Independent AO module LEVEL-101, Floating Point input CAS_SP
+  and an executable CAS_SP -> AO1.CAS_IN diagram wire. IO_OUT LY-1 writes
+  actual percent output from engineering PV_SCALE 0-1000 gal and SP limits.
+  CAS 500 produces 50%; AUTO uses SP independently, MAN uses percent output,
+  OOS/invalid/disconnected/down signals hold hardware readback with Bad.
+Gaps: Arbitrary parameter types/paths, controller assignment, native module
+  properties, Save/Download/Online and configured/runtime/NVM remain absent.
+Acceptance: Verify remaining property/assignment/lifecycle steps without
+  replacing standalone AO with a PID stage or claiming session writes are saved.
 
 [DV09-035]
 Pages: 169-171
@@ -491,8 +494,12 @@ Pages: 173-178
 Status: PARTIAL
 Required: Numeric CAS_SP entry bounded 0-1000, tank/rectangle fill animation
   using fetched source limits, and LEVEL-101 output->LI-101 input verification.
-Evidence: Basic datalink/text/dynamo model has no fill expert or CAS_SP write;
-  course analog tieback absent.
+Verified subset: Studio/faceplate CAS_SP writes drive actual LEVEL-101 output.
+  Simulated LY-1 -> LT-1 tieback converts percent through LI-101 PV_SCALE on
+  the following scan; disabled/down/OOS signal holds level with Bad.
+Gaps: Picture-level bounded CAS_SP entry and fill expert are absent. Floating
+  Point parameters permit finite values; AO SP limits clamp the command.
+  This is an explicit simulated tieback, not physical 4-20 mA wiring.
 Acceptance: Test low/high/out-of-range entry and fill percentage computed from
   actual source scale, without recoloring the protected baseline tank.
 

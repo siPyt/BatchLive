@@ -39,7 +39,7 @@ export function ValueBox({ tag, x, y, svg }: Props): JSX.Element | null {
   if (!m) return null
 
   const alm = moduleAlarm(tag, alarms)
-  const bad = (m.type === 'PID' || m.type === 'AI') && m.pvBad
+  const bad = m.type === 'AO' ? m.bad : (m.type === 'PID' || m.type === 'AI') && m.pvBad
   const almClass = (bad ? ' vb-bad' : alm ? ' alm-' + alm.priority.toLowerCase() : '')
 
   let value = 0
@@ -52,11 +52,11 @@ export function ValueBox({ tag, x, y, svg }: Props): JSX.Element | null {
   let sp: number | undefined
   let moduleAlarms: AlarmLimit[] = []
 
-  if (isPid(m)) {
+  if (isPid(m) || m.type === 'AO') {
     value = m.pv
     unit = m.unit
     decimals = m.decimals
-    mode = m.mode
+    mode = m.type === 'AO' ? m.actualMode : m.mode
     pvMin = m.pvMin
     pvMax = m.pvMax
     sp = m.sp

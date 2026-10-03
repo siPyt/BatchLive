@@ -3,6 +3,7 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
+import { StandaloneAoControls } from '../components/StandaloneAoControls'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
 import { moduleNameError } from '../engine/naming'
@@ -12,7 +13,7 @@ import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
 import type {
   AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
   PidBlockName, PidIoPatch, SplitterPatch, SplitterState, FbInputRef,
-  ControlMode, MotorModule, ValveModule
+  ControlMode, MotorModule, ValveModule, AnalogOutputModule
 } from '../engine/types'
 import type { ReactNode } from 'react'
 
@@ -186,7 +187,7 @@ function ParameterView({ module: m, selectedBlock }: {
     rows.push({ key: 'SP_D.CV', value: m.commanded ? '1' : '0',
       toggle: m.mode === 'OOS' ? undefined : { onClick: () => toggleDO(m.tag), label: 'Toggle' } },
       { key: 'PV_D.CV', value: m.state ? '1' : '0' })
-  } else if (m.type !== 'FB') {
+  } else if (m.type !== 'FB' && m.type !== 'AO') {
     rows.push({ key: 'PV_D.CV', value: m.state ? '1' : '0' })
   }
 
@@ -203,6 +204,7 @@ function ParameterView({ module: m, selectedBlock }: {
         <tbody>
           {(m.type === 'DI' || m.type === 'DO') && <DiscreteIoRows m={m} />}
           {m.type === 'AI' && <AnalogDstRow tag={m.tag} port="input" bad={m.pvBad} />}
+          {m.type === 'AO' && <StandaloneAoRows m={m} />}
           {m.type === 'PID' && selectedBlock === 'SPLTR1' && selectedSplitter ? (
             <SplitterParamRows state={selectedSplitter}
               onChange={(patch) => setPidIo(m.tag, { splitter: patch })} />
@@ -303,6 +305,13 @@ function DiscreteIoRows({ m }: { m: Extract<AnyModule, { type: 'DI' | 'DO' }> })
         aria-label={`${m.tag} discrete alarm enabled`} checked={alarm?.enabled ?? false}
         onChange={e => configureAlarm(m.tag, m.alarmOnValue ?? true, e.target.checked)} /></td><td>Configured</td></tr>
     </>}
+  </>
+}
+
+function StandaloneAoRows({ m }: { m: AnalogOutputModule }): JSX.Element {
+  return <>
+    <AnalogDstRow tag={m.tag} port="output" bad={m.bad} />
+    <StandaloneAoControls module={m} />
   </>
 }
 
@@ -977,7 +986,7 @@ function ParamStepper({
 
 interface PaletteItem {
   label: string
-  create: { type: 'PID' | 'AI' | 'DI' | 'DO' } | { type: 'FB'; fbType: FbBlockType }
+  create: { type: 'PID' | 'AI' | 'AO' | 'DI' | 'DO' } | { type: 'FB'; fbType: FbBlockType }
 }
 
 /** The full DeltaV Function Block Reference (D800018X012) palette, grouped
@@ -991,6 +1000,7 @@ const PALETTE: { group: string; items: PaletteItem[] }[] = [
     group: 'I/O Blocks',
     items: [
       { label: 'AI', create: { type: 'AI' } },
+      { label: 'AO', create: { type: 'AO' } },
       { label: 'DI', create: { type: 'DI' } },
       { label: 'DO', create: { type: 'DO' } },
       { label: 'ALARM', create: { type: 'FB', fbType: 'ALARM' } },

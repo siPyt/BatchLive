@@ -21,6 +21,7 @@ const AREA_LABEL: Record<string, string> = {
 }
 
 const TYPE_BADGE: Record<AnyModule['type'], string> = {
+  AO: 'AO',
   PID: 'PID',
   AI: 'AI',
   MOTOR: 'MTR',
@@ -36,6 +37,9 @@ function statusText(m: AnyModule): { text: string; color: string } {
       return { text: `${fmt(m.pv, m.decimals)} ${m.unit} · ${m.mode}`, color: 'var(--dv-pv)' }
     case 'AI':
       return { text: `${fmt(m.pv, m.decimals)} ${m.unit}`, color: 'var(--dv-pv)' }
+    case 'AO':
+      return { text: `${fmt(m.out, 1)} % - ${m.actualMode} - ${m.bad ? 'Bad' : 'Good'}`,
+        color: m.bad ? 'var(--dv-critical)' : 'var(--dv-pv)' }
     case 'MOTOR':
       return m.fault
         ? { text: 'FAULT', color: '#c0202a' }
@@ -402,6 +406,10 @@ function ModuleProperties({
     if (m.casSource) rows.push(['Cascade Source', m.casSource])
   } else if (m.type === 'AI') {
     rows.push(['PV', `${fmt(m.pv, m.decimals)} ${m.unit}`], ['Range', `${fmt(m.pvMin, 0)} – ${fmt(m.pvMax, 0)} ${m.unit}`])
+  } else if (m.type === 'AO') {
+    rows.push(['Mode Target / Actual', `${m.mode} / ${m.actualMode}`],
+      ['SP', `${fmt(m.sp, m.decimals)} ${m.unit}`], ['Applied output', `${fmt(m.out, 1)} %`],
+      ['PV_SCALE', `${m.pvMin} - ${m.pvMax} ${m.unit}`], ['Quality', m.bad ? 'Bad' : 'Good'])
   } else if (m.type === 'MOTOR') {
     rows.push(
       ['State', m.fault ? 'FAULT' : m.running ? 'RUNNING' : 'STOPPED'],
@@ -563,7 +571,7 @@ function NewModuleForm({
   const [pvMin, setPvMin] = useState(0)
   const [pvMax, setPvMax] = useState(100)
 
-  const analog = type === 'PID' || type === 'AI'
+  const analog = type === 'PID' || type === 'AI' || type === 'AO'
   const normTag = tag.trim().toUpperCase()
   const nameError = moduleNameError(normTag)
   const exists = normTag.length > 0 && !!modules[normTag]
@@ -601,6 +609,7 @@ function NewModuleForm({
         <select value={type} onChange={(e) => setType(e.target.value as ModuleType)}>
           <option value="PID">PID — Control Loop</option>
           <option value="AI">AI — Indicator</option>
+          <option value="AO">AO — Analog Output</option>
           <option value="MOTOR">MOTOR</option>
           <option value="VALVE">VALVE (on/off)</option>
           <option value="DI">DI — Discrete Input</option>

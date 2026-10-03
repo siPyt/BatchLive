@@ -18,6 +18,7 @@ import { advanceControllers, computeBadTags, type HardwareState } from './hardwa
 import {
   advanceTraditionalIo, analogChannelBad, sampleAnalogInputs, sampleAnalogOutputs, sampleDiscreteInputs
 } from './traditionalIo'
+import { executeStandaloneAo } from './standaloneAo'
 import {
   appliedPidOutput, clonePidIo, executePidOutput, pidIo, pidOutputUnavailable,
   readAnalogSignal, resolvePidInput, samplePidInput
@@ -48,6 +49,8 @@ const DERIV_ALPHA = 0.125
  * Auto/IMan because of the Not Invited status").
  */
 function resolveActualMode(m: PidModule, modules: Record<string, AnyModule>): PidModule['mode'] {
+  const source = m.casSource ? modules[m.casSource] : undefined
+  if ((m.mode === 'CAS' || m.mode === 'RCAS') && source?.type === 'AO' && source.bad) return 'AUTO'
   if ((m.mode === 'CAS' || m.mode === 'RCAS') && !m.casHealthy) return 'AUTO'
   if (m.mode === 'MAN' || m.mode === 'ROUT') return m.mode
   const child = findCascadeChild(modules, m.tag)
@@ -125,7 +128,7 @@ function computePid(m: PidModule, dt: number, ffVal = 0, bkcalLimited = false): 
  * is the master of a cascade, a saturated downstream child freezes its
  * integral term (see computePid's bkcalLimited argument).
  *  - Cascade: while CAS/RCas, SP is pulled from casSource every scan (a PID
- *    source supplies its OUT as percent-of-range; anything else supplies its
+ *    or standalone AO source supplies OUT as percent-of-range; others supply their
  *    live value directly in EU, matching CAS_IN's "EU of PV_SCALE").
  *  - Tracking: while trackSource is non-zero, OUT is bumplessly forced to
  *    trackValueSource (or the constant trackValue), mirroring TRK_IN_D/TRK_VAL.
@@ -149,7 +152,8 @@ function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, d
   }
   if ((m.actualMode === 'CAS' || m.actualMode === 'RCAS') && m.casSource) {
     const src = modules[m.casSource]
-    if (src) m.sp = clamp(src.type === 'PID' ? m.pvMin + (src.out / 100) * (m.pvMax - m.pvMin) : readModuleValue(src), m.pvMin, m.pvMax)
+    if (src) m.sp = clamp(src.type === 'PID' || src.type === 'AO'
+      ? m.pvMin + (src.out / 100) * (m.pvMax - m.pvMin) : readModuleValue(src), m.pvMin, m.pvMax)
   }
   if (m.trackEnable && m.trackSource && readModuleValue(modules[m.trackSource]) !== 0) {
     const trackVal = m.trackValueSource ? readModuleValue(modules[m.trackValueSource]) : m.trackValue
@@ -360,7 +364,8 @@ function resolveFbInput(
   const m = ref.tag ? modules[ref.tag] : undefined
   return {
     value: readModuleValue(m),
-    bad: !m || ('pvBad' in m && m.pvBad) || ('ioBad' in m && !!m.ioBad) || (m.type === 'FB' && !!m.bad)
+    bad: !m || ('pvBad' in m && m.pvBad) || ('ioBad' in m && !!m.ioBad) ||
+      ((m.type === 'FB' || m.type === 'AO') && !!m.bad)
   }
 }
 
@@ -781,6 +786,7 @@ export function stepPlant(
     const module = modules[tag]
     if (module.type === 'PID') executeLoop(module)
     else if (module.type === 'FB') stepFunctionBlock(module, modules, dt)
+    else if (module.type === 'AO') executeStandaloneAo(module, analogOutputBad(tag))
     else if (module.type === 'MOTOR') applyMotorDC(module, dt, modules)
     else if (module.type === 'VALVE') applyValveDC(module, dt, modules)
     else if (module.type === 'DO' && !prev.hardware.discreteBindings?.[tag] && module.mode !== 'OOS') {

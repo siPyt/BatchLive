@@ -10,15 +10,15 @@ const PARAMS: PicParam[] = ['PV', 'SP', 'OUT', 'MODE', 'STATE']
 function paramValue(m: AnyModule | undefined, param: PicParam): string {
   if (!m) return '—'
   if (param === 'PV') {
-    if (m.type === 'PID' || m.type === 'AI') return `${fmt(m.pv, m.decimals)} ${m.unit}`
+    if (m.type === 'PID' || m.type === 'AI' || m.type === 'AO') return `${fmt(m.pv, m.decimals)} ${m.unit}`
     if (m.type === 'MOTOR') return m.running ? 'RUN' : 'STOP'
     if (m.type === 'VALVE') return m.open ? 'OPEN' : 'CLOSED'
     if (m.type === 'FB') return `${fmt(m.out, 2)}`
     return m.state ? m.activeDescriptor : m.inactiveDescriptor
   }
-  if (param === 'SP') return m.type === 'PID' ? `${fmt(m.sp, m.decimals)} ${m.unit}` : '—'
-  if (param === 'OUT') return m.type === 'PID' ? `${fmt(m.out, 1)} %` : '—'
-  if (param === 'MODE') return m.type === 'PID' ? m.mode : '—'
+  if (param === 'SP') return m.type === 'PID' || m.type === 'AO' ? `${fmt(m.sp, m.decimals)} ${m.unit}` : '—'
+  if (param === 'OUT') return m.type === 'PID' || m.type === 'AO' ? `${fmt(m.out, 1)} %` : '—'
+  if (param === 'MODE') return m.type === 'AO' ? m.actualMode : m.type === 'PID' ? m.mode : '—'
   // STATE
   if (m.type === 'MOTOR') return m.running ? 'RUNNING' : 'STOPPED'
   if (m.type === 'VALVE') return m.open ? 'OPEN' : 'CLOSED'

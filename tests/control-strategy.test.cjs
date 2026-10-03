@@ -892,7 +892,7 @@ test('manual input simulation refuses tieback override and accepts only Boolean 
   })
 })
 
-test('traditional DST length boundaries and unsupported analog tieback are validated explicitly', () => {
+test('traditional DST length boundaries and input-only tieback directions are validated explicitly', () => {
   withAreaProject(store => {
     discreteCourseProject(store)
     const hw = useStore.getState().hardware
@@ -900,8 +900,10 @@ test('traditional DST length boundaries and unsupported analog tieback are valid
     assert.match(channelConfigurationError(hw, 'CTLR/C03', 3, { dst: 'A'.repeat(17), enabled: true }), /1-16/)
     assert.match(channelConfigurationError(hw, 'CTLR/C03', 3, { dst: '1234', enabled: true }), /letter/)
     assert.equal(channelConfigurationError(hw, 'CTLR/C03', 3, { dst: 'A_$-1', enabled: true }), null)
-    assert.match(channelConfigurationError(hw, 'CTLR/C01', 1,
-      { dst: 'LT-1', enabled: true, tiebackDst: 'LY-1' }), /Only DI/)
+    assert.equal(channelConfigurationError(hw, 'CTLR/C01', 1,
+      { dst: 'LT-1', enabled: true, tiebackDst: 'LY-1' }), null)
+    assert.match(channelConfigurationError(hw, 'CTLR/C02', 1,
+      { dst: 'LY-1', enabled: true, tiebackDst: 'LT-1' }), /Only input/)
     assert.equal(findDst(hw, ''), undefined)
   })
 })
@@ -1055,6 +1057,285 @@ function analogCourseProject(store, split = false) {
   store.tick(0.1)
   store.tick(0.1)
 }
+
+function standaloneAoCourseProject(store) {
+  analogCourseProject(store)
+  store.deleteModule('LOOP-101')
+  assert.equal(store.createModule({ tag: 'LEVEL-101', type: 'AO', area: 'PLANT_AREA_A',
+    description: 'Course standalone output', unit: 'gal', pvMin: 0, pvMax: 1000 }), true)
+  assert.equal(store.bindAnalogDst('LEVEL-101', 'output', 'LY-1'), true)
+  assert.equal(store.addAoParameter('LEVEL-101', 'CAS_SP', 500), true)
+  assert.equal(store.connectAoParameter('LEVEL-101', 'CAS_SP'), true)
+  store.tick(0.1)
+}
+
+test('LEVEL-101 is a standalone AO with an actual Floating Point CAS_SP wire and engineering scale', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    const state = useStore.getState()
+    const m = state.modules['LEVEL-101']
+    assert.equal(m.type, 'AO')
+    assert.equal(m.io, undefined)
+    assert.deepEqual([m.pvMin, m.pvMax, m.spLow, m.spHigh, m.unit], [0, 1000, 0, 1000, 'gal'])
+    assert.deepEqual(m.parameters.CAS_SP, { type: 'FLOAT', value: 500 })
+    assert.deepEqual([m.mode, m.actualMode, m.sp, m.out, m.pv, m.bad], ['CAS', 'CAS', 500, 50, 500, false])
+    assert.equal(findDst(state.hardware, 'LY-1').channel.value, 50)
+    const diagram = buildControlDiagram(['LEVEL-101'], state.modules)
+    assert.deepEqual(Object.keys(diagram.blocks), ['LEVEL-101/CAS_SP', 'LEVEL-101'])
+    assert.equal(diagram.blocks['LEVEL-101'].name, 'AO1')
+    assert.equal(diagram.blocks['LEVEL-101/CAS_SP'].parameter, 'CAS_SP')
+    assert.deepEqual(diagram.wires, [{ key: 'LEVEL-101.standaloneCas', fromTag: 'LEVEL-101/CAS_SP',
+      fromPort: 'out', toTag: 'LEVEL-101', which: 'standaloneCas' }])
+  })
+})
+
+test('standalone AO CAS_SP range endpoints and SP limiting drive the actual channel', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    for (const [value, sp, out, limited] of [[0, 0, 0, false], [1000, 1000, 100, false],
+      [-10, 0, 0, true], [1500, 1000, 100, true]]) {
+      assert.equal(store.setAoParameter('LEVEL-101', 'CAS_SP', value), true)
+      store.tick(0.1)
+      const m = useStore.getState().modules['LEVEL-101']
+      assert.deepEqual([m.sp, m.out, m.limited, m.bad], [sp, out, limited, false])
+      assert.equal(findDst(useStore.getState().hardware, 'LY-1').channel.value, out)
+    }
+    assert.equal(store.configureStandaloneAo('LEVEL-101', { spLow: 100, spHigh: 950 }), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 95)
+  })
+})
+
+test('standalone AO AUTO/MAN/OOS are distinct from CAS with held field output', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    assert.equal(store.setStandaloneAoMode('LEVEL-101', 'AUTO'), true)
+    assert.equal(store.setStandaloneAoValue('LEVEL-101', 700), true)
+    assert.equal(store.setAoParameter('LEVEL-101', 'CAS_SP', 555), true)
+    store.tick(0.1)
+    let m = useStore.getState().modules['LEVEL-101']
+    assert.deepEqual([m.sp, m.out, m.parameters.CAS_SP.value, m.actualMode], [700, 70, 555, 'AUTO'])
+    assert.equal(store.setStandaloneAoMode('LEVEL-101', 'MAN'), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].manualOutput, 70)
+    assert.equal(store.setStandaloneAoValue('LEVEL-101', 25), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 25)
+    store.setStandaloneAoMode('LEVEL-101', 'OOS')
+    store.tick(0.1)
+    m = useStore.getState().modules['LEVEL-101']
+    assert.deepEqual([m.out, m.pv, m.bad, m.actualMode], [25, 250, true, 'OOS'])
+    assert.equal(findDst(useStore.getState().hardware, 'LY-1').channel.value, 25)
+    store.setStandaloneAoMode('LEVEL-101', 'CAS')
+    store.tick(0.1)
+    assert.ok(Math.abs(useStore.getState().modules['LEVEL-101'].out - 55.5) < 1e-9)
+  })
+})
+
+test('standalone AO disconnect holds actual readback with Bad and reconnect recovers', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    store.connectAoParameter('LEVEL-101', undefined)
+    store.tick(0.1)
+    let m = useStore.getState().modules['LEVEL-101']
+    assert.deepEqual([m.out, m.bad, m.actualMode], [50, true, 'OOS'])
+    assert.equal(buildControlDiagram(['LEVEL-101'], useStore.getState().modules).wires.length, 0)
+    assert.equal(store.setStandaloneAoValue('LEVEL-101', 80), false)
+    store.connectAoParameter('LEVEL-101', 'CAS_SP')
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].bad, false)
+    store.configureTraditionalChannel('CTRL1/C02', 1, { dst: 'LY-1', enabled: false })
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 800)
+    store.tick(0.1)
+    m = useStore.getState().modules['LEVEL-101']
+    assert.deepEqual([m.out, m.bad, m.actualMode], [50, true, 'OOS'])
+    store.configureTraditionalChannel('CTRL1/C02', 1, { dst: 'LY-1', enabled: true })
+    store.tick(0.1)
+    assert.deepEqual([useStore.getState().modules['LEVEL-101'].out,
+      useStore.getState().modules['LEVEL-101'].bad], [80, false])
+  })
+})
+
+test('standalone AO controller failure holds hardware and propagates Bad to reference consumers', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    store.createModule({ tag: 'AO-MONITOR', type: 'FB', fbType: 'ADD', area: 'PLANT_AREA_A', description: 'Read output' })
+    store.setFbInput('AO-MONITOR', 'in1', { kind: 'ref', tag: 'LEVEL-101', parameter: 'OUT', value: 0 })
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['AO-MONITOR'].out, 50)
+    assert.equal(readAnalogSignal({ tag: 'LEVEL-101', parameter: 'PV' }, useStore.getState().modules).value, 500)
+    store.setControllerConfiguration('CTRL1', { coldRestartMinutes: 5 })
+    store.simulateControllerPowerLoss('CTRL1')
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 900)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 50)
+    assert.equal(useStore.getState().modules['AO-MONITOR'].bad, true)
+    assert.equal(readAnalogSignal({ tag: 'LEVEL-101', parameter: 'OUT' }, useStore.getState().modules).bad, true)
+    store.restoreControllerPower('CTRL1')
+    for (let scan = 0; scan < 3; scan++) store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 90)
+    assert.equal(useStore.getState().modules['AO-MONITOR'].bad, false)
+  })
+})
+
+test('standalone AO validation rejects nonfinite, missing and invalid configuration without mutating snapshots', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    const before = useStore.getState().modules['LEVEL-101']
+    assert.equal(store.createModule({ tag: 'INVALID-AO', type: 'AO', area: 'PLANT_AREA_A',
+      description: 'Invalid range', pvMin: 1000, pvMax: 0 }), false)
+    assert.equal(useStore.getState().modules['INVALID-AO'], undefined)
+    assert.equal(store.setAoParameter('LEVEL-101', 'CAS_SP', NaN), false)
+    assert.equal(store.setAoParameter('LEVEL-101', 'MISSING', 555), false)
+    assert.equal(store.addAoParameter('LEVEL-101', 'CAS_SP', 500), false)
+    assert.equal(store.addAoParameter('LEVEL-101', 'AO1', 500), false)
+    assert.equal(store.addAoParameter('LEVEL-101', 'BAD NAME', 500), false)
+    assert.equal(store.connectAoParameter('LEVEL-101', 'MISSING'), false)
+    for (const patch of [{ pvMax: 0 }, { pvMin: Infinity }, { spLow: -1 }, { spHigh: 1001 },
+      { spLow: 900, spHigh: 100 }]) assert.equal(store.configureStandaloneAo('LEVEL-101', patch), false)
+    assert.equal(useStore.getState().modules['LEVEL-101'], before)
+    assert.equal(store.setAoParameter('LEVEL-101', 'CAS_SP', 555), true)
+    assert.equal(before.parameters.CAS_SP.value, 500)
+    assert.equal(useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value, 555)
+    store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+    assert.equal(store.setStandaloneAoValue('LEVEL-101', 1001), false)
+    store.setStandaloneAoMode('LEVEL-101', 'MAN')
+    assert.equal(store.setStandaloneAoValue('LEVEL-101', -1), false)
+    assert.equal(store.setStandaloneAoValue('LEVEL-101', Infinity), false)
+  })
+})
+
+test('standalone AO binds only AO output DSTs, shares writer exclusion and releases on deletion', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    assert.equal(store.bindAnalogDst('LEVEL-101', 'input', 'LT-1'), false)
+    assert.equal(store.bindAnalogDst('LEVEL-101', 'output2', 'FY-2'), false)
+    assert.equal(store.bindAnalogDst('LEVEL-101', 'output', 'LT-1'), false)
+    store.createModule({ tag: 'OTHER-AO', type: 'AO', area: 'PLANT_AREA_A', description: 'Second writer' })
+    assert.equal(store.bindAnalogDst('OTHER-AO', 'output', 'LY-1'), false)
+    assert.equal(store.configureTraditionalChannel('CTRL1/C02', 1, { dst: 'RENAMED' }), false)
+    store.deleteModule('LEVEL-101')
+    assert.equal(useStore.getState().hardware.analogBindings['LEVEL-101'], undefined)
+    assert.equal(store.bindAnalogDst('OTHER-AO', 'output', 'LY-1'), true)
+  })
+})
+
+test('simulated analog tieback maps AO percent to LI-101 PV_SCALE on the following scan', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    assert.equal(store.configureTraditionalChannel('CTRL1/C01', 1, { dst: 'LT-1', enabled: true, tiebackDst: 'LY-1' }), true)
+    assert.equal(store.setTraditionalInput('LT-1', 123), false)
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['LI-101'].pv, 500)
+    assert.equal(findDst(useStore.getState().hardware, 'LT-1').channel.value, 50)
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 950)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LI-101'].pv, 500)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LI-101'].pv, 950)
+    store.setStandaloneAoMode('LEVEL-101', 'OOS')
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['LI-101'].pv, 950)
+    assert.equal(useStore.getState().modules['LI-101'].pvBad, true)
+    store.setStandaloneAoMode('LEVEL-101', 'CAS')
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 100)
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['LI-101'].pv, 100)
+    assert.equal(useStore.getState().modules['LI-101'].pvBad, false)
+  })
+})
+
+test('standalone AO nonzero scale and PID input tieback use independent receiving engineering scales', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    store.configureStandaloneAo('LEVEL-101', { pvMin: -100, pvMax: 900, spLow: -100, spHigh: 900 })
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 400)
+    store.createModule({ tag: 'TIEBACK-PID', type: 'PID', area: 'PLANT_AREA_A', description: 'Scaled input',
+      pvMin: 10, pvMax: 20, unit: 'bar' })
+    store.bindAnalogDst('TIEBACK-PID', 'input', 'FT-2')
+    store.configureTraditionalChannel('CTRL1/C01', 2, { dst: 'FT-2', enabled: true, tiebackDst: 'LY-1' })
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 50)
+    assert.equal(useStore.getState().modules['LEVEL-101'].pv, 400)
+    assert.equal(useStore.getState().modules['TIEBACK-PID'].io.ai.raw, 15)
+    assert.equal(useStore.getState().modules['TIEBACK-PID'].pv, 15)
+    assert.equal(store.configureTraditionalChannel('CTRL1/C01', 1, { dst: 'LT-1', enabled: true, tiebackDst: 'XV-1' }), false)
+  })
+})
+test('standalone AO Bad reaches default FB output references and denied writes retain exact state', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    store.createModule({ tag: 'PLAIN-REF', type: 'FB', fbType: 'ADD', area: 'PLANT_AREA_A', description: 'Default output' })
+    store.setFbInput('PLAIN-REF', 'in1', { kind: 'ref', tag: 'LEVEL-101', value: 0 })
+    store.setStandaloneAoMode('LEVEL-101', 'OOS')
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['PLAIN-REF'].bad, true)
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    const before = useStore.getState().modules['LEVEL-101']
+    assert.equal(store.configureStandaloneAo('LEVEL-101', { spHigh: 900 }), false)
+    assert.equal(store.addAoParameter('LEVEL-101', 'SECOND', 500), false)
+    assert.equal(store.connectAoParameter('LEVEL-101', undefined), false)
+    assert.equal(useStore.getState().modules['LEVEL-101'], before)
+  })
+})
+
+test('standalone AO corruption holds finite readback with Bad and recovers without a stale latch', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    const before = useStore.getState()
+    const m = before.modules['LEVEL-101']
+    useStore.setState({ modules: { ...before.modules, 'LEVEL-101': { ...m,
+      parameters: { ...m.parameters, CAS_SP: { type: 'FLOAT', value: NaN } } } } })
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 50)
+    assert.equal(useStore.getState().modules['LEVEL-101'].bad, true)
+    assert.equal(findDst(useStore.getState().hardware, 'LY-1').channel.bad, true)
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 800)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 80)
+    const state = useStore.getState()
+    const card = state.hardware.traditionalCards['CTRL1/C02']
+    useStore.setState({ hardware: { ...state.hardware, traditionalCards: {
+      ...state.hardware.traditionalCards, [card.id]: { ...card,
+        channels: card.channels.map(c => c.channel === 1 ? { ...c, value: NaN } : c) } } } })
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 80)
+    assert.equal(useStore.getState().modules['LEVEL-101'].bad, true)
+  })
+})
+
+test('standalone AO outputs participate in PID cascade scaling, SFC actions and recorded trends', () => {
+  withAreaProject(store => {
+    const { applyAction, evalCondition, describeAction } = require('../src/renderer/src/engine/sfc.ts')
+    standaloneAoCourseProject(store)
+    store.createModule({ tag: 'AO-SLAVE', type: 'PID', area: 'PLANT_AREA_A', description: 'Cascade receiver',
+      pvMin: 0, pvMax: 1000, unit: 'gal' })
+    store.setCasSource('AO-SLAVE', 'LEVEL-101')
+    store.setMode('AO-SLAVE', 'CAS')
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['AO-SLAVE'].sp, 500)
+    assert.equal(store.setPidIo('AO-SLAVE', { inputSource: { tag: 'LEVEL-101', parameter: 'PV' } }), true)
+    const diagram = buildControlDiagram(['LEVEL-101', 'AO-SLAVE'], useStore.getState().modules)
+    assert.equal(diagram.wires.find(w => w.key === 'AO-SLAVE.pv').fromPort, 'pv')
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['AO-SLAVE'].pv, 500)
+    assert.equal(store.setPidIo('AO-SLAVE', { inputSource: undefined }), true)
+    store.setStandaloneAoMode('LEVEL-101', 'OOS')
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['AO-SLAVE'].actualMode, 'AUTO')
+    const m = { ...useStore.getState().modules['LEVEL-101'] }
+    applyAction(m, { kind: 'mode', tag: m.tag, mode: 'MAN' })
+    applyAction(m, { kind: 'out', tag: m.tag, value: 25 })
+    assert.deepEqual([m.mode, m.manualOutput], ['MAN', 25])
+    assert.match(describeAction({ kind: 'out', tag: m.tag, value: 25 }, m), /AO1\/OUT.CV/)
+    assert.equal(evalCondition({ kind: 'out', tag: 'LEVEL-101', op: '>=', value: 50 }, useStore.getState(), 0), true)
+    store.setStandaloneAoMode('LEVEL-101', 'CAS')
+    for (let scan = 0; scan < 5; scan++) store.tick(0.1)
+    const point = useStore.getState().trend.at(-1)
+    assert.equal(point.values['LEVEL-101.PV'], 500)
+    assert.equal(point.values['LEVEL-101.SP'], 500)
+    assert.equal(point.values['LEVEL-101.OUT'], 50)
+  })
+})
 
 test('traditional AI channel drives LI-101 exactly without generic physics or drift', () => {
   withAreaProject(store => {

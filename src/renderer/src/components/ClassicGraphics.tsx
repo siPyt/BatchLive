@@ -256,8 +256,10 @@ export function ClassicReadout({ tag, x, y }: { tag: string; x: number; y: numbe
   if (!m) return null
   const w = 96
   const rows: [string, string][] = []
-  if (isPid(m)) {
-    rows.push(['PV', `${fmt(m.pv, m.decimals)}${m.unit}`], ['SP', `${fmt(m.sp, m.decimals)}${m.unit}`], ['OUT', `${fmt(m.out, 1)}%`])
+  if (isPid(m) || m.type === 'AO') {
+    rows.push(['PV', m.type === 'AO' && m.bad ? '????' : `${fmt(m.pv, m.decimals)}${m.unit}`],
+      ['SP', `${fmt(m.sp, m.decimals)}${m.unit}`],
+      ['OUT', m.type === 'AO' && m.bad ? '????' : `${fmt(m.out, 1)}%`])
   } else if (m.type === 'AI') {
     rows.push(['PV', `${fmt(m.pv, m.decimals)}${m.unit}`])
   } else if (m.type === 'DI' || m.type === 'DO') {

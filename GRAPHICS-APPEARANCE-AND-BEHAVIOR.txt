@@ -906,7 +906,39 @@ held 63% Bad against an 80% command, recovery and split channels, exact
 containment. Fixtures and viewports restored, preview running on Overview.
 82 control tests and five audit tests passed with typecheck/build/diagnostics.
 
-Native standalone AO/CAS_SP, electrical scaling, analog tiebacks, templates,
+At this checkpoint standalone AO/CAS_SP, electrical scaling, analog tiebacks, templates,
 assignment and Save/Download/Online remain incomplete. Do not mark the
 complete manual implemented or redesign approved graphics to hide these gaps.
+Commit permitted; push remains unauthorized.
+
+===============================================================================
+19. DV-09 STANDALONE AO - PRESERVE THE REFERENCE PRESENTATION
+===============================================================================
+
+Standalone AO uses the existing AO engineering icon and neutral FBD node.
+It is not another PID strategy and must not display nonexistent AI/PID blocks.
+Floating Point input parameters appear as separate labeled nodes with a CV
+output. Their wire to AO1.CAS_IN follows the existing blue orthogonal routing.
+Live parameter value and actual AO percent output remain different quantities.
+The module/parameter path sits below its own node, not across another block.
+Removing the wire shows held Bad output; reconnecting resumes real execution.
+
+Use existing Studio parameter-table and wrapping channel-form conventions.
+No ribbon, tree/palette layout, node sizing, saved coordinates, equipment
+shape, green/black feedback color, pipe routing or baseline physics changed.
+The new compact AO faceplate follows existing fp-body/fp-row/input conventions;
+it is 292 pixels wide and live-verified without overflowing fields.
+
+Traditional AI manual input summaries remain engineering-unit values.
+Explicit simulated AO-to-AI tieback summaries show percent. The receiving
+module converts using its own PV_SCALE; do not label this electrical wiring.
+Actual readback is separate from requested SP/CAS_SP/manual output.
+Held faults remain Bad across Studio, FBD, faceplate and signal consumers.
+
+The fixture used isolated LEVEL-101 AO; the original 96-module pharma plant
+was restored. No motor, valve, tank or agitator artwork was redesigned.
+Validation: 94 control regressions, five audit regressions, typecheck/build
+and editor diagnostics passed. Preserve these regression checks.
+Do not claim Save/Download/Online, restart restoration, arbitrary typed paths
+or full DV-09 parity based on these immediately-live session controls.
 Commit permitted; push remains unauthorized.

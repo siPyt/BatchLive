@@ -107,7 +107,16 @@ and preserve existing limits, manual modes, back-calculation and splitter balanc
 New AI indicators expose disabled HI/LO alarms so the course's LI-101 thresholds
 can be explicitly configured without adding unexpected alarms to local indicators.
 
-Standalone AO/user parameters, 4-20 mA scaling and analog tiebacks, discrete CAS,
+Explorer and the I/O palette offer a real standalone AO module. The LEVEL-101
+subset supports a Floating Point input `CAS_SP`, its actual wire to `AO1.CAS_IN`,
+engineering `PV_SCALE`/SP limits, and `IO_OUT LY-1`. CAS 500 on a 0-1000 gal scale
+drives 50% at the actual channel. AUTO uses SP, MAN uses percent output, and
+OOS/disconnected/invalid/down paths hold the last hardware readback with Bad.
+Explicit simulated AO-to-AI tiebacks convert percent through the receiving
+module's engineering scale on the following scan; manual AI inputs retain their
+engineering-unit behavior. This is not electrical conversion or device feedback.
+
+Arbitrary typed parameters/paths, 4-20 mA scaling, discrete CAS,
 native templates, controller/display assignment, and the configuration/runtime/
 Save/Download/Online lifecycle remain gaps. These channel settings are
 immediately live and session-local, not saved controller configuration.

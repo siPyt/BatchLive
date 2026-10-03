@@ -50,8 +50,8 @@ export function signalError(ref: AnalogSignalRef, modules: Record<string, AnyMod
   if (ref.block === 'AI1' || ref.block === 'AO1' || ref.block === 'AO2') {
     return ref.parameter === 'OUT' ? null : `${ref.tag}/${ref.block} exposes OUT, not PV`
   }
-  if (ref.parameter === 'PV' && (source.type === 'PID' || source.type === 'AI')) return null
-  if (ref.parameter === 'OUT' && (source.type === 'PID' || source.type === 'FB' || source.type === 'AI')) return null
+  if (ref.parameter === 'PV' && (source.type === 'PID' || source.type === 'AI' || source.type === 'AO')) return null
+  if (ref.parameter === 'OUT' && (source.type === 'PID' || source.type === 'FB' || source.type === 'AI' || source.type === 'AO')) return null
   return `${ref.tag}.${ref.parameter} is not an analog signal`
 }
 
@@ -73,11 +73,11 @@ export function readAnalogSignal(
     const value = ref.parameter === 'OUT_1' ? splitter.out1 : splitter.out2
     return { value, bad: splitter.status === 'BAD' || !Number.isFinite(value) }
   }
-  const value = source.type === 'PID' && ref.parameter === 'OUT'
+  const value = (source.type === 'PID' || source.type === 'AO') && ref.parameter === 'OUT'
     ? source.out : source.type === 'FB' ? source.out : 'pv' in source ? source.pv : NaN
   return { value, bad: !Number.isFinite(value) ||
     ('pvBad' in source && source.pvBad && (ref.parameter === 'PV' || source.type === 'AI')) ||
-    (source.type === 'FB' && !!source.bad) }
+    ((source.type === 'FB' || source.type === 'AO') && !!source.bad) }
 }
 
 export function pidIoPatchError(

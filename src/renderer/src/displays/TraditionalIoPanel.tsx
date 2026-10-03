@@ -15,9 +15,10 @@ export function TraditionalIoPanel({ controllerTag }: { controllerTag: string })
       <div className="batch-panel-head">Traditional I/O Cards</div>
       <p className="traditional-note">
         Training inventory: eight slots, eight channels per card. Configure a DST and Enable each channel.
-        DI/DO and AI/PID AI1/AO1/AO2 bindings execute on scans. AI signals are engineering values;
-        AO signals are percent output. Discrete tiebacks are explicitly simulated. Standalone AO
-        modules, analog electrical scaling and controller downloads are not implemented here;
+        DI/DO, standalone AI/AO and PID AI1/AO1/AO2 bindings execute on scans.
+        Manual AI signals are engineering values; AO signals are percent output.
+        Simulated AO-to-AI tiebacks use percent, converted through the receiving module's PV_SCALE.
+        Electrical scaling and controller downloads are not implemented here;
         these settings are session-local and immediately live.
       </p>
       <div className="traditional-toolbar">
@@ -57,20 +58,22 @@ function TraditionalChannelEditor({ card, channel }: {
   const analogBindings = Object.entries(hardware.analogBindings ?? {}).flatMap(([tag, ports]) =>
     Object.entries(ports).filter(([, dst]) => dst === channel.dst).map(([port]) => `${tag}.${port}`))
   const isInput = card.type === 'DI' || card.type === 'AI'
-  const sources = traditionalChannels(hardware).filter(item => item.card.type === 'DO' && item.channel.dst)
+  const sources = traditionalChannels(hardware).filter(item =>
+    item.card.type === (card.type === 'AI' ? 'AO' : 'DO') && item.channel.dst)
   return (
     <details className="traditional-channel">
       <summary>
         <span>CH{channel.channel}: <b>{channel.dst || '(unnamed)'}</b></span>
         <span>{channel.enabled ? 'Enabled' : 'Disabled'} · {bad ? 'Bad' : 'Good'} · Signal {channel.value}
-          {card.type === 'AO' ? ' %' : card.type === 'AI' ? ' (engineering)' : ''}</span>
+          {card.type === 'AO' || (card.type === 'AI' && channel.tiebackDst) ? ' %' :
+            card.type === 'AI' ? ' (engineering)' : ''}</span>
       </summary>
       <div className="traditional-channel-form">
         <label>DST <input aria-label={`${label} DST`} value={dst}
           onChange={e => setDst(e.target.value)} placeholder="e.g. XV-1" /></label>
         <label><input aria-label={`${label} Enable`} type="checkbox" checked={enabled}
           onChange={e => setEnabled(e.target.checked)} /> Enable</label>
-        {card.type === 'DI' && <label>Simulated tieback (not physical wiring)
+        {isInput && <label>Simulated tieback (not physical wiring)
           <select aria-label={`${label} simulated tieback`} value={tieback}
             onChange={e => setTieback(e.target.value)}>
             <option value="">(none — manual input)</option>
