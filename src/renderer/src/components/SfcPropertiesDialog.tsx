@@ -38,6 +38,10 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const [browser, setBrowser] = useState<'action' | 'transition' | 'delay' | null>(null)
   const [route, setRoute] = useState(target.step.nextStep === undefined ? 'sequential' :
     target.step.nextStep === null ? 'complete' : `step:${target.step.nextStep}`)
+  const [alternatives, setAlternatives] = useState((target.step.alternatives ?? []).map(item => ({
+    expression: conditionExpression(item.condition, 'tag' in item.condition ? modules[item.condition.tag] : undefined),
+    nextStep: item.nextStep, description: item.description ?? ''
+  })))
   const runtime = useStore(s => s.sfcs[name])
   const lifecycle = useStore(s => s.sfcLifecycle[name])
   const steps = runtime ? sfcEditorDefinition(runtime, lifecycle).steps : []
@@ -52,8 +56,15 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
     if (target.kind === 'transition') {
       const result = parseSfcCondition(expression, useStore.getState().modules, sfcExpressionContext(useStore.getState(), name))
       if (result.error !== undefined) { fail(result.error); return }
+      const parsed: NonNullable<SfcStep['alternatives']> = []
+      for (const item of alternatives) {
+        const condition = parseSfcCondition(item.expression, useStore.getState().modules, sfcExpressionContext(useStore.getState(), name))
+        if (condition.error !== undefined) { fail(condition.error); return }
+        parsed.push({ condition: condition.value, nextStep: item.nextStep, description: item.description })
+      }
       patch = { transition: result.value, transitionDescription: description,
-        nextStep: route === 'sequential' ? undefined : route === 'complete' ? null : route.slice(5) }
+        nextStep: route === 'sequential' ? undefined : route === 'complete' ? null : route.slice(5),
+        alternatives: parsed.length ? parsed : undefined }
     } else {
       let action: SfcAction
       if (qualifier === 'R') {
@@ -118,6 +129,21 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
       </label>
       <button className="tbtn sm" onClick={() => setBrowser(target.kind)}>Expression Assistant</button>
     </>}
+    {target.kind === 'transition' && <fieldset><legend>Selective alternate routes</legend>
+      <p className="traditional-note">Primary transition is evaluated first, then these routes in order. Only one path activates.
+        Choose an explicit primary destination when adding routes. Parallel execution and native palette editing are not implemented.</p>
+      {alternatives.map((item, index) => <div key={index}>
+        <label>Condition {index + 1}<textarea aria-label={`Alternate condition ${index + 1}`} value={item.expression}
+          onChange={e => setAlternatives(items => items.map((value, i) => i === index ? { ...value, expression: e.target.value } : value))} /></label>
+        <label>Destination<select aria-label={`Alternate destination ${index + 1}`} value={item.nextStep}
+          onChange={e => setAlternatives(items => items.map((value, i) => i === index ? { ...value, nextStep: e.target.value } : value))}>
+          <option value="">Choose a step</option>
+          {steps.map(step => <option key={step.id} value={step.id}>{step.name} ({step.id})</option>)}
+        </select></label>
+        <button className="tbtn sm" onClick={() => setAlternatives(items => items.filter((_, i) => i !== index))}>Remove route {index + 1}</button>
+      </div>)}
+      <button className="tbtn sm" onClick={() => setAlternatives(items => [...items, { expression: 'TRUE', nextStep: '', description: '' }])}>Add alternate route</button>
+    </fieldset>}
     <p className="traditional-note">
       Supported module paths and configured Named Set parameter expressions only. Arbitrary expression functions,
       Boolean module-parameter and function-block action types are not yet implemented.

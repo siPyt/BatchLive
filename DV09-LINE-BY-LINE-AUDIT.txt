@@ -844,9 +844,13 @@ Acceptance: Build action lifecycle state separate from output assignments.
 
 [DV09-066]
 Pages: 279-280
-Status: MISSING
+Status: PARTIAL
 Required: Selective divergence/convergence and parallel divergence/convergence.
-Evidence: SFC is an ordered array with one active index, no graph/parallel set.
+Evidence: Explicit return/selective routes support one active step, first-true
+  branching and convergence to shared step IDs. Conditions/destinations are
+  configured in isolated Transition Properties, validated and saved/deployed.
+  Original pp279/280/291/294 figures reviewed locally. Parallel active-step
+  sets and synchronization joins, native graph palette/layout remain missing.
 Acceptance: Model a validated graph, concurrent active steps and correct joins;
   a UI fork or extra linear steps cannot simulate concurrent execution.
 
@@ -935,11 +939,18 @@ Acceptance: Execute each state in the exact dependency order with real
 
 [DV09-071]
 Pages: 293-294
-Status: MISSING
+Status: PARTIAL
 Required: Add shutdown command and divergent path; stop/confirm motor, set
   FIC MAN/OUT0, wait output<2%, close/confirm block valve, return to prompt.
-Evidence: Named Set commands exist, but no selective divergence/convergence
-  graph or repeat startup/shutdown loop exists.
+Evidence: Named Set STARTUP/SHUTDOWN now select mutually exclusive paths,
+  converge to shared END_SEQUENCE and return to prompt. Live motor fixture
+  stopped/started/stopped with actual feedback waits, then reset MESSAGE255
+  on each return. This proves routing, not the exact equipment procedure.
+  Exact FIC-102/MTR-102/XVSTAT-101 bindings and native branch editor/layout
+  remain missing. Original p294 figure orders stop motor -> close block valve
+  -> FIC MAN/OUT0, while the existing audit prose above reflects the text
+  sequence; preserve both source distinctions rather than silently claiming
+  one scripted fixture certifies all prescribed operations.
 Acceptance: Verify repeated startup/shutdown cycles, correct waits, both
   command choices and mutually exclusive branches.
 

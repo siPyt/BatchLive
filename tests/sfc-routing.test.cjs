@@ -145,3 +145,123 @@ test('saved routing is isolated from draft edits, stale/locked commits reject an
     assert.equal(useStore.getState().sfcs[NAME].status, 'RUNNING')
   })
 })
+  test('stored time limit and pending stored delay survive return to their originating step without timer reset', () => {
+    fixture(store => {
+      store.setSfcSteps(NAME, [{
+        id: 'self', name: 'SELF', nextStep: 'self', transition: { kind: 'timer', seconds: 0.2 }, actions: [
+          { name: 'limited', kind: 'sp', tag: 'FIC-101', value: 20, qualifier: 'SL', seconds: 0.5 },
+          { name: 'delayed', kind: 'out', tag: 'FIC-101', value: 10, qualifier: 'SD', seconds: 0.5 }
+        ]
+      }])
+      store.sfcCommand(NAME, 'run')
+      let state = scan(useStore.getState(), 0.2)
+      state = scan(state, 0.2)
+      assert.equal(state.sfcs[NAME].actionStates.limited.elapsed, 0.4)
+      assert.equal(state.sfcs[NAME].actionStates.delayed.elapsed, 0.4)
+      state = scan(state, 0.1)
+      assert.equal(state.sfcs[NAME].actionStates.limited.active, false)
+      assert.equal(state.sfcs[NAME].actionStates.delayed.active, true)
+    })
+  })
+
+  function selectiveAlgorithm() {
+    return [
+      { id: 'hold', name: 'HOLD_SFC', actions: [
+        { kind: 'namedSet', tag: NAME, parameter: 'MESSAGE', namedSet: 'NS-T101', entry: 'SELECT SEQUENCE', qualifier: 'P' }
+      ], transition: { kind: 'namedSet', parameter: 'MESSAGE', namedSet: 'NS-T101', entry: 'STARTUP' }, nextStep: 'start',
+      alternatives: [{ condition: { kind: 'namedSet', parameter: 'MESSAGE', namedSet: 'NS-T101', entry: 'SHUTDOWN' }, nextStep: 'stop' }] },
+      { id: 'start', name: 'START', actions: [{ kind: 'motor', tag: 'P-101', run: true }],
+        transition: { kind: 'motorRunning', tag: 'P-101', running: true }, nextStep: 'end' },
+      { id: 'stop', name: 'STOP', actions: [{ kind: 'motor', tag: 'P-101', run: false }],
+        transition: { kind: 'motorRunning', tag: 'P-101', running: false }, nextStep: 'end' },
+      { id: 'end', name: 'END_SEQUENCE', actions: [], transition: { kind: 'always' }, nextStep: 'hold' }
+    ]
+  }
+  test('Named Set selective startup/shutdown activates one branch, waits for actual feedback and converges to prompt repeatedly', () => {
+    fixture(store => {
+      store.createNamedSet('NS-T101')
+      store.applyNamedSetProperties(useStore.getState().namedSets.configured['NS-T101'], { name: 'NS-T101', description: '', entries: [
+        { name: 'STARTUP', value: 1, visible: true, userSelectable: true },
+        { name: 'SHUTDOWN', value: 2, visible: true, userSelectable: true },
+        { name: 'SELECT SEQUENCE', value: 255, visible: true, userSelectable: false }
+      ] })
+      store.setSfcSteps(NAME, [{ id: 'hold', name: 'HOLD_SFC', actions: [], transition: { kind: 'always' } }])
+      store.enableSfcLifecycle(NAME)
+      assert.equal(store.configureSfcParameter(NAME, 'MESSAGE', { type: 'NAMED_SET', namedSet: 'NS-T101', value: 255 },
+        useStore.getState().sfcLifecycle[NAME].draft), true)
+      store.setSfcSteps(NAME, selectiveAlgorithm())
+      store.configureSfcController(NAME, 'CTLR-01')
+      store.downloadChangedNamedSets({ kind: 'controller', tag: 'CTLR-01' })
+      store.downloadChangedNamedSets({ kind: 'workstation' })
+      assert.equal(store.saveSfc(NAME), true)
+      assert.equal(store.downloadSavedSfc(NAME), true)
+      store.setSfcOnline(NAME, true)
+      store.sfcCommand(NAME, 'run')
+      store.tick(0.1)
+      for (const [value, index, running] of [[1, 1, true], [2, 2, false], [1, 1, true]]) {
+        assert.equal(store.writeSfcNamedValue(NAME, 'MESSAGE', value), true)
+        const state = useStore.getState()
+        const sets = { [NAME]: state.namedSets.deployed['CONTROLLER:CTLR-01'] }
+        let result = advanceSfcs(state, state.modules, 0.1, sets)
+        assert.equal(result.sfcs[NAME].active, index)
+        assert.equal(result.modules['P-101'].commanded, running)
+        assert.equal(result.sfcs[NAME].actionStates['P-101/motor'].stepId, running ? 'start' : 'stop')
+        let feedback = { ...state, ...result, modules: { ...result.modules,
+          'P-101': { ...result.modules['P-101'], running: !running } } }
+        result = advanceSfcs(feedback, feedback.modules, 0.1, sets)
+        assert.equal(result.sfcs[NAME].active, index)
+        feedback = { ...feedback, ...result, modules: { ...result.modules,
+          'P-101': { ...result.modules['P-101'], running } } }
+        result = advanceSfcs(feedback, feedback.modules, 0.1, sets)
+        assert.equal(result.sfcs[NAME].active, 3)
+        feedback = { ...feedback, ...result }
+        result = advanceSfcs(feedback, feedback.modules, 0.1, sets)
+        assert.equal(result.sfcs[NAME].active, 0)
+        assert.equal(result.sfcs[NAME].parameters.MESSAGE.value, 255)
+        assert.equal(result.sfcs[NAME].status, 'RUNNING')
+        useStore.setState(result)
+      }
+    })
+  })
+  test('selective branches choose primary then first true alternative; no satisfied condition holds the current step', () => {
+    fixture(store => {
+      const steps = [
+        { id: 'choose', name: 'CHOOSE', actions: [], transition: { kind: 'timer', seconds: 10 }, nextStep: 'primary',
+          alternatives: [
+            { condition: { kind: 'timer', seconds: 1 }, nextStep: 'alternate' },
+            { condition: { kind: 'always' }, nextStep: 'other' }
+          ] },
+        { id: 'primary', name: 'PRIMARY', actions: [], transition: { kind: 'always' } },
+        { id: 'alternate', name: 'ALTERNATE', actions: [], transition: { kind: 'always' } },
+        { id: 'other', name: 'OTHER', actions: [], transition: { kind: 'always' } }
+      ]
+      store.setSfcSteps(NAME, steps)
+      store.sfcCommand(NAME, 'run')
+      const initial = useStore.getState()
+      assert.equal(scan(initial, 10).sfcs[NAME].active, 1)
+      assert.equal(scan(initial, 1).sfcs[NAME].active, 2)
+      assert.equal(scan(initial, 0.1).sfcs[NAME].active, 3)
+      steps[0].alternatives[1].condition = { kind: 'timer', seconds: 20 }
+      assert.equal(scan(initial, 0.1).sfcs[NAME].active, 0)
+    })
+  })
+  test('selective configuration deep-clones conditions and rejects malformed branches or deleted destinations', () => {
+    fixture(() => {
+      const modules = useStore.getState().modules
+      const steps = [
+        { id: 'first', name: 'FIRST', actions: [], transition: { kind: 'timer', seconds: 2 }, nextStep: 'last',
+          alternatives: [{ condition: { kind: 'timer', seconds: 3 }, nextStep: 'first' }] },
+        { id: 'last', name: 'LAST', actions: [], transition: { kind: 'always' } }
+      ]
+      const configuration = { name: NAME, area: 'FEED', controllerTag: '', steps }
+      const parsed = parseSavedSfc(serializeSavedSfc(configuration), modules)
+      assert.equal(parsed.error, undefined)
+      assert.notEqual(parsed.configuration.steps[0].alternatives[0].condition, steps[0].alternatives[0].condition)
+      for (const alternatives of [null, {}, [null], [{ nextStep: 'last', condition: { kind: 'unknown' } }],
+        [{ nextStep: 'MISSING', condition: { kind: 'always' } }]]) {
+        const broken = { ...configuration, steps: [{ ...steps[0], alternatives }, steps[1]] }
+        assert.ok(parseSavedSfc(JSON.stringify({ version: 1, configuration: broken }), modules).error)
+      }
+      assert.ok(sfcStepsError([{ ...steps[0], nextStep: undefined }, steps[1]], modules))
+    })
+  })

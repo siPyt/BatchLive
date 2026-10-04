@@ -1026,6 +1026,28 @@ behavior was preserved. No plant layout, symbols, palette or CSS changed.
 local commit only, no push authorized.
 
 ===============================================================================
+30. SELECTIVE ROUTE FEEDBACK - NO FALSE PARALLEL ACTIVITY
+===============================================================================
+
+Preserve default chart geometry, step/action frames, colors, ribbons and plant
+artwork. Alternate connections use existing line classes and destination titles;
+a separate wrapping route summary shows conditions and actual destination names.
+No native branching palette/layout parity is claimed from array row rendering.
+Runtime permits one selected path only: primary first, then ordered alternatives.
+If multiple conditions are true, highlight only the selected route, not pretend
+that two paths are active. Shared destination IDs converge and return to prompt.
+Transition Properties adds isolated alternate-condition/destination drafts.
+Cancel retains original; Check/Save/Download validate every branch reference.
+Modal was contained at1280x900 without horizontal overflow. Original sequential
+chart appearance remains untouched. Stored loop timers continue until expiry/
+reset rather than reinitializing on every self-loop.
+Live real motor fixture completed SHUTDOWN/STARTUP/SHUTDOWN feedback waits
+and returned MESSAGE255 each time. This is routing verification, not the exact
+MTR-102/FIC-102/XVSTAT-101 workshop or parallel synchronization model.
+181 coupled tests plus typecheck/build/diagnostics/audit; fixtures restored.
+Commit locally; no push authorized.
+
+===============================================================================
 20. DV-09 OPT-IN AO SAVED LIFECYCLE - DO NOT REDESIGN THE APPROVED PLANT
 ===============================================================================
 

@@ -158,11 +158,21 @@ re-arm on step re-entry; timers reset while stored actions in other steps retain
 their existing lifetimes. Routed charts show return connections and do not
 mislabel earlier array rows COMPLETE merely because the active index is higher.
 This destination selector is a simulator editing surface, not the native SFC
-palette/connector workflow. Selective and parallel branching remain unavailable.
+palette/connector workflow.
+
+For a selective branch, set an explicit primary destination in Transition
+Properties, then **Add alternate route** with its condition and destination.
+Primary is evaluated first, followed by alternatives in configured order;
+only the first true path activates. If all are false the step remains active.
+Different branch-ending steps may share a destination to converge, then return
+to the initial prompt. Conditions/bindings/targets are validated by Check and
+saved/deployed independently. The route summary and connection titles show
+the actual configuration without claiming the native branch palette/layout.
+Parallel paths and synchronization joins remain unavailable.
 
 This implements MESSAGE and return-routing prerequisites, not the
 complete pp291-294 procedure. Exact FIC-102/MTR-102
-bindings, selective shutdown branch and parallel joins are still outstanding.
+bindings, native branch editing/layout and parallel joins are still outstanding.
 Native parameter category/restart/instance/Browse workflows, general parameter
 types and nonvolatile behavior are not claimed.
 

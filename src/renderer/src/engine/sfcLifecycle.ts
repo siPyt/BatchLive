@@ -22,7 +22,8 @@ export interface SfcLifecycle {
 export function cloneSfcConfiguration(configuration: SfcConfiguration): SfcConfiguration {
   return { ...configuration, ...(configuration.parameters ? { parameters: cloneSfcParameters(configuration.parameters) } : {}),
     steps: configuration.steps.map(step => ({
-    ...step, transition: { ...step.transition }, actions: step.actions.map(action => ({
+    ...step, ...(step.alternatives ? { alternatives: step.alternatives.map(route => ({ ...route, condition: { ...route.condition } })) } : {}),
+    transition: { ...step.transition }, actions: step.actions.map(action => ({
       ...action, timingCondition: action.timingCondition ? { ...action.timingCondition } : undefined
     }))
   })) }
@@ -89,6 +90,9 @@ function action(value: unknown): value is SfcAction {
 function step(value: unknown): value is SfcStep {
   return record(value) && typeof value.id === 'string' && typeof value.name === 'string' &&
     (value.nextStep === undefined || value.nextStep === null || typeof value.nextStep === 'string') &&
+    (value.alternatives === undefined || Array.isArray(value.alternatives) && value.alternatives.every(route =>
+      record(route) && typeof route.nextStep === 'string' && condition(route.condition) &&
+      (route.description === undefined || typeof route.description === 'string'))) &&
     (value.transitionDescription === undefined || typeof value.transitionDescription === 'string') &&
     Array.isArray(value.actions) && value.actions.every(action) && condition(value.transition)
 }

@@ -156,8 +156,8 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
       <SfcLifecycleControls name={sfc.name} />
       <SfcParameterControls name={sfc.name} />
       {check && check.steps === sfc.steps && <div role={check.error ? 'alert' : 'status'} className="traditional-note">
-        {check.error ? `Check failed: ${check.error}` : 'Check passed for supported linear actions and conditions.'}
-        {' '}This validates configured Named Set references, not arbitrary expressions, graph paths or controller downloads.
+        {check.error ? `Check failed: ${check.error}` : 'Check passed for supported actions, conditions and single-active-step routes.'}
+        {' '}This validates configured Named Set references and route targets, not arbitrary expressions, parallel joins or controller downloads.
       </div>}
 
       <div className="sfc-canvas-wrap">
@@ -177,6 +177,14 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
           </button>
         )}
       </div>
+      {sfc.steps.some(step => step.alternatives?.length) && <div className="traditional-note">
+        <strong>Selective routes (primary first; first true route wins)</strong>
+        {sfc.steps.filter(step => step.alternatives?.length).map(step => <div key={step.id}>
+          <div>{step.name}: {describeCondition(step.transition)} → {sfc.steps.find(item => item.id === step.nextStep)?.name ?? 'Complete'}</div>
+          {step.alternatives?.map((route, index) => <div key={index}>Route {index + 1}: {describeCondition(route.condition)} → {sfc.steps.find(item => item.id === route.nextStep)?.name ?? '(missing target)'}</div>)}
+        </div>)}
+        <p>Single-active-step selective convergence uses shared destination IDs. This is not parallel execution or the native graph palette/layout.</p>
+      </div>}
 
       {editable && selected !== null && sfc.steps[selected] && (
         <StepPropertiesPanel
@@ -254,6 +262,18 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
               fill="none" className={transTrue ? 'sfc-line-active' : 'sfc-line'}>
               <title>Transition returns to {sfc.steps[destination].name}</title>
             </path>}
+            {step.alternatives?.map((route, index) => {
+              const target = sfc.steps.findIndex(candidate => candidate.id === route.nextStep)
+              if (target === -1) return null
+              const trueRoute = isActive && !transTrue &&
+                !step.alternatives?.slice(0, index).some(item => evalCondition(item.condition, state, sfc.elapsed, context)) &&
+                evalCondition(route.condition, state, sfc.elapsed, context)
+              return <path key={index}
+                d={`M ${CENTER_X} ${transY} H ${40 + index * 8} V ${rowY(target) - 12} H ${CENTER_X} V ${rowY(target)}`}
+                fill="none" className={trueRoute ? 'sfc-line-active' : 'sfc-line'}>
+                <title>Alternate {index + 1}: {describeCondition(route.condition)} to {sfc.steps[target].name}</title>
+              </path>
+            })}
             {/* step box */}
             <g onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
               onContextMenu={e => { e.preventDefault(); onContext({ kind: 'action', step, index: null }, e.clientX, e.clientY) }}>

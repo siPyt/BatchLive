@@ -750,6 +750,40 @@ FIC-102/MTR-102/XVSTAT-101 equipment dependencies remain incomplete.
 Validation:177 coupled regressions, including five routing tests, plus
 typecheck/build/diagnostics/audit. Commit locally; do not push.
 
+PASS 18: SELECTIVE TRANSITIONS / SHARED CONVERGENCE / STORED LOOP TIMERS
+-----------------------------------------------------------------------
+Transition Properties can add ordered alternate conditions/destinations
+alongside an explicit primary destination. Cancel/Escape/FlexLock preserve
+prior routes; OK parses exact supported expressions and validates reference,
+staleness and permission gates. Check/Save/Download validate every alternative.
+Saved/deployed route condition objects are separately deep-cloned.
+Primary is evaluated first, then alternates in configured order. Only the
+first true path activates; all-false holds the step. This is a documented
+simulator priority, not an assertion about every native ambiguity policy.
+Shared destination IDs provide selective convergence and return to the prompt.
+Diagram connections/route summary expose alternatives without changing original
+sequential chart geometry or claiming native palette/layout reproduction.
+Only the selected true route is highlighted if several comparisons are true.
+Stored SL/SD action elapsed time must survive return to the originating step
+while active/pending; repeated self-loop entry cannot indefinitely reset its
+limit or delay. Nonstored pulses still re-arm on each activation. Explicit R
+remains the reset boundary. This fixes a tightly coupled loop-timer issue.
+Live UI: isolated Properties configured exact MESSAGE STARTUP primary and
+SHUTDOWN alternate; Cancel retained the original, OK/Check succeeded. Dialog
+and controls stayed within1280x900 without horizontal overflow. Save/controller
+setup transfer/Download/Online RUN operated a live P-101 branch fixture:
+SHUTDOWN step2 -> feedback STOPPED -> END3 -> HOLD0/prompt255;
+STARTUP step1 -> feedback RUNNING -> END3 -> HOLD0/prompt255;
+SHUTDOWN repeated the first path. Unselected branch actions did not execute.
+Configured/saved parameter default remained255. Actual physics, not fabricated
+feedback, released the waits. Original plant/UI/security/storage restored.
+These primitives move DV09-066/071 MISSING to PARTIAL, not complete. The exact
+course device dependencies, p294 layout/native connectors and parallel joins
+remain missing. Original p294 orders stop -> close block -> flow MAN/OUT0;
+source text/audit ordering differences must be explicitly checked, not hidden.
+Validation:181 coupled tests, including nine routing tests, typecheck/build/
+diagnostics/audit. Commit locally only; no push authorized.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

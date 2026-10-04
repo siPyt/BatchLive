@@ -4,8 +4,8 @@ import type { NamedSetDefinition } from './namedSets'
 
 // ---------------------------------------------------------------------------
 // Sequential Function Chart (SFC) engine — mirrors DeltaV Control Studio SFCs.
-// An SFC is a list of steps; each step applies actions while active and waits
-// for its transition condition before advancing. (DV-09 "Using SFC-T101".)
+// Steps execute one at a time with sequential, return or selective routes.
+// Concurrent parallel paths require a separate active-step/join model.
 // ---------------------------------------------------------------------------
 
 export type CompareOp = '>' | '<' | '>=' | '<='
@@ -48,6 +48,7 @@ export interface SfcStep {
   transition: SfcCondition
   transitionDescription?: string
   nextStep?: string | null
+  alternatives?: { condition: SfcCondition; nextStep: string; description?: string }[]
 }
 
 export type SfcStatus = 'READY' | 'RUNNING' | 'HELD' | 'COMPLETE'
@@ -457,6 +458,14 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
       (typeof step.nextStep !== 'string' || !steps.some(candidate => candidate.id === step.nextStep))) {
       return `Missing transition target for step ${step.name}`
     }
+    if (step.alternatives?.length && step.nextStep === undefined) return 'Selective routes require an explicit primary destination'
+    for (const route of step.alternatives ?? []) {
+      if (!route.nextStep || !steps.some(candidate => candidate.id === route.nextStep)) {
+        return `Missing selective transition target for step ${step.name}`
+      }
+      const error = conditionError(route.condition, modules, context)
+      if (error) return error
+    }
     const transitionError = conditionError(step.transition, modules, context)
     if (transitionError) return transitionError
     const names = new Set<string>()
@@ -531,7 +540,8 @@ function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>,
       if (elapsed === 0 && states[identity] && (entering || states[identity].resetStep !== step.id)) {
         states[identity] = { ...states[identity], active: false, pending: false, fired: true, resetStep: step.id }
       }
-    } else if (entering || !states[identity] || states[identity].stepId !== step.id) {
+    } else if (!states[identity] || states[identity].stepId !== step.id ||
+      entering && !(isStored(action) && (states[identity].active || states[identity].pending))) {
       states[identity] = { action: { ...action }, stepId: step.id,
         elapsed, active: false, pending: true, fired: false }
     }
@@ -580,9 +590,12 @@ export function advanceSfcs(
       actionStates[identity] = updated
       if (updated.active) execute(updated.action)
     }
-    if (evalCondition(step.transition, state, next.elapsed, context)) {
-      const destination = step.nextStep === null ? -1 : step.nextStep !== undefined ?
-        sfc.steps.findIndex(candidate => candidate.id === step.nextStep) :
+    const primary = evalCondition(step.transition, state, next.elapsed, context)
+    const alternate = !primary ? step.alternatives?.find(route => evalCondition(route.condition, state, next.elapsed, context)) : undefined
+    if (primary || alternate) {
+      const target = alternate ? alternate.nextStep : step.nextStep
+      const destination = target === null ? -1 : target !== undefined ?
+        sfc.steps.findIndex(candidate => candidate.id === target) :
         sfc.active + 1 < sfc.steps.length ? sfc.active + 1 : -1
       for (const [identity, runtime] of Object.entries(actionStates)) {
         if (!isStored(runtime.action) || destination === -1) {
