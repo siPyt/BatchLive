@@ -1518,3 +1518,26 @@ and editor diagnostics passed. Preserve these regression checks.
 Do not claim Save/Download/Online, restart restoration, arbitrary typed paths
 or full DV-09 parity based on these immediately-live session controls.
 Commit permitted; push remains unauthorized.
+
+PID OOS / LO QUALITY REGRESSION CONTRACT (DV-09 pp246-247)
+-------------------------------------------------------
+Preserve equipment artwork, FBD geometry and the existing status palette.
+PID1 OOS reports Bad and holds its requested output. AI1 retains its
+independent sampled quality; do not recolor a healthy sensor as failed.
+AO1/AO2 retain their actual applied outputs and independent stage quality.
+An independently manual AO can remain Good while PID1 is OOS.
+
+Healthy tracking shows target unchanged, actual LO and TRACKING, not a
+cascade SHED caption. Release returns to the resolved target bumplessly.
+Missing/Bad tracking input or value exposes an execution diagnostic and
+held Bad output, never a successful override from stale data.
+The PID faceplate has MAN/AUTO/CAS/OOS controls; LO is actual-only.
+Studio's target selector uses the existing parameter table, not a diagram
+redesign. Dynamos, pictures, FBD and signal consumers must reflect block
+Bad while an explicit AI1 source remains independently Good.
+
+Regression checks: eight PID-mode tests plus the complete317-test suite;
+typecheck/build/audit and actual faceplate OOS/Studio LO/release/diagnostic
+interaction passed. Original96-module plant/UI/security restored.
+Normal/permitted masks, remote-host protocols and whole-course parity are
+not certified by this subset. No push without user authorization.
