@@ -497,6 +497,34 @@ Full DV-09 operating parity and original-PDF image-only review remain incomplete
 Validation:121 control and five audit regressions, typecheck/build/diagnostics
 and zero-unmapped audit checks. Commit locally; no push is authorized.
 
+PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
+-------------------------------------------------------
+Scope: display-reference subset of DV09-021/024/025/034/036.
+Explorer properties expose separate primary control and detail picture names.
+Each reference accepts existing created pictures or supported built-in names.
+Validation is atomic, case-insensitive and supports the optional .grf suffix;
+blanks remove assignments, and Can Configure is required to apply changes.
+Faceplates with assignments expose Primary/Detail in a separate contained
+link row; unassigned faceplates and their existing controls remain unchanged.
+Created pictures open in Run mode, with actual named-picture history across
+Back/Forward and Studio. Invalid/deleted targets leave navigation unchanged
+and explicitly report the missing picture rather than opening a proxy.
+Assignment is project metadata for every module type, independent of runtime
+operator values. Managed AO Save captures its current metadata; transfer and
+restart retain current project references instead of reviving old ones.
+
+Live UI: NAV-101 primary Tank101.grf opened TANK101 in Run; its independent
+detail opened NAVDETAIL via the actual faceplate link. Back/Forward restored
+each picture. Links stayed within the faceplate, and a deleted detail target
+reported an error without fallback navigation. Original96-module plant,
+pictures and UI state restored, no test fixtures remain.
+
+Boundary: this does not implement arbitrary native faceplate templates,
+course-native PID/DC detail pictures, scan scheduling or generic downloads.
+Existing module-specific faceplates remain the real operator controls.
+Validation:125 control plus five audit regressions, typecheck/build and
+editor diagnostics pass. Course parity remains incomplete. Local commit only.
+
 FIFTH PASS: STANDALONE LEVEL-101 AO AND SIMULATED ANALOG TIEBACK
 --------------------------------------------------------------
 Sources: standalone module procedure pp164-168 and signal check pp173-178.

@@ -30,6 +30,7 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
   const focusExplorer = useUi((s) => s.focusExplorer)
   const focusTrend = useUi((s) => s.focusTrend)
   const focusAlarms = useUi((s) => s.focusAlarms)
+  const openModuleDisplay = useUi(s => s.openModuleDisplay)
   const drag = useRef<{ dx: number; dy: number } | null>(null)
 
   useEffect(() => {
@@ -88,6 +89,12 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
         </button>
       </div>
       {body}
+      {(m.primaryDisplay || m.detailDisplay) && <div className="fp-links">
+        {m.primaryDisplay && <button className="fp-link-btn" onClick={() => openModuleDisplay(tag, 'primary')}
+          title={`Primary control display: ${m.primaryDisplay}`}>Primary</button>}
+        {m.detailDisplay && <button className="fp-link-btn" onClick={() => openModuleDisplay(tag, 'detail')}
+          title={`Detail display: ${m.detailDisplay}`}>Detail</button>}
+      </div>}
       <div className="fp-links">
         <button className="fp-link-btn" onClick={() => openStudio(tag)} title="Open with Control Studio">
           ⌁ Studio

@@ -52,6 +52,8 @@ export function withProjectMembership(c: AoConfiguration, runtime: AnalogOutputM
   const configuration = cloneConfiguration(c)
   configuration.module.area = runtime.area
   configuration.module.equipmentModule = runtime.equipmentModule
+  configuration.module.primaryDisplay = runtime.primaryDisplay
+  configuration.module.detailDisplay = runtime.detailDisplay
   return configuration
 }
 export function lifecycleDirty(record: AoLifecycle): boolean {
@@ -161,6 +163,7 @@ function isConfiguration(value: unknown): value is AoConfiguration {
     typeof m.bad === 'boolean' && typeof m.limited === 'boolean' &&
     (m.casParameter === undefined || typeof m.casParameter === 'string') &&
     (m.equipmentModule === undefined || typeof m.equipmentModule === 'string') &&
+    [m.primaryDisplay, m.detailDisplay].every(v => v === undefined || typeof v === 'string') &&
     m.downloaded === undefined && m.controllerTag === undefined &&
     Array.isArray(m.alarms) && m.alarms.every(isAlarm) &&
     object(m.parameters) && Object.entries(m.parameters).every(([name, p]) =>

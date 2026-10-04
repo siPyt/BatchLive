@@ -32,6 +32,7 @@ const { usePictures, resolvePictureTarget } = require('../src/renderer/src/engin
 const { moduleNameError, isValidDeltaVTag } = require('../src/renderer/src/engine/naming.ts')
 const { compareAlarmRank } = require('../src/renderer/src/utils/format.ts')
 const { findDst, channelConfigurationError } = require('../src/renderer/src/engine/traditionalIo.ts')
+const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 
 function plant(splitRange = false) {
   const state = { ...buildInitialPlant(), hardware: makeDefaultHardware(), speed: 1 }
@@ -2262,6 +2263,7 @@ test('DV09 page 67: identify, network-redundant commission, auto-sense and five-
 
 function withPictureProject(run) {
   const originalPictures = usePictures.getState()
+  const originalUi = useUi.getState()
   try {
     withAreaProject((store, alerts) => {
       usePictures.setState({ pictures: { TANK101: { name: 'TANK101', elements: [] } } })
@@ -2269,6 +2271,7 @@ function withPictureProject(run) {
     })
   } finally {
     usePictures.setState(originalPictures, true)
+    useUi.setState(originalUi, true)
   }
 }
 
@@ -2442,6 +2445,92 @@ test('picture storage quota and corrupt saved schemas report failure without rep
     assert.equal(global.window.localStorage.getItem(key), valid)
     assert.equal(usePictures.getState().pictures, before)
     assert.match(alerts.at(-1), /Picture Save failed.*Quota/)
+  })
+})
+
+test('module primary/detail assignments are independent and navigate actual named pictures in Run mode', () => {
+  withPictureProject((pictures, store) => {
+    standaloneAoCourseProject(store)
+    pictures.createPicture('DETAIL101')
+    assert.equal(pictures.assignModuleDisplays('LEVEL-101', ' tank101.grf ', 'detail101'), true)
+    assert.equal(pictures.assignModuleDisplays('LI-101', 'Ovw_ref.grf', 'alarmList.grf'), true)
+    const m = useStore.getState().modules['LEVEL-101']
+    assert.deepEqual([m.primaryDisplay, m.detailDisplay], ['tank101.grf', 'detail101'])
+    useUi.getState().resetToOverview()
+    assert.equal(useUi.getState().openModuleDisplay('LEVEL-101', 'primary'), true)
+    assert.equal(useUi.getState().builderPicture, 'TANK101')
+    assert.equal(useUi.getState().builderRun, true)
+    assert.equal(useUi.getState().openModuleDisplay('LEVEL-101', 'detail'), true)
+    assert.equal(useUi.getState().builderPicture, 'DETAIL101')
+    useUi.getState().back()
+    assert.equal(useUi.getState().builderPicture, 'TANK101')
+    useUi.getState().forward()
+    assert.equal(useUi.getState().builderPicture, 'DETAIL101')
+    assert.equal(useUi.getState().openModuleDisplay('LI-101', 'primary'), true)
+    assert.equal(useUi.getState().display, 'overview')
+    assert.equal(useUi.getState().openModuleDisplay('LI-101', 'detail'), true)
+    assert.equal(useUi.getState().display, 'alarms')
+    assert.equal(useStore.getState().modules['LEVEL-101'], m)
+  })
+})
+
+test('missing/deleted/denied display assignments reject atomically without fallback navigation', () => {
+  withPictureProject((pictures, store, alerts) => {
+    standaloneAoCourseProject(store)
+    pictures.assignModuleDisplays('LEVEL-101', 'TANK101', '')
+    const modules = useStore.getState().modules
+    assert.equal(pictures.assignModuleDisplays('LEVEL-101', 'Ovw_ref.grf', 'MISSING'), false)
+    assert.equal(useStore.getState().modules, modules)
+    assert.equal(pictures.assignModuleDisplays('MISSING', 'TANK101', ''), false)
+    useUi.getState().resetToOverview()
+    const before = useUi.getState()
+    assert.equal(useUi.getState().openModuleDisplay('LEVEL-101', 'detail'), false)
+    assert.equal(useUi.getState(), before)
+    pictures.deletePicture('TANK101')
+    assert.equal(useUi.getState().openModuleDisplay('LEVEL-101', 'primary'), false)
+    assert.equal(useUi.getState(), before)
+    assert.match(alerts.at(-1), /Picture not found/)
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    assert.equal(pictures.assignModuleDisplays('LEVEL-101', '', ''), false)
+    assert.equal(useStore.getState().modules, modules)
+    useSecurity.setState({ currentUser: 'admin' })
+    assert.equal(pictures.assignModuleDisplays('LEVEL-101', '', ''), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].primaryDisplay, undefined)
+  })
+})
+
+test('AO Save captures project display metadata while transfer/restart cannot revive old references', () => {
+  withPictureProject((pictures, store) => {
+    const { parseSavedAo, savedAoStorageKey } = require('../src/renderer/src/engine/moduleLifecycle.ts')
+    savedAoCourseProject(store)
+    pictures.assignModuleDisplays('LEVEL-101', 'TANK101', 'alarmList.grf')
+    assert.equal(store.saveModuleConfiguration('LEVEL-101'), true)
+    const saved = parseSavedAo(global.window.localStorage.getItem(savedAoStorageKey('LEVEL-101')), 'LEVEL-101')
+    assert.deepEqual([saved.module.primaryDisplay, saved.module.detailDisplay], ['TANK101', 'alarmList.grf'])
+    pictures.assignModuleDisplays('LEVEL-101', '', 'Ovw_ref.grf')
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL'), true)
+    assert.equal(store.restartModule('LEVEL-101'), true)
+    const m = useStore.getState().modules['LEVEL-101']
+    assert.deepEqual([m.primaryDisplay, m.detailDisplay], [undefined, 'Ovw_ref.grf'])
+  })
+})
+
+test('picture history branches correctly across Studio and project reset clears assigned navigation state', () => {
+  withPictureProject(pictures => {
+    pictures.createPicture('DETAIL101')
+    useUi.getState().resetToOverview()
+    useUi.getState().openPicture('TANK101')
+    useUi.getState().openStudio('LIC-101')
+    useUi.getState().back()
+    assert.equal(useUi.getState().builderPicture, 'TANK101')
+    useUi.getState().openPicture('DETAIL101')
+    assert.deepEqual(useUi.getState().history, ['overview', 'builder', 'builder'])
+    assert.deepEqual(useUi.getState().pictureHistory, [null, 'TANK101', 'DETAIL101'])
+    useUi.getState().resetToOverview()
+    assert.deepEqual(useUi.getState().pictureHistory, [null])
+    assert.equal(useUi.getState().builderPicture, null)
+    useUi.getState().navigate('builder')
+    assert.equal(useUi.getState().builderRun, false)
   })
 })
 

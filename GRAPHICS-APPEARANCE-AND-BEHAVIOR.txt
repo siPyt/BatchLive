@@ -1033,6 +1033,36 @@ The course/image-only/native-dialog parity is not yet complete.
 Local commit only; no push until explicit authorization.
 
 ===============================================================================
+22. PRIMARY / DETAIL DISPLAY REFERENCES - NAVIGATION, NOT A FACEPLATE REDESIGN
+===============================================================================
+Explorer module properties now accept independent Primary Control and Detail
+Display names. Use its existing property-pane forms and action styles.
+These reference fields do not change the approved engineering icons, trees,
+ribbons, module body appearance, equipment shapes or state colors.
+
+Faceplates without assignments are visually unchanged. Assigned faceplates
+add a separate Primary/Detail link row using the existing fp-links/fp-link-btn
+styles; never squeeze these into the existing Studio/Explorer/Trend/Alarms
+row or enlarge the control body to hide overflow. The live compact AI fixture
+confirmed all navigation links remain inside the original faceplate bounds.
+Existing faceplate controls, alarms and user interaction remain intact.
+
+Primary and detail are independent destinations, not synonyms for Studio.
+Custom pictures open in Run mode, actual named-picture history is retained,
+and missing/deleted references explicitly reject without proxy navigation.
+Blank references remove links. Existing primary .grf naming is a simulator
+lookup convention, not a claim that native vendor graphics files are loaded.
+Arbitrary native faceplate templates and course-native detail artwork remain
+unimplemented; do not manufacture a completion label for them.
+
+AO display references are project metadata, like area/equipment membership.
+Save captures current references; transfer/restart must not revive old ones.
+Regression baseline:125 control/five audit tests, typecheck/build/diagnostics,
+actual UI primary/detail navigation, Back/Forward and link containment.
+Restore the original96-module running plant after isolated tests.
+Commit locally; do not push without authorization.
+
+===============================================================================
 19. DV-09 STANDALONE AO - PRESERVE THE REFERENCE PRESENTATION
 ===============================================================================
 

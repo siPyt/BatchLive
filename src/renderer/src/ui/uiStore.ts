@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { useStore } from '../engine/store'
+import { resolvePictureTarget, usePictures } from '../engine/pictureStore'
 
 export type DisplayId =
   | 'overview'
@@ -32,6 +34,9 @@ interface UiState {
   display: DisplayId
   history: DisplayId[]
   histIndex: number
+  pictureHistory: (string | null)[]
+  builderPicture: string | null
+  builderRun: boolean
   faceplates: OpenFaceplate[]
   selectedTag: string | null
   studioTag: string | null
@@ -60,6 +65,8 @@ interface UiState {
   focusAlarms: (tag: string) => void
   clearTrendFocus: () => void
   clearAlarmFocus: () => void
+  openPicture: (name: string) => boolean
+  openModuleDisplay: (tag: string, kind: 'primary' | 'detail') => boolean
 }
 
 let cascade = 0
@@ -68,6 +75,9 @@ export const useUi = create<UiState>((set, get) => ({
   display: 'overview',
   history: ['overview'],
   histIndex: 0,
+  pictureHistory: [null],
+  builderPicture: null,
+  builderRun: false,
   faceplates: [],
   selectedTag: null,
   studioTag: null,
@@ -81,16 +91,20 @@ export const useUi = create<UiState>((set, get) => ({
       if (display === s.display) return {}
       const history = s.history.slice(0, s.histIndex + 1)
       history.push(display)
-      return { display, history, histIndex: history.length - 1 }
+      const pictureHistory = s.pictureHistory.slice(0, s.histIndex + 1).concat(null)
+      return { display, history, pictureHistory, histIndex: history.length - 1,
+        ...(display === 'builder' ? { builderPicture: null, builderRun: false } : {}) }
     }),
 
   back: () =>
-    set((s) => (s.histIndex > 0 ? { histIndex: s.histIndex - 1, display: s.history[s.histIndex - 1] } : {})),
+    set((s) => (s.histIndex > 0 ? { histIndex: s.histIndex - 1, display: s.history[s.histIndex - 1],
+      builderPicture: s.pictureHistory[s.histIndex - 1] ?? null, builderRun: !!s.pictureHistory[s.histIndex - 1] } : {})),
 
   forward: () =>
     set((s) =>
       s.histIndex < s.history.length - 1
-        ? { histIndex: s.histIndex + 1, display: s.history[s.histIndex + 1] }
+        ? { histIndex: s.histIndex + 1, display: s.history[s.histIndex + 1],
+          builderPicture: s.pictureHistory[s.histIndex + 1] ?? null, builderRun: !!s.pictureHistory[s.histIndex + 1] }
         : {}
     ),
 
@@ -122,11 +136,13 @@ export const useUi = create<UiState>((set, get) => ({
   openStudio: (tag) =>
     set((s) => {
       const history = s.display === 'studio' ? s.history : s.history.slice(0, s.histIndex + 1).concat('studio')
+      const pictureHistory = s.display === 'studio' ? s.pictureHistory : s.pictureHistory.slice(0, s.histIndex + 1).concat(null)
       return {
         studioTag: tag,
         selectedTag: tag,
         display: 'studio',
         history,
+        pictureHistory,
         histIndex: history.length - 1
       }
     }),
@@ -138,7 +154,8 @@ export const useUi = create<UiState>((set, get) => ({
       studioTag: null,
       display: 'overview',
       history: ['overview'],
-      histIndex: 0
+      histIndex: 0,
+      pictureHistory: [null], builderPicture: null, builderRun: false
     }),
 
   focusExplorer: (tag) => {
@@ -157,5 +174,36 @@ export const useUi = create<UiState>((set, get) => ({
   },
 
   clearTrendFocus: () => set({ trendFocusTag: null }),
-  clearAlarmFocus: () => set({ alarmFocusTag: null })
+  clearAlarmFocus: () => set({ alarmFocusTag: null }),
+
+  openPicture: (name) => {
+    const target = resolvePictureTarget(name, usePictures.getState().pictures)
+    if (!target) {
+      const message = `Picture not found: ${name || '(unassigned)'}`
+      useStore.getState().logEvent('DIAGNOSTIC', name, message)
+      window.alert(message)
+      return false
+    }
+    if (target.kind === 'display') get().navigate(target.display)
+    else set(s => {
+      if (s.display === 'builder' && s.builderPicture === target.name && s.builderRun) return {}
+      const history = s.history.slice(0, s.histIndex + 1).concat('builder')
+      const pictureHistory = s.pictureHistory.slice(0, s.histIndex + 1).concat(target.name)
+      return { display: 'builder', builderPicture: target.name, builderRun: true,
+        history, pictureHistory, histIndex: history.length - 1 }
+    })
+    return true
+  },
+
+  openModuleDisplay: (tag, kind) => {
+    const m = useStore.getState().modules[tag]
+    const name = kind === 'primary' ? m?.primaryDisplay : m?.detailDisplay
+    if (!m || !name) {
+      const message = !m ? `Module ${tag} does not exist` : `${tag} has no assigned ${kind} display`
+      useStore.getState().logEvent('DIAGNOSTIC', tag, message)
+      window.alert(message)
+      return false
+    }
+    return get().openPicture(name)
+  }
 }))

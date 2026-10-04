@@ -44,6 +44,17 @@ export function DisplayBuilder(): JSX.Element {
   const [newName, setNewName] = useState('')
   const [pictureProperties, setPictureProperties] = useState(false)
   const navigate = useUi(s => s.navigate)
+  const requestedPicture = useUi(s => s.builderPicture)
+  const requestedRun = useUi(s => s.builderRun)
+  const openPicture = useUi(s => s.openPicture)
+  useEffect(() => {
+    if (requestedPicture) {
+      setSelected(requestedPicture)
+      setSelEl(null)
+      setPictureProperties(false)
+    }
+    setEdit(!requestedRun)
+  }, [requestedPicture, requestedRun])
 
   const pic = pictures[selected]
 
@@ -61,9 +72,7 @@ export function DisplayBuilder(): JSX.Element {
     }
     if (target.kind === 'display') navigate(target.display)
     else {
-      setSelected(target.name)
-      setSelEl(null)
-      setPictureProperties(false)
+      openPicture(target.name)
     }
   }
 
@@ -155,7 +164,7 @@ export function DisplayBuilder(): JSX.Element {
           <div className="exp-empty">Create a picture to begin.</div>
         ) : (
           <>
-            <Canvas picture={selected} edit={edit} selEl={selEl} setSelEl={setSelEl} />
+            <Canvas key={selected} picture={selected} edit={edit} selEl={selEl} setSelEl={setSelEl} />
             {edit && pictureProperties ? (
               <PictureProperties key={selected} picture={selected} onClose={() => setPictureProperties(false)} />
             ) : edit && selEl ? <PropsPanel picture={selected} id={selEl} /> : null}

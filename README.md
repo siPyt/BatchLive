@@ -139,7 +139,16 @@ download. Other module types and unenrolled modules remain immediately live.
 Area and Equipment Module membership stays project-level metadata; Save captures
 current membership, and transfer/restart does not resurrect renamed/deleted parents.
 Arbitrary typed parameters/paths, 4-20 mA scaling, discrete CAS, native templates,
-independent display assignment and general saved/controller lifecycle remain gaps.
+custom faceplate templates and general saved/controller lifecycle remain gaps.
+
+Explorer module properties now configure independent Primary Control and Detail
+Display references. Created pictures open in Run mode; `Ovw_ref.grf` and
+`alarmList.grf` retain their existing built-in routes. Assigned faceplates show
+separate Primary/Detail navigation links without changing their control body.
+Back/Forward restores the named picture, not just the generic builder screen.
+Invalid/deleted references report an error and do not silently open a fallback.
+These are project-level references; native faceplate-template assignment and
+download-controlled display metadata are not implemented.
 
 Display Builder now supports the course's `LI-101/AI1/PV.F_CV` and
 `LEVEL-101/CAS_SP.F_CV` numeric datalinks. The Data Entry Expert enables

@@ -59,6 +59,7 @@ interface PictureState {
   writeNumericValue: (pic: string, id: string, value: number) => boolean
   savePicture: (pic: string) => boolean
   loadPicture: (pic: string) => boolean
+  assignModuleDisplays: (tag: string, primary: string, detail: string) => boolean
 }
 
 export const pictureStorageKey = (name: string): string => `batchlive.picture.v1.${name}`
@@ -202,6 +203,21 @@ export const usePictures = create<PictureState>((set, get) => ({
     }
     set(s => ({ pictures: { ...s.pictures, [pic]: picture } }))
     useStore.getState().logEvent('CONFIGURE', pic, 'Picture loaded from local browser database')
+    return true
+  },
+
+  assignModuleDisplays: (tag, primary, detail) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Assign module displays ${tag}`)) return false
+    const module = useStore.getState().modules[tag]
+    const values = [primary.trim(), detail.trim()]
+    if (!module) return rejectPicture(tag, 'Module does not exist')
+    for (const name of values) {
+      if (name && !resolvePictureTarget(name, get().pictures)) return rejectPicture(tag, `Picture not found: ${name}`)
+    }
+    useStore.setState(s => ({ modules: { ...s.modules, [tag]: { ...module,
+      primaryDisplay: values[0] || undefined, detailDisplay: values[1] || undefined } }, rev: s.rev + 1 }))
+    useStore.getState().logEvent('CONFIGURE', tag,
+      `Module displays: Primary=${values[0] || '(none)'}, Detail=${values[1] || '(none)'}; project metadata, not a controller transfer`)
     return true
   },
 

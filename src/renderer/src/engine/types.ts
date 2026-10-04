@@ -81,7 +81,12 @@ export interface AnalogParam {
   decimals: number
 }
 
-export interface PidModule {
+export interface ModuleDisplayProperties {
+  primaryDisplay?: string
+  detailDisplay?: string
+}
+
+export interface PidModule extends ModuleDisplayProperties {
   tag: string
   type: 'PID'
   description: string
@@ -240,7 +245,7 @@ export interface PidIoPatch {
   ao2Connected?: boolean
 }
 
-export interface AnalogIndicator {
+export interface AnalogIndicator extends ModuleDisplayProperties {
   tag: string
   type: 'AI'
   description: string
@@ -262,7 +267,7 @@ export interface FloatingInputParameter {
   value: number
 }
 
-export interface AnalogOutputModule {
+export interface AnalogOutputModule extends ModuleDisplayProperties {
   tag: string
   type: 'AO'
   /** Set only by the opt-in saved configuration/download workflow. */
@@ -313,7 +318,7 @@ export type DcState =
   | 'SHUTDOWN'
   | 'LOCKED'
 
-export interface MotorModule {
+export interface MotorModule extends ModuleDisplayProperties {
   tag: string
   type: 'MOTOR'
   description: string
@@ -347,7 +352,7 @@ export interface MotorModule {
   commandSource?: string
 }
 
-export interface ValveModule {
+export interface ValveModule extends ModuleDisplayProperties {
   tag: string
   type: 'VALVE'
   description: string
@@ -380,7 +385,7 @@ export interface ValveModule {
   commandSource?: string
 }
 
-export interface DiscreteInput {
+export interface DiscreteInput extends ModuleDisplayProperties {
   tag: string
   type: 'DI'
   description: string
@@ -396,7 +401,7 @@ export interface DiscreteInput {
   alarms: AlarmLimit[]
 }
 
-export interface DiscreteOutput {
+export interface DiscreteOutput extends ModuleDisplayProperties {
   tag: string
   type: 'DO'
   description: string
@@ -490,7 +495,7 @@ export interface FbInputRef {
   block?: PidBlockName
 }
 
-export interface FunctionBlockModule {
+export interface FunctionBlockModule extends ModuleDisplayProperties {
   tag: string
   type: 'FB'
   fbType: FbBlockType

@@ -318,8 +318,13 @@ Required: Unique module names of at most 16 permitted characters with at
 Verified subset: naming.ts, STORE, EXPLORER and STUDIO now share validation.
   Normalization, exact boundaries, allowed symbols, duplicate/invalid/denied
   rejection and absence of false creation logs have regressions.
+  Independent primary/detail picture references now configure through module
+  properties and resolve actual created pictures in Run mode. Faceplate links
+  navigate each reference separately. Named-picture Back/Forward works within
+  the same builder display; missing/deleted targets reject without fallback.
 Gaps: Independent scan multiples/manual order and full module property model.
-  Only limited automatic dependency execution and block OOS exist.
+  Only limited automatic dependency execution and block OOS exist. Native
+  arbitrary faceplate-template assignment remains absent.
 Acceptance: Add per-module/per-block scheduling and assignments; do not treat
   the app's 10 Hz tick as an independently configured scan.
 
@@ -469,7 +474,10 @@ Additional verified subset: Opt-in standalone AO controller assignment,
   Cancelled/invalid transfer retains last-good runtime; output ownership and
   assigned-controller/DST prerequisites are checked atomically.
 Gaps: Arbitrary parameter types/paths, native module properties/templates,
-  independent picture assignment and full-controller downloads remain absent.
+  native custom faceplate assignment and full-controller downloads remain absent.
+  Primary/detail display references are independently executable project metadata,
+  not a simulation of native controller transfer. AO Save captures current
+  references; transfer/restart cannot revive changed project metadata.
 Acceptance: Verify remaining property/assignment/lifecycle steps without
   replacing standalone AO with a PID stage or claiming session writes are saved.
 
@@ -507,8 +515,9 @@ Verified subset: Standalone LI-101 reads LT-1 engineering input with range
   live Explorer verification. Bound input does not drift or read PID command.
   Invalid/disabled input holds PV with Bad and PV BAD alarm; valid recovery
   resumes sampling. New AI threshold alarms start disabled until configured.
-Gaps: Electrical/XD_SCALE conversion, ANALOG template, controller/display
-  assignment and Save/Download/Online remain absent.
+Gaps: Electrical/XD_SCALE conversion, ANALOG template, controller assignment
+  and Save/Download/Online remain absent. LI-101 primary TANK101 assignment
+  and independent detail navigation now execute as project metadata.
 Acceptance: Verify engineering conversion, channel source and alarm thresholds.
 
 [DV09-037]
