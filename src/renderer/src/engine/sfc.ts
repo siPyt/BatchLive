@@ -9,6 +9,7 @@ import type { NamedSetDefinition } from './namedSets'
 // ---------------------------------------------------------------------------
 
 export type CompareOp = '>' | '<' | '>=' | '<='
+export type SfcActualMode = ControlMode | 'OOS'
 
 export type ActionQualifier = 'N' | 'P' | 'S' | 'R' | 'D' | 'L' | 'SD' | 'DS' | 'SL'
 export const TIMED_QUALIFIERS: ActionQualifier[] = ['P', 'D', 'L', 'SD', 'DS', 'SL']
@@ -39,6 +40,8 @@ export type SfcCondition =
   | { kind: 'out'; tag: string; op: CompareOp; value: number }
   | { kind: 'motorRunning'; tag: string; running: boolean }
   | { kind: 'valveOpen'; tag: string; open: boolean }
+  | { kind: 'discrete'; tag: string; state: boolean }
+  | { kind: 'mode'; tag: string; mode: SfcActualMode }
   | { kind: 'namedSet'; parameter: string; namedSet: string; entry: string }
 
 export interface SfcStep {
@@ -113,13 +116,13 @@ export function describeAction(a: SfcAction, module?: AnyModule): string {
     case 'valve':
       return `${q}^/${a.tag}/DC1/OUT_D.CV := ${a.open ? 1 : 0} (${a.open ? 'OPEN' : 'CLOSE'})`
     case 'do':
-      return `${q}^/${a.tag}/DO1/OUT_D.CV := ${a.on ? 1 : 0} (${a.on ? 'ON' : 'OFF'})`
+      return `${q}^/${a.tag}/DO1/SP_D.CV := ${a.on ? 1 : 0} (${a.on ? 'ON' : 'OFF'})`
     case 'namedSet':
       return `${q}'${a.parameter}' := '${a.namedSet}:${a.entry}'`
   }
 }
 
-export function describeCondition(c: SfcCondition): string {
+export function describeCondition(c: SfcCondition, module?: AnyModule): string {
   switch (c.kind) {
     case 'always':
       return 'TRUE (no wait)'
@@ -133,6 +136,10 @@ export function describeCondition(c: SfcCondition): string {
       return `^/${c.tag}/DC1/PV_D.CV = ${c.running ? 1 : 0} (${c.running ? 'RUNNING' : 'STOPPED'})`
     case 'valveOpen':
       return `^/${c.tag}/DC1/PV_D.CV = ${c.open ? 1 : 0} (${c.open ? 'OPEN' : 'CLOSED'})`
+    case 'discrete':
+      return `^/${c.tag}/DI1/PV_D.CV = ${Number(c.state)}`
+    case 'mode':
+      return `^/${c.tag}/${module?.type === 'AO' ? 'AO1' : 'PID1'}/MODE.ACTUAL = ${c.mode}`
     case 'namedSet':
       return `'${c.parameter}' = '${c.namedSet}:${c.entry}'`
   }
@@ -158,6 +165,10 @@ export function evalCondition(c: SfcCondition, state: PlantState, elapsed: numbe
       return m && m.type === 'MOTOR' ? m.running === c.running : false
     case 'valveOpen':
       return m && m.type === 'VALVE' ? m.open === c.open : false
+    case 'discrete':
+      return !!m && m.type === 'DI' && !m.ioBad && m.mode !== 'OOS' && m.state === c.state
+    case 'mode':
+      return !!m && (m.type === 'PID' || m.type === 'AO') && m.actualMode === c.mode
   }
 }
 
@@ -443,6 +454,10 @@ function conditionError(condition: SfcCondition, modules: Record<string, AnyModu
   if (!module) return `Missing condition module ${condition.tag}`
   if (condition.kind === 'motorRunning') return module.type !== 'MOTOR' ? 'Running condition requires a motor' : null
   if (condition.kind === 'valveOpen') return module.type !== 'VALVE' ? 'Open condition requires a valve' : null
+  if (condition.kind === 'discrete') return module.type !== 'DI' ? 'Discrete feedback condition requires a DI module' : null
+  if (condition.kind === 'mode') return module.type !== 'PID' && module.type !== 'AO' ? 'Actual mode condition requires PID or AO' :
+    (module.type === 'AO' ? ['MAN', 'AUTO', 'CAS', 'OOS'] : ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN']).includes(condition.mode) ?
+      null : 'Unsupported actual mode'
   if (!Number.isFinite(condition.value) || !['>', '<', '>=', '<='].includes(condition.op)) return 'Invalid comparison'
   if (condition.kind === 'pv') return !['PID', 'AI', 'AO'].includes(module.type) ? 'PV condition requires an analog module' : null
   return !['PID', 'AO'].includes(module.type) ? 'OUT condition requires PID or AO' : null

@@ -885,7 +885,14 @@ Pages: 284-285
 Status: PARTIAL
 Required: Identify paths for valve command/feedback, motor command/feedback,
   PID target/actual mode, setpoint/output and measured flow.
-Evidence: Structured action kinds address tags, not universal path fields.
+Evidence: Properties/Browser now resolve separate DO1/SP_D command and
+  DI1/PV_D feedback, DC1 motor command/modeled feedback, PID1/AO1 target and
+  actual modes, SP/OUT and supported AI/AO measured paths. Bad/OOS DI held
+  values cannot satisfy a comparison. Actual-mode comparisons never substitute
+  the requested mode. Parsing/saved schema/module validation explicitly reject
+  wrong path/type/modes. Tests cover case/path roundtrips and target/actual
+  disagreement. These are supported exact path subsets, not a universal native
+  resolver; external motor/DC feedback and arbitrary expressions remain absent.
 Acceptance: Resolve all requested paths, keeping commands and feedback distinct.
 
 [DV09-069]
@@ -931,8 +938,15 @@ Evidence: Generic structured motor/valve/SP/out transitions and supported
   now supported by explicit Transition Properties destinations, including initial/
   self-loop returns and deliberate termination. Live saved/deployed routine
   alternated step1/step0 and SP50/SP10 three times without COMPLETE; this was
-  a routing fixture, not the complete course equipment chart. Selective/parallel
-  graph routing, native palette/connector editing, exact device bindings,
+  a routing fixture, not the complete course equipment chart. Later pass19
+  configured source tags XV-101 DO/XVSTAT-101 DI on distinct CTLR channels,
+  FIC-102 PID with FT-2/FY-2 and50 GPM, plus modeled MTR-102. Properties Browser,
+  controller assignment, Save/Download/Online and actual picture MESSAGE entry
+  operated STARTUP/SHUTDOWN/STARTUP with separate sampled feedback, output
+  thresholds and return prompt255. Disabled output held OPEN_BLK_VLV with
+  Bad DI and no pump command until repaired. Saved defaults stayed255.
+  Native parallel graph execution, palette/connector editing, motor/DC templates
+  with external feedback,
   native New workflow and restart/nonvolatile restoration remain missing.
 Acceptance: Execute each state in the exact dependency order with real
   feedback; failed confirmation must hold the appropriate transition.
@@ -945,9 +959,12 @@ Required: Add shutdown command and divergent path; stop/confirm motor, set
 Evidence: Named Set STARTUP/SHUTDOWN now select mutually exclusive paths,
   converge to shared END_SEQUENCE and return to prompt. Live motor fixture
   stopped/started/stopped with actual feedback waits, then reset MESSAGE255
-  on each return. This proves routing, not the exact equipment procedure.
-  Exact FIC-102/MTR-102/XVSTAT-101 bindings and native branch editor/layout
-  remain missing. Original p294 figure orders stop motor -> close block valve
+  on each return. Later pass19 source-tag fixture confirmed stop/modeled motor
+  feedback -> close/separately sampled XVSTAT-101 DI -> FIC-102 MAN/OUT0,
+  output<2 -> END_SEQUENCE -> HOLD/prompt255. Automated and actual picture
+  STARTUP/SHUTDOWN/STARTUP cycles passed, including Bad valve-feedback refusal.
+  Native motor/DC templates/external feedback and branch editor/layout remain
+  missing. Original p294 figure orders stop motor -> close block valve
   -> FIC MAN/OUT0, while the existing audit prose above reflects the text
   sequence; preserve both source distinctions rather than silently claiming
   one scripted fixture certifies all prescribed operations.

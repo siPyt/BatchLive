@@ -1026,6 +1026,28 @@ behavior was preserved. No plant layout, symbols, palette or CSS changed.
 local commit only, no push authorized.
 
 ===============================================================================
+31. SFC COURSE FEEDBACK PATHS - SHOW CONFIRMATION, NOT REQUESTED STATE
+===============================================================================
+
+Separate DO command and DI feedback must remain visibly different paths.
+DO action caption addresses DO1/SP_D.CV, not nonexistent DO1/OUT_D.CV.
+DI transition captions address DI1/PV_D.CV; Bad/OOS held state cannot turn
+the wait true, even when numeric feedback equals the requested condition.
+Confirmed mode captions use MODE.ACTUAL, PID1 for PID and AO1 for AO.
+Route summaries/titles must use the correct owning module's block name.
+No requested-mode fallback or command-as-feedback highlight is permitted.
+The existing Properties Browser and inline controls handle these conditions;
+no plant icon, palette, piping, motor/valve shape or FBD geometry changed.
+Live source-tag dependency/picture-entry test used the existing chart/entry
+dialogs. Cancel retained the draft; actual Save/Download/Online and Named Set
+operator selection released the proper waits. Disabled output held the
+valve wait with Bad DI and no pump start. Original plant/UI/pictures restored.
+Native motor/DC templates, external XI-2 feedback and graph/parallel/layout
+parity are not claimed. Preserve the approved reference artwork.
+Regression:186 coupled tests, typecheck/build/diagnostics/audit, three live
+startup/shutdown/startup cycles, separate channel sampling and prompt255.
+
+===============================================================================
 30. SELECTIVE ROUTE FEEDBACK - NO FALSE PARALLEL ACTIVITY
 ===============================================================================
 

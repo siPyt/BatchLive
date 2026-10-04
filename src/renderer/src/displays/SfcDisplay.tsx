@@ -180,8 +180,8 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
       {sfc.steps.some(step => step.alternatives?.length) && <div className="traditional-note">
         <strong>Selective routes (primary first; first true route wins)</strong>
         {sfc.steps.filter(step => step.alternatives?.length).map(step => <div key={step.id}>
-          <div>{step.name}: {describeCondition(step.transition)} → {sfc.steps.find(item => item.id === step.nextStep)?.name ?? 'Complete'}</div>
-          {step.alternatives?.map((route, index) => <div key={index}>Route {index + 1}: {describeCondition(route.condition)} → {sfc.steps.find(item => item.id === route.nextStep)?.name ?? '(missing target)'}</div>)}
+          <div>{step.name}: {describeCondition(step.transition, 'tag' in step.transition ? modules[step.transition.tag] : undefined)} → {sfc.steps.find(item => item.id === step.nextStep)?.name ?? 'Complete'}</div>
+          {step.alternatives?.map((route, index) => <div key={index}>Route {index + 1}: {describeCondition(route.condition, 'tag' in route.condition ? modules[route.condition.tag] : undefined)} → {sfc.steps.find(item => item.id === route.nextStep)?.name ?? '(missing target)'}</div>)}
         </div>)}
         <p>Single-active-step selective convergence uses shared destination IDs. This is not parallel execution or the native graph palette/layout.</p>
       </div>}
@@ -260,7 +260,7 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
             {step.nextStep !== undefined && destination >= 0 && <path
               d={`M ${CENTER_X} ${y + STEP_H} V ${transY + 12} H ${60 + i * 4} V ${rowY(destination) - 16} H ${CENTER_X} V ${rowY(destination)}`}
               fill="none" className={transTrue ? 'sfc-line-active' : 'sfc-line'}>
-              <title>Transition returns to {sfc.steps[destination].name}</title>
+              <title>Transition to {sfc.steps[destination].name}</title>
             </path>}
             {step.alternatives?.map((route, index) => {
               const target = sfc.steps.findIndex(candidate => candidate.id === route.nextStep)
@@ -271,7 +271,7 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
               return <path key={index}
                 d={`M ${CENTER_X} ${transY} H ${40 + index * 8} V ${rowY(target) - 12} H ${CENTER_X} V ${rowY(target)}`}
                 fill="none" className={trueRoute ? 'sfc-line-active' : 'sfc-line'}>
-                <title>Alternate {index + 1}: {describeCondition(route.condition)} to {sfc.steps[target].name}</title>
+                <title>Alternate {index + 1}: {describeCondition(route.condition, 'tag' in route.condition ? modules[route.condition.tag] : undefined)} to {sfc.steps[target].name}</title>
               </path>
             })}
             {/* step box */}
@@ -341,7 +341,7 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
                 onContextMenu={e => { e.preventDefault(); onContext({ kind: 'transition', step }, e.clientX, e.clientY) }}>
                 <rect x={-20} y={-2} width={40} height={4} className={transTrue ? 'sfc-trans-bar sfc-trans-true' : 'sfc-trans-bar'} />
                 <text x={28} y={3} className="trans-label" fill={transTrue ? '#2e6b4f' : '#555'}>
-                  T{String(i + 1).padStart(2, '0')}: {describeCondition(step.transition)}
+                  T{String(i + 1).padStart(2, '0')}: {describeCondition(step.transition, 'tag' in step.transition ? modules[step.transition.tag] : undefined)}
                 </text>
               </g>
             )}
@@ -570,7 +570,7 @@ export function ActionEditor({
   )
 }
 
-const COND_KINDS: SfcCondition['kind'][] = ['always', 'timer', 'pv', 'out', 'motorRunning', 'valveOpen']
+const COND_KINDS: SfcCondition['kind'][] = ['always', 'timer', 'pv', 'out', 'motorRunning', 'valveOpen', 'discrete', 'mode']
 const OPS: CompareOp[] = ['>', '<', '>=', '<=']
 
 export function TransitionEditor({
@@ -589,11 +589,13 @@ export function TransitionEditor({
       firstTag(modules, 'AO'), op: '>', value: 50 })
     else if (k === 'out') onChange({ kind: 'out', tag: firstTag(modules, 'PID') || firstTag(modules, 'AO'), op: '>', value: 30 })
     else if (k === 'motorRunning') onChange({ kind: 'motorRunning', tag: firstTag(modules, 'MOTOR'), running: true })
+    else if (k === 'discrete') onChange({ kind: 'discrete', tag: firstTag(modules, 'DI'), state: true })
+    else if (k === 'mode') onChange({ kind: 'mode', tag: firstTag(modules, 'PID') || firstTag(modules, 'AO'), mode: 'AUTO' })
     else onChange({ kind: 'valveOpen', tag: firstTag(modules, 'VALVE'), open: true })
   }
-  const tagType = cond.kind === 'motorRunning' ? 'MOTOR' : cond.kind === 'valveOpen' ? 'VALVE' : 'PID'
+  const tagType = cond.kind === 'motorRunning' ? 'MOTOR' : cond.kind === 'valveOpen' ? 'VALVE' : cond.kind === 'discrete' ? 'DI' : 'PID'
   const tags = cond.kind === 'pv' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AI'), ...tagsOf(modules, 'AO')] :
-    cond.kind === 'out' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AO')] : tagsOf(modules, tagType)
+    cond.kind === 'out' || cond.kind === 'mode' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AO')] : tagsOf(modules, tagType)
 
   if (cond.kind === 'namedSet') return <div className="sfc-edit-row sfc-trans-edit">{describeCondition(cond)}</div>
   return (
@@ -609,7 +611,7 @@ export function TransitionEditor({
       {cond.kind === 'timer' && (
         <input className="fp-numinput sm" type="number" value={cond.seconds} onChange={(e) => onChange({ ...cond, seconds: Number(e.target.value) })} />
       )}
-      {(cond.kind === 'pv' || cond.kind === 'out' || cond.kind === 'motorRunning' || cond.kind === 'valveOpen') && (
+      {(cond.kind === 'pv' || cond.kind === 'out' || cond.kind === 'motorRunning' || cond.kind === 'valveOpen' || cond.kind === 'discrete' || cond.kind === 'mode') && (
         <select className="exp-alm-select" value={cond.tag} onChange={(e) => onChange({ ...cond, tag: e.target.value })}>
           {tags.map((t) => (
             <option key={t} value={t}>
@@ -618,6 +620,12 @@ export function TransitionEditor({
           ))}
         </select>
       )}
+      {cond.kind === 'discrete' && <select className="exp-alm-select" aria-label="DI confirmed value" value={Number(cond.state)}
+        onChange={e => onChange({ ...cond, state: e.target.value === '1' })}><option value={1}>1</option><option value={0}>0</option></select>}
+      {cond.kind === 'mode' && <select className="exp-alm-select" aria-label="Confirmed actual mode" value={cond.mode}
+        onChange={e => onChange({ ...cond, mode: e.target.value as 'MAN' | 'AUTO' | 'CAS' | 'ROUT' | 'RCAS' | 'IMAN' | 'OOS' })}>
+        {(modules[cond.tag]?.type === 'AO' ? ['MAN', 'AUTO', 'CAS', 'OOS'] : ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN']).map(mode => <option key={mode}>{mode}</option>)}
+      </select>}
       {(cond.kind === 'pv' || cond.kind === 'out') && (
         <>
           <select className="exp-alm-select" value={cond.op} onChange={(e) => onChange({ ...cond, op: e.target.value as CompareOp })}>

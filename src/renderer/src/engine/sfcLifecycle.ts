@@ -68,6 +68,8 @@ function condition(value: unknown): value is SfcCondition {
   if (typeof value.tag !== 'string') return false
   if (value.kind === 'motorRunning') return typeof value.running === 'boolean'
   if (value.kind === 'valveOpen') return typeof value.open === 'boolean'
+  if (value.kind === 'discrete') return typeof value.state === 'boolean'
+  if (value.kind === 'mode') return typeof value.mode === 'string' && ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN', 'OOS'].includes(value.mode)
   return (value.kind === 'pv' || value.kind === 'out') && typeof value.value === 'number' &&
     ['>', '<', '>=', '<='].includes(String(value.op))
 }

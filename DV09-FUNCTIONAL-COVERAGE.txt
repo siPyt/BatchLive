@@ -784,6 +784,45 @@ source text/audit ordering differences must be explicitly checked, not hidden.
 Validation:181 coupled tests, including nine routing tests, typecheck/build/
 diagnostics/audit. Commit locally only; no push authorized.
 
+PASS 19: SOURCE-TAG SFC COMMAND / DI FEEDBACK / ACTUAL-MODE DEPENDENCIES
+-----------------------------------------------------------------------
+Scope: supported path and sequencing subset of DV09-068/070/071, not full
+native workshop completion. New discrete conditions read separate DI state
+only when valid/AUTO; Bad/OOS held feedback cannot release either0 or1 wait.
+Actual PID/AO mode comparisons read actualMode, not target mode. AO OOS can
+be compared without widening supported SFC mode assignments. Exact quoted
+DI1/PV_D and PID1/AO1/MODE.ACTUAL parsing, formatter, Properties Browser,
+inline editor, Check and saved-schema boundaries reject wrong paths/types/
+modes. DO displayed command path is corrected to the executable DO1/SP_D.
+Course-tag fixture uses XV-101 DO/XVSTAT-101 DI on distinct traditional
+CTLR/C04/C03 channels with explicit simulated XV-1->LSO-1 tieback, and
+FIC-102 PID FT-2/FY-2 with GPM scale0-100. The requested output is applied
+on an output scan and sampled by DI on the next scan; SFC waits for real
+sampling. MTR-102 uses existing modeled motor behavior, not a new native
+DC template or external XI-2 feedback. The workshop instructions expose
+this configuration rather than substituting the sample VALVE/P-101.
+Five focused regressions cover parser/formatter/type rejection, Bad/OOS
+feedback, actual/target disagreement, saved conditions and three repeated
+startup/shutdown paths. Disabled DO holds OPEN_BLK_VLV and forbids pump
+start until output/DI recover. The p294 figure ordering is tested explicitly;
+the recorded source-text ordering discrepancy remains unresolved.
+Live: canceled Browser-inserted DI condition retained TRUE; accepted it
+stored discrete XVSTAT-1011. PID actual-mode Browser inserted MODE.ACTUAL,
+Cancel preserved the DI condition. Actual controller Properties, Save,
+confirmed Download, Online and RUN preceded Named Set picture operator entry.
+With output disabled, STARTUP held OPEN_BLK_VLV: requested true, applied
+false, separate DI false/Bad, no pump command. Re-enabling produced
+OPEN -> FLOW50 -> START -> END -> HOLD255, actual output66%, pump running.
+SHUTDOWN produced STOP -> CLOSE -> FLOW MAN/OUT0 -> END -> HOLD255,
+actual MAN/OUT0, valve closed and pump stopped. Repeated STARTUP confirmed
+AUTO/SP50/output55.75%, valve open/pump running and prompt255. Configured/
+saved defaults stayed255. Original96-module/eight-SFC running plant, UI,
+security, pictures, browser records and720x576 viewport restored afterward.
+Native parallel joins, graph/palette/layout, motor/DC/external feedback,
+New/category/restart boundaries and image-only review remain incomplete.
+Validation:186 coupled regressions, typecheck/build/diagnostics and audit.
+Commit locally only; no further push authorized.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

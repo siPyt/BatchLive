@@ -170,9 +170,22 @@ saved/deployed independently. The route summary and connection titles show
 the actual configuration without claiming the native branch palette/layout.
 Parallel paths and synchronization joins remain unavailable.
 
-This implements MESSAGE and return-routing prerequisites, not the
-complete pp291-294 procedure. Exact FIC-102/MTR-102
-bindings, native branch editing/layout and parallel joins are still outstanding.
+Properties/Browser and inline transitions support separate DI feedback
+(`'^/XVSTAT-101/DI1/PV_D.CV' = 1`) and confirmed analog modes
+(`'^/FIC-102/PID1/MODE.ACTUAL' = AUTO`; AO uses AO1). Bad or OOS DI
+feedback never releases a transition, even when its held value matches.
+Mode comparisons read actual mode, not MODE.TARGET. DO assignments address
+DO1/SP_D.CV; they do not write or fabricate the DI feedback.
+The Sequencing workshops include configuration/dependency instructions for
+the course-tag XV-101 DO, XVSTAT-101 DI, FIC-102 PID and MTR-102 motor subset.
+Automated and live STARTUP/SHUTDOWN/STARTUP cycles verified separate channel
+sampling, 50 GPM setpoint, output thresholds and return to MESSAGE255.
+The shutdown fixture follows the p294 figure's stop/close/flow order; the
+text-order difference remains recorded rather than silently certified.
+
+This implements MESSAGE, feedback and selective/return-routing prerequisites,
+not the complete pp291-294 procedure. Native motor/DC templates with external
+XI-2 feedback, branch editing/layout and parallel joins remain outstanding.
 Native parameter category/restart/instance/Browse workflows, general parameter
 types and nonvolatile behavior are not claimed.
 

@@ -178,7 +178,8 @@ function SfcExpressionBrowser({ modules, context, assignment, onInsert, onClose 
       }
     } else {
       candidates.push(conditionExpression({ kind: 'pv', tag, op: '>', value: 0 }, module),
-        conditionExpression({ kind: 'out', tag, op: '>', value: 0 }, module))
+        conditionExpression({ kind: 'out', tag, op: '>', value: 0 }, module),
+        conditionExpression({ kind: 'mode', tag, mode: 'AUTO' }, module))
     }
   } else if (module?.type === 'AI' && !assignment) {
     candidates.push(conditionExpression({ kind: 'pv', tag, op: '>', value: 0 }, module))
@@ -188,6 +189,8 @@ function SfcExpressionBrowser({ modules, context, assignment, onInsert, onClose 
       conditionExpression(module.type === 'MOTOR' ? { kind: 'motorRunning', tag, running: true } : { kind: 'valveOpen', tag, open: true }, module))
   } else if (module?.type === 'DO' && assignment) {
     candidates.push(assignmentExpression({ kind: 'do', tag, on: true }, module))
+  } else if (module?.type === 'DI' && !assignment) {
+    candidates.push(conditionExpression({ kind: 'discrete', tag, state: true }, module))
   }
   return <SimulatorDialog className="sfc-properties-dialog" label="Expression Browser" onClose={onClose}>
     <h3>Expression Browser</h3>

@@ -1,5 +1,5 @@
 import type { AnyModule, ControlMode } from './types'
-import type { SfcAction, SfcCondition, CompareOp } from './sfc'
+import type { SfcAction, SfcCondition, CompareOp, SfcActualMode } from './sfc'
 import { namedParameterReferenceError, type SfcExpressionContext } from './sfcParameters'
 
 export type ExpressionResult<T> = { value: T; error?: never } | { error: string; value?: never }
@@ -81,6 +81,15 @@ export function parseSfcCondition(text: string, modules: Record<string, AnyModul
   const parameter = reference.parameter
   const value = unquote(match[3])
   const tag = module.tag
+  const analogBlock = module.type === 'AO' ? 'AO1' : module.type === 'PID' ? 'PID1' : ''
+  if (match[2] === '=' && analogBlock && parameter === `${analogBlock}/MODE.ACTUAL`) {
+    const modes: SfcActualMode[] = module.type === 'AO' ? ['MAN', 'AUTO', 'CAS', 'OOS'] : ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN']
+    const mode = modes.find(item => item === value.toUpperCase())
+    return mode ? { value: { kind: 'mode', tag, mode } } : { error: 'Unsupported actual mode for this module' }
+  }
+  if (match[2] === '=' && module.type === 'DI' && parameter === 'DI1/PV_D.CV' && ['0', '1'].includes(value)) {
+    return { value: { kind: 'discrete', tag, state: value === '1' } }
+  }
   if (match[2] === '=' && ['0', '1'].includes(value) && parameter === 'DC1/PV_D.CV') {
     if (module.type === 'MOTOR') return { value: { kind: 'motorRunning', tag, running: value === '1' } }
     if (module.type === 'VALVE') return { value: { kind: 'valveOpen', tag, open: value === '1' } }
@@ -108,6 +117,8 @@ export function conditionExpression(condition: SfcCondition, module?: AnyModule)
   if (condition.kind === 'namedSet') return `'${condition.parameter}' = '${condition.namedSet}:${condition.entry}'`
   if (condition.kind === 'always') return 'TRUE'
   if (condition.kind === 'timer') return `T_ACTIVE >= ${condition.seconds}`
+  if (condition.kind === 'discrete') return `'^/${condition.tag}/DI1/PV_D.CV' = ${Number(condition.state)}`
+  if (condition.kind === 'mode') return `'^/${condition.tag}/${module?.type === 'AO' ? 'AO1' : 'PID1'}/MODE.ACTUAL' = ${condition.mode}`
   if (condition.kind === 'motorRunning' || condition.kind === 'valveOpen') {
     return `'^/${condition.tag}/DC1/PV_D.CV' = ${Number(condition.kind === 'motorRunning' ? condition.running : condition.open)}`
   }
