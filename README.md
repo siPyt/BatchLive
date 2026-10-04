@@ -296,6 +296,18 @@ descriptors returns default labels only after Save/Full deployment.
 This is explicit role mapping, not native DC state-mask or full valve-template
 dialog parity; existing mechanical graphics and default labels are preserved.
 
+Explorer **ProfessionalPLUS (simulated) -> Licensing Properties** reports
+distinct actual referenced AI/AO/DI/DO hardware signals and their module,
+port, channel and controller. Shared readers/internal FB references do not
+duplicate usage; unused named channels and unbound modules allocate zero.
+LI-101 LT-1 counts one AI; binding FIC-102 FT-2/FY-2 adds one AI and one AO
+exactly once. A bound AO2 is a distinct output. Disabled/pulled signals stay
+allocated; enabled/installed counts are separate. Unresolved/wrong-type
+references produce an explicitly incomplete report. Counts follow current
+live/deployed bindings, not untransferred drafts.
+This read-only report does not model purchased license capacity, allocate
+substitutions, enforce vendor licenses or fabricate a physical System ID key.
+
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are
 isolated drafts: OK validates and applies, while Cancel/Escape retain the

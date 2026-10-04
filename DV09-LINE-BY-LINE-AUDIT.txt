@@ -824,10 +824,24 @@ CHAPTER 6: REGULATORY CONTROL
 
 [DV09-054]
 Pages: 238-242
-Status: MISSING
+Status: PARTIAL
 Required: Determine DST licenses/usage by type, assignment/substitution and
   system identity/keys.
-Evidence: No license manager or DST usage accounting.
+Evidence: Pass33 adds actual read-only Explorer ProfessionalPLUS (simulated)
+  -> Licensing Properties, with AI/AO/DI/DO referenced/enabled/configured/
+  unused counts and module/port/channel/controller detail. Distinct actual
+  live/deployed physical signals are counted, not every module or unused
+  named channel. Shared readers/internal FB references do not duplicate
+  allocation. Disabled/pulled/failed-controller references remain allocated;
+  enabled/installed counts are separate. Implicit legacy CHARM signals
+  count by physical type; no fictitious native DST names are invented.
+  Wrong/missing/duplicate/unresolved graph data displays explicit incomplete
+  report diagnostics, not successful0 usage. Report never mutates state.
+  Seven regressions and actual UI before/after/shared navigation/disabled/
+  incomplete report checks pass;309 tests/typecheck/build validation.
+  License capacity, substitution allocation/enforcement, license files and
+  physical System ID keys are not implemented. AO-to-AI substitution is
+  recorded from p241, not generalized into an unverified hierarchy.
 Acceptance: Count real referenced/enabled DSTs by type before/after module
   creation and report resource boundaries; real license keys remain external.
 
@@ -854,9 +868,16 @@ Acceptance: Trace these exact values to their actual block and channels in
 
 [DV09-057]
 Pages: 255-255
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Record licensing properties/DST counts after FIC-102 configuration.
-Evidence: No before/after license accounting.
+Evidence: Pass33 real Licensing Properties shows configured unused channels
+  allocate0; bound LI-101 LT-1 allocates oneAI. Creating unbound FIC-102 does
+  not increase usage. Binding FT-2/FY-2 increases totals by exactly oneAI/
+  oneAO, once; repeated binding does not duplicate, and deletion/unbinding
+  releases actual references. Bound AO2 adds one physical AO, not another
+  PID-object count. Actual rendered UI records0 -> LI1AI -> unchanged
+  unbound FIC ->2AI/1AO. This is usage/requirement reporting, not certified
+  purchased license capacity or native vendor license approval.
 Acceptance: Course additions must change the appropriate counts exactly once;
   decorative numbers or counting every unused object are not equivalent.
 

@@ -292,6 +292,19 @@ export const COURSE: WModule[] = [
         ]
       },
       {
+        id: 'dst-usage',
+        title: 'System DST usage before and after FIC-102',
+        objective: 'Count actual per-type referenced channels exactly once through Explorer Licensing Properties.',
+        note: 'Read-only requirement/usage reporting. Purchased capacity, substitution allocation/enforcement, vendor license files and physical System ID keys remain unmodeled.',
+        steps: [
+          { id: 'dst-usage-baseline', text: 'Use the separate course project. In Explorer expand ProfessionalPLUS (simulated) and open Licensing Properties. Named unused LT-1/FT-2/LY-1/FY-2 channels alone allocate0; bound LI-101 LT-1 allocates oneAI. Record AI/AO/DI/DO totals and actual reference details.', goto: 'explorer' },
+          { id: 'dst-usage-loop', text: 'Create FIC-102 PID. An unbound module must not change physical usage. Bind FT-2 input and FY-2 output in Control Studio: requirements increase by exactly oneAI and oneAO. Repeat the bindings: totals do not increase again. An enabled/bound AO2 is another output signal, not another PID-object count.', goto: 'studio' },
+          { id: 'dst-usage-readers', text: 'Add another input reader or internal condition referencing the same measured input. It does not allocate another physical DST. Inspect the channel detail to see multiple reader module/port references. Unbinding/deleting the final reader releases that signal allocation.' },
+          { id: 'dst-usage-quality', text: 'Disable/pull a bound signal: referenced allocation stays, while enabled/installed referenced count decreases. Lost controller service does not delete an allocated channel. Untransferred saved-device drafts/Save do not change current binding totals; Full deployment does.' },
+          { id: 'dst-usage-boundary', text: 'Unresolved/wrong-type/duplicate references must show an explicit incomplete report, not successful0 usage. Actual CHARM channels without native DST names are labeled implicit signals. The source permits AO licenses to cover AI requirements; this report neither invents a complete substitution hierarchy nor approves licensed downloads.' }
+        ]
+      },
+      {
         id: 'alarms',
         title: 'Configuring DeltaV Alarms',
         objective: 'Set alarm limits and priorities, then acknowledge an alarm.',

@@ -10,6 +10,7 @@ import { nextAreaName } from '../engine/areas'
 import { moduleNameError } from '../engine/naming'
 import { NamedSetControls } from '../components/NamedSetControls'
 import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
+import { LicensingProperties } from '../components/LicensingProperties'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -87,7 +88,7 @@ export function ExplorerDisplay(): JSX.Element {
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
-  const [namedSetView, setNamedSetView] = useState(false)
+  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'licensing'>('modules')
   const [selectedNamedSet, setSelectedNamedSet] = useState<string | null>(null)
   const [namedSetCreateRequest, setNamedSetCreateRequest] = useState(0)
   const [namedSetPropertiesRequest, setNamedSetPropertiesRequest] =
@@ -136,11 +137,11 @@ export function ExplorerDisplay(): JSX.Element {
       <div
         key={m.tag}
         className={'exp-node exp-mod' + (nested ? ' nested' : '') + (selectedTag === m.tag ? ' sel' : '')}
-        onClick={() => { setNamedSetView(false); select(m.tag) }}
+        onClick={() => { setSetupView('modules'); select(m.tag) }}
         onDoubleClick={() => openStudio(m.tag)}
         onContextMenu={(e) => {
           e.preventDefault()
-          setNamedSetView(false)
+          setSetupView('modules')
           select(m.tag)
           setMenu({ x: e.clientX, y: e.clientY, kind: 'module', target: m.tag })
         }}
@@ -186,25 +187,30 @@ export function ExplorerDisplay(): JSX.Element {
           <b>Setup</b>
         </div>
         {open.SETUP !== false && <>
-          <div className={'exp-node exp-area' + (namedSetView && !selectedNamedSet ? ' sel' : '')}
-            onClick={() => { setNamedSetView(true); setSelectedNamedSet(null) }}
+          <div className={'exp-node exp-area' + (setupView === 'namedSets' && !selectedNamedSet ? ' sel' : '')}
+            onClick={() => { setSetupView('namedSets'); setSelectedNamedSet(null) }}
             onContextMenu={e => {
-              e.preventDefault(); setNamedSetView(true); setSelectedNamedSet(null)
+              e.preventDefault(); setSetupView('namedSets'); setSelectedNamedSet(null)
               setMenu({ x: e.clientX, y: e.clientY, kind: 'namedSets', target: 'Named Sets' })
             }}>
             <b>Named Sets</b>
           </div>
           {Object.keys(namedSets).map(name => <div key={name}
-            className={'exp-node exp-mod nested' + (namedSetView && selectedNamedSet === name ? ' sel' : '')}
-            onClick={() => { setNamedSetView(true); setSelectedNamedSet(name) }}
+            className={'exp-node exp-mod nested' + (setupView === 'namedSets' && selectedNamedSet === name ? ' sel' : '')}
+            onClick={() => { setSetupView('namedSets'); setSelectedNamedSet(name) }}
             onDoubleClick={() => setNamedSetPropertiesRequest(previous => ({ name, serial: (previous?.serial ?? 0) + 1 }))}
             onContextMenu={e => {
-              e.preventDefault(); setNamedSetView(true); setSelectedNamedSet(name)
+              e.preventDefault(); setSetupView('namedSets'); setSelectedNamedSet(name)
               setMenu({ x: e.clientX, y: e.clientY, kind: 'namedSet', target: name })
             }}>
             <b>{name}</b>
           </div>)}
         </>}
+        <div className="exp-node exp-cell" onClick={() => toggle('PROPLUS')}>
+          <span className="exp-caret">{open.PROPLUS === false ? '▸' : '▾'}</span><b>ProfessionalPLUS (simulated)</b>
+        </div>
+        {open.PROPLUS !== false && <button className={'exp-node exp-area' + (setupView === 'licensing' ? ' sel' : '')}
+          onClick={() => setSetupView('licensing')}>Licensing Properties</button>}
         <div
           className="exp-node exp-cell"
           onContextMenu={e => {
@@ -296,10 +302,10 @@ export function ExplorerDisplay(): JSX.Element {
                     )}
                     {areaSfcs.map(sfc => <div key={sfc.name}
                       className={'exp-node exp-mod' + (selectedTag === sfc.name ? ' sel' : '')}
-                      onClick={() => { setNamedSetView(false); select(sfc.name) }}
+                      onClick={() => { setSetupView('modules'); select(sfc.name) }}
                       onDoubleClick={() => openSfc(sfc.name)}
                       onContextMenu={event => {
-                        event.preventDefault(); setNamedSetView(false); select(sfc.name)
+                        event.preventDefault(); setSetupView('modules'); select(sfc.name)
                         setMenu({ x: event.clientX, y: event.clientY, kind: 'sfc', target: sfc.name })
                       }}>
                       <span className="exp-caret" /><ModuleIcon kind="control" />
@@ -314,7 +320,7 @@ export function ExplorerDisplay(): JSX.Element {
       </div>
 
       <div className="explorer-detail">
-        {namedSetView ? (
+        {setupView === 'licensing' ? <LicensingProperties /> : setupView === 'namedSets' ? (
           <NamedSetControls selected={selectedNamedSet} onSelect={setSelectedNamedSet}
             createRequest={namedSetCreateRequest} propertiesRequest={namedSetPropertiesRequest}
             onRequestsHandled={() => { setNamedSetCreateRequest(0); setNamedSetPropertiesRequest(null) }} />

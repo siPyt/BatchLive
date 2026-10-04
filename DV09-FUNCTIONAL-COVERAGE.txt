@@ -1173,6 +1173,31 @@ Original96-module running plant/UI/security/browser keys/720x576 restored.
 Native DC state-mask properties/full valve-template dialogs remain gaps.
 No native mask/layout/full-course claim and no protected equipment redesign.
 
+PASS 33: EXACT PHYSICAL DST USAGE / LICENSING PROPERTIES
+------------------------------------------------------
+Scope: p241/242 usage subset (DV09-054 PARTIAL), before/after p255
+(DV09-057 VERIFIED_SUBSET). Read-only Explorer ProfessionalPLUS (simulated)
+-> Licensing Properties derives AI/AO/DI/DO counts from distinct actual
+live/deployed hardware bindings, with module/port/controller/channel detail.
+Configured unused named channels and unbound modules allocate zero.
+LI-101 LT-1 requires oneAI; FIC-102 FT-2/FY-2 adds exactly oneAI/oneAO.
+Shared readers/internal FB consumers do not duplicate physical allocation.
+Bound enabled AO2 adds one output. Disabled/pulled/failed-controller signals
+remain referenced; enabled/installed counts are separate. CHARMs without
+explicit DST names are clearly implicit signals, not fabricated identifiers.
+Wrong/missing/duplicate/unresolved graph references show explicit incomplete
+report diagnostics. Report is pure/read-only and does not approve downloads.
+Seven regressions cover exact counts, shared inputs/FB, isolated saved-device
+deployment, release, physical failure, default CHARMs and unresolved data.
+Live actual Licensing Properties renders0 -> LI oneAI -> unchanged unbound
+FIC ->2AI/1AO, including repeated binding, disabled status and error detail.
+Module/Named Set/License navigation works independently. Original96-module
+running plant/UI/security and720x576 restored; fixtures removed.
+309 tests/typecheck/build validation. Native purchased license capacity,
+substitution allocation/enforcement, license files and physical System ID
+keys remain explicit gaps/boundaries. Only AO-to-AI substitution is stated
+from the source; no invented hierarchy or full-license/course certification.
+
 PASS 27: SUSTAINED CND COMPARISONS / FAIL-SAFE INTERLOCK QUALITY
 -------------------------------------------------------
 Scope: p230 / DV09-050 condition dependency subset. CND now parses actual
