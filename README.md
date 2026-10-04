@@ -182,7 +182,25 @@ Bad/missing/OOS interlock sources now fail safe as **Bad - tripped**, rather
 than clearing a trip from a held/absent signal. Reset Required retains the
 lock after the condition clears until explicit Reset. With external I/O,
 the trip de-energizes ZX-2 before separately sampled XI-2 confirms Stopped.
-Native MTR-11_ILOCK, first-out/bypass and saved motor lifecycle remain incomplete.
+Native MTR-11_ILOCK and saved motor lifecycle remain incomplete; the separate
+first-out/bypass subset is described next.
+
+The two-input **BFI** now exposes independently readable **OUT_INT**, **OUT_D**
+and **FIRST_OUT**. Enable **ARM_TRAP** in Parameter View to capture the weighted
+input combination on a good all-zero to nonzero transition (input1=1, input2=2).
+Later causes do not overwrite it while any cause remains active. **RESET_IN**
+clears only the trap and pulses back to zero; capture cannot rearm until every
+input clears. A subsequent zero-to-nonzero transition can capture a new cause.
+Bad inputs retain explicitly Bad live outputs, not fictitious good trip values.
+The previous captured cause retains its own quality.
+**CND.BYPASS** inhibits a healthy condition and resets its timer. Removing bypass
+requires a fresh delay. Bad input remains Bad even when bypassed, so the wired
+interlock remains fail-safe. Wire two CND **BYPASS** parameters into a separate
+OR for actual bypass indication, independent of trip/first-out. Parameter View
+provides named-output choices; bypass, arm and reset require Restricted Control,
+an unlocked workstation, and produce journal entries.
+This is the verified two-input trap/bypass subset, not sixteen-input/BCD BFI,
+the native motor template or its saved/downloaded lifecycle.
 
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are

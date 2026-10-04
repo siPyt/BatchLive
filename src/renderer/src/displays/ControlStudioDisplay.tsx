@@ -642,6 +642,7 @@ function FbParamRows({
   setFbConfig: (tag: string, patch: Record<string, unknown>) => void
 }): JSX.Element {
   const needsIn2 = FB_NEEDS_IN2[m.fbType]
+  const setSafety = useStore(s => s.setFbSafety)
   const field = m.fbType
   const showGain = ['ARITH', 'MLTX', 'BG', 'LE', 'LL', 'LIM', 'MANLD', 'RAMP', 'RTLM', 'RTO', 'SCLR', 'SGCR', 'SGGN'].includes(field)
   const gainLabel = field === 'RTO' ? 'RATIO' : field === 'RAMP' || field === 'RTLM' ? 'RATE (EU/s)' : field === 'LE' || field === 'MANLD' ? 'VALUE' : field === 'MLTX' ? 'ELSE' : 'GAIN'
@@ -741,6 +742,18 @@ function FbParamRows({
       )}
       {field === 'CND' && <tr><td>TIME_ELAPSED (s)</td><td>{fmt(m._timerElapsed, 3)}</td>
         <td className={m.bad ? 'bad' : 'good'}>{m.bad ? 'Bad - timing reset' : 'Continuous true time'}</td></tr>}
+      {field === 'CND' && <tr><td>BYPASS</td><td>
+        <button className="studio-param-btn" aria-label={`${m.tag} bypass`}
+          onClick={() => setSafety(m.tag, 'BYPASS', !m.bypass)}>{m.bypass ? 'BYPASSED - remove bypass' : 'Not bypassed'}</button>
+      </td><td>{m.bypass ? 'Condition inhibited; quality still applies' : 'Condition active'}</td></tr>}
+      {field === 'BFI' && <>
+        <tr><td>ARM_TRAP</td><td><button className="studio-param-btn" aria-label={`${m.tag} arm trap`}
+          onClick={() => setSafety(m.tag, 'ARM_TRAP', !m.armTrap)}>{m.armTrap ? 'Armed' : 'Disarmed'}</button></td><td>First-out capture</td></tr>
+        <tr><td>RESET_IN</td><td><button className="studio-param-btn" aria-label={`${m.tag} reset first out`}
+          onClick={() => setSafety(m.tag, 'RESET_IN', true)}>Reset first out</button></td><td>Rearms after all inputs clear</td></tr>
+        <tr><td>FIRST_OUT</td><td>{m.firstOut ?? 0}</td><td className={m.firstOutBad ? 'bad' : 'good'}>{m.firstOutBad ? 'Bad' : 'Good'}</td></tr>
+        <tr><td>OUT_D</td><td>{Number(!!m.outDiscrete)}</td><td className={m.bad ? 'bad' : 'good'}>{m.bad ? 'Bad' : 'Good'}</td></tr>
+      </>}
       {showCountUp && (
         <tr>
           <td>COUNTER_TYPE</td>
@@ -800,6 +813,12 @@ function FbWireRow({
       }
     } else if (source?.type === 'FB' && source.fbType === 'SPLTR') {
       for (const parameter of ['OUT_1', 'OUT_2'] as const) choices.push({
+        label: `${tag}.${parameter}`, ref: { kind: 'ref', value: 0, tag, parameter }
+      })
+    } else if (source?.type === 'FB' && (source.fbType === 'CND' || source.fbType === 'BFI')) {
+      const parameters: AnalogSignalRef['parameter'][] = source.fbType === 'CND' ? ['BYPASS'] :
+        ['OUT_D', 'OUT_INT', 'FIRST_OUT']
+      for (const parameter of parameters) choices.push({
         label: `${tag}.${parameter}`, ref: { kind: 'ref', value: 0, tag, parameter }
       })
     }

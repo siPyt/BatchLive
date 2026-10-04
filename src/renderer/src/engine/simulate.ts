@@ -516,6 +516,26 @@ export function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string
     return
   }
   m.bad = input1.bad || (FB_NEEDS_IN2[m.fbType] && input2.bad)
+  if (m.fbType === 'BFI') {
+    const value = Number(input1.value !== 0) + Number(input2.value !== 0) * 2
+    if (m.resetTrap) {
+      m.firstOut = 0
+      m.firstOutBad = false
+      m._trapAwaitClear = true
+      m.resetTrap = false
+    }
+    if (!m.bad) {
+      if (value === 0) m._trapAwaitClear = false
+      if (m.armTrap && !m._trapAwaitClear && (m._trapPrevious ?? 0) === 0 && value !== 0) {
+        m.firstOut = value
+        m.firstOutBad = false
+      }
+      m.out = value
+      m.outDiscrete = value !== 0
+      m._trapPrevious = value
+    }
+    return
+  }
   if (m.bad) {
     if (m.fbType === 'CND') resetConditionTiming(m)
     return // Other blocks hold the last output with explicit Bad quality.
@@ -659,9 +679,6 @@ export function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string
       m._prevIn = inOn
       break
     }
-    case 'BFI':
-      m.out = (a !== 0 ? 1 : 0) + (b !== 0 ? 2 : 0)
-      break
     case 'BFO':
       m.out = (Math.floor(a) >> Math.max(0, Math.round(m.tripValue))) & 1
       break
@@ -673,6 +690,11 @@ export function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string
         break
       }
       m.expressionError = undefined
+      if (m.bypass) {
+        resetConditionTiming(m)
+        m.bad = false
+        break
+      }
       const condTrue = result.value !== 0
       if (condTrue) {
         m._timerElapsed += dt

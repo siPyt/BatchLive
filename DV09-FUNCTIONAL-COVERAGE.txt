@@ -1044,6 +1044,23 @@ restored, acceptance globals removed. No protected equipment artwork changed.
 Native motor template/external DSTs/download/first-out/bypass/full condition
 language remain gaps. These audit groups stay PARTIAL.
 
+PASS 28: TWO-INPUT FIRST-OUT / INDEPENDENT BYPASS INDICATION
+-------------------------------------------------------
+PASS28 implements two-input BFI weighted OUT_INT, OR OUT_D, independent
+FIRST_OUT, ARM_TRAP and pulse RESET_IN. Good zero-to-nonzero captures the
+first combination; later nonzero changes retain it, all-zero enables a new
+capture. Reset clears only the trap and waits for all inputs clear to rearm.
+Bad live outputs hold explicit Bad, with captured cause quality independent.
+CND BYPASS inhibits healthy condition/timing; removal needs a fresh interval.
+Bypass cannot turn Bad input Good. Named BYPASS inputs into a separate OR
+provide real bypass indication. Parameter choices/controls expose these
+signals; Restricted Control and unlocked workstation enforce configuration,
+with diagnostic rejection and journaled bypass/arm/reset.
+Eight targeted regressions plus actual UI arm/capture/reset preserving active
+trip, bypass/OR indication and journal verified. Original plant/UI/security/
+720x576 viewport restored; fixture removed. All267 regressions/typecheck pass.
+Native template/motor lifecycle,16-input/BCD and exact process remain gaps.
+
 PASS 27: SUSTAINED CND COMPARISONS / FAIL-SAFE INTERLOCK QUALITY
 -------------------------------------------------------
 Scope: p230 / DV09-050 condition dependency subset. CND now parses actual

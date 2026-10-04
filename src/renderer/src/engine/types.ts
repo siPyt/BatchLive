@@ -138,7 +138,7 @@ export type PidBlockName = 'AI1' | 'PID1' | 'SPLTR1' | 'AO1' | 'AO2'
 
 export interface AnalogSignalRef {
   tag: string
-  parameter: 'PV' | 'OUT' | 'OUT_1' | 'OUT_2'
+  parameter: 'PV' | 'OUT' | 'OUT_1' | 'OUT_2' | 'OUT_D' | 'OUT_INT' | 'FIRST_OUT' | 'BYPASS'
   block?: PidBlockName
 }
 
@@ -527,6 +527,14 @@ export interface FunctionBlockModule extends ModuleDisplayProperties {
   /** CALC/ACT: arithmetic. CND also supports comparisons. Inputs are IN1/IN2 (no eval). */
   expr: string
   expressionError?: string
+  bypass?: boolean
+  armTrap?: boolean
+  resetTrap?: boolean
+  firstOut?: number
+  firstOutBad?: boolean
+  outDiscrete?: boolean
+  _trapPrevious?: number
+  _trapAwaitClear?: boolean
   /** OND/OFFD/RET/TP/DT/FLTR/LL/PIN/SGGN: delay, time constant, or period in seconds. */
   delaySec: number
   /** CTR: trip value. BFO/FFMDO: bit index to extract. */

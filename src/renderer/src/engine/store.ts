@@ -73,7 +73,7 @@ const TREND_HZ = 2
 
 const EVENT_LOG_MAX = 2000
 
-function requireUnlockedLock(lock: 'CAN_CONFIGURE' | 'CAN_DOWNLOAD' | 'BATCH_OPERATE' | 'CONTROL', action: string): boolean {
+function requireUnlockedLock(lock: 'CAN_CONFIGURE' | 'CAN_DOWNLOAD' | 'BATCH_OPERATE' | 'CONTROL' | 'RESTRICTED_CONTROL', action: string): boolean {
   if (useSecurity.getState().locked) {
     useSecurity.setState({ lastDenied: `Access Denied — ${action} requires an unlocked workstation` })
     return false
@@ -175,6 +175,7 @@ interface StoreState extends PlantState {
     tag: string,
     patch: Partial<{ gain: number; bias: number; cmpOp: FbCompareOp; expr: string; delaySec: number; tripValue: number; countUp: boolean }>
   ) => void
+  setFbSafety: (tag: string, option: 'BYPASS' | 'ARM_TRAP' | 'RESET_IN', value: boolean) => boolean
   setAlarmLimit: (
     tag: string,
     type: AlarmType,
@@ -572,6 +573,31 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     })
     get().logEvent('CONFIGURE', tag, `Config changed: ${JSON.stringify(patch)}`)
+  },
+
+  setFbSafety: (tag, option, value) => {
+    if (!requireUnlockedLock('RESTRICTED_CONTROL', `${option} ${tag}`)) return false
+    const module = get().modules[tag]
+    const error = typeof value !== 'boolean' ? 'Safety setting must be Boolean' :
+      module?.type !== 'FB' ||
+        (option === 'BYPASS' ? module.fbType !== 'CND' :
+          !['ARM_TRAP', 'RESET_IN'].includes(option) || module.fbType !== 'BFI')
+        ? 'BYPASS requires CND; ARM_TRAP/RESET_IN require BFI' : null
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Safety configuration rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    mutateModule(set, get, tag, m => {
+      if (m.type !== 'FB') return
+      if (option === 'BYPASS') {
+        resetConditionTiming(m)
+        m.bypass = value
+      } else if (option === 'ARM_TRAP') m.armTrap = value
+      else m.resetTrap = value
+    })
+    get().logEvent('CONFIGURE', tag, `${option} set to ${Number(value)}`)
+    return true
   },
 
   setAlarmLimit: (tag, type, patch) => {

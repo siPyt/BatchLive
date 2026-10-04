@@ -39,6 +39,11 @@ export function signalError(ref: AnalogSignalRef, modules: Record<string, AnyMod
   if (!source) return `Source module ${ref.tag} does not exist`
   if (ref.block && source.type !== 'PID') return `${ref.tag} has no ${ref.block} block`
   if (ref.block === 'AO2' && (source.type !== 'PID' || !pidIo(source).ao2)) return 'AO2 is not configured'
+  if (['OUT_D', 'OUT_INT', 'FIRST_OUT', 'BYPASS'].includes(ref.parameter)) {
+    return !ref.block && source.type === 'FB' &&
+      (ref.parameter === 'BYPASS' ? source.fbType === 'CND' : source.fbType === 'BFI')
+      ? null : `${ref.tag}.${ref.parameter} requires ${ref.parameter === 'BYPASS' ? 'CND' : 'BFI'}`
+  }
   if (ref.block === 'SPLTR1' ||
       (source.type === 'FB' && source.fbType === 'SPLTR' && ref.parameter !== 'OUT')) {
     const splitter = source.type === 'PID' ? pidIo(source).splitter :
@@ -60,6 +65,12 @@ export function readAnalogSignal(
 ): { value: number; bad: boolean } {
   const source = modules[ref.tag]
   if (!source || signalError(ref, modules)) return { value: NaN, bad: true }
+  if (source.type === 'FB') {
+    if (ref.parameter === 'BYPASS') return { value: Number(!!source.bypass), bad: false }
+    if (ref.parameter === 'OUT_D') return { value: Number(!!source.outDiscrete), bad: !!source.bad }
+    if (ref.parameter === 'OUT_INT') return { value: source.out, bad: !!source.bad }
+    if (ref.parameter === 'FIRST_OUT') return { value: source.firstOut ?? 0, bad: !!source.firstOutBad }
+  }
   if (source.type === 'PID' && (ref.block === 'AI1' || ref.block === 'AO1' || ref.block === 'AO2')) {
     const stage = ref.block === 'AI1' ? pidIo(source).ai :
       ref.block === 'AO2' ? pidIo(source).ao2 : pidIo(source).ao

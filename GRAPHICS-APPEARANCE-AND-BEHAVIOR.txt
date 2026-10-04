@@ -1068,6 +1068,16 @@ Regression:189 coupled tests, typecheck/build/diagnostics/audit, exact chart
 selection, shared names and locked/denied/invalid creation rejection.
 
 ===============================================================================
+40. FIRST-OUT AND BYPASS INDICATION - PRESERVE EXISTING ARTWORK
+---------------------------------------------------------------------
+Related pass28: Parameter View adds conditional BFI ARM_TRAP/RESET_IN/
+FIRST_OUT/OUT_D rows and CND BYPASS. Existing source dropdowns expose real
+named outputs and BYPASS for independent OR indication. No plant or canvas
+geometry/palette redesign. Bypass remains conspicuous, journaled and
+restricted; Bad quality remains Bad, including bypassed condition input.
+Live arm/capture/reset and bypass/OR indication verified; restored original
+plant/UI/security/viewport and removed fixture.
+
 39. SUSTAINED CONDITION / INTERLOCK QUALITY - PRESERVE EXISTING ARTWORK
 ---------------------------------------------------------------------
 CND comparisons now evaluate the actual wired inputs with continuous timing.

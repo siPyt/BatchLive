@@ -700,8 +700,15 @@ Evidence: FB logic and device command/interlock wiring execute; course template,
   regressions include actual XI-2/ZX-2 de-energization before stopped feedback.
   Live editor Apply/rejected expression/journal,3.9/4.0 motor trip, disabled
   input timing reset, explicit source Bad and DC block Bad verified.
-  Native template, quoted cross-module expressions, saved/downloaded motor,
-  first-out/bypass and exact500/10gal process remain incomplete.
+  Pass28 adds two-input BFI OUT_INT/OUT_D/FIRST_OUT, ARM_TRAP and pulse
+  RESET_IN. First cause stays trapped until inputs clear; reset cannot rearm
+  against an active cause. CND BYPASS resets/inhibits healthy timing without
+  concealing Bad quality; named BYPASS signals drive a separate real OR
+  indication. Restricted Control, lock checks and journal entries apply.
+  Eight regressions plus live arm/capture/reset-with-active-trip and bypass/
+  OR/journal checks passed. Native template, quoted cross-module expressions,
+  saved/downloaded motor, sixteen-input/BCD and exact500/10gal process remain
+  incomplete; this is a verified first-out/bypass subset, not native parity.
 Acceptance: Test timing reset, first-out ordering, permissive versus interlock,
   bypass reporting and actual card3ch2/card4ch2 effects.
 
