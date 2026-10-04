@@ -16,7 +16,7 @@ export function TraditionalIoPanel({ controllerTag }: { controllerTag: string })
       <div className="batch-panel-head">Traditional I/O Cards</div>
       <p className="traditional-note">
         Training inventory: eight slots, eight channels per card. Configure a DST and Enable each channel.
-        DI/DO, standalone AI/AO and PID AI1/AO1/AO2 bindings execute on scans.
+        DI/DO, motor/valve IO_IN_1/IO_OUT_1, standalone AI/AO and PID AI1/AO1/AO2 bindings execute on scans.
         Manual AI signals are engineering values; AO signals are percent output.
         Simulated AO-to-AI tiebacks use percent, converted through the receiving module's PV_SCALE.
         Electrical scaling and full controller downloads are not implemented here.
@@ -65,6 +65,9 @@ function TraditionalChannelEditor({ card, channel }: {
   const bindings = Object.entries(hardware.discreteBindings ?? {}).filter(([, bound]) => bound === channel.dst)
   const analogBindings = Object.entries(hardware.analogBindings ?? {}).flatMap(([tag, ports]) =>
     Object.entries(ports).filter(([, dst]) => dst === channel.dst).map(([port]) => `${tag}.${port}`))
+  const deviceBindings = Object.entries(hardware.deviceBindings ?? {}).flatMap(([tag, ports]) =>
+    Object.entries(ports).filter(([, dst]) => dst === channel.dst)
+      .map(([port]) => `${tag}.IO_${port === 'input' ? 'IN' : 'OUT'}_1`))
   const isInput = card.type === 'DI' || card.type === 'AI'
   const sources = traditionalChannels(hardware).filter(item =>
     item.card.type === (card.type === 'AI' ? 'AO' : 'DO') && item.channel.dst)
@@ -92,7 +95,7 @@ function TraditionalChannelEditor({ card, channel }: {
         </label>}
         <button className="tbtn sm" onClick={() => configure(card.id, channel.channel,
           { dst, enabled, tiebackDst: tieback || undefined })}>Apply Channel Properties</button>
-        <span>Module binding: {[...bindings.map(([tag]) => tag), ...analogBindings].join(', ') ||
+        <span>Module binding: {[...bindings.map(([tag]) => tag), ...analogBindings, ...deviceBindings].join(', ') ||
           '(none — select IO_IN/IO_OUT in Control Studio)'}</span>
         {isInput && <div className="traditional-toolbar">
           <label>Simulated signal <input aria-label={`${label} simulated signal`} type="number"

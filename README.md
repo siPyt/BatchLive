@@ -128,9 +128,9 @@ cannot release the transition; AO PV comparisons also reject OOS.
 The next command step must still wait for actual motor-running feedback.
 HOLD/controller loss freezes the sequence while physical I/O can continue
 changing. A real operator-picture MESSAGE entry and wait labels are verified.
-The modeled MOTOR confirmation is still not the native MTR-11_ILOCK template
-or external XI-2/ZX-2 DC binding; native motor template/I/O/interlock
-configuration and full DV-09 parity remain incomplete.
+The modeled MOTOR is still not the native MTR-11_ILOCK template.
+External XI-2/ZX-2 bindings are now available as described below; native
+template/interlock configuration and full DV-09 parity remain incomplete.
 
 Control Studio can wire a live **PERMISSIVE_SOURCE** to a motor or valve,
 using the Parameter View or a wire into **PERMISSIVE_D** on the DC block.
@@ -143,6 +143,28 @@ reset. The parameter row reports actual Good/Bad and permitted/denied status.
 Deleting the wire clears the inherited permit and restores explicit manual
 permissive control. This is executable live wiring, not the native
 MTR-11_ILOCK template, first-out/bypass or saved motor-download workflow.
+
+For external motor/valve confirmation, create enabled DI and DO channels in
+Hardware, then select **IO_IN_1** and **IO_OUT_1** in Control Studio. The
+course motor uses **XI-2** on card 3 channel 2 and **ZX-2** on card 4 channel 2.
+These are independent signals: START/OPEN resolves the output through the
+device's permissive/interlock/reset logic; only good DI feedback confirms
+Running/Open. Elapsed confirmation time reports failure, never invents feedback.
+STOP/CLOSE writes the passive output and waits for actual passive feedback.
+Manual DI simulation and explicitly selected DO-to-DI simulated tieback are
+available in Hardware; a binding never silently adds a tieback.
+The faceplate and Parameter View distinguish requested, resolved and applied
+output from feedback, including held Bad values. Missing/disabled/nonfinite
+channels or a down controller produce Bad quality and a FAIL alarm. Bad
+feedback/output cannot satisfy SFC device transitions. Bad feedback requests
+a passive output; a failed DO holds its actual previous value, not a fictitious
+successful write. Recovering a channel does not clear an injected field fault.
+Both ports are required once external I/O is selected; a partial binding stays
+Bad. An output has one writer across device and standalone DO bindings.
+Referenced DSTs cannot be renamed, and energized/unconfirmed devices cannot
+be rebound or deleted. Unbound equipment retains its existing internal
+confirmation behavior. These settings are session-local live configuration,
+not native motor Save/Download or physical wiring certification.
 
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are

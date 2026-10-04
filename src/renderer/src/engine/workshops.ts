@@ -323,6 +323,19 @@ export const COURSE: WModule[] = [
             text: 'Enable the Permissive device option and leave Permissive unmet — confirm START is blocked until you Set Permissive.'
           }
         ]
+      },
+      {
+        id: 'motor-external-dst',
+        title: 'Independent motor command and external confirmation',
+        objective: 'Execute XI-2 / ZX-2 I/O without substituting the command or a timer for running feedback.',
+        note: 'Live session-local I/O subset; native MTR-11_ILOCK template and saved/downloaded motor lifecycle remain incomplete.',
+        steps: [
+          { id: 'motor-dst-inventory', text: 'Create a commissioned CTLR with a DI card in slot3 and DO card in slot4. Enable channel2 as XI-2 and ZX-2 respectively. Create an unbound MTR-102 MOTOR; stop and confirm it before changing its physical bindings.', goto: 'hardware' },
+          { id: 'motor-dst-bind', text: 'Open MTR-102 in Control Studio. Select IO_IN_1 = XI-2 and IO_OUT_1 = ZX-2. Both are required. The Hardware channel properties show the actual owning module/port.', goto: 'studio' },
+          { id: 'motor-dst-independent', text: 'Keep XI-2 manual input0. START the motor: ZX-2 becomes1, but running stays false. After its confirmation time, verify FAILED ACTIVE and a FAIL alarm, not fabricated Running. Set the physical simulated XI-2 input1; the next good scan confirms Running.' },
+          { id: 'motor-dst-stop', text: 'STOP writes ZX-2 =0 but does not overwrite XI-2 or Running. Set XI-2 =0 to confirm Stopped. Alternatively, explicitly select ZX-2 as XI-2 simulated tieback; it is labeled simulation, not physical wiring.' },
+          { id: 'motor-dst-safety', text: 'Test false permissive, interlock and required RESET independently. Disable DI or DO, or lose controller power: verify Bad/held feedback, failed state and alarm. SFC confirmation must not advance on Bad values. Restore real channel/controller service; an injected field fault is not automatically cleared.' }
+        ]
       }
     ]
   },
@@ -349,7 +362,7 @@ export const COURSE: WModule[] = [
         objective: 'Configure and operate the verified pp291/294 dependency subset, not a native template/graph parity claim.',
         steps: [
           { id: 'course-sfc-io', text: 'Use a separate blank project so the sample XV-101 VALVE is not mistaken for the course DO. Create PLANT_AREA_A, commission CTLR and configure traditional AI slot1/FT-2 channel2, AO slot2/FY-2 channel2, DI slot3/LSO-1 channel1 and DO slot4/XV-1 channel1. Enable the channels. Configure LSO-1 simulated tieback to XV-1; this is an explicit simulator connection, not physical wiring.', goto: 'hardware' },
-          { id: 'course-sfc-modules', text: 'Create XV-101 DO and XVSTAT-101 DI; in Control Studio bind IO_OUT to XV-1 and IO_IN to LSO-1, both AUTO. Create FIC-102 PID with GPM scale0-100; bind AI input FT-2 and AO output FY-2. Use MANUAL INPUT on FT-2 to supply the measured flow. Create MTR-102 MOTOR. Its running feedback is modeled equipment state; native DC templates and external XI-2 feedback are not implemented.', goto: 'studio' },
+          { id: 'course-sfc-modules', text: 'Create XV-101 DO and XVSTAT-101 DI; in Control Studio bind IO_OUT to XV-1 and IO_IN to LSO-1, both AUTO. Create FIC-102 PID with GPM scale0-100; bind AI input FT-2 and AO output FY-2. Use MANUAL INPUT on FT-2 to supply the measured flow. Create MTR-102 MOTOR; select IO_IN_1 XI-2 and IO_OUT_1 ZX-2 for independent external feedback/output. Configure manual feedback or an explicitly simulated tieback. Native DC templates and motor Save/Download remain incomplete.', goto: 'studio' },
           { id: 'course-sfc-setup', text: 'Configure NS-T101 STARTUP=1 and SHUTDOWN=2 visible/selectable, SELECT SEQUENCE=255 visible/nonselectable. Transfer Changed Setup Data separately to CTLR and the workstation. Explorer: right-click PLANT_AREA_A -> New -> Control Module, choose Algorithm Type Sequential Function Chart, name SFC-T101 and Create. The exact named chart opens empty/Offline with Save/Download lifecycle already enabled. Add Parameter MESSAGE bound to NS-T101/default255. Create HOLD_SFC, OPEN_BLK_VLV, SET_FLOW_RATE, START_PUMP, STOP_PUMP, CLOSE_BLK_VLV, CLOSE_FLOW_VLV and END_SEQUENCE steps.', goto: 'explorer' },
           { id: 'course-sfc-prompt', text: 'HOLD_SFC action Properties: \'MESSAGE\' := \'NS-T101:SELECT SEQUENCE\', qualifier P for a one-shot simulator prompt. N repeats every scan and must not be silently treated as P. Transition Properties: \'MESSAGE\' = \'NS-T101:STARTUP\', explicit OPEN_BLK_VLV destination. Add alternate \'MESSAGE\' = \'NS-T101:SHUTDOWN\' to STOP_PUMP. Only the selected path activates; these Properties are not the native graph palette.' },
           { id: 'course-sfc-start', text: 'OPEN_BLK_VLV assigns \'^/XV-101/DO1/SP_D.CV\' := 1; its transition uses \'^/XVSTAT-101/DI1/PV_D.CV\' = 1. SET_FLOW_RATE assigns FIC-102/PID1/MODE.TARGET AUTO and SP.CV50, then waits for PID1/OUT.CV > 30. START_PUMP assigns MTR-102/DC1/OUT_D.CV1, waits for DC1/PV_D.CV1, then routes to END_SEQUENCE. Enter supported quoted paths through Properties/Browser; command and feedback are different values.' },
@@ -403,7 +416,7 @@ export const COURSE: WModule[] = [
           { id: 'sfc-level-gate', text: 'Before motor start, author a LI-101/AI1/PV.CV transition with a chosen sufficient threshold, for example >100. 100 is an example, not a prescribed optional-exercise value. Good100 must keep the sequence waiting; Bad150 must not release it. Correct sampled150 must release it.' },
           { id: 'sfc-reset-action', text: "Next step -> Add Action -> Assignment -> P ->0s -> Expression Assistant -> MTR-102 -> '^/MTR-102/DC1/RESET_D.CV' := 1. Cancel changes nothing; OK, Save, Download -> confirm, Online. The device lock stays intact until qualified execution. RESET_D clears only the lock, not command, fault, interlock or permissive. :=0 does not reset; expiry does not write an inverse." },
           { id: 'sfc-confirm-running', text: 'Separate command/confirmation step: command MTR-102 ON and wait for its actual running feedback. A remaining interlock, false permissive or failed confirmation must keep WAIT MOTOR. HOLD/controller loss freezes the chain. Observe WAIT LEVEL -> WAIT MOTOR -> READY -> SELECT SEQUENCE on the real operator-picture MESSAGE datalink after STARTUP entry.' },
-          { id: 'sfc-level-reset-boundary', text: 'This verifies the modeled functional optional chain. The native MTR-11_ILOCK template, external XI-2/ZX-2 I/O, interlock/permissive block wiring and exact native dialogs are still incomplete; do not claim native motor or full DV-09 certification.' }
+          { id: 'sfc-level-reset-boundary', text: 'This verifies the modeled functional optional chain. External XI-2/ZX-2 I/O and live permissive wiring are available separately. The native MTR-11_ILOCK template, first-out/bypass, saved motor lifecycle and exact native dialogs are still incomplete; do not claim native motor or full DV-09 certification.' }
         ]
       },
       {

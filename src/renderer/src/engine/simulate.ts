@@ -16,7 +16,7 @@ import { CUSTOM_PHYSICS_TAGS } from './plant'
 import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue } from './fb'
 import { advanceControllers, computeBadTags, controllerIsDown, type HardwareState } from './hardware'
 import {
-  advanceTraditionalIo, analogChannelBad, sampleAnalogInputs, sampleAnalogOutputs, sampleDiscreteInputs
+  advanceTraditionalIo, analogChannelBad, deviceChannelSignal, sampleAnalogInputs, sampleAnalogOutputs, sampleDiscreteInputs
 } from './traditionalIo'
 import { executeStandaloneAo } from './standaloneAo'
 import {
@@ -323,10 +323,46 @@ function stepDeviceControl(io: DcIo, dt: number): void {
   }
 }
 
-function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyModule>): void {
+function applyExternalDevice(m: MotorModule | ValveModule, hw: HardwareState, dt: number): boolean {
+  const bindings = hw.deviceBindings?.[m.tag]
+  if (!bindings) return false
+  const input = deviceChannelSignal(hw, bindings.input, 'DI')
+  const output = deviceChannelSignal(hw, bindings.output, 'DO')
+  m.ioInputBad = input.bad
+  m.ioOutputBad = output.bad
+  if (!input.bad) {
+    if (m.type === 'MOTOR') m.running = input.value
+    else m.open = input.value
+  }
+  const confirmed = m.type === 'MOTOR' ? m.running : m.open
+  const desired = m.type === 'MOTOR' ? m.commanded : m.commandedOpen
+  if (m.interlock && m.resetRequired) m.locked = true
+  const target = desired && !input.bad && !m.interlock && !m.locked &&
+    (!m.permissiveRequired || m.permissiveOk || (!input.bad && confirmed))
+  m.outputCommand = target
+  m.appliedCommand = output.value
+  if (m.interlock) { m.dcState = 'SHUTDOWN'; m.travelTimer = 0 }
+  else if (m.locked) { m.dcState = 'LOCKED'; m.travelTimer = 0 }
+  else if (input.bad || output.bad || m.fault) {
+    m.dcState = target ? 'FAILED_ACTIVE' : 'FAILED_PASSIVE'
+    m.travelTimer += dt
+  } else if (confirmed === target) {
+    m.dcState = confirmed ? 'CONFIRMED_ACTIVE' : 'CONFIRMED_PASSIVE'
+    m.travelTimer = 0
+  } else {
+    m.travelTimer += dt
+    m.dcState = m.travelTimer >= m.confirmTimeSec ?
+      target ? 'FAILED_ACTIVE' : 'FAILED_PASSIVE' : target ? 'GOING_ACTIVE' : 'GOING_PASSIVE'
+  }
+  if (m.type === 'MOTOR' && !input.bad && m.running) m.runtimeHrs += dt / 3600
+  return true
+}
+
+function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyModule>, hw: HardwareState): void {
   if (m.permissiveSource) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
   if (m.interlockSource) m.interlock = readModuleValue(modules[m.interlockSource]) !== 0
   if (m.commandSource) m.commanded = readModuleValue(modules[m.commandSource]) !== 0
+  if (applyExternalDevice(m, hw, dt)) return
   const io: DcIo = {
     desired: m.commanded,
     confirmed: m.running,
@@ -348,10 +384,11 @@ function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyMod
   if (m.running) m.runtimeHrs += dt / 3600
 }
 
-function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyModule>): void {
+function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyModule>, hw: HardwareState): void {
   if (m.permissiveSource) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
   if (m.interlockSource) m.interlock = readModuleValue(modules[m.interlockSource]) !== 0
   if (m.commandSource) m.commandedOpen = readModuleValue(modules[m.commandSource]) !== 0
+  if (applyExternalDevice(m, hw, dt)) return
   const io: DcIo = {
     desired: m.commandedOpen,
     confirmed: m.open,
@@ -392,6 +429,7 @@ function resolveFbInput(
   return {
     value,
     bad: !m || !Number.isFinite(value) || ('pvBad' in m && m.pvBad) || ('ioBad' in m && !!m.ioBad) ||
+      ((m.type === 'MOTOR' || m.type === 'VALVE') && (!!m.ioInputBad || !!m.ioOutputBad)) ||
       ((m.type === 'DI' || m.type === 'DO') && m.mode === 'OOS') ||
       (m.type === 'AO' && m.actualMode === 'OOS') ||
       ((m.type === 'FB' || m.type === 'AO') && !!m.bad)
@@ -818,8 +856,8 @@ export function stepPlant(
     else if (module.type === 'AO') executeStandaloneAo(module, analogOutputBad(tag) ||
       (!!module.controllerTag && (!prev.hardware.controllers[module.controllerTag] ||
         controllerIsDown(prev.hardware.controllers[module.controllerTag]))))
-    else if (module.type === 'MOTOR') applyMotorDC(module, dt, modules)
-    else if (module.type === 'VALVE') applyValveDC(module, dt, modules)
+    else if (module.type === 'MOTOR') applyMotorDC(module, dt, modules, prev.hardware)
+    else if (module.type === 'VALVE') applyValveDC(module, dt, modules, prev.hardware)
     else if (module.type === 'DO' && !prev.hardware.discreteBindings?.[tag] && module.mode !== 'OOS') {
       module.state = module.commanded
     }
@@ -937,10 +975,12 @@ export function stepPlant(
       if (pvbad) reconcile(alarms, m.tag, m.description, pvbad, m.pvBad, m.pv, m.unit, now)
     } else if (m.type === 'MOTOR') {
       const fail = m.alarms.find((a) => a.type === 'FAIL')
-      if (fail) reconcile(alarms, m.tag, m.description, fail, m.fault, 0, '', now)
+      if (fail) reconcile(alarms, m.tag, m.description, fail,
+        m.fault || !!m.ioInputBad || !!m.ioOutputBad || m.dcState.startsWith('FAILED'), 0, '', now)
     } else if (m.type === 'VALVE') {
       const fail = m.alarms.find((a) => a.type === 'FAIL')
-      if (fail) reconcile(alarms, m.tag, m.description, fail, m.fault, 0, '', now)
+      if (fail) reconcile(alarms, m.tag, m.description, fail,
+        m.fault || !!m.ioInputBad || !!m.ioOutputBad || m.dcState.startsWith('FAILED'), 0, '', now)
     } else if (m.type === 'DI') {
       const hi = m.alarms.find((a) => a.type === 'HI')
       if (hi) reconcile(alarms, m.tag, m.description, hi,

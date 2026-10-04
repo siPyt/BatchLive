@@ -1044,6 +1044,40 @@ restored, acceptance globals removed. No protected equipment artwork changed.
 Native motor template/external DSTs/download/first-out/bypass/full condition
 language remain gaps. These audit groups stay PARTIAL.
 
+PASS 26: INDEPENDENT MOTOR / VALVE TRADITIONAL DEVICE I/O
+-------------------------------------------------------
+Scope: DV09-050/068/070/071/072 dependency subset. Typed deviceBindings
+configure separate input/output DSTs; MOTOR/VALVE IO_IN_1 and IO_OUT_1 selectors
+use real DI and DO inventory. XI-2 card3ch2 / ZX-2 card4ch2 were exercised.
+Resolved DC command respects permissive, interlock and lock. The physical DO
+applies only healthy writes; failed outputs retain actual held values.
+Faceplates/Parameter View separate requested/resolved/applied output from
+good or held Bad DI confirmation. A clock can time out, never create feedback.
+STOP/CLOSE waits for actual passive confirmation. Explicit simulated tieback
+uses real applied output; independent manual DI is not silently overwritten.
+Incomplete/missing/disabled/nonfinite channels and controller loss stay Bad;
+SFC device transitions reject both input/output Bad. Native alarm reconciliation
+reports channel failure/confirmation timeout as FAIL and returns it on recovery.
+Channel recovery never clears an independently injected field fault.
+One output writer spans DO/device bindings; referenced DST rename rejects;
+energized/unconfirmed device rebinding/deletion rejects. Deletion cleans safe
+bindings. Controller auto-sense includes actual device-port resources.
+Twelve regressions cover independent no-confirm timeout/recovery, valve tieback,
+permissive/interlock/reset, DI held-Bad, DO held-output, controller loss/recommission,
+partial/missing/nonfinite inputs, two-way writer rejection, reference/resource/
+JSON shape/deletion, atomic validation/locked configuration and actual FAIL alarms.
+Live UI: selected both IO ports, real faceplate START,60 scans without DI
+confirmation raised FAILED ACTIVE/FAIL, Hardware Set Simulated Input1 confirmed
+Running, Disable/Apply on the DI held Running with explicit Bad and requested
+passive output. Faceplate showed separate output/feedback quality correctly.
+Original96-module/eight-SFC running plant/UI/security restored; fixture removed.
+All248 repository regressions, typecheck, production build, editor diagnostics,
+audit validator and whitespace checks passed.
+Protected equipment geometry, colors, piping and FBD canvas are unchanged.
+Bindings remain session-local, immediately live; native MTR-11_ILOCK template,
+saved/downloaded motor, first-out/bypass, four-second low-level condition and
+exact500/10gal plant exercises remain gaps. This is not full course completion.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

@@ -6,6 +6,8 @@ import { aoEngineeringValue } from './standaloneAo'
 
 export type AnalogBindingPort = 'input' | 'output' | 'output2'
 export type AnalogDstBindings = Partial<Record<AnalogBindingPort, string>>
+export type DeviceBindingPort = 'input' | 'output'
+export type DeviceDstBindings = Partial<Record<DeviceBindingPort, string>>
 
 export type TraditionalCardType = 'AI' | 'AO' | 'DI' | 'DO'
 
@@ -64,6 +66,7 @@ export function channelConfigurationError(
   if (patch.dst !== channel.dst && channel.dst) {
     const referenced = traditionalChannels(hw).some(item => item.channel.tiebackDst === channel.dst) ||
       Object.values(hw.discreteBindings ?? {}).some(dst => dst === channel.dst) ||
+      Object.values(hw.deviceBindings ?? {}).some(bindings => Object.values(bindings).includes(channel.dst)) ||
       Object.values(hw.analogBindings ?? {}).some(bindings => Object.values(bindings).includes(channel.dst))
     if (referenced) return `DST ${channel.dst} is in use; disconnect its module bindings and tiebacks before renaming`
   }
@@ -85,6 +88,8 @@ export function discreteBindingError(hw: HardwareState, module: AnyModule | unde
   if (!target || target.card.type !== module.type) return `Select a named ${module.type} channel`
   if (module.type === 'DO' && Object.entries(hw.discreteBindings ?? {}).some(([tag, bound]) =>
     tag !== module.tag && bound === dst)) return `Output DST ${dst} already has a writer`
+  if (module.type === 'DO' && Object.values(hw.deviceBindings ?? {}).some(bindings =>
+    bindings.output === dst)) return `Output DST ${dst} already has a device writer`
   if (Object.values(hw.baseplates).some(plate => plate.channels.some(channel => channel.boundTag === module.tag))) {
     return `${module.tag} already has a CHARM binding; use an unbound training module`
   }
@@ -97,6 +102,30 @@ export function channelBad(hw: HardwareState, card: TraditionalCard, channel: Tr
     !Number.isFinite(channel.value) || (card.type === 'AI' &&
       (!Number.isFinite(channel.filterSeconds ?? 0) || (channel.filterSeconds ?? 0) < 0 ||
         ((channel.filterSeconds ?? 0) > 0 && !Number.isFinite(channel.filteredValue))))
+}
+
+export function deviceBindingError(hw: HardwareState, module: AnyModule | undefined,
+  port: DeviceBindingPort, dst: string): string | null {
+  if (!module || module.type !== 'MOTOR' && module.type !== 'VALVE') return 'Device I/O requires a motor or valve'
+  if (port !== 'input' && port !== 'output') return 'Unknown device I/O port'
+  if (!dst) return null
+  const type = port === 'input' ? 'DI' : 'DO'
+  if (findDst(hw, dst)?.card.type !== type) return `Select a named ${type} device channel`
+  if (port === 'output' && (Object.values(hw.discreteBindings ?? {}).includes(dst) ||
+    Object.entries(hw.deviceBindings ?? {}).some(([tag, binding]) => tag !== module.tag && binding.output === dst))) {
+    return `Output DST ${dst} already has a writer`
+  }
+  if (Object.values(hw.baseplates).some(plate => plate.channels.some(channel => channel.boundTag === module.tag))) {
+    return `${module.tag} already has a CHARM binding; use an unbound training module`
+  }
+  return null
+}
+
+export function deviceChannelSignal(hw: HardwareState, dst: string | undefined,
+  type: 'DI' | 'DO'): { value: boolean; bad: boolean } {
+  const target = dst ? findDst(hw, dst) : undefined
+  return { value: !!target && target.channel.value !== 0,
+    bad: !target || target.card.type !== type || channelBad(hw, target.card, target.channel) || target.channel.bad }
 }
 
 export function analogBindingError(
@@ -189,6 +218,18 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
     ...card, channels: card.channels.map(channel => ({ ...channel, bad: channelBad(hw, card, channel) }))
   }]))
   const next: HardwareState = { ...hw, traditionalCards: cards }
+  for (const [tag, bindings] of Object.entries(hw.deviceBindings ?? {})) {
+    const module = modules[tag]
+    if (!module || module.type !== 'MOTOR' && module.type !== 'VALVE') continue
+    const target = bindings.output ? findDst(next, bindings.output) : undefined
+    if (!target || target.card.type !== 'DO') {
+      module.ioOutputBad = true
+      continue
+    }
+    module.ioOutputBad = target.channel.bad
+    if (!target.channel.bad) target.channel.value = Number(!!module.outputCommand)
+    module.appliedCommand = target.channel.value !== 0
+  }
   const writers = new Map<string, string>()
   for (const [tag, dst] of Object.entries(hw.discreteBindings ?? {})) {
     if (modules[tag]?.type === 'DO') writers.set(dst, tag)

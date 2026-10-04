@@ -351,6 +351,10 @@ export interface MotorModule extends ModuleDisplayProperties {
   interlockSource?: string
   /** Live PERMISSIVE_D source; missing or Bad feedback denies a new start. */
   permissiveSource?: string
+  ioInputBad?: boolean
+  ioOutputBad?: boolean
+  outputCommand?: boolean
+  appliedCommand?: boolean
   /** When set, SP_D (commanded) is driven automatically every scan from this tag's live boolean value, overriding manual Start/Stop — how an interlock scheme actually drives equipment, not just alarms on a screen. */
   commandSource?: string
 }
@@ -386,6 +390,10 @@ export interface ValveModule extends ModuleDisplayProperties {
   interlockSource?: string
   /** Live PERMISSIVE_D source; missing or Bad feedback denies a new open. */
   permissiveSource?: string
+  ioInputBad?: boolean
+  ioOutputBad?: boolean
+  outputCommand?: boolean
+  appliedCommand?: boolean
   /** When set, SP_D (commandedOpen) is driven automatically every scan from this tag's live boolean value, overriding manual Open/Close — how an interlock scheme actually drives equipment, not just alarms on a screen. */
   commandSource?: string
 }

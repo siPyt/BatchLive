@@ -1068,6 +1068,27 @@ Regression:189 coupled tests, typecheck/build/diagnostics/audit, exact chart
 selection, shared names and locked/denied/invalid creation rejection.
 
 ===============================================================================
+38. EXTERNAL DEVICE I/O - NEVER COLOR FROM COMMAND OR TIMEOUT
+-------------------------------------------------------------
+Optional MOTOR/VALVE IO_IN_1 DI and IO_OUT_1 DO selectors are Parameter View
+configuration, not new canvas artwork or a plant redesign. Existing unbound
+equipment retains internal confirmation. Externally bound equipment obtains
+Running/Open only from valid DI feedback, never START/OPEN or elapsed time.
+STOP/CLOSE cannot overwrite feedback to suggest a successful physical stop.
+Bad feedback holds the last sampled value with explicit faceplate quality;
+SFC waits cannot accept it. Applied output is the actual channel value, including
+held failed writes, distinct from the permissive/interlock-resolved command.
+Faceplates add only conditional output/feedback quality rows for bound devices;
+unbound faceplates and protected mechanical GEMs remain unchanged.
+Hardware channel properties identify the actual device port. No automatic
+tieback is implied: simulated ties are explicit and labeled.
+Live UI verified IO selectors, real START, no-feedback timeout/FAIL, real
+simulated DI input confirmation and disabled input Bad/held feedback.
+Original96-module/eight-SFC running plant/UI/security restored, fixture removed.
+No shapes, palette, pipes, canvas ports/layout or blue equipment frames changed.
+Native motor template/download, first-out/bypass and full course parity remain
+incomplete; do not reinterpret this scoped feedback addition as certification.
+
 37. CONTROL STUDIO LIVE PERMISSIVE WIRING
 ===============================================================================
 

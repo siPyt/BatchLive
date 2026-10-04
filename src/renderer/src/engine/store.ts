@@ -34,8 +34,8 @@ import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
 import {
-  analogBindingError, channelConfigurationError, discreteBindingError, findDst, makeTraditionalCard,
-  type AnalogBindingPort, type TraditionalCardType
+  analogBindingError, channelConfigurationError, deviceBindingError, discreteBindingError, findDst, makeTraditionalCard,
+  type AnalogBindingPort, type DeviceBindingPort, type TraditionalCardType
 } from './traditionalIo'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
@@ -141,6 +141,7 @@ interface StoreState extends PlantState {
   configureInputFilter: (cardId: string, channel: number, seconds: number) => boolean
   downloadInputFilters: (cardId: string) => boolean
   bindDiscreteDst: (tag: string, dst: string) => boolean
+  bindDeviceDst: (tag: string, port: DeviceBindingPort, dst: string) => boolean
   bindAnalogDst: (tag: string, port: AnalogBindingPort, dst: string) => boolean
   configureStandaloneAo: (tag: string, patch: AnalogOutputPatch) => boolean
   setStandaloneAoMode: (tag: string, mode: AnalogOutputModule['mode']) => boolean
@@ -1328,6 +1329,33 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  bindDeviceDst: (tag, port, dst) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Bind ${tag} device ${port}`)) return false
+    const normalized = dst.trim().toUpperCase()
+    const state = get()
+    const module = state.modules[tag]
+    const active = module?.type === 'MOTOR' ? module.commanded || module.running || module.appliedCommand :
+      module?.type === 'VALVE' ? module.commandedOpen || module.open || module.appliedCommand : false
+    const error = deviceBindingError(state.hardware, module, port, normalized) ??
+      (active ? 'Stop/close and confirm the device before changing its physical I/O bindings' : null)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Device I/O rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    const bindings = { ...state.hardware.deviceBindings }
+    const binding = { ...bindings[tag] }
+    if (normalized) binding[port] = normalized
+    else delete binding[port]
+    if (Object.keys(binding).length) bindings[tag] = binding
+    else delete bindings[tag]
+    set(s => ({ hardware: { ...s.hardware, deviceBindings: bindings },
+      modules: { ...s.modules, [tag]: { ...s.modules[tag], ioInputBad: !!bindings[tag],
+        ioOutputBad: !!bindings[tag], outputCommand: false, appliedCommand: false, travelTimer: 0 } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, `Device IO_${port === 'input' ? 'IN' : 'OUT'}_1 bound to ${normalized || '(none)'}`)
+    return true
+  },
+
   enableModuleLifecycle: (tag) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Enable saved lifecycle ${tag}`)) return false
     const state = get()
@@ -1702,6 +1730,15 @@ export const useStore = create<StoreState>((set, get) => ({
 
   deleteModule: (tag) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Delete module ${tag}`)) return
+    const module = get().modules[tag]
+    if (get().hardware.deviceBindings?.[tag] &&
+      (module?.type === 'MOTOR' && (module.commanded || module.running || module.appliedCommand) ||
+       module?.type === 'VALVE' && (module.commandedOpen || module.open || module.appliedCommand))) {
+      const error = 'Stop/close and confirm the device before deleting its physical I/O bindings'
+      get().logEvent('DIAGNOSTIC', tag, `Module deletion rejected: ${error}`)
+      window.alert(error)
+      return
+    }
     set((s) => {
       if (!s.modules[tag]) return {}
       const modules = { ...s.modules }
@@ -1710,9 +1747,11 @@ export const useStore = create<StoreState>((set, get) => ({
       delete bindings[tag]
       const analogBindings = { ...s.hardware.analogBindings }
       delete analogBindings[tag]
+      const deviceBindings = { ...s.hardware.deviceBindings }
+      delete deviceBindings[tag]
       const moduleLifecycle = { ...s.moduleLifecycle }
       delete moduleLifecycle[tag]
-      return { modules, moduleLifecycle, hardware: { ...s.hardware, discreteBindings: bindings, analogBindings },
+      return { modules, moduleLifecycle, hardware: { ...s.hardware, discreteBindings: bindings, analogBindings, deviceBindings },
         alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
     })
     get().logEvent('CONFIGURE', tag, 'Module deleted')

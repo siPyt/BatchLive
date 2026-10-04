@@ -675,15 +675,24 @@ Required: Use MTR-11_ILOCK template, CND/BFI/OR logic and bypass indication,
   bind XI-2 and ZX-2, assign/detail/save/download. Permissive depends on
   XVSTAT and a level condition below 50 sustained four seconds.
 Evidence: FB logic and device command/interlock wiring execute; course template,
-  DST path, first-out/bypass semantics and property/lifecycle parity missing.
+  native template property/lifecycle parity and first-out/bypass semantics missing.
   Pass25 adds live PERMISSIVE_D wiring for MOTOR/VALVE in Parameter View and
   actual canvas connect/disconnect. Upstream AND/feedback executes before DC.
   Good nonzero permits a new start; held Bad/OOS/missing/nonfinite source
   denies it. Loss of permissive does not trip a confirmed device; interlock/
   reset remain independent. Seven regressions and actual browser wiring,
   denied start, valid confirmation, OOS held-high denial, canvas Delete and
-  actual output-to-PERMISSIVE_D connection verified. Native template, external
-  XI-2/ZX-2, four-second condition/first-out/bypass remain incomplete.
+  actual output-to-PERMISSIVE_D connection verified. Pass26 binds independent
+  IO_IN_1 XI-2 (card3ch2) and IO_OUT_1 ZX-2 (card4ch2) to MOTOR/VALVE.
+  Resolved command drives the physical DO; only good DI confirms active/passive.
+  Clock timeout raises FAIL, never invents feedback. Missing/disabled/down/
+  nonfinite channels hold explicit Bad status and prevent SFC confirmation.
+  Explicit tieback, one-writer checks, reference protection, resource accounting,
+  deletion cleanup and operator quality feedback execute. Twelve regressions
+  and live UI selection/START/no-confirm timeout/FAIL/physical input/recovery/
+  disabled DI denial verified. These bindings remain live/session-local.
+  Native template, saved/downloaded motor, four-second condition/first-out/
+  bypass and exact500/10gal process remain incomplete.
 Acceptance: Test timing reset, first-out ordering, permissive versus interlock,
   bypass reporting and actual card3ch2/card4ch2 effects.
 
@@ -926,7 +935,9 @@ Evidence: Properties/Browser now resolve separate DO1/SP_D command and
   the requested mode. Parsing/saved schema/module validation explicitly reject
   wrong path/type/modes. Tests cover case/path roundtrips and target/actual
   disagreement. These are supported exact path subsets, not a universal native
-  resolver; external motor/DC feedback and arbitrary expressions remain absent.
+  resolver; arbitrary expressions remain absent. Pass26 adds independent
+  external device DI/DO bindings; DC motorRunning/valveOpen transitions reject
+  Bad confirmation/input/output instead of substituting requested state.
 Acceptance: Resolve all requested paths, keeping commands and feedback distinct.
 
 [DV09-069]
@@ -979,8 +990,7 @@ Evidence: Generic structured motor/valve/SP/out transitions and supported
   operated STARTUP/SHUTDOWN/STARTUP with separate sampled feedback, output
   thresholds and return prompt255. Disabled output held OPEN_BLK_VLV with
   Bad DI and no pump command until repaired. Saved defaults stayed255.
-  Native palette/connector editing, nested parallel execution, motor/DC templates
-  with external feedback,
+  Native palette/connector editing, nested parallel execution, motor/DC templates,
   full native New/template workflow and restart/nonvolatile restoration remain
   missing. New Control Module FBD/SFC choice, guarded atomic Offline creation
   and Explorer area-row properties/opening are now verified subsets; native
@@ -1000,7 +1010,8 @@ Evidence: Named Set STARTUP/SHUTDOWN now select mutually exclusive paths,
   feedback -> close/separately sampled XVSTAT-101 DI -> FIC-102 MAN/OUT0,
   output<2 -> END_SEQUENCE -> HOLD/prompt255. Automated and actual picture
   STARTUP/SHUTDOWN/STARTUP cycles passed, including Bad valve-feedback refusal.
-  Native motor/DC templates/external feedback and branch editor/layout remain
+  Pass26 adds separate external device confirmation/output and Bad refusal;
+  native motor/DC templates/download lifecycle and branch editor/layout remain
   missing. Original p294 figure orders stop motor -> close block valve
   -> FIC MAN/OUT0, while the existing audit prose above reflects the text
   sequence; preserve both source distinctions rather than silently claiming
@@ -1039,8 +1050,9 @@ Evidence: Named Set MESSAGE and generic steps/conditions/timers exist.
   Properties/Browser/Save/confirmed Download/Online/RUN/operator picture
   STARTUP/HOLD/RESTART/high held Bad input/recovery/reset/confirmation and
   visible WAIT LEVEL -> WAIT MOTOR -> READY -> SELECT feedback verify the
-  dependency chain. Source p229/230 native MTR-11_ILOCK template, external
-  XI-2/ZX-2 I/O, native interlock/permissive block wiring and exact dialogs
+  dependency chain. Pass26 adds external XI-2/ZX-2 I/O; live permissive wiring
+  is available from pass25. Source p229/230 native MTR-11_ILOCK template,
+  first-out/bypass, saved motor lifecycle and exact dialogs
   remain incomplete; modeled MOTOR confirmation is explicitly a subset.
   Custom types are SFC-local; native global Alarm Type/Changed Setup Data
   workflows and arbitrary function-block palettes remain gaps. Status stays

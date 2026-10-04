@@ -318,9 +318,9 @@ export function evalCondition(c: SfcCondition, state: PlantState, elapsed: numbe
     case 'out':
       return m && (m.type === 'PID' || m.type === 'AO') ? cmp(m.out, c.op, c.value) : false
     case 'motorRunning':
-      return m && m.type === 'MOTOR' ? m.running === c.running : false
+      return m && m.type === 'MOTOR' && !m.ioInputBad && !m.ioOutputBad ? m.running === c.running : false
     case 'valveOpen':
-      return m && m.type === 'VALVE' ? m.open === c.open : false
+      return m && m.type === 'VALVE' && !m.ioInputBad && !m.ioOutputBad ? m.open === c.open : false
     case 'discrete':
       return !!m && m.type === 'DI' && !m.ioBad && m.mode !== 'OOS' && m.state === c.state
     case 'mode':

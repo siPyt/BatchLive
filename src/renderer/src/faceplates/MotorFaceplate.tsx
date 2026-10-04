@@ -11,6 +11,7 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const resetDevice = useStore((s) => s.resetDevice)
   const setPermissive = useStore((s) => s.setPermissive)
   const setDeviceOptions = useStore((s) => s.setDeviceOptions)
+  const binding = useStore((s) => s.hardware.deviceBindings?.[tag])
   if (!m) return null
 
   const { label: stateLabel, color: stateColor } = dcStateInfo(m.dcState)
@@ -47,6 +48,12 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
         <span className="fp-label">Command (SP_D)</span>
         <span style={{ color: 'var(--dv-text-dim)' }}>{m.commanded ? 'ACTIVE' : 'PASSIVE'}</span>
       </div>
+      {binding && <>
+        <div className="fp-row"><span className="fp-label">Resolved / applied output</span>
+          <span>{Number(!!m.outputCommand)} / {Number(!!m.appliedCommand)} / {m.ioOutputBad ? 'Bad (held)' : 'Good'}</span></div>
+        <div className="fp-row"><span className="fp-label">Feedback / quality</span>
+          <span>{m.running ? 'Running' : 'Stopped'} / {m.ioInputBad ? 'Bad (held)' : 'Good'}</span></div>
+      </>}
       <div className="fp-row">
         <span className="fp-label">Interlock</span>
         <span style={{ color: m.interlock ? 'var(--dv-critical)' : 'var(--dv-text-dim)', fontWeight: 700 }}>

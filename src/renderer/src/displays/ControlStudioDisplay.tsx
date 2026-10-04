@@ -264,6 +264,9 @@ function ParameterView({ module: m, selectedBlock }: {
             />
           )}
           {(m.type === 'MOTOR' || m.type === 'VALVE') && (
+            <DeviceIoRows m={m} />
+          )}
+          {(m.type === 'MOTOR' || m.type === 'VALVE') && (
             <DeviceWiringRows
               m={m}
               tags={Object.keys(modules).filter((t) => t !== m.tag).sort()}
@@ -277,6 +280,34 @@ function ParameterView({ module: m, selectedBlock }: {
       <div className="studio-pane-label">Parameter View — {m.tag}{m.type === 'PID' ? `/${selectedBlock}` : ''}</div>
     </div>
   )
+}
+
+function DeviceIoRows({ m }: { m: MotorModule | ValveModule }): JSX.Element {
+  const hardware = useStore(s => s.hardware)
+  const bind = useStore(s => s.bindDeviceDst)
+  const binding = hardware.deviceBindings?.[m.tag]
+  return <>
+    {(['input', 'output'] as const).map(port => {
+      const label = port === 'input' ? 'IO_IN_1' : 'IO_OUT_1'
+      const selected = binding?.[port] ?? ''
+      const choices = traditionalChannels(hardware).filter(item =>
+        item.card.type === (port === 'input' ? 'DI' : 'DO') && item.channel.dst)
+      const bad = port === 'input' ? m.ioInputBad : m.ioOutputBad
+      return <tr key={port}><td>{label}</td><td>
+        <select aria-label={`${m.tag} ${label}`} value={selected} onChange={e => bind(m.tag, port, e.target.value)}>
+          <option value="">(unbound)</option>
+          {selected && !choices.some(item => item.channel.dst === selected) &&
+            <option value={selected}>{selected} (missing)</option>}
+          {choices.map(item => <option key={item.channel.dst} value={item.channel.dst}>
+            {item.channel.dst} ({item.card.id} CH{item.channel.channel})
+          </option>)}
+        </select>
+      </td><td className={bad ? 'bad' : 'good'}>{binding ? bad ? 'Bad' : 'Good' : 'Local'}</td></tr>
+    })}
+    <tr><td>OUT_D.RESOLVED / APPLIED</td><td>{binding ?
+      `${Number(!!m.outputCommand)} / ${Number(!!m.appliedCommand)}` : 'Local confirmation'}</td>
+      <td>{binding ? 'External DI confirmation; clock never confirms' : 'Internal confirmation timer'}</td></tr>
+  </>
 }
 
 function DiscreteIoRows({ m }: { m: Extract<AnyModule, { type: 'DI' | 'DO' }> }): JSX.Element {
