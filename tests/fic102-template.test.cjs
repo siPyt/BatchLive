@@ -207,17 +207,25 @@ test('p256 FIC-102 picture entry writes bounded SP and only permits configured P
     tag: 'FIC-102', path: 'PID1/SP', entry: { method: 'NUMERIC', fetchLimits: true, low: 0, high: 100 } })
   const modeId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 250,
     tag: 'FIC-102', path: 'PID1/MODE.A_TARGET', entry: { method: 'PID_MODE' } })
+  const actualId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 265,
+    tag: 'FIC-102', path: 'PID1/MODE.A_ACTUAL', flashWhenNotNormal: true })
   const alarmId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 280,
     tag: 'FIC-102', path: 'ALARMS[1].A_LAALM', label: true })
   assert.ok(spId, global.window.alerts.at(-1))
   assert.ok(modeId, global.window.alerts.at(-1))
+  assert.ok(actualId, global.window.alerts.at(-1))
   assert.ok(alarmId, global.window.alerts.at(-1))
   assert.deepEqual(pictureSignal(usePictures.getState().pictures.TANK101.elements.find(el => el.id === spId),
     useStore.getState().modules), { value: fic().sp, unit: 'GPM', bad: false, low: 0, high: 100, parameter: 'PID1/SP' })
   assert.deepEqual(pictureModeSignal({ tag: 'FIC-102', path: 'PID1/MODE.A_TARGET' },
     useStore.getState().modules), { current: 'AUTO', choices: fic().permittedModes })
   assert.deepEqual(pictureModeSignal({ tag: 'FIC-102', path: 'PID1/MODE.A_ACTUAL' },
-    useStore.getState().modules), { current: 'AUTO' })
+    useStore.getState().modules), { current: 'AUTO', isNormal: true })
+  const actualDatalink = usePictures.getState().pictures.TANK101.elements.find(el => el.id === actualId)
+  assert.equal(pictures.configureDynamics('TANK101', actualId, { path: 'PID1/SP' }), false,
+    'normal-mode flashing is restricted to the actual-mode datalink')
+  assert.equal(usePictures.getState().pictures.TANK101.elements.find(el => el.id === actualId).path,
+    actualDatalink.path)
   assert.deepEqual(pictureAlarmSignal({ tag: 'FIC-102', path: 'ALARMS[1].A_LAALM' },
     useStore.getState().modules, useStore.getState().alarms), { active: false, text: '' })
 
@@ -238,16 +246,23 @@ test('p256 FIC-102 picture entry writes bounded SP and only permits configured P
   const saved = global.window.localStorage.getItem('batchlive.picture.v1.TANK101')
   const parsed = parseSavedPicture(saved, 'TANK101', useStore.getState().modules, useStore.getState())
   assert.deepEqual(parsed.elements.find(el => el.id === modeId).entry, { method: 'PID_MODE' })
+  assert.equal(parsed.elements.find(el => el.id === actualId).flashWhenNotNormal, true)
   assert.equal(pictures.configureDynamics('TANK101', modeId, { entry: undefined }), true)
   assert.equal(pictures.loadPicture('TANK101'), true)
   assert.deepEqual(usePictures.getState().pictures.TANK101.elements.find(el => el.id === modeId).entry,
     { method: 'PID_MODE' })
+  assert.equal(pictures.configureDynamics('TANK101', actualId, { flashWhenNotNormal: false }), true)
+  assert.equal(pictures.loadPicture('TANK101'), true)
+  assert.equal(usePictures.getState().pictures.TANK101.elements.find(el => el.id === actualId).flashWhenNotNormal,
+    true)
   assert.equal(store.bindAnalogDst('FIC-102', 'input', 'FT-2'), true)
   assert.equal(store.bindAnalogDst('FIC-102', 'output', 'FY-2'), true)
   store.setTraditionalInput('FT-2', 9)
   store.setRunning(true)
   store.tick(0.1)
   store.tick(0.1)
+  assert.equal(pictureModeSignal({ tag: 'FIC-102', path: 'PID1/MODE.A_ACTUAL' },
+    useStore.getState().modules).isNormal, false)
   assert.deepEqual(pictureAlarmSignal({ tag: 'FIC-102', path: 'ALARMS[1].A_LAALM' },
     useStore.getState().modules, useStore.getState().alarms), { active: true, text: 'ALARM' })
   store.setTraditionalInput('FT-2', 50)

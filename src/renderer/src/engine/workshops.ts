@@ -235,6 +235,17 @@ export const COURSE: WModule[] = [
         ]
       },
       {
+        id: 'dv09-pid-isan-indicator',
+        title: 'PID Actual-Mode Picture Indication',
+        objective: 'Execute the p267 ISAN display rule: hide the actual-mode datalink at normal AUTO and flash it red otherwise.',
+        note: 'This is an explicit per-datalink option in custom pictures. It compares actual mode to MODE.NORMAL (AUTO by default), not the target request. The shared flow_color table from p266 is still unavailable.',
+        steps: [
+          { id: 'dv09-isan-1', text: 'In a custom Builder picture, add a FIC-102 datalink with Source Path PID1/MODE.A_ACTUAL. In Data Entry Expert enable “Flash actual mode red when it differs from normal; hide when normal,” then Apply Expert.', goto: 'builder' },
+          { id: 'dv09-isan-2', text: 'Switch to Run with actual AUTO and normal AUTO; the datalink should be invisible. Request MAN and allow the simulator scan to update actual mode; the datalink should appear and flash red. Return actual to normal and verify it hides again.', goto: 'builder' },
+          { id: 'dv09-isan-3', text: 'Change MODE.NORMAL in Studio and verify visibility follows actual-versus-normal, not target-versus-normal. Do not change protected equipment state colors or apply this indicator to the baseline plant without explicit picture configuration.' }
+        ]
+      },
+      {
         id: 'dv09-standalone-ao',
         title: 'LEVEL-101 Standalone AO and CAS_SP',
         objective: 'Build the actual AO/CAS_SP path and verify applied channel output with a simulated LI-101 tieback.',

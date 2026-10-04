@@ -610,6 +610,10 @@ is stored/readable but does not change the algorithm; ISAN reports whether
 actual mode equals normal. Permitted target choices are stored on the live
 PID module, editable as a multi-select, and enforced on operator and SFC writes.
 The current target and Normal mode must remain permitted.
+For custom pictures, a per-datalink option hides `MODE.A_ACTUAL` when actual
+matches `MODE.NORMAL` and flashes it red otherwise; reduced-motion preference
+keeps it visible in solid red. The shared course `flow_color` threshold table
+and linked flow/pump/valve/piping animations are still missing.
 
 SFC mode expressions accept names and the course's numeric codes: targets
 OOS1/IMAN2/MAN8/AUTO16/CAS48/RCAS80/ROUT144; actual modes use LO4, CAS32,

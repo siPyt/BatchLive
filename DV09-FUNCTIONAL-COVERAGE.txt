@@ -1446,3 +1446,15 @@ ValveHorizontalControlD1 state animation and PipesAnim connections. Native
 alarm-index semantics are not claimed. Remaining course animation behavior
 must be source-verified before claiming it complete.
 No protected plant symbol, color, pipe or FBD geometry changed.
+
+PASS 38: PID ACTUAL-MODE PICTURE INDICATION (p267)
+------------------------------------------------
+A custom-picture `PID1/MODE.A_ACTUAL` datalink can opt into the p267 ISAN
+indication. It is hidden when actual mode equals configured MODE.NORMAL (AUTO
+by default) and flashes red when actual differs. It reads actual, not target;
+the saved per-datalink option is validated against the actual-mode path.
+Reduced-motion preference replaces flashing with solid red. Existing plant
+equipment palette, protected equipment graphics and FBD geometry are unchanged.
+
+DV09-062 remains PARTIAL: the shared `flow_color` two-color threshold table and
+its cross-object flow/pump/valve/piping animations are not implemented.

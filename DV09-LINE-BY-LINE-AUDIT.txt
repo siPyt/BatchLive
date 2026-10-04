@@ -950,12 +950,17 @@ Acceptance: Model/test a filtered course input and explicit tuning experiment,
 
 [DV09-062]
 Pages: 266-267
-Status: MISSING
+Status: PARTIAL
 Required: Shared flow_color threshold table affecting all linked objects,
   and red flashing actual-mode indication only when mode is not normal AUTO.
-Evidence: No shared configurable threshold registry or ISAN animation field.
-Acceptance: One table edit updates all linked custom objects; actual mode,
-  not requested mode, controls abnormal visibility. Preserve baseline styling.
+Evidence: A custom-picture MODE.A_ACTUAL datalink can be configured to hide
+  when actual equals MODE.NORMAL and flash red otherwise. The state uses the
+  live actual mode; requested mode alone does not change its visibility.
+  The shared flow_color threshold registry and linked flow/pump/valve/piping
+  animations remain absent.
+Acceptance: Verify AUTO/normal is hidden and a differing actual mode flashes
+  red; return to normal and verify it hides. One flow_color table edit must
+  update all linked custom objects. Preserve baseline equipment styling.
 
 [DV09-063]
 Pages: 268-272

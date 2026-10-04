@@ -24,6 +24,7 @@ export interface PicElement {
   param?: PicParam
   label?: boolean
   path?: string
+  flashWhenNotNormal?: boolean
   entry?: { method: 'NUMERIC'; fetchLimits: boolean; low: number; high: number } |
     { method: 'NAMED_SET' } | { method: 'PID_MODE' }
   fill?: { vertical: boolean; fetchLimits: boolean; low: number; high: number }

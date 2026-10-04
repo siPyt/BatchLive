@@ -1,4 +1,4 @@
-import { pidExecutionBad, pidModeFieldsError, pidPermittedModes } from './pidModes'
+import { pidExecutionBad, pidModeFieldsError, pidNormalMode, pidPermittedModes } from './pidModes'
 import type { ActiveAlarm, AnyModule, PidTargetMode } from './types'
 import type { PicElement, Picture } from './pictureStore'
 import { pictureNamedSignal, type PictureNamedContext } from './pictureNamedSets'
@@ -15,6 +15,7 @@ export type PictureSignalResult = PictureSignal | { error: string }
 export interface PictureModeSignal {
   current: string
   choices?: PidTargetMode[]
+  isNormal?: boolean
 }
 export type PictureModeSignalResult = PictureModeSignal | { error: string }
 export interface PictureAlarmSignal {
@@ -23,7 +24,7 @@ export interface PictureAlarmSignal {
 }
 export type PictureAlarmSignalResult = PictureAlarmSignal | { error: string }
 export type PictureDynamicPatch = Pick<Partial<PicElement>,
-  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag'>
+  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag' | 'flashWhenNotNormal'>
 
 function pictureModePath(path: string): 'target' | 'actual' | null {
   const normalized = path.trim().toUpperCase().replace(/^PID1\//, '').replace(/\.CV$/, '')
@@ -44,7 +45,7 @@ export function pictureModeSignal(el: Pick<PicElement, 'tag' | 'path'>,
   if (error) return { error: `${tag}: ${error}` }
   return modePath === 'target'
     ? { current: module.mode, choices: pidPermittedModes(module) }
-    : { current: module.actualMode }
+    : { current: module.actualMode, isNormal: module.actualMode === pidNormalMode(module) }
 }
 
 function pictureAlarmPath(path: string): boolean {
@@ -110,6 +111,9 @@ export function pictureElementError(el: PicElement, modules: Record<string, AnyM
   }
   if ([el.color, el.backgroundColor].some(v => v !== undefined && !/^#[0-9a-f]{6}$/i.test(v))) return 'Colors require six-digit hex values'
   if (el.entry && el.type !== 'datalink') return 'Data Entry requires a datalink'
+  if (el.flashWhenNotNormal && pictureModePath(el.path ?? '') !== 'actual') {
+    return 'Flash-when-not-normal requires a PID MODE.A_ACTUAL datalink'
+  }
   if (el.entry?.method === 'NAMED_SET' || el.type === 'datalink' && !!context?.sfcLifecycle[el.tag ?? ''] && el.path !== undefined) {
     if (el.entry && el.entry.method !== 'NAMED_SET') return 'SFC Named Set sources require Named Set entry, not numeric entry'
     if (el.fill) return 'Named Set sources do not support numeric fill animations'
@@ -178,6 +182,7 @@ function element(v: unknown): v is PicElement {
     ['content', 'color', 'backgroundColor', 'tag', 'path'].every(k => v[k] === undefined || typeof v[k] === 'string') &&
     ['fontSize', 'width', 'height'].every(k => v[k] === undefined || typeof v[k] === 'number' && Number.isFinite(v[k])) &&
     ['label', 'bold'].every(k => v[k] === undefined || typeof v[k] === 'boolean') &&
+    (v.flashWhenNotNormal === undefined || typeof v.flashWhenNotNormal === 'boolean') &&
     (v.param === undefined || typeof v.param === 'string' && ['PV', 'SP', 'OUT', 'MODE', 'STATE'].includes(v.param)) &&
     (v.entry === undefined || object(v.entry) &&
       (v.entry.method === 'NAMED_SET' || v.entry.method === 'PID_MODE' ||

@@ -1549,3 +1549,18 @@ typecheck/build/audit and actual faceplate OOS/Studio LO/release/diagnostic
 interaction passed. Original96-module plant/UI/security restored.
 Normal/permitted masks, remote-host protocols and whole-course parity are
 not certified by this subset. No push without user authorization.
+
+DV-09 p267 custom-picture MODE.ISAN indication:
+- A datalink explicitly configured to flash when actual differs from normal
+  is hidden when MODE.A_ACTUAL equals MODE.NORMAL and flashes red otherwise.
+- The condition reads the actual mode, never the requested target. Default
+  normal mode is AUTO; a configured MODE.NORMAL is honored.
+- This styling is limited to that enabled datalink. It does not recolor plant
+  equipment, pipes, alarms, application chrome or the baseline picture.
+- With reduced motion requested, abnormal actual mode remains solid red rather
+  than flashing.
+- Regressions: target changes alone do not trigger the indicator; an actual
+  mode change away from normal reveals the red indicator; return to normal
+  hides it. Preserve p256's always-readable actual-mode datalink when this
+  per-element option is off. The p266 shared flow_color table is separate and
+  remains unimplemented.

@@ -312,9 +312,11 @@ function Canvas({
           pictureNamedSignal(el, namedContext, edit) : null
         const isModePath = !!el.path && /^(?:PID1\/)?MODE\.A_(?:TARGET|ACTUAL)(?:\.CV)?$/i.test(el.path.trim())
         const mode = !named && isModePath ? pictureModeSignal(el, modules) : null
+        const hideNormalMode = !!el.flashWhenNotNormal && mode && !('error' in mode) && mode.isNormal
+        const abnormalMode = !!el.flashWhenNotNormal && mode && !('error' in mode) && mode.isNormal === false
         const isAlarmPath = !!el.path && /^ALARMS\[1\]\.A_LAALM$/i.test(el.path.trim())
         const alarm = !named && isAlarmPath ? pictureAlarmSignal(el, modules, alarms) : null
-        if (!edit && alarm && !('error' in alarm) && !alarm.active) return null
+        if (!edit && (hideNormalMode || alarm && !('error' in alarm) && !alarm.active)) return null
         const signal = !named && !mode && !alarm && (el.path || el.entry) ? pictureSignal(el, modules) : null
         const value = named ? 'error' in named ? named.error : `${named.text}${named.bad ? ' (Bad)' : ''}` :
           mode ? 'error' in mode ? mode.error : mode.current :
@@ -324,7 +326,8 @@ function Canvas({
         return (
           <div
             key={el.id}
-            className={'bld-el bld-datalink' + (sel ? ' sel' : '')}
+            className={'bld-el bld-datalink' + (sel ? ' sel' : '') +
+              (abnormalMode ? ' bld-mode-not-normal' : '')}
             style={{ left: el.x, top: el.y }}
             onMouseDown={startDrag}
           >
@@ -335,7 +338,7 @@ function Canvas({
             )}
             {el.entry && !edit ? <button className="bld-entry-value" aria-label={`Enter ${el.tag}/${el.path ?? el.param}`}
               style={{ color: el.color }} onClick={() => setEntryId(el.id)}>{value}</button> :
-              <span className="bld-dl-val" style={{ color: el.color }}>{value}</span>}
+              <span className="bld-dl-val" style={{ color: abnormalMode ? undefined : el.color }}>{value}</span>}
           </div>
         )
       })}
@@ -445,6 +448,7 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
   const modules = useStore(s => s.modules)
   const [path, setPath] = useState(el.path ?? el.param ?? 'PV')
   const [enabled, setEnabled] = useState(!!(el.entry || el.fill))
+  const [flashWhenNotNormal, setFlashWhenNotNormal] = useState(el.flashWhenNotNormal ?? false)
   const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET' | 'PID_MODE'>(el.entry?.method ?? 'NUMERIC')
   const settings = el.entry?.method === 'NUMERIC' ? el.entry : el.fill
   const [fetchLimits, setFetchLimits] = useState(settings?.fetchLimits ?? el.type === 'rectangle')
@@ -460,8 +464,18 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
   return <>
     <div className="bld-props-head"><b>{rectangle ? 'Fill Animation Expert' : 'Data Entry Expert'}</b></div>
     <label className="bld-f">Source Path
-      <input aria-label="Picture source path" value={path} onChange={e => setPath(e.target.value)} />
+      <input aria-label="Picture source path" value={path} onChange={e => {
+        const next = e.target.value
+        setPath(next)
+        if (!/^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(next.trim())) setFlashWhenNotNormal(false)
+      }} />
     </label>
+    {!rectangle && <label className="bld-f bld-f-row">
+      <input type="checkbox" checked={flashWhenNotNormal}
+        disabled={!/^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(path.trim())}
+        onChange={e => setFlashWhenNotNormal(e.target.checked)} />
+      Flash actual mode red when it differs from normal; hide when normal
+    </label>}
     <label className="bld-f bld-f-row"><input type="checkbox" checked={enabled}
       onChange={e => setEnabled(e.target.checked)} />{rectangle ? 'Fill Percentage' : 'Data Entry'}</label>
     {!rectangle && <label className="bld-f">Entry Method<select aria-label="Picture entry method" value={method}
@@ -495,7 +509,9 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
         width: numeric(width), height: numeric(height), backgroundColor: background,
         fill: enabled ? { ...limits, vertical } : undefined
       } : { entry: enabled ? method === 'NAMED_SET' ? { method: 'NAMED_SET' } :
-        method === 'PID_MODE' ? { method: 'PID_MODE' } : { ...limits, method: 'NUMERIC' } : undefined }) })
+        method === 'PID_MODE' ? { method: 'PID_MODE' } : { ...limits, method: 'NUMERIC' } : undefined,
+        flashWhenNotNormal: flashWhenNotNormal &&
+          /^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(path.trim()) ? true : undefined }) })
     }}>Apply Expert</button>
     <p>Numeric entry supports PID1/SP and standalone AO Floating Point parameters. PID target selection uses MODE.A_TARGET and its configured permitted modes.</p>
     {!rectangle && <p>Named Set entry uses a saved-lifecycle SFC parameter such as MESSAGE.CV.
