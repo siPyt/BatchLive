@@ -6,9 +6,11 @@ import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
 import { StandaloneAoControls } from '../components/StandaloneAoControls'
 import { ModuleDownloadDialog, ModuleLifecycleRows } from '../components/ModuleLifecycleControls'
+import { PidLifecycleRows } from '../components/PidLifecycleControls'
 import { DeviceDownloadDialog, DeviceLifecycleRows } from '../components/DeviceLifecycleControls'
 import { deviceEditorModules } from '../engine/deviceLifecycle'
 import { lifecycleModules } from '../engine/moduleLifecycle'
+import { lifecyclePidModules } from '../engine/pidLifecycle'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
 import { moduleNameError } from '../engine/naming'
@@ -32,9 +34,11 @@ export function ControlStudioDisplay(): JSX.Element {
   const studioTag = useUi((s) => s.studioTag)
   const runtimeModules = useStore((s) => s.modules)
   const moduleLifecycle = useStore(s => s.moduleLifecycle)
+  const pidLifecycle = useStore(s => s.pidLifecycle)
   const deviceLifecycle = useStore(s => s.deviceLifecycle)
-  const modules = useMemo(() => deviceEditorModules(lifecycleModules({ modules: runtimeModules, moduleLifecycle }, studioTag ?? undefined), deviceLifecycle),
-    [runtimeModules, moduleLifecycle, deviceLifecycle, studioTag])
+  const modules = useMemo(() => deviceEditorModules(lifecyclePidModules(
+    lifecycleModules({ modules: runtimeModules, moduleLifecycle }, studioTag ?? undefined), pidLifecycle), deviceLifecycle),
+    [runtimeModules, moduleLifecycle, pidLifecycle, deviceLifecycle, studioTag])
   const m = studioTag ? modules[studioTag] : undefined
   const openFaceplate = useUi((s) => s.openFaceplate)
   const select = useUi((s) => s.select)
@@ -156,6 +160,8 @@ function ParameterView({ module: m, selectedBlock }: {
   const setPidIo = useStore((s) => s.setPidIo)
   const setSplitterConfig = useStore((s) => s.setSplitterConfig)
   const deviceLifecycle = useStore(s => s.deviceLifecycle[m.tag])
+  const pidLifecycle = useStore(s => s.pidLifecycle[m.tag])
+  const pidOffline = !!pidLifecycle && !pidLifecycle.online
   const namedSets = useStore(s => s.namedSets)
   const selectedSplitter = m.type === 'PID' ? pidIo(m).splitter : undefined
   const ioBlock = m.type === 'PID' && selectedBlock !== 'PID1'
@@ -165,8 +171,8 @@ function ParameterView({ module: m, selectedBlock }: {
 
   const rows: ParamRow[] = []
   if (m.type === 'PID') {
-    const spEditable = m.actualMode === 'AUTO'
-    const outEditable = m.actualMode === 'MAN' || m.actualMode === 'ROUT'
+    const spEditable = !pidOffline && m.actualMode === 'AUTO'
+    const outEditable = !pidOffline && (m.actualMode === 'MAN' || m.actualMode === 'ROUT')
     rows.push(
       { key: 'MODE.TARGET', value: m.mode },
       { key: 'MODE.ACTUAL', value: m.actualMode },
@@ -184,9 +190,9 @@ function ParameterView({ module: m, selectedBlock }: {
         value: `${fmt(m.out, 1)} %`,
         edit: outEditable ? { kind: 'num', step: 1, decimals: 1, raw: m.out, onChange: (v) => setOutput(m.tag, v) } : undefined
       },
-      { key: 'GAIN', value: `${m.gain}`, edit: { kind: 'num', step: 0.1, decimals: 2, raw: m.gain, onChange: (v) => setTuning(m.tag, { gain: v }) } },
-      { key: 'RESET', value: `${m.reset} s/rpt`, edit: { kind: 'num', step: 1, decimals: 0, raw: m.reset, onChange: (v) => setTuning(m.tag, { reset: v }) } },
-      { key: 'RATE', value: `${m.rate} s`, edit: { kind: 'num', step: 0.5, decimals: 1, raw: m.rate, onChange: (v) => setTuning(m.tag, { rate: v }) } },
+      { key: 'GAIN', value: `${m.gain}`, edit: pidOffline ? undefined : { kind: 'num', step: 0.1, decimals: 2, raw: m.gain, onChange: (v) => setTuning(m.tag, { gain: v }) } },
+      { key: 'RESET', value: `${m.reset} s/rpt`, edit: pidOffline ? undefined : { kind: 'num', step: 1, decimals: 0, raw: m.reset, onChange: (v) => setTuning(m.tag, { reset: v }) } },
+      { key: 'RATE', value: `${m.rate} s`, edit: pidOffline ? undefined : { kind: 'num', step: 0.5, decimals: 1, raw: m.rate, onChange: (v) => setTuning(m.tag, { rate: v }) } },
       { key: 'BKCAL_OUT', value: bkcalOutStatus(m, modules) }
     )
     if (m.trackError || m.ffError) rows.push({ key: 'EXECUTION DIAGNOSTIC', value: m.trackError || m.ffError || '', error: m.trackError || m.ffError })
@@ -258,7 +264,7 @@ function ParameterView({ module: m, selectedBlock }: {
                 <td>{r.key}</td>
                 <td className="pv">
                   {m.type === 'PID' && r.key === 'MODE.TARGET' ? (
-                    <select aria-label={`${m.tag} PID target mode`} value={m.mode} onChange={event => {
+                    <select aria-label={`${m.tag} PID target mode`} value={m.mode} disabled={pidOffline} onChange={event => {
                       if (isPidTargetMode(event.target.value)) setMode(m.tag, event.target.value)
                     }}>
                       {pidPermittedModes(m).map(mode => <option key={mode} value={mode}
@@ -283,7 +289,7 @@ function ParameterView({ module: m, selectedBlock }: {
               <tr>
                 <td>MODE.NORMAL</td>
                 <td className="pv">
-                  <select aria-label={`${m.tag} PID normal mode`} value={pidNormalMode(m)}
+                  <select aria-label={`${m.tag} PID normal mode`} value={pidNormalMode(m)} disabled={pidOffline}
                     onChange={event => { if (isPidTargetMode(event.target.value)) setPidModeFields(m.tag, { normalMode: event.target.value }) }}>
                     {PID_TARGET_MODES.map(mode => <option key={mode} value={mode}>{mode}</option>)}
                   </select>
@@ -302,7 +308,7 @@ function ParameterView({ module: m, selectedBlock }: {
               <tr>
                 <td>MODE.PERMITTED</td>
                 <td className="pv">
-                  <select aria-label={`${m.tag} PID permitted modes`} multiple size={4}
+                  <select aria-label={`${m.tag} PID permitted modes`} multiple size={4} disabled={pidOffline}
                     value={pidPermittedModes(m)}
                     onChange={event => {
                       const values = Array.from(event.target.selectedOptions, option => option.value)
@@ -320,6 +326,9 @@ function ParameterView({ module: m, selectedBlock }: {
           )}
           {m.type === 'PID' && !ioBlock && (
             <PidIoWiringRows m={m} modules={modules} setPidIo={setPidIo} />
+          )}
+          {m.type === 'PID' && !ioBlock && m.templateId === 'PID_LOOP' && (
+            <PidLifecycleRows tag={m.tag} />
           )}
           {m.type === 'PID' && !ioBlock && (
             <PidStrategyRows
@@ -435,9 +444,12 @@ function AnalogDstRow({ tag, port, bad }: {
   const record = useStore(s => s.moduleLifecycle[tag])
   const input = port === 'input'
   const label = input ? 'IO_IN' : port === 'output2' ? 'AO2.IO_OUT' : 'IO_OUT'
+  const pidRecord = useStore(s => s.pidLifecycle[tag])
   const choices = traditionalChannels(hardware).filter(item =>
     item.card.type === (input ? 'AI' : 'AO') && item.channel.dst)
-  const selected = record && !record.online ? record.draft.outputDst : hardware.analogBindings?.[tag]?.[port] ?? ''
+  const selected = record && !record.online ? record.draft.outputDst :
+    pidRecord && !pidRecord.online ? port === 'input' ? pidRecord.draft.inputDst : pidRecord.draft.outputDst :
+      hardware.analogBindings?.[tag]?.[port] ?? ''
   return <tr><td>{label}</td><td><select aria-label={`${tag} ${label}`} value={selected} disabled={!!record?.online}
     onChange={e => bind(tag, port, e.target.value)}>
     <option value="">(none - local simulation)</option>
@@ -1364,16 +1376,20 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
   const [tab, setTab] = useState('Diagram')
   const [showDownload, setShowDownload] = useState(false)
   const record = useStore(s => s.moduleLifecycle[tag])
+  const pidRecord = useStore(s => s.pidLifecycle[tag])
   const ownerTag = tag.split('/')[0]
   const deviceRecord = useStore(s => s.deviceLifecycle[ownerTag])
   const deviceSave = useStore(s => s.saveDeviceConfiguration)
-  const lifecycle = deviceRecord ?? record
+  const savePid = useStore(s => s.savePidConfiguration)
+  const downloadPid = useStore(s => s.downloadPidModule)
+  const lifecycle = deviceRecord ?? record ?? pidRecord
   const save = useStore(s => s.saveModuleConfiguration)
   const focusExplorer = useUi((s) => s.focusExplorer)
   const focusAlarms = useUi((s) => s.focusAlarms)
   const focusTrend = useUi((s) => s.focusTrend)
   const module = useStore((s) => s.modules[tag])
   const trendAvailable = module?.type === 'PID' || module?.type === 'AI'
+  const pidTemplate = module?.type === 'PID' && module.templateId === 'PID_LOOP'
   return (
     <div className="ribbon">
       <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio</span><span className="studio-caption-status">{lifecycle ? lifecycle.online ? 'ONLINE - controller runtime' : 'OFFLINE - configuration draft' : 'ONLINE · simulated configuration'}</span></div>
@@ -1395,9 +1411,14 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
         </RibbonGroup>}
         {tab !== 'View' && <>
           <RibbonGroup label="Module">
-            <RibbonBtn ic="download" label="Download" onClick={() => setShowDownload(true)}
-              unavailable={lifecycle ? undefined : 'Enable Saved Module Lifecycle or Saved Device Lifecycle first'} />
-            {lifecycle && <RibbonBtn ic="parameters" label="Save" onClick={() => deviceRecord ? deviceSave(ownerTag) : save(tag)}
+            <RibbonBtn ic="download" label="Download" onClick={() => {
+              if (pidRecord) {
+                if (window.confirm('Full-download this saved PID_LOOP to its assigned simulated controller?')) downloadPid(tag)
+              } else setShowDownload(true)
+            }} unavailable={lifecycle ? undefined : pidTemplate ? 'Enable Saved PID_LOOP Lifecycle first' :
+              'Enable Saved Module Lifecycle or Saved Device Lifecycle first'} />
+            {lifecycle && <RibbonBtn ic="parameters" label="Save" onClick={() => pidRecord ? savePid(tag) :
+              deviceRecord ? deviceSave(ownerTag) : save(tag)}
               unavailable={lifecycle.online ? 'Go Offline before saving configuration' : undefined} />}
             <RibbonBtn ic="module" label="Faceplate" onClick={onFaceplate} />
             <RibbonBtn ic="parameters" label="Properties" onClick={() => focusExplorer(ownerTag)} />

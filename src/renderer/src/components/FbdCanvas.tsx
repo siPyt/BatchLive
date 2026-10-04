@@ -10,6 +10,7 @@ import { pidExecutionBad } from '../engine/pidModes'
 import { avoidSavedBlockOverlaps, buildControlDiagram, type DiagramBlock, type DiagramWire } from '../engine/controlDiagram'
 import type { AnalogSignalRef, AnyModule, PidBlockName } from '../engine/types'
 import { lifecycleModules } from '../engine/moduleLifecycle'
+import { lifecyclePidModules } from '../engine/pidLifecycle'
 import { deviceEditorModules } from '../engine/deviceLifecycle'
 
 // A true IEC 61131-3 / DeltaV-style Function Block Diagram node editor:
@@ -110,9 +111,11 @@ export function FbdCanvas({
 }): JSX.Element {
   const runtimeModules = useStore((s) => s.modules)
   const moduleLifecycle = useStore(s => s.moduleLifecycle)
+  const pidLifecycle = useStore(s => s.pidLifecycle)
   const deviceLifecycle = useStore(s => s.deviceLifecycle)
-  const modules = useMemo(() => deviceEditorModules(lifecycleModules({ modules: runtimeModules, moduleLifecycle }, selectedTag), deviceLifecycle),
-    [runtimeModules, moduleLifecycle, deviceLifecycle, selectedTag])
+  const modules = useMemo(() => deviceEditorModules(lifecyclePidModules(
+    lifecycleModules({ modules: runtimeModules, moduleLifecycle }, selectedTag), pidLifecycle), deviceLifecycle),
+    [runtimeModules, moduleLifecycle, pidLifecycle, deviceLifecycle, selectedTag])
   const setFbInput = useStore((s) => s.setFbInput)
   const setCasSource = useStore((s) => s.setCasSource)
   const setFeedforward = useStore((s) => s.setFeedforward)

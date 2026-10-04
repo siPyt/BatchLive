@@ -12,12 +12,22 @@ const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const { findDst } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { dstUsage } = require('../src/renderer/src/engine/dstUsage.ts')
+const { applyAction } = require('../src/renderer/src/engine/sfc.ts')
+const { lifecyclePidModules, savedPidStorageKey } = require('../src/renderer/src/engine/pidLifecycle.ts')
 
 function fic() { return useStore.getState().modules['FIC-102'] }
 function fixture(run) {
   const before = { store: useStore.getState(), security: useSecurity.getState(),
     ui: useUi.getState(), window: global.window }
-  global.window = { alert: message => { throw new Error(message) } }
+  const local = new Map()
+  global.window = {
+    alerts: [],
+    alert(message) { this.alerts.push(message) },
+    localStorage: {
+      getItem: key => local.get(key) ?? null,
+      setItem: (key, value) => local.set(key, String(value))
+    }
+  }
   try {
     useSecurity.setState({ currentUser: 'admin', locked: false })
     const store = useStore.getState()
@@ -112,4 +122,79 @@ test('template IDs are validated while custom PID defaults remain unchanged', ()
   assert.equal(custom.normalMode, undefined)
   assert.equal(custom.permittedModes, undefined)
   assert.equal(custom.rate, undefined)
+}))
+
+test('p254 PID_LOOP Save, Full Download, controller binding and Online are isolated and persistent', () => fixture(store => {
+  assert.equal(store.bindAnalogDst('FIC-102', 'input', 'FT-2'), true)
+  assert.equal(store.bindAnalogDst('FIC-102', 'output', 'FY-2'), true)
+  assert.equal(store.enablePidLifecycle('FIC-102'), true)
+  let state = useStore.getState()
+  assert.equal(state.modules['FIC-102'].mode, 'OOS')
+  assert.equal(state.modules['FIC-102'].downloaded, false)
+  assert.equal(state.pidLifecycle['FIC-102'].draft.controllerTag, 'CTRL1')
+  assert.equal(lifecyclePidModules(state.modules, state.pidLifecycle, 'FIC-102')['FIC-102'].mode, 'AUTO',
+    'Control Studio sees the offline draft while runtime stays OOS')
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), false)
+  assert.equal(store.downloadPidModule('FIC-102'), false, 'unsaved configuration cannot download')
+
+  assert.equal(store.editPidLifecycle('FIC-102', { outputDst: '' }), true)
+  assert.equal(store.downloadPidModule('FIC-102'), false, 'dirty configuration cannot download')
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  const savedKey = savedPidStorageKey('FIC-102')
+  const validSaved = global.window.localStorage.getItem(savedKey)
+  const beforeBadLoad = useStore.getState().pidLifecycle['FIC-102'].draft
+  global.window.localStorage.setItem(savedKey, '{invalid json')
+  assert.equal(store.loadSavedPidConfiguration('FIC-102'), false)
+  assert.equal(useStore.getState().pidLifecycle['FIC-102'].draft, beforeBadLoad,
+    'malformed saved data leaves the offline draft unchanged')
+  global.window.localStorage.setItem(savedKey, validSaved)
+  assert.equal(store.editPidLifecycle('FIC-102', { outputDst: 'FY-2' }), true)
+  assert.equal(store.loadSavedPidConfiguration('FIC-102'), true)
+  assert.equal(useStore.getState().pidLifecycle['FIC-102'].draft.outputDst, '')
+  assert.equal(store.editPidLifecycle('FIC-102', { outputDst: 'FY-2' }), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+
+  assert.equal(store.createController('CTRL2', 'Unconfigured PID target'), true)
+  assert.equal(store.commissionController('CTRL2'), true)
+  assert.equal(store.editPidLifecycle('FIC-102', { controllerTag: 'CTRL2' }), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  const beforeFailedDownload = useStore.getState().modules['FIC-102']
+  assert.equal(store.downloadPidModule('FIC-102'), false, 'I/O must belong to the assigned controller')
+  assert.equal(useStore.getState().modules['FIC-102'], beforeFailedDownload, 'failed download retains the last-good runtime')
+
+  assert.equal(store.editPidLifecycle('FIC-102', { controllerTag: 'CTRL1' }), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  assert.equal(store.downloadPidModule('FIC-102'), true)
+  state = useStore.getState()
+  assert.deepEqual(state.hardware.analogBindings['FIC-102'], { input: 'FT-2', output: 'FY-2' })
+  assert.equal(state.modules['FIC-102'].downloaded, true)
+  assert.equal(state.modules['FIC-102'].mode, 'OOS', 'download remains inhibited until Online')
+  assert.equal(state.pidLifecycle['FIC-102'].deployedRevision, state.pidLifecycle['FIC-102'].savedRevision)
+  assert.equal(store.editPidLifecycle('FIC-102', { outputDst: '' }), true)
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), false, 'stale deployment cannot go Online')
+  assert.equal(store.editPidLifecycle('FIC-102', { outputDst: 'FY-2' }), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  assert.equal(store.downloadPidModule('FIC-102'), true)
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), true)
+  store.setTraditionalInput('FT-2', 60)
+  store.setRunning(true)
+  store.tick(0.1)
+  store.tick(0.1)
+  const online = fic()
+  assert.equal(online.mode, 'AUTO')
+  assert.equal(online.pv, 60)
+  assert.ok(online.out < 50)
+  assert.equal(online.io.ao.bad, false)
+  assert.equal(findDst(useStore.getState().hardware, 'FY-2').channel.value, online.io.ao.out)
+  assert.equal(online.lifecycleOnline, true)
+
+  assert.equal(store.setPidLifecycleOnline('FIC-102', false), true)
+  const offline = fic()
+  assert.equal(offline.mode, 'OOS')
+  applyAction(offline, { kind: 'mode', tag: 'FIC-102', mode: 'AUTO' })
+  assert.equal(offline.mode, 'OOS', 'SFC actions cannot bypass the Offline inhibit')
+  const priorSp = offline.sp
+  store.setSetpoint('FIC-102', 25)
+  assert.equal(fic().sp, priorSp, 'operator write cannot modify offline runtime')
+  assert.ok(global.window.alerts.some(message => message.includes('Go Online')))
 }))

@@ -576,10 +576,12 @@ simulated FT-2 input is sampled as measured flow and the applied output is
 written to the bound AO channel. Licensing Properties counts those physical
 channels once each.
 
-This implements the template and live channel behavior, not the p254 PID
-controller assignment or PID Save/Download/Online lifecycle. The course
-workshop marks that boundary explicitly; do not treat this as full FIC-102
-deployment parity.
+Control Studio's opt-in Saved PID_LOOP Lifecycle adds controller assignment,
+validated Save/Load in the browser profile, an atomic Full simulated download,
+and explicit Online/Offline controls. An unconfigured, dirty, stale, or
+controller-mismatched record cannot be downloaded; the runtime remains OOS
+until a current saved revision has been downloaded and placed Online. Physical
+DeltaV controller communication and native project databases are not modeled.
 
 PID1's Studio target selector exposes supported target modes; LO is actual-only.
 OOS stops PID calculations and holds its requested output with Bad block

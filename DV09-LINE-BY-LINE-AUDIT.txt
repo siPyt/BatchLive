@@ -873,10 +873,14 @@ Evidence: Explorer creates an explicit PID_LOOP template with FIC-102's
   increase-to-open IO_OPTS, LO10/HI90 alarms, AUTO normal mode and TANK101
   primary display. FT-2/FY-2 bind to actual traditional AI/AO channels;
   measured-flow control direction, applied output and exact DST deltas are
-  tested. The faceplate resolves the existing TANK101 picture.
-  Controller assignment and PID Save/Download/Online lifecycle remain absent.
-Acceptance: Implement and verify the course controller/module assignment,
-  then real PID configuration Save/Download/Online and restart behavior.
+  tested. The faceplate resolves the existing TANK101 picture. The opt-in
+  PID_LOOP lifecycle saves/loads a validated browser-profile configuration,
+  assigns a commissioned controller, verifies both DSTs belong to it, performs
+  an atomic Full simulated download, and holds OOS until explicit Online.
+  Failed/dirty/stale downloads and offline operator/SFC writes are rejected.
+Acceptance: Preserve the exact configuration, controller/I/O ownership checks,
+  and safe Offline/Download/Online sequence. Physical DeltaV transfers remain
+  outside simulator scope.
 
 [DV09-057]
 Pages: 255-255

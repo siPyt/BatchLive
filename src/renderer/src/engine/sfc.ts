@@ -346,6 +346,7 @@ export function applyAction(m: AnyModule, a: SfcAction): void {
   }
   if ((a.kind === 'mode' || a.kind === 'sp' || a.kind === 'out') && m.type === 'PID') {
     const p = m as PidModule
+    if (p.lifecycleOnline === false) return
     if (a.kind === 'mode' && pidTargetAllowed(p, a.mode)) {
       p.mode = a.mode
       if (a.mode === 'MAN') p._integral = p.out

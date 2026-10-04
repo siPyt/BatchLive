@@ -33,6 +33,11 @@ import {
   memoryOf, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
   type AoDraftPatch, type AoLifecycle
 } from './moduleLifecycle'
+import {
+  clonePidConfiguration, lifecyclePidModules, parseSavedPid, pidConfigurationError, pidDownloadError,
+  pidLifecycleDirty, savedPidStorageKey, serializeSavedPid,
+  type PidConfiguration, type PidLifecycle, type PidLifecyclePatch
+} from './pidLifecycle'
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
@@ -118,6 +123,7 @@ interface StoreState extends PlantState {
   /** Physical Network: Controllers / I/O Carriers / CHARM baseplates. */
   hardware: HardwareState
   moduleLifecycle: Record<string, AoLifecycle>
+  pidLifecycle: Record<string, PidLifecycle>
   deviceLifecycle: Record<string, DeviceLifecycle>
   enableDeviceLifecycle: (tag: string) => boolean
   editDeviceDraft: (tag: string, patch: DeviceDraftPatch) => boolean
@@ -150,6 +156,12 @@ interface StoreState extends PlantState {
   downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL') => boolean
   uploadModule: (tag: string) => boolean
   restartModule: (tag: string) => boolean
+  enablePidLifecycle: (tag: string) => boolean
+  editPidLifecycle: (tag: string, patch: PidLifecyclePatch) => boolean
+  savePidConfiguration: (tag: string) => boolean
+  loadSavedPidConfiguration: (tag: string) => boolean
+  downloadPidModule: (tag: string) => boolean
+  setPidLifecycleOnline: (tag: string, online: boolean) => boolean
   addTraditionalCard: (controllerTag: string, slot: number, type: TraditionalCardType) => boolean
   configureTraditionalChannel: (cardId: string, channel: number,
     patch: { dst: string; enabled: boolean; tiebackDst?: string }) => boolean
@@ -299,6 +311,7 @@ export const useStore = create<StoreState>((set, get) => ({
   equipment: makeDefaultEquipment(),
   hardware: makeDefaultHardware(),
   moduleLifecycle: {},
+  pidLifecycle: {},
   deviceLifecycle: {},
   namedSets: { configured: {}, deployed: {} },
   sfcLifecycle: {},
@@ -429,6 +442,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setMode: (tag, mode) => {
     if (!requireUnlockedLock('CONTROL', `Set Mode ${tag}`)) return
+    if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
+      rejectPid(get, tag, 'Go Online before writing a managed PID target mode')
+      return
+    }
     const module = get().modules[tag]
     if (module?.type !== 'PID' || !isPidTargetMode(mode)) {
       rejectSfc(get, tag, 'PID target requires a supported mode; LO is an actual tracking mode, not a target')
@@ -450,6 +467,9 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setPidModeFields: (tag, patch) => {
     if (!requireUnlockedLock('CAN_CONFIGURE', `Configure mode fields ${tag}`)) return false
+    if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
+      return rejectPid(get, tag, 'Go Online before changing live PID mode fields')
+    }
     const module = get().modules[tag]
     if (module?.type !== 'PID') {
       rejectSfc(get, tag, 'Mode fields can only be configured on a PID')
@@ -476,6 +496,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setSetpoint: (tag, sp) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Set Setpoint ${tag}`)) return
+    if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
+      rejectPid(get, tag, 'Go Online before writing a managed PID setpoint')
+      return
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') {
         const p = m as PidModule
@@ -487,6 +511,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setOutput: (tag, out) => {
     if (!requireUnlockedLock('CONTROL', `Set Output ${tag}`)) return
+    if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
+      rejectPid(get, tag, 'Go Online before writing a managed PID output')
+      return
+    }
     const module = get().modules[tag]
     if (module?.type !== 'PID' || (module.mode !== 'MAN' && module.mode !== 'ROUT') ||
       module.actualMode === 'LO' || module.actualMode === 'OOS' || !Number.isFinite(out)) {
@@ -504,6 +532,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setTuning: (tag, t) => {
     if (!useSecurity.getState().requireLock('TUNING', `Tune ${tag}`)) return
+    if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
+      rejectPid(get, tag, 'Go Online before tuning a managed PID')
+      return
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') {
         const p = m as PidModule
@@ -517,6 +549,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setCasSource: (tag, source) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Set cascade source ${tag}`)) return
+    if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
+      rejectPid(get, tag, 'Go Online before changing a managed PID cascade source')
+      return
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') m.casSource = source
     })
@@ -525,6 +561,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setFeedforward: (tag, patch) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure feedforward ${tag}`)) return
+    if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
+      rejectPid(get, tag, 'Go Online before configuring managed PID feedforward')
+      return
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type !== 'PID') return
       if ('enable' in patch) m.ffEnable = !!patch.enable
@@ -537,6 +577,10 @@ export const useStore = create<StoreState>((set, get) => ({
   setTracking: (tag, patch) => {
     if (!requireUnlockedLock('CAN_CONFIGURE', `Configure tracking ${tag}`)) return
     const state = get()
+    if (state.pidLifecycle[tag] && !state.pidLifecycle[tag].online) {
+      rejectPid(get, tag, 'Go Online before configuring managed PID tracking')
+      return
+    }
     const module = state.modules[tag]
     const enabled = patch.enable ?? (module?.type === 'PID' && module.trackEnable)
     const source = 'source' in patch ? patch.source : module?.type === 'PID' ? module.trackSource : undefined
@@ -587,6 +631,9 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setPidIo: (tag, patch) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag} analog strategy`)) return false
+    if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
+      return rejectPid(get, tag, 'Go Online before editing a managed PID analog strategy')
+    }
     const module = get().modules[tag]
     const error = patch.splitRange === false && get().hardware.analogBindings?.[tag]?.output2
       ? 'Disconnect the AO2 DST before removing its block'
@@ -1861,6 +1908,170 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  enablePidLifecycle: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Enable PID_LOOP lifecycle ${tag}`)) return false
+    const state = get()
+    const module = state.modules[tag]
+    if (module?.type !== 'PID' || module.templateId !== 'PID_LOOP' || state.pidLifecycle[tag]) {
+      return rejectPid(get, tag, 'Saved PID lifecycle currently requires an unmanaged PID_LOOP module')
+    }
+    const bindings = state.hardware.analogBindings?.[tag]
+    const inputDst = bindings?.input ?? ''
+    const outputDst = bindings?.output ?? ''
+    const inputController = findDst(state.hardware, inputDst)?.card.controllerTag
+    const outputController = findDst(state.hardware, outputDst)?.card.controllerTag
+    const controllerTag = inputController && inputController === outputController
+      ? inputController : inputController ?? outputController ?? ''
+    const configuration: PidConfiguration = {
+      module: clonePidConfiguration({ module, controllerTag, inputDst, outputDst }).module,
+      controllerTag,
+      inputDst,
+      outputDst
+    }
+    delete configuration.module.downloaded
+    delete configuration.module.lifecycleOnline
+    delete configuration.module.controllerTag
+    const error = pidConfigurationError(configuration)
+    if (error) return rejectPid(get, tag, error)
+    set(s => ({
+      pidLifecycle: { ...s.pidLifecycle, [tag]: {
+        draft: configuration, online: false, savedRevision: 0, deployedRevision: 0
+      } },
+      modules: { ...s.modules, [tag]: { ...module, mode: 'OOS', actualMode: 'OOS',
+        downloaded: false, lifecycleOnline: false, pvBad: true } },
+      rev: s.rev + 1
+    }))
+    get().logEvent('CONFIGURE', tag, 'Opt-in PID_LOOP lifecycle enabled; control held until Full download and Online')
+    return true
+  },
+
+  editPidLifecycle: (tag, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Edit PID_LOOP assignment ${tag}`)) return false
+    const record = get().pidLifecycle[tag]
+    if (!record || record.online) return rejectPid(get, tag, 'Go Offline to edit the PID_LOOP assignment')
+    const draft = clonePidConfiguration(record.draft)
+    if (patch.controllerTag !== undefined) {
+      draft.controllerTag = patch.controllerTag.trim().toUpperCase()
+      if (draft.controllerTag && !get().hardware.controllers[draft.controllerTag]) {
+        return rejectPid(get, tag, 'Assigned controller does not exist')
+      }
+    }
+    if (patch.inputDst !== undefined) draft.inputDst = patch.inputDst.trim().toUpperCase()
+    if (patch.outputDst !== undefined) draft.outputDst = patch.outputDst.trim().toUpperCase()
+    const error = pidConfigurationError(draft)
+    if (error) return rejectPid(get, tag, error)
+    if (draft.inputDst) {
+      const bindingError = analogBindingError(get().hardware, draft.module, 'input', draft.inputDst)
+      if (bindingError) return rejectPid(get, tag, bindingError)
+    }
+    if (draft.outputDst) {
+      const bindingError = analogBindingError(get().hardware, draft.module, 'output', draft.outputDst)
+      if (bindingError) return rejectPid(get, tag, bindingError)
+    }
+    set(s => ({ pidLifecycle: { ...s.pidLifecycle, [tag]: { ...record, draft } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Offline PID_LOOP controller and physical DST assignments changed')
+    return true
+  },
+
+  savePidConfiguration: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Save PID_LOOP configuration ${tag}`)) return false
+    const state = get()
+    const record = state.pidLifecycle[tag]
+    const runtime = state.modules[tag]
+    if (!record || record.online || runtime?.type !== 'PID') {
+      return rejectPid(get, tag, 'Go Offline to save the PID_LOOP draft')
+    }
+    const draft = clonePidConfiguration(record.draft)
+    draft.module.area = runtime.area
+    draft.module.equipmentModule = runtime.equipmentModule
+    draft.module.primaryDisplay = runtime.primaryDisplay
+    draft.module.detailDisplay = runtime.detailDisplay
+    const error = pidConfigurationError(draft)
+    if (error) return rejectPid(get, tag, error)
+    try {
+      window.localStorage.setItem(savedPidStorageKey(tag), serializeSavedPid(draft))
+    } catch (error) {
+      return rejectPid(get, tag, `PID_LOOP save failed; configuration unchanged: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    set(s => ({ pidLifecycle: { ...s.pidLifecycle, [tag]: { ...record, draft,
+      saved: clonePidConfiguration(draft), savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'PID_LOOP saved to the local browser configuration database; runtime unchanged')
+    return true
+  },
+
+  loadSavedPidConfiguration: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Load saved PID_LOOP ${tag}`)) return false
+    const record = get().pidLifecycle[tag]
+    if (!record || record.online) return rejectPid(get, tag, 'Go Offline before loading the saved PID_LOOP configuration')
+    let saved: PidConfiguration
+    try {
+      const text = window.localStorage.getItem(savedPidStorageKey(tag))
+      if (text === null) return rejectPid(get, tag, 'No saved PID_LOOP configuration exists for this tag in this browser profile')
+      saved = parseSavedPid(text, tag)
+    } catch (error) {
+      return rejectPid(get, tag, `PID_LOOP load failed; draft/runtime unchanged: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    if (!get().areas.includes(saved.module.area)) return rejectPid(get, tag, 'Create the saved plant area before loading this PID_LOOP')
+    set(s => ({ pidLifecycle: { ...s.pidLifecycle, [tag]: { ...record,
+      draft: clonePidConfiguration(saved), saved: clonePidConfiguration(saved),
+      savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Persistent PID_LOOP configuration loaded offline; Full download is still required')
+    return true
+  },
+
+  downloadPidModule: (tag) => {
+    if (!useSecurity.getState().requireLock('CAN_DOWNLOAD', `Download PID_LOOP ${tag}`)) return false
+    const state = get()
+    const record = state.pidLifecycle[tag]
+    const runtime = state.modules[tag]
+    if (!record || record.online || !record.saved || runtime?.type !== 'PID' || pidLifecycleDirty(record)) {
+      return rejectPid(get, tag, 'Save a valid offline PID_LOOP draft before downloading')
+    }
+    const error = pidDownloadError(record.saved, state.hardware)
+    if (error) return rejectPid(get, tag, `PID_LOOP download failed; last-good runtime retained: ${error}`)
+    const configuration = clonePidConfiguration(record.saved)
+    const deployed = { ...configuration.module, controllerTag: configuration.controllerTag,
+      downloaded: true, lifecycleOnline: false, mode: 'OOS' as const, actualMode: 'OOS' as const,
+      pv: runtime.pv, out: runtime.out, pvBad: true }
+    set(s => ({
+      modules: { ...s.modules, [tag]: deployed },
+      hardware: { ...s.hardware, analogBindings: { ...s.hardware.analogBindings,
+        [tag]: { input: configuration.inputDst, output: configuration.outputDst } } },
+      pidLifecycle: { ...s.pidLifecycle, [tag]: { ...record,
+        deployed: clonePidConfiguration(configuration), deployedRevision: record.savedRevision } },
+      rev: s.rev + 1
+    }))
+    get().logEvent('CONFIGURE', tag, `Full simulated PID_LOOP download committed atomically to ${configuration.controllerTag}; Go Online to execute`)
+    return true
+  },
+
+  setPidLifecycleOnline: (tag, online) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `${online ? 'Go Online' : 'Go Offline'} PID_LOOP ${tag}`)) return false
+    const state = get()
+    const record = state.pidLifecycle[tag]
+    const runtime = state.modules[tag]
+    if (!record) return rejectPid(get, tag, 'Module does not use the saved PID_LOOP lifecycle')
+    if (online) {
+      const controller = record.deployed ? state.hardware.controllers[record.deployed.controllerTag] : undefined
+      if (!record.deployed || record.deployedRevision !== record.savedRevision || pidLifecycleDirty(record) ||
+          runtime?.type !== 'PID' || !runtime.downloaded ||
+          !controller || controllerIsDown(controller) || pidDownloadError(record.deployed, state.hardware)) {
+        return rejectPid(get, tag, 'Save and Full-download the current PID_LOOP to an available assigned controller before Online')
+      }
+      const module = { ...runtime, mode: record.deployed.module.mode, actualMode: 'OOS' as const,
+        lifecycleOnline: true, controllerTag: record.deployed.controllerTag }
+      set(s => ({ modules: { ...s.modules, [tag]: module },
+        pidLifecycle: { ...s.pidLifecycle, [tag]: { ...record, online: true } }, rev: s.rev + 1 }))
+    } else {
+      if (runtime?.type !== 'PID') return rejectPid(get, tag, 'PID_LOOP runtime does not exist')
+      set(s => ({ modules: { ...s.modules, [tag]: { ...runtime, mode: 'OOS', actualMode: 'OOS',
+        lifecycleOnline: false, pvBad: true } },
+        pidLifecycle: { ...s.pidLifecycle, [tag]: { ...record, online: false } }, rev: s.rev + 1 }))
+    }
+    get().logEvent('CONFIGURE', tag, online ? 'PID_LOOP placed Online' : 'PID_LOOP taken Offline; output control inhibited')
+    return true
+  },
+
   configureStandaloneAo: (tag, patch) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag} AO`)) return false
     if (get().moduleLifecycle[tag]) return get().editModuleDraft(tag, patch)
@@ -1983,6 +2194,12 @@ export const useStore = create<StoreState>((set, get) => ({
       if (port !== 'output') return rejectAo(get, tag, 'Standalone AO supports IO_OUT only')
       return get().editModuleDraft(tag, { outputDst: normalized })
     }
+    const pidRecord = get().pidLifecycle[tag]
+    if (pidRecord) {
+      if (pidRecord.online) return rejectPid(get, tag, 'Go Offline before changing PID_LOOP I/O assignments')
+      if (port === 'output2') return rejectPid(get, tag, 'PID_LOOP lifecycle only supports its configured AI1/AO1 pair')
+      return get().editPidLifecycle(tag, port === 'input' ? { inputDst: normalized } : { outputDst: normalized })
+    }
     const error = analogBindingError(get().hardware, get().modules[tag], port, normalized)
     if (error) {
       get().logEvent('DIAGNOSTIC', tag, `Analog I/O binding rejected: ${error}`)
@@ -2091,9 +2308,11 @@ export const useStore = create<StoreState>((set, get) => ({
       delete deviceBindings[tag]
       const moduleLifecycle = { ...s.moduleLifecycle }
       delete moduleLifecycle[tag]
+      const pidLifecycle = { ...s.pidLifecycle }
+      delete pidLifecycle[tag]
       const deviceLifecycle = { ...s.deviceLifecycle }
       delete deviceLifecycle[tag]
-      return { modules, moduleLifecycle, deviceLifecycle, hardware: { ...s.hardware, discreteBindings: bindings, analogBindings, deviceBindings },
+      return { modules, moduleLifecycle, pidLifecycle, deviceLifecycle, hardware: { ...s.hardware, discreteBindings: bindings, analogBindings, deviceBindings },
         alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
     })
     get().logEvent('CONFIGURE', tag, 'Module deleted')
@@ -2542,6 +2761,7 @@ export const useStore = create<StoreState>((set, get) => ({
       equipment: kind === 'blank' ? makeBlankEquipment() : makeDefaultEquipment(),
       hardware: kind === 'blank' ? makeBlankHardware() : makeDefaultHardware(),
       moduleLifecycle: {},
+      pidLifecycle: {},
       deviceLifecycle: {},
       namedSets: { configured: {}, deployed: {} },
       sfcLifecycle: {},
@@ -2552,6 +2772,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
 function rejectAo(get: () => StoreState, tag: string, message: string): false {
   get().logEvent('DIAGNOSTIC', tag, `AO action rejected: ${message}`)
+  window.alert(message)
+  return false
+}
+
+function rejectPid(get: () => StoreState, tag: string, message: string): false {
+  get().logEvent('DIAGNOSTIC', tag, `PID_LOOP action rejected: ${message}`)
   window.alert(message)
   return false
 }

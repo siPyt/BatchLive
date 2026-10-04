@@ -1536,6 +1536,14 @@ Studio's target selector uses the existing parameter table, not a diagram
 redesign. Dynamos, pictures, FBD and signal consumers must reflect block
 Bad while an explicit AI1 source remains independently Good.
 
+The DV-09 PID_LOOP course extension adds IO_OPTS and lifecycle rows to the
+existing Studio parameter table. Keep those as textual rows/controls: do not
+add or move function-block boxes, wires, picture equipment or state colors.
+Offline PID_LOOP modules show their saved draft while runtime remains OOS;
+the actual TANK101 picture opens through the existing primary-display link.
+Preserve the normal connected FBD and faceplate geometry through Save,
+download, Online/Offline and physical-I/O binding regressions.
+
 Regression checks: eight PID-mode tests plus the complete317-test suite;
 typecheck/build/audit and actual faceplate OOS/Studio LO/release/diagnostic
 interaction passed. Original96-module plant/UI/security restored.

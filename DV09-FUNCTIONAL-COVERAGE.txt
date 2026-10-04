@@ -1398,9 +1398,10 @@ pharma baseline. No controller download, cold-restart memory or persistence
 claim is made. The browser preview uses the renderer-only development server.
 
 Remaining: arbitrary typed parameters/paths, electrical/XD_SCALE conversion,
-native templates and property/controller/display assignment, isolated saved
-configuration/runtime/NVM and Save/Download/Online/upload lifecycle, later
-course operations and original-PDF image-only review. No full-parity claim.
+native templates and property/controller/display assignment, and generic
+saved-configuration/runtime/NVM and Save/Download/Online/upload lifecycle for
+other module types. Later course operations and original-PDF image-only review
+remain incomplete. No full-parity claim.
 Validation: 94 control regressions and five audit-validator regressions
 passed, along with typecheck, production build and editor diagnostics.
 Commit permitted; no push without explicit authorization.
@@ -1415,10 +1416,13 @@ picture assignment. Control Studio exposes IO_OPTS; actual AI1/AO1 bind to
 traditional FT-2/FY-2. Tests verify measured FT-2 sampling, bounded reverse-
 acting command, applied output on FY-2, both alarm thresholds and exact
 one-AI/one-AO DST deltas without duplicate bindings. Primary navigation opens
-the actual TANK101 picture. Standard PID defaults remain unchanged.
-Workshop and README disclose that controller/module assignment plus PID
-Save/Download/Online/restart lifecycle remain unimplemented; DV09-056 stays
-PARTIAL. No process dynamics, field valve position or physical download is
-fabricated. Protected graphics, PID/FBD geometry and palette are unchanged.
-Validation: three focused template/channel regressions, full repository tests,
+the actual TANK101 picture. The opt-in lifecycle validates/loads the browser-
+profile configuration, controller ownership and both DSTs, saves, performs
+an atomic Full simulated download, inhibits execution until Online, and
+rejects dirty/stale transfers and offline operator/SFC writes. Standard PID
+defaults remain unchanged. Generic PID lifecycle, restart/NVM, other module
+types and physical controller communication remain out of scope; DV09-056 is
+still PARTIAL. No field valve position or physical download is fabricated.
+Protected graphics, PID/FBD geometry and palette are unchanged.
+Validation: four focused template/lifecycle regressions, full repository tests,
 typecheck, production build, audit validator and editor diagnostics.
