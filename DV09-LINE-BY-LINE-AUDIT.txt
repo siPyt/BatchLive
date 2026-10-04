@@ -675,7 +675,8 @@ Required: Use MTR-11_ILOCK template, CND/BFI/OR logic and bypass indication,
   bind XI-2 and ZX-2, assign/detail/save/download. Permissive depends on
   XVSTAT and a level condition below 50 sustained four seconds.
 Evidence: FB logic and device command/interlock wiring execute; course template,
-  native template property/lifecycle parity and first-out/bypass semantics missing.
+  native template ownership/property parity remains missing; subsequent
+  first-out/bypass and saved device subsets are recorded below.
   Pass25 adds live PERMISSIVE_D wiring for MOTOR/VALVE in Parameter View and
   actual canvas connect/disconnect. Upstream AND/feedback executes before DC.
   Good nonzero permits a new start; held Bad/OOS/missing/nonfinite source
@@ -707,8 +708,19 @@ Evidence: FB logic and device command/interlock wiring execute; course template,
   indication. Restricted Control, lock checks and journal entries apply.
   Eight regressions plus live arm/capture/reset-with-active-trip and bypass/
   OR/journal checks passed. Native template, quoted cross-module expressions,
-  saved/downloaded motor, sixteen-input/BCD and exact500/10gal process remain
+  sixteen-input/BCD and exact500/10gal process remain
   incomplete; this is a verified first-out/bypass subset, not native parity.
+  Pass29 adds opt-in MOTOR/VALVE isolated draft/Save/persistent Load/Full
+  Download/Online. Pre-download inhibit, actual controller/type/ownership/
+  Good-channel/passive confirmation/writer checks, atomically applied saved
+  options and independent DI/DO bindings, lock/permission gating, explicit
+  failure/journal/cancel and retained last-good runtime verified.11 new
+  regressions;278 total pass. Existing passive live bindings can opt in
+  without turning healthy physical channel quality Bad. Live UI Save leaves runtime unchanged, Cancel
+  leaves undeployed, Confirm transfers, persistent Load discards unsaved
+  edits, and actual Start/timeout/physical DI confirms independently.
+  Native template, partial download, upload/NVM and exact process remain
+  incomplete. Restored original plant/UI/security/browser data and viewport.
 Acceptance: Test timing reset, first-out ordering, permissive versus interlock,
   bypass reporting and actual card3ch2/card4ch2 effects.
 
@@ -1068,7 +1080,7 @@ Evidence: Named Set MESSAGE and generic steps/conditions/timers exist.
   visible WAIT LEVEL -> WAIT MOTOR -> READY -> SELECT feedback verify the
   dependency chain. Pass26 adds external XI-2/ZX-2 I/O; live permissive wiring
   is available from pass25. Source p229/230 native MTR-11_ILOCK template,
-  first-out/bypass, saved motor lifecycle and exact dialogs
+  native first-out/template parity, partial device download/upload/NVM and exact dialogs
   remain incomplete; modeled MOTOR confirmation is explicitly a subset.
   Custom types are SFC-local; native global Alarm Type/Changed Setup Data
   workflows and arbitrary function-block palettes remain gaps. Status stays

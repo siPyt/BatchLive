@@ -23,6 +23,8 @@ import type {
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { resetDeviceLock, stepPlant } from './simulate'
+import { captureDevice, deviceActive, deviceConfigurationError, deviceDirty, deviceDownloadError,
+  deviceOperatorError, parseDevice, savedDeviceKey, serializeDevice, type DeviceDraftPatch, type DeviceLifecycle } from './deviceLifecycle'
 import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
 import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
 import {
@@ -113,6 +115,13 @@ interface StoreState extends PlantState {
   /** Physical Network: Controllers / I/O Carriers / CHARM baseplates. */
   hardware: HardwareState
   moduleLifecycle: Record<string, AoLifecycle>
+  deviceLifecycle: Record<string, DeviceLifecycle>
+  enableDeviceLifecycle: (tag: string) => boolean
+  editDeviceDraft: (tag: string, patch: DeviceDraftPatch) => boolean
+  saveDeviceConfiguration: (tag: string) => boolean
+  loadDeviceConfiguration: (tag: string) => boolean
+  downloadDeviceConfiguration: (tag: string) => boolean
+  setDeviceOnline: (tag: string, online: boolean) => boolean
   namedSets: NamedSetState
   sfcLifecycle: Record<string, SfcLifecycle>
   enableSfcLifecycle: (name: string) => boolean
@@ -284,6 +293,7 @@ export const useStore = create<StoreState>((set, get) => ({
   equipment: makeDefaultEquipment(),
   hardware: makeDefaultHardware(),
   moduleLifecycle: {},
+  deviceLifecycle: {},
   namedSets: { configured: {}, deployed: {} },
   sfcLifecycle: {},
   hornSilenced: false,
@@ -625,6 +635,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
   startMotor: (tag) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Start ${tag}`)) return
+    const module = get().modules[tag]
+    if (module?.type === 'MOTOR') {
+      const error = deviceOperatorError(module, get().hardware)
+      if (error) { rejectSfc(get, tag, error); return }
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'MOTOR') (m as MotorModule).commanded = true
     })
@@ -641,6 +656,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
   openValve: (tag) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Open ${tag}`)) return
+    const module = get().modules[tag]
+    if (module?.type === 'VALVE') {
+      const error = deviceOperatorError(module, get().hardware)
+      if (error) { rejectSfc(get, tag, error); return }
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'VALVE') (m as ValveModule).commandedOpen = true
     })
@@ -708,6 +728,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setDeviceOptions: (tag, opts) => {
+    if (get().deviceLifecycle[tag]) { get().editDeviceDraft(tag, opts); return }
     if (!useSecurity.getState().requireLock('RESTRICTED_CONTROL', `Configure device options ${tag}`)) return
     mutateModule(set, get, tag, (m) => {
       if (m.type !== 'MOTOR' && m.type !== 'VALVE') return
@@ -719,6 +740,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setInterlockSource: (tag, source) => {
+    if (get().deviceLifecycle[tag]) { get().editDeviceDraft(tag, { interlockSource: source }); return }
     if (!requireUnlockedLock('CAN_CONFIGURE', `Wire interlock source ${tag}`)) return
     const error = deviceSourceError(get().modules, tag, source, 'Interlock')
     if (error) {
@@ -736,6 +758,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setPermissiveSource: (tag, source) => {
+    if (get().deviceLifecycle[tag]) return get().editDeviceDraft(tag, { permissiveSource: source })
     if (!requireUnlockedLock('CAN_CONFIGURE', `Wire permissive source ${tag}`)) return false
     const state = get()
     const error = deviceSourceError(state.modules, tag, source, 'Permissive')
@@ -755,6 +778,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setCommandSource: (tag, source) => {
+    if (get().deviceLifecycle[tag]) { get().editDeviceDraft(tag, { commandSource: source }); return }
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Wire command source ${tag}`)) return
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'MOTOR' || m.type === 'VALVE') m.commandSource = source
@@ -1386,6 +1410,10 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   bindDeviceDst: (tag, port, dst) => {
+    if (get().deviceLifecycle[tag]) {
+      if (port !== 'input' && port !== 'output') return rejectSfc(get, tag, 'Unknown device I/O port')
+      return get().editDeviceDraft(tag, port === 'input' ? { inputDst: dst } : { outputDst: dst })
+    }
     if (!requireUnlockedLock('CAN_CONFIGURE', `Bind ${tag} device ${port}`)) return false
     const normalized = dst.trim().toUpperCase()
     const state = get()
@@ -1409,6 +1437,112 @@ export const useStore = create<StoreState>((set, get) => ({
       modules: { ...s.modules, [tag]: { ...s.modules[tag], ioInputBad: !!bindings[tag],
         ioOutputBad: !!bindings[tag], outputCommand: false, appliedCommand: false, travelTimer: 0 } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', tag, `Device IO_${port === 'input' ? 'IN' : 'OUT'}_1 bound to ${normalized || '(none)'}`)
+    return true
+  },
+
+  enableDeviceLifecycle: (tag) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Enable saved device ${tag}`)) return false
+    const state = get()
+    const m = state.modules[tag]
+    if (!m || (m.type !== 'MOTOR' && m.type !== 'VALVE') || state.deviceLifecycle[tag]) {
+      return rejectSfc(get, tag, 'Choose an unmanaged motor or valve')
+    }
+    if (deviceActive(m)) return rejectSfc(get, tag, 'Stop/close and confirm the device before enabling saved lifecycle')
+    if (Object.values(state.hardware.baseplates).some(plate => plate.channels.some(channel => channel.boundTag === tag))) {
+      return rejectSfc(get, tag, 'Saved device lifecycle requires independent traditional DI/DO, not a CHARM-bound device')
+    }
+    const draft = captureDevice(m, state.hardware)
+    if ([draft.inputDst, draft.outputDst].some(dst => dst && findDst(state.hardware, dst)?.channel.value !== 0)) {
+      return rejectSfc(get, tag, 'Confirm bound physical channels passive before enabling saved lifecycle')
+    }
+    set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { draft, online: false, savedRevision: 0, deployedRevision: 0 } },
+      modules: { ...s.modules, [tag]: { ...m, downloaded: false, ioInputBad: true, ioOutputBad: true, outputCommand: false } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Saved device lifecycle enabled; inactive device inhibited until first download')
+    return true
+  },
+
+  editDeviceDraft: (tag, patch) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Edit saved device ${tag}`)) return false
+    const state = get()
+    const record = state.deviceLifecycle[tag]
+    if (!record || record.online) return rejectSfc(get, tag, 'Go Offline to edit device configuration')
+    const draft = { ...record.draft, ...patch }
+    draft.inputDst = draft.inputDst.trim().toUpperCase()
+    draft.outputDst = draft.outputDst.trim().toUpperCase()
+    const error = deviceConfigurationError(draft, state.modules) ??
+      (draft.controllerTag && !state.hardware.controllers[draft.controllerTag] ? 'Assigned controller does not exist' : null)
+    if (error) return rejectSfc(get, tag, error)
+    set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, draft } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Offline device draft changed; runtime and physical bindings unchanged')
+    return true
+  },
+
+  saveDeviceConfiguration: (tag) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Save device ${tag}`)) return false
+    const state = get()
+    const record = state.deviceLifecycle[tag]
+    if (!record || record.online) return rejectSfc(get, tag, 'Go Offline to save device configuration')
+    const error = deviceConfigurationError(record.draft, state.modules)
+    if (error) return rejectSfc(get, tag, error)
+    try { window.localStorage.setItem(savedDeviceKey(tag), serializeDevice(record.draft)) }
+    catch (error) { return rejectSfc(get, tag, `Device save failed; database unchanged: ${error instanceof Error ? error.message : String(error)}`) }
+    set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record,
+      saved: { ...record.draft }, savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Device configuration saved to local browser database; runtime unchanged')
+    return true
+  },
+
+  loadDeviceConfiguration: (tag) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Load saved device ${tag}`)) return false
+    const state = get()
+    const record = state.deviceLifecycle[tag]
+    if (!record || record.online) return rejectSfc(get, tag, 'Go Offline to load device configuration')
+    let saved
+    try {
+      const text = window.localStorage.getItem(savedDeviceKey(tag))
+      if (text === null) return rejectSfc(get, tag, 'No saved device exists for this tag in this browser profile')
+      saved = parseDevice(text, tag)
+    } catch (error) { return rejectSfc(get, tag, `Device load failed; draft/runtime unchanged: ${error instanceof Error ? error.message : String(error)}`) }
+    const error = deviceConfigurationError(saved, state.modules)
+    if (error) return rejectSfc(get, tag, error)
+    set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, draft: { ...saved },
+      saved, savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'Saved device loaded offline; download still required')
+    return true
+  },
+
+  downloadDeviceConfiguration: (tag) => {
+    if (!requireUnlockedLock('CAN_DOWNLOAD', `Full download device ${tag}`)) return false
+    const state = get()
+    const record = state.deviceLifecycle[tag]
+    const m = state.modules[tag]
+    if (!record?.saved || deviceDirty(record) || !m || (m.type !== 'MOTOR' && m.type !== 'VALVE')) {
+      return rejectSfc(get, tag, 'Save the current device draft before downloading')
+    }
+    if (deviceActive(m)) return rejectSfc(get, tag, 'Stop/close and confirm the device before downloading')
+    const error = deviceDownloadError(record.saved, state.modules, state.hardware)
+    if (error) return rejectSfc(get, tag, `Device download failed; last-good runtime retained: ${error}`)
+    const c = record.saved
+    set(s => ({ modules: { ...s.modules, [tag]: { ...m, permissiveRequired: c.permissiveRequired,
+      resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec, interlockSource: c.interlockSource,
+      permissiveSource: c.permissiveSource, commandSource: c.commandSource, controllerTag: c.controllerTag,
+      downloaded: true, ioInputBad: true, ioOutputBad: true, outputCommand: false, travelTimer: 0,
+      interlock: c.interlockSource ? true : m.interlock, permissiveOk: c.permissiveSource ? false : m.permissiveOk } },
+    hardware: { ...s.hardware, deviceBindings: { ...s.hardware.deviceBindings, [tag]: { input: c.inputDst, output: c.outputDst } } },
+    deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, deployed: { ...c }, deployedRevision: record.savedRevision, online: true } },
+    rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, `Saved device revision ${record.savedRevision} Full downloaded to simulated ${c.controllerTag}; external confirmation required`)
+    return true
+  },
+
+  setDeviceOnline: (tag, online) => {
+    const state = get()
+    const record = state.deviceLifecycle[tag]
+    const m = state.modules[tag]
+    if (!record || online && (!record.deployed || !m || (m.type !== 'MOTOR' && m.type !== 'VALVE') || deviceOperatorError(m, state.hardware))) {
+      return rejectSfc(get, tag, 'Download to an available controller before going online')
+    }
+    set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, online } } }))
     return true
   },
 
@@ -1807,7 +1941,9 @@ export const useStore = create<StoreState>((set, get) => ({
       delete deviceBindings[tag]
       const moduleLifecycle = { ...s.moduleLifecycle }
       delete moduleLifecycle[tag]
-      return { modules, moduleLifecycle, hardware: { ...s.hardware, discreteBindings: bindings, analogBindings, deviceBindings },
+      const deviceLifecycle = { ...s.deviceLifecycle }
+      delete deviceLifecycle[tag]
+      return { modules, moduleLifecycle, deviceLifecycle, hardware: { ...s.hardware, discreteBindings: bindings, analogBindings, deviceBindings },
         alarms: s.alarms.filter((a) => a.moduleTag !== tag), rev: s.rev + 1 }
     })
     get().logEvent('CONFIGURE', tag, 'Module deleted')
@@ -2256,6 +2392,7 @@ export const useStore = create<StoreState>((set, get) => ({
       equipment: kind === 'blank' ? makeBlankEquipment() : makeDefaultEquipment(),
       hardware: kind === 'blank' ? makeBlankHardware() : makeDefaultHardware(),
       moduleLifecycle: {},
+      deviceLifecycle: {},
       namedSets: { configured: {}, deployed: {} },
       sfcLifecycle: {},
       rev: get().rev + 1

@@ -1069,6 +1069,13 @@ selection, shared names and locked/denied/invalid creation rejection.
 
 ===============================================================================
 40. FIRST-OUT AND BYPASS INDICATION - PRESERVE EXISTING ARTWORK
+Related pass29 adds opt-in saved device controls only in Parameter View.
+Offline draft rows are clearly separated from read-only actual deployed DSTs
+and runtime command/feedback. Before download, quality is explicitly Bad and
+output inhibited, not falsely green. Faceplates retain original device art
+and show deployed options as read-only with a direction to offline Studio.
+Full download/cancel/Save/persistent Load/live command/physical confirmation
+verified; original plant/UI/security/saved browser data/viewport restored.
 ---------------------------------------------------------------------
 Related pass28: Parameter View adds conditional BFI ARM_TRAP/RESET_IN/
 FIRST_OUT/OUT_D rows and CND BYPASS. Existing source dropdowns expose real

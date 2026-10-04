@@ -325,6 +325,13 @@ function stepDeviceControl(io: DcIo, dt: number): void {
 }
 
 function applyExternalDevice(m: MotorModule | ValveModule, hw: HardwareState, dt: number): boolean {
+  if (m.downloaded === false) {
+    m.outputCommand = false
+    m.ioInputBad = true
+    m.ioOutputBad = true
+    m.travelTimer = 0
+    return true
+  }
   const bindings = hw.deviceBindings?.[m.tag]
   if (!bindings) return false
   const input = deviceChannelSignal(hw, bindings.input, 'DI')

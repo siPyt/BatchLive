@@ -320,6 +320,8 @@ export type DcState =
   | 'LOCKED'
 
 export interface MotorModule extends ModuleDisplayProperties {
+  downloaded?: boolean
+  controllerTag?: string
   tag: string
   type: 'MOTOR'
   description: string
@@ -360,6 +362,8 @@ export interface MotorModule extends ModuleDisplayProperties {
 }
 
 export interface ValveModule extends ModuleDisplayProperties {
+  downloaded?: boolean
+  controllerTag?: string
   tag: string
   type: 'VALVE'
   description: string

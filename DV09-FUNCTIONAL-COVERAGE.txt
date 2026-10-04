@@ -1045,6 +1045,7 @@ Native motor template/external DSTs/download/first-out/bypass/full condition
 language remain gaps. These audit groups stay PARTIAL.
 
 PASS 28: TWO-INPUT FIRST-OUT / INDEPENDENT BYPASS INDICATION
+PASS29 subsequently adds independently verified saved device deployment.
 -------------------------------------------------------
 PASS28 implements two-input BFI weighted OUT_INT, OR OUT_D, independent
 FIRST_OUT, ARM_TRAP and pulse RESET_IN. Good zero-to-nonzero captures the
@@ -1060,6 +1061,29 @@ Eight targeted regressions plus actual UI arm/capture/reset preserving active
 trip, bypass/OR indication and journal verified. Original plant/UI/security/
 720x576 viewport restored; fixture removed. All267 regressions/typecheck pass.
 Native template/motor lifecycle,16-input/BCD and exact process remain gaps.
+
+PASS 29: ISOLATED SAVED MOTOR/VALVE FULL DEPLOYMENT
+-------------------------------------------------------
+Opt-in stopped/closed devices gain isolated configuration draft, browser
+database Save/persistent Load, validated Full Download and Online state.
+Before first download the device is inhibited; inactive conventional devices
+are unchanged. Draft options/controller/DI-DO/sources/time never overwrite
+runtime. Online edits reject. Download requires unchanged saved draft,
+commissioned available controller, typed/owned scanned-Good passive channels,
+no duplicate output writer and no CHARM conflict. Active replacement/deletion
+rejects. Failed/cancelled transfer retains last-good deployed runtime/bindings/
+revision. Config transfer preserves live fault/lock/feedback. No elapsed time
+fabricates confirmation. Hardware still reports actual deployed port ownership.
+Workstation lock and configuration/download privileges apply. Persistent
+schema/type/source checks and storage failures notify/journal explicitly.
+11 regressions cover both device types, independent confirmation, persistence
+across project reset, bad/corrupt load, permissions/storage, failed atomic
+replacement, wrong controller/channel/writer and active-device containment.
+Live UI opt-in/edit/Save/Cancel/Confirm/Online/Load/Start/timeout/actual DI
+verified. Original96-module running plant, UI/security/browser saved data,
+720x576 viewport restored; fixture removed.278 total tests/typecheck pass.
+Native MTR template ownership, Partial download, upload/NVM and exact
+500/10gal process remain gaps; no full workshop/course certification.
 
 PASS 27: SUSTAINED CND COMPARISONS / FAIL-SAFE INTERLOCK QUALITY
 -------------------------------------------------------

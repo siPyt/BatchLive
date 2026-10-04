@@ -226,8 +226,8 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
       module.ioOutputBad = true
       continue
     }
-    module.ioOutputBad = target.channel.bad
-    if (!target.channel.bad) target.channel.value = Number(!!module.outputCommand)
+    module.ioOutputBad = target.channel.bad || module.downloaded === false
+    if (!module.ioOutputBad) target.channel.value = Number(!!module.outputCommand)
     module.appliedCommand = target.channel.value !== 0
   }
   const writers = new Map<string, string>()

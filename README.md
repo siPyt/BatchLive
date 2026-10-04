@@ -142,7 +142,8 @@ equipment stays active, while a separate interlock still trips and requires
 reset. The parameter row reports actual Good/Bad and permitted/denied status.
 Deleting the wire clears the inherited permit and restores explicit manual
 permissive control. This is executable live wiring, not the native
-MTR-11_ILOCK template, first-out/bypass or saved motor-download workflow.
+MTR-11_ILOCK template. First-out/bypass and the separate saved device workflow
+are described below; they do not provide native template parity.
 
 For external motor/valve confirmation, create enabled DI and DO channels in
 Hardware, then select **IO_IN_1** and **IO_OUT_1** in Control Studio. The
@@ -182,8 +183,8 @@ Bad/missing/OOS interlock sources now fail safe as **Bad - tripped**, rather
 than clearing a trip from a held/absent signal. Reset Required retains the
 lock after the condition clears until explicit Reset. With external I/O,
 the trip de-energizes ZX-2 before separately sampled XI-2 confirms Stopped.
-Native MTR-11_ILOCK and saved motor lifecycle remain incomplete; the separate
-first-out/bypass subset is described next.
+Native MTR-11_ILOCK remains incomplete; the separate first-out/bypass subset
+is described next.
 
 The two-input **BFI** now exposes independently readable **OUT_INT**, **OUT_D**
 and **FIRST_OUT**. Enable **ARM_TRAP** in Parameter View to capture the weighted
@@ -200,7 +201,29 @@ OR for actual bypass indication, independent of trip/first-out. Parameter View
 provides named-output choices; bypass, arm and reset require Restricted Control,
 an unlocked workstation, and produce journal entries.
 This is the verified two-input trap/bypass subset, not sixteen-input/BCD BFI,
-the native motor template or its saved/downloaded lifecycle.
+the native motor template.
+
+For isolated saved **MOTOR/VALVE** configuration, stop/close and confirm the
+device, then use **Enable Saved Device Lifecycle** in Control Studio Parameter
+View. The device is inhibited until its first download. Offline draft controls
+configure controller, independent DI/DO DSTs, permissive/reset options,
+confirmation time and interlock/permissive/command sources. Save persists only
+configuration in this browser profile, not commands, feedback, lock or fault.
+Load replaces only the offline draft; it never implicitly downloads or actuates.
+Go Offline does not stop a previously deployed runtime.
+**Download Device** offers an explicit Full confirmation/cancel dialog.
+Download requires a saved unchanged draft, stopped/closed device, commissioned
+available controller, both correctly typed/owned scanned-Good channels and
+passive physical DI/DO. Duplicate writers and CHARM conflicts reject.
+Failure/cancel retains last-good runtime/bindings/revision; a successful
+transfer preserves actual device fault/lock and feedback, then requires real
+external DI confirmation. Connected command sources execute on subsequent
+scans and may command active. Online prohibits draft editing. Managed
+faceplates display deployed options and direct edits back to offline Studio.
+Save/Load/Edit and Download use the appropriate permissions plus workstation
+lock checks; persistent storage errors are notified and journaled.
+This models Full device deployment, not native template ownership, Partial
+download, upload/NVM restoration, or physical controller communication.
 
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are

@@ -328,7 +328,7 @@ export const COURSE: WModule[] = [
         id: 'motor-external-dst',
         title: 'Independent motor command and external confirmation',
         objective: 'Execute XI-2 / ZX-2 I/O without substituting the command or a timer for running feedback.',
-        note: 'Live session-local I/O subset; native MTR-11_ILOCK template and saved/downloaded motor lifecycle remain incomplete.',
+        note: 'Live I/O subset. Native MTR-11_ILOCK template remains incomplete; isolated saved Full device deployment is offered in the following workshop.',
         steps: [
           { id: 'motor-dst-inventory', text: 'Create a commissioned CTLR with a DI card in slot3 and DO card in slot4. Enable channel2 as XI-2 and ZX-2 respectively. Create an unbound MTR-102 MOTOR; stop and confirm it before changing its physical bindings.', goto: 'hardware' },
           { id: 'motor-dst-bind', text: 'Open MTR-102 in Control Studio. Select IO_IN_1 = XI-2 and IO_OUT_1 = ZX-2. Both are required. The Hardware channel properties show the actual owning module/port.', goto: 'studio' },
@@ -341,13 +341,38 @@ export const COURSE: WModule[] = [
         id: 'motor-sustained-condition',
         title: 'Sustained low-level condition and closed-valve trip',
         objective: 'Execute the p230 condition dependencies with exact threshold/time boundaries and actual motor shutdown.',
-        note: 'Wired IN1/IN2 expression subset, not native quoted expressions, MTR-11_ILOCK, first-out/bypass or saved motor lifecycle.',
+        note: 'Wired IN1/IN2 expression subset, not native quoted expressions or MTR-11_ILOCK. Separate first-out/bypass and saved device workshops follow.',
         steps: [
           { id: 'motor-cnd-source', text: 'Use good XVSTAT-101 DI feedback and LI-101 AI measured input. Create CND1/CND2 and OR-TRIP function blocks. Wire CND1.IN1 to XVSTAT-101 and CND2.IN1 to LI-101.', goto: 'studio' },
           { id: 'motor-cnd-expression', text: 'In CND1 EXPR enter IN1 = 0 and Apply; set TIME_DURATION0s. In CND2 enter IN1 < 50 and Apply; set TIME_DURATION4s. An unapplied draft never executes. Malformed syntax is rejected with a notification and diagnostic.' },
           { id: 'motor-cnd-wire', text: 'Wire OR-TRIP IN1/IN2 to CND1/CND2; wire the motor INTERLOCK_SOURCE to OR-TRIP. Keep valve feedback open and level50: no low-level trip. At49, verify CND2 OUT0 at3.9s and OUT1 at4.0s, then actual motor shutdown.' },
           { id: 'motor-cnd-recovery', text: 'Raise level above50; the condition clears but Reset Required keeps the motor locked until Reset. With XI-2/ZX-2 bindings and explicit simulated tieback, observe the output drop before actual stopped feedback follows.' },
           { id: 'motor-cnd-quality', text: 'Interrupt low level with a false or Bad/OOS input: elapsed time resets, and recovery requires a new uninterrupted four seconds. Bad/missing interlock sources display Bad - tripped and must not admit a new start. Closed-valve feedback trips through CND1 without the level delay.' }
+        ]
+      },
+      {
+        id: 'motor-first-out-bypass',
+        title: 'First-out trapping and independent bypass indication',
+        objective: 'Record the initial trip cause without conflating current inputs, operator reset or bypass.',
+        note: 'Two-input BFI subset, not16-input/BCD or native motor template parity.',
+        steps: [
+          { id: 'motor-trap-wire', text: 'Wire BFI IN1/IN2 to CND1/CND2 from the sustained-condition workshop. Wire the motor interlock to BFI.OUT_D. Enable ARM_TRAP in Parameter View.', goto: 'studio' },
+          { id: 'motor-trap-cause', text: 'Trigger only input1: FIRST_OUT1 and OUT_INT1. Trigger input2 as well: FIRST_OUT remains1 while OUT_INT3 and OUT_D1. After all causes clear, a new input2-only event captures2.' },
+          { id: 'motor-trap-reset', text: 'Pulse RESET_IN while tripped. FIRST_OUT clears, but actual trip/OUT_D remains active; no capture rearms until all inputs clear. Resetting trap does not reset the motor lock.' },
+          { id: 'motor-trap-bypass', text: 'Create independent OR-BYPASS with IN1=CND1.BYPASS and IN2=CND2.BYPASS. Toggle a CND bypass: indicator becomes1 while the healthy condition is inhibited. Removing bypass requires a fresh delay. Bad input remains Bad and the downstream motor interlock remains fail-safe. Check Restricted Control/lock denial and journal entries.' }
+        ]
+      },
+      {
+        id: 'motor-saved-device',
+        title: 'Saved motor/valve configuration and Full download',
+        objective: 'Separate edited and persisted configuration from deployed runtime and physical command/confirmation.',
+        note: 'Full simulated device transfer subset, not native template ownership, Partial download or upload/NVM. Use independent traditional DI/DO. Offline never stops an already-deployed runtime.',
+        steps: [
+          { id: 'motor-save-enable', text: 'Stop/close the device and confirm both physical channels passive. In Control Studio Parameter View choose Enable Saved Device Lifecycle. The selected device is inhibited until first Save/Full Download; other devices remain live.', goto: 'studio' },
+          { id: 'motor-save-draft', text: 'In the offline draft assign commissioned CTLR, input XI-2 and output ZX-2. Set permissive/reset options, confirmation time and actual interlock/permissive/command source tags. Verify live configuration, physical bindings and outputs remain unchanged. A true deployed command source can command active after download.' },
+          { id: 'motor-save-persist', text: 'Save Device. Edit confirmation time without saving, then Load Saved Device and confirm replacement: persisted value returns to the draft, runtime remains unchanged. Bad schema/type/source or blocked browser storage must report failure, not success.' },
+          { id: 'motor-save-download', text: 'Download Device then Cancel: no transfer. Reopen and Confirm Device Download. Require both channels scanned Good, correctly typed, owned by assigned controller, passive, and no output writer conflict. Successful Full download enters Online and exposes actual deployed DSTs/revision; failures retain last-good runtime.' },
+          { id: 'motor-save-confirm', text: 'START with physical DI0: DO energizes, feedback stays false and timeout gives FAILED ACTIVE. Actual DI1 confirms running. Stop and DI0 confirm passive before replacement download. Online draft edits reject; Go Offline permits edits without stopping runtime. Faceplate options show deployed values and direct configuration edits back to Studio.' }
         ]
       }
     ]
@@ -375,7 +400,7 @@ export const COURSE: WModule[] = [
         objective: 'Configure and operate the verified pp291/294 dependency subset, not a native template/graph parity claim.',
         steps: [
           { id: 'course-sfc-io', text: 'Use a separate blank project so the sample XV-101 VALVE is not mistaken for the course DO. Create PLANT_AREA_A, commission CTLR and configure traditional AI slot1/FT-2 channel2, AO slot2/FY-2 channel2, DI slot3/LSO-1 channel1 and DO slot4/XV-1 channel1. Enable the channels. Configure LSO-1 simulated tieback to XV-1; this is an explicit simulator connection, not physical wiring.', goto: 'hardware' },
-          { id: 'course-sfc-modules', text: 'Create XV-101 DO and XVSTAT-101 DI; in Control Studio bind IO_OUT to XV-1 and IO_IN to LSO-1, both AUTO. Create FIC-102 PID with GPM scale0-100; bind AI input FT-2 and AO output FY-2. Use MANUAL INPUT on FT-2 to supply the measured flow. Create MTR-102 MOTOR; select IO_IN_1 XI-2 and IO_OUT_1 ZX-2 for independent external feedback/output. Configure manual feedback or an explicitly simulated tieback. Native DC templates and motor Save/Download remain incomplete.', goto: 'studio' },
+          { id: 'course-sfc-modules', text: 'Create XV-101 DO and XVSTAT-101 DI; in Control Studio bind IO_OUT to XV-1 and IO_IN to LSO-1, both AUTO. Create FIC-102 PID with GPM scale0-100; bind AI input FT-2 and AO output FY-2. Use MANUAL INPUT on FT-2 to supply the measured flow. Create MTR-102 MOTOR; select IO_IN_1 XI-2 and IO_OUT_1 ZX-2 for independent external feedback/output. Configure manual feedback or an explicitly simulated tieback. For isolated saved configuration follow the saved device workshop; native DC templates remain incomplete.', goto: 'studio' },
           { id: 'course-sfc-setup', text: 'Configure NS-T101 STARTUP=1 and SHUTDOWN=2 visible/selectable, SELECT SEQUENCE=255 visible/nonselectable. Transfer Changed Setup Data separately to CTLR and the workstation. Explorer: right-click PLANT_AREA_A -> New -> Control Module, choose Algorithm Type Sequential Function Chart, name SFC-T101 and Create. The exact named chart opens empty/Offline with Save/Download lifecycle already enabled. Add Parameter MESSAGE bound to NS-T101/default255. Create HOLD_SFC, OPEN_BLK_VLV, SET_FLOW_RATE, START_PUMP, STOP_PUMP, CLOSE_BLK_VLV, CLOSE_FLOW_VLV and END_SEQUENCE steps.', goto: 'explorer' },
           { id: 'course-sfc-prompt', text: 'HOLD_SFC action Properties: \'MESSAGE\' := \'NS-T101:SELECT SEQUENCE\', qualifier P for a one-shot simulator prompt. N repeats every scan and must not be silently treated as P. Transition Properties: \'MESSAGE\' = \'NS-T101:STARTUP\', explicit OPEN_BLK_VLV destination. Add alternate \'MESSAGE\' = \'NS-T101:SHUTDOWN\' to STOP_PUMP. Only the selected path activates; these Properties are not the native graph palette.' },
           { id: 'course-sfc-start', text: 'OPEN_BLK_VLV assigns \'^/XV-101/DO1/SP_D.CV\' := 1; its transition uses \'^/XVSTAT-101/DI1/PV_D.CV\' = 1. SET_FLOW_RATE assigns FIC-102/PID1/MODE.TARGET AUTO and SP.CV50, then waits for PID1/OUT.CV > 30. START_PUMP assigns MTR-102/DC1/OUT_D.CV1, waits for DC1/PV_D.CV1, then routes to END_SEQUENCE. Enter supported quoted paths through Properties/Browser; command and feedback are different values.' },
@@ -429,7 +454,7 @@ export const COURSE: WModule[] = [
           { id: 'sfc-level-gate', text: 'Before motor start, author a LI-101/AI1/PV.CV transition with a chosen sufficient threshold, for example >100. 100 is an example, not a prescribed optional-exercise value. Good100 must keep the sequence waiting; Bad150 must not release it. Correct sampled150 must release it.' },
           { id: 'sfc-reset-action', text: "Next step -> Add Action -> Assignment -> P ->0s -> Expression Assistant -> MTR-102 -> '^/MTR-102/DC1/RESET_D.CV' := 1. Cancel changes nothing; OK, Save, Download -> confirm, Online. The device lock stays intact until qualified execution. RESET_D clears only the lock, not command, fault, interlock or permissive. :=0 does not reset; expiry does not write an inverse." },
           { id: 'sfc-confirm-running', text: 'Separate command/confirmation step: command MTR-102 ON and wait for its actual running feedback. A remaining interlock, false permissive or failed confirmation must keep WAIT MOTOR. HOLD/controller loss freezes the chain. Observe WAIT LEVEL -> WAIT MOTOR -> READY -> SELECT SEQUENCE on the real operator-picture MESSAGE datalink after STARTUP entry.' },
-          { id: 'sfc-level-reset-boundary', text: 'This verifies the modeled functional optional chain. External XI-2/ZX-2 I/O and live permissive wiring are available separately. The native MTR-11_ILOCK template, first-out/bypass, saved motor lifecycle and exact native dialogs are still incomplete; do not claim native motor or full DV-09 certification.' }
+          { id: 'sfc-level-reset-boundary', text: 'This verifies the modeled functional optional chain. External XI-2/ZX-2 I/O, live permissive wiring, two-input first-out/bypass and saved Full device deployment are available separately. Native MTR-11_ILOCK ownership, Partial device download/upload/NVM and exact native dialogs remain incomplete; do not claim native motor or full DV-09 certification.' }
         ]
       },
       {

@@ -9,7 +9,7 @@ export function resetConditionTiming(module: FunctionBlockModule): void {
 }
 
 export function deviceSourceError(modules: Record<string, AnyModule>, tag: string,
-  source: string | undefined, role: 'Permissive' | 'Interlock'): string | null {
+  source: string | undefined, role: 'Permissive' | 'Interlock' | 'Command'): string | null {
   const module = modules[tag]
   if (!module || module.type !== 'MOTOR' && module.type !== 'VALVE') {
     return `${role} wiring requires an existing motor or valve`

@@ -5,6 +5,7 @@ import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
 import { StandaloneAoControls } from '../components/StandaloneAoControls'
 import { ModuleDownloadDialog, ModuleLifecycleRows } from '../components/ModuleLifecycleControls'
+import { DeviceLifecycleRows } from '../components/DeviceLifecycleControls'
 import { lifecycleModules } from '../engine/moduleLifecycle'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
@@ -144,6 +145,7 @@ function ParameterView({ module: m, selectedBlock }: {
   const setFbConfig = useStore((s) => s.setFbConfig)
   const setPidIo = useStore((s) => s.setPidIo)
   const setSplitterConfig = useStore((s) => s.setSplitterConfig)
+  const deviceLifecycle = useStore(s => s.deviceLifecycle[m.tag])
   const selectedSplitter = m.type === 'PID' ? pidIo(m).splitter : undefined
   const ioBlock = m.type === 'PID' && selectedBlock !== 'PID1'
   const bad = m.type === 'PID' ? m.pvBad : m.type === 'AI' ? m.pvBad :
@@ -265,9 +267,12 @@ function ParameterView({ module: m, selectedBlock }: {
             />
           )}
           {(m.type === 'MOTOR' || m.type === 'VALVE') && (
-            <DeviceIoRows m={m} />
+            <DeviceLifecycleRows tag={m.tag} />
           )}
           {(m.type === 'MOTOR' || m.type === 'VALVE') && (
+            <DeviceIoRows m={m} />
+          )}
+          {(m.type === 'MOTOR' || m.type === 'VALVE') && !deviceLifecycle && (
             <DeviceWiringRows
               m={m}
               tags={Object.keys(modules).filter((t) => t !== m.tag).sort()}
@@ -285,6 +290,7 @@ function ParameterView({ module: m, selectedBlock }: {
 
 function DeviceIoRows({ m }: { m: MotorModule | ValveModule }): JSX.Element {
   const hardware = useStore(s => s.hardware)
+  const managed = useStore(s => !!s.deviceLifecycle[m.tag])
   const bind = useStore(s => s.bindDeviceDst)
   const binding = hardware.deviceBindings?.[m.tag]
   return <>
@@ -295,7 +301,7 @@ function DeviceIoRows({ m }: { m: MotorModule | ValveModule }): JSX.Element {
         item.card.type === (port === 'input' ? 'DI' : 'DO') && item.channel.dst)
       const bad = port === 'input' ? m.ioInputBad : m.ioOutputBad
       return <tr key={port}><td>{label}</td><td>
-        <select aria-label={`${m.tag} ${label}`} value={selected} onChange={e => bind(m.tag, port, e.target.value)}>
+        <select disabled={managed} aria-label={`${m.tag} ${label}`} value={selected} onChange={e => bind(m.tag, port, e.target.value)}>
           <option value="">(unbound)</option>
           {selected && !choices.some(item => item.channel.dst === selected) &&
             <option value={selected}>{selected} (missing)</option>}
@@ -303,10 +309,10 @@ function DeviceIoRows({ m }: { m: MotorModule | ValveModule }): JSX.Element {
             {item.channel.dst} ({item.card.id} CH{item.channel.channel})
           </option>)}
         </select>
-      </td><td className={bad ? 'bad' : 'good'}>{binding ? bad ? 'Bad' : 'Good' : 'Local'}</td></tr>
+      </td><td className={bad ? 'bad' : 'good'}>{m.downloaded === false ? 'Not downloaded - Bad' : binding ? bad ? 'Bad' : 'Good' : 'Local'}</td></tr>
     })}
     <tr><td>OUT_D.RESOLVED / APPLIED</td><td>{binding ?
-      `${Number(!!m.outputCommand)} / ${Number(!!m.appliedCommand)}` : 'Local confirmation'}</td>
+      `${Number(!!m.outputCommand)} / ${Number(!!m.appliedCommand)}` : m.downloaded === false ? 'Inhibited; download required' : 'Local confirmation'}</td>
       <td>{binding ? 'External DI confirmation; clock never confirms' : 'Internal confirmation timer'}</td></tr>
   </>
 }

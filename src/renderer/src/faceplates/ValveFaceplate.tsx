@@ -12,11 +12,12 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const setPermissive = useStore((s) => s.setPermissive)
   const setDeviceOptions = useStore((s) => s.setDeviceOptions)
   const binding = useStore((s) => s.hardware.deviceBindings?.[tag])
+  const managed = useStore(s => !!s.deviceLifecycle[tag])
   if (!m) return null
 
   const { label: stateLabel, color: stateColor } = dcStateInfo(m.dcState)
   const transiting = m.dcState === 'GOING_ACTIVE' || m.dcState === 'GOING_PASSIVE'
-  const openDisabled = m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.open)
+  const openDisabled = m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.open)
 
   return (
     <div className="fp-body">
@@ -94,6 +95,7 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--dv-text-dim)' }}>
           <input
             type="checkbox"
+            disabled={managed}
             checked={m.permissiveRequired}
             onChange={(e) => setDeviceOptions(tag, { permissiveRequired: e.target.checked })}
           />
@@ -102,12 +104,14 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--dv-text-dim)' }}>
           <input
             type="checkbox"
+            disabled={managed}
             checked={m.resetRequired}
             onChange={(e) => setDeviceOptions(tag, { resetRequired: e.target.checked })}
           />
           Reset Required
         </label>
       </div>
+      {managed && <div className="fp-row">Deployed options; edit the offline draft in Control Studio and Save/Download.</div>}
       {m.permissiveRequired && (
         <div className="fp-row">
           <button className="fp-btn" onClick={() => setPermissive(tag, !m.permissiveOk)}>
