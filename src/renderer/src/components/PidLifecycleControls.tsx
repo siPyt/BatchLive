@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { useStore } from '../engine/store'
-import { pidLifecycleDirty } from '../engine/pidLifecycle'
+import { changedPidTuningParameters, pidLifecycleDirty } from '../engine/pidLifecycle'
 import { traditionalChannels } from '../engine/traditionalIo'
+import { PidTransferDialog } from './PidTransferDialog'
 
 export function PidLifecycleRows({ tag }: { tag: string }): JSX.Element {
+  const [showUpload, setShowUpload] = useState(false)
+  const [showDownload, setShowDownload] = useState(false)
   const record = useStore(state => state.pidLifecycle[tag])
   const runtime = useStore(state => state.modules[tag])
   const hardware = useStore(state => state.hardware)
@@ -22,6 +26,7 @@ export function PidLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const dirty = pidLifecycleDirty(record)
   const controller = draft.controllerTag ? hardware.controllers[draft.controllerTag] : undefined
   const downloaded = runtime?.type === 'PID' && runtime.downloaded === true
+  const changed = changedPidTuningParameters(record.saved, runtime?.type === 'PID' ? runtime : undefined)
   const status = dirty ? 'Unsaved draft' : !downloaded ? 'Not downloaded - Full required' :
     record.savedRevision !== record.deployedRevision ? 'Saved - download required' : 'Downloaded'
   const channels = traditionalChannels(hardware)
@@ -36,10 +41,17 @@ export function PidLifecycleRows({ tag }: { tag: string }): JSX.Element {
       <button className="tbtn sm" disabled={record.online} onClick={() => {
         if (window.confirm('Replace the offline PID_LOOP draft with the saved configuration from this browser profile? Runtime remains unchanged.')) load(tag)
       }}>Load Saved Configuration</button>
+      <button className="tbtn sm" disabled={!record.online || !downloaded} onClick={() => setShowUpload(true)}>
+        Upload Online Values
+      </button>
       <button className="tbtn sm" disabled={record.online || dirty} onClick={() => {
-        if (window.confirm('Full-download this saved PID_LOOP to its assigned simulated controller?')) download(tag)
+        if (changed.length) setShowDownload(true)
+        else if (window.confirm('Full-download this saved PID_LOOP to its assigned simulated controller?')) download(tag)
       }}>Full Download</button>
-    </div></td><td>{record.online ? 'Online runtime' : 'Offline draft'}; {status}</td></tr>
+    </div>
+      {showUpload && <PidTransferDialog tag={tag} mode="UPLOAD" onClose={() => setShowUpload(false)} />}
+      {showDownload && <PidTransferDialog tag={tag} mode="DOWNLOAD" onClose={() => setShowDownload(false)} />}
+    </td><td>{record.online ? 'Online runtime' : 'Offline draft'}; {status}</td></tr>
     <tr><td>SAVED / DOWNLOADED REVISION</td><td>{record.savedRevision} / {record.deployedRevision}</td>
       <td>Local browser database / simulated controller</td></tr>
     {!record.online && <>

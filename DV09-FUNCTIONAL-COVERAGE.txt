@@ -1458,3 +1458,18 @@ equipment palette, protected equipment graphics and FBD geometry are unchanged.
 
 DV09-062 remains PARTIAL: the shared `flow_color` two-color threshold table and
 its cross-object flow/pump/valve/piping animations are not implemented.
+
+PASS 39: FIC-102 SELECTIVE TUNING UPLOAD AND DOWNLOAD PROMPT (pp259-264)
+-----------------------------------------------------------------------
+The managed PID_LOOP can upload selected online GAIN/RESET/RATE values to its
+local saved configuration without changing its running values. A Full Download
+from Offline prompts only when retained tuning differs; all choices begin
+unchecked. Selecting none downloads configured defaults, while selected values
+are persisted and included in the resulting transfer. Cancel closes without
+calling a store action. Tests cover the manual's 0.5/3/0 configured versus
+0.7/2.5/0 online example, subset upload, none, persistence, revision tracking,
+event logging and a subsequent download.
+
+DV09-060 remains PARTIAL: the simulated FIC-102 tuning subset is implemented,
+not native configuration-database communication or uploads for other module
+parameter types. No protected plant artwork, color, pipe or FBD geometry changed.

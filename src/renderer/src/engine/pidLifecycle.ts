@@ -28,6 +28,8 @@ export interface PidLifecyclePatch {
   outputDst?: string
 }
 
+export type PidTuningParameter = 'gain' | 'reset' | 'rate'
+
 export function clonePidConfiguration(configuration: PidConfiguration): PidConfiguration {
   const module = configuration.module
   return {
@@ -39,6 +41,15 @@ export function clonePidConfiguration(configuration: PidConfiguration): PidConfi
       io: clonePidIo(module)
     }
   }
+}
+
+export function changedPidTuningParameters(
+  configuration: PidConfiguration | undefined,
+  runtime: PidModule | undefined
+): PidTuningParameter[] {
+  if (!configuration || !runtime) return []
+  return (['gain', 'reset', 'rate'] as const).filter(parameter =>
+    configuration.module[parameter] !== runtime[parameter])
 }
 
 export function pidLifecycleDirty(record: PidLifecycle): boolean {
@@ -65,8 +76,11 @@ export function pidConfigurationError(configuration: PidConfiguration): string |
   if (!Number.isFinite(m.pvMin) || !Number.isFinite(m.pvMax) || m.pvMin !== 0 || m.pvMax !== 100) {
     return 'PID_LOOP range must remain 0-100 GPM'
   }
-  if (m.unit !== 'GPM' || m.gain !== 0.5 || m.reset !== 3 || m.rate !== 0 || m.direct ||
-      m.outputAction !== 'INCREASE_TO_OPEN') return 'PID_LOOP course tuning or I/O action was changed'
+  if (m.unit !== 'GPM' || !Number.isFinite(m.gain) || m.gain < 0 ||
+      !Number.isFinite(m.reset) || m.reset < 0 || !Number.isFinite(m.rate) || m.rate < 0 ||
+      m.direct || m.outputAction !== 'INCREASE_TO_OPEN') {
+    return 'PID_LOOP tuning must be finite and non-negative with reverse acting increase-to-open I/O'
+  }
   if (m.primaryDisplay !== 'TANK101') return 'PID_LOOP primary display must remain TANK101'
   if (!Number.isFinite(m.sp) || m.sp < m.pvMin || m.sp > m.pvMax) return 'Configured SP must be 0-100 GPM'
   if (!isPidTargetMode(m.mode) || !pidTargetAllowed(m, m.mode)) return 'Configured PID target mode is invalid'

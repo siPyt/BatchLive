@@ -7,10 +7,11 @@ import { FbdCanvas } from '../components/FbdCanvas'
 import { StandaloneAoControls } from '../components/StandaloneAoControls'
 import { ModuleDownloadDialog, ModuleLifecycleRows } from '../components/ModuleLifecycleControls'
 import { PidLifecycleRows } from '../components/PidLifecycleControls'
+import { PidTransferDialog } from '../components/PidTransferDialog'
 import { DeviceDownloadDialog, DeviceLifecycleRows } from '../components/DeviceLifecycleControls'
 import { deviceEditorModules } from '../engine/deviceLifecycle'
 import { lifecycleModules } from '../engine/moduleLifecycle'
-import { lifecyclePidModules } from '../engine/pidLifecycle'
+import { changedPidTuningParameters, lifecyclePidModules, pidLifecycleDirty } from '../engine/pidLifecycle'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
 import { moduleNameError } from '../engine/naming'
@@ -1375,6 +1376,7 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
 }): JSX.Element {
   const [tab, setTab] = useState('Diagram')
   const [showDownload, setShowDownload] = useState(false)
+  const [showPidTransfer, setShowPidTransfer] = useState(false)
   const record = useStore(s => s.moduleLifecycle[tag])
   const pidRecord = useStore(s => s.pidLifecycle[tag])
   const ownerTag = tag.split('/')[0]
@@ -1390,6 +1392,10 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
   const module = useStore((s) => s.modules[tag])
   const trendAvailable = module?.type === 'PID' || module?.type === 'AI'
   const pidTemplate = module?.type === 'PID' && module.templateId === 'PID_LOOP'
+  const pidTuningChanges = changedPidTuningParameters(pidRecord?.saved,
+    module?.type === 'PID' ? module : undefined)
+  const pidDownloadUnavailable = pidRecord?.online ? 'Go Offline before downloading the PID_LOOP' :
+    pidRecord && pidLifecycleDirty(pidRecord) ? 'Save the PID_LOOP configuration before downloading' : undefined
   return (
     <div className="ribbon">
       <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio</span><span className="studio-caption-status">{lifecycle ? lifecycle.online ? 'ONLINE - controller runtime' : 'OFFLINE - configuration draft' : 'ONLINE · simulated configuration'}</span></div>
@@ -1413,9 +1419,10 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
           <RibbonGroup label="Module">
             <RibbonBtn ic="download" label="Download" onClick={() => {
               if (pidRecord) {
-                if (window.confirm('Full-download this saved PID_LOOP to its assigned simulated controller?')) downloadPid(tag)
+                if (pidTuningChanges.length) setShowPidTransfer(true)
+                else if (window.confirm('Full-download this saved PID_LOOP to its assigned simulated controller?')) downloadPid(tag)
               } else setShowDownload(true)
-            }} unavailable={lifecycle ? undefined : pidTemplate ? 'Enable Saved PID_LOOP Lifecycle first' :
+            }} unavailable={pidRecord ? pidDownloadUnavailable : lifecycle ? undefined : pidTemplate ? 'Enable Saved PID_LOOP Lifecycle first' :
               'Enable Saved Module Lifecycle or Saved Device Lifecycle first'} />
             {lifecycle && <RibbonBtn ic="parameters" label="Save" onClick={() => pidRecord ? savePid(tag) :
               deviceRecord ? deviceSave(ownerTag) : save(tag)}
@@ -1445,6 +1452,7 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
       </div>
       {showDownload && (deviceRecord ? <DeviceDownloadDialog tag={ownerTag} onClose={() => setShowDownload(false)} /> :
         <ModuleDownloadDialog tag={tag} onClose={() => setShowDownload(false)} />)}
+      {showPidTransfer && <PidTransferDialog tag={tag} mode="DOWNLOAD" onClose={() => setShowPidTransfer(false)} />}
     </div>
   )
 }

@@ -34,9 +34,10 @@ import {
   type AoDraftPatch, type AoLifecycle
 } from './moduleLifecycle'
 import {
-  clonePidConfiguration, lifecyclePidModules, parseSavedPid, pidConfigurationError, pidDownloadError,
+  changedPidTuningParameters, clonePidConfiguration, lifecyclePidModules, parseSavedPid,
+  pidConfigurationError, pidDownloadError,
   pidLifecycleDirty, savedPidStorageKey, serializeSavedPid,
-  type PidConfiguration, type PidLifecycle, type PidLifecyclePatch
+  type PidConfiguration, type PidLifecycle, type PidLifecyclePatch, type PidTuningParameter
 } from './pidLifecycle'
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
@@ -160,7 +161,8 @@ interface StoreState extends PlantState {
   editPidLifecycle: (tag: string, patch: PidLifecyclePatch) => boolean
   savePidConfiguration: (tag: string) => boolean
   loadSavedPidConfiguration: (tag: string) => boolean
-  downloadPidModule: (tag: string) => boolean
+  uploadPidParameters: (tag: string, parameters: PidTuningParameter[]) => boolean
+  downloadPidModule: (tag: string, uploadParameters?: PidTuningParameter[]) => boolean
   setPidLifecycleOnline: (tag: string, online: boolean) => boolean
   addTraditionalCard: (controllerTag: string, slot: number, type: TraditionalCardType) => boolean
   configureTraditionalChannel: (cardId: string, channel: number,
@@ -2025,7 +2027,52 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
-  downloadPidModule: (tag) => {
+  uploadPidParameters: (tag, parameters) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Upload PID_LOOP parameters ${tag}`)) return false
+    const state = get()
+    const record = state.pidLifecycle[tag]
+    const runtime = state.modules[tag]
+    const selected = [...new Set(parameters)]
+    const supported: PidTuningParameter[] = ['gain', 'reset', 'rate']
+    if (selected.some(parameter => !supported.includes(parameter))) {
+      return rejectPid(get, tag, 'Upload selection contains an unsupported PID_LOOP parameter')
+    }
+    const controller = record?.deployed
+      ? state.hardware.controllers[record.deployed.controllerTag] : undefined
+    if (!record?.deployed || !record.saved || !record.online || runtime?.type !== 'PID' ||
+        !runtime.downloaded || pidLifecycleDirty(record)) {
+      return rejectPid(get, tag, 'Upload requires a clean, downloaded PID_LOOP that is Online')
+    }
+    if (!controller || controllerIsDown(controller)) {
+      return rejectPid(get, tag, 'Upload requires an available assigned controller')
+    }
+    if (!selected.length) {
+      get().logEvent('CONFIGURE', tag, 'PID_LOOP upload selected no parameters; configured values unchanged')
+      return true
+    }
+    const changed = changedPidTuningParameters(record.saved, runtime)
+    const uploading = selected.filter(parameter => changed.includes(parameter))
+    if (!uploading.length) {
+      get().logEvent('CONFIGURE', tag, 'Selected PID_LOOP tuning parameters already match configured values')
+      return true
+    }
+    const configuration = clonePidConfiguration(record.saved)
+    for (const parameter of uploading) configuration.module[parameter] = runtime[parameter]
+    const error = pidConfigurationError(configuration)
+    if (error) return rejectPid(get, tag, `PID_LOOP upload rejected; configuration unchanged: ${error}`)
+    try {
+      window.localStorage.setItem(savedPidStorageKey(tag), serializeSavedPid(configuration))
+    } catch (error) {
+      return rejectPid(get, tag, `PID_LOOP upload failed; configuration unchanged: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    set(s => ({ pidLifecycle: { ...s.pidLifecycle, [tag]: { ...record,
+      draft: clonePidConfiguration(configuration), saved: clonePidConfiguration(configuration),
+      savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, `Uploaded online PID_LOOP values to configuration: ${uploading.join(', ').toUpperCase()}`)
+    return true
+  },
+
+  downloadPidModule: (tag, uploadParameters = []) => {
     if (!useSecurity.getState().requireLock('CAN_DOWNLOAD', `Download PID_LOOP ${tag}`)) return false
     const state = get()
     const record = state.pidLifecycle[tag]
@@ -2033,9 +2080,25 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!record || record.online || !record.saved || runtime?.type !== 'PID' || pidLifecycleDirty(record)) {
       return rejectPid(get, tag, 'Save a valid offline PID_LOOP draft before downloading')
     }
-    const error = pidDownloadError(record.saved, state.hardware)
-    if (error) return rejectPid(get, tag, `PID_LOOP download failed; last-good runtime retained: ${error}`)
+    const selected = [...new Set(uploadParameters)]
+    const supported: PidTuningParameter[] = ['gain', 'reset', 'rate']
+    if (selected.some(parameter => !supported.includes(parameter))) {
+      return rejectPid(get, tag, 'Download upload selection contains an unsupported PID_LOOP parameter')
+    }
+    const changed = changedPidTuningParameters(record.saved, runtime)
+    const uploading = selected.filter(parameter => changed.includes(parameter))
     const configuration = clonePidConfiguration(record.saved)
+    for (const parameter of uploading) configuration.module[parameter] = runtime[parameter]
+    const error = pidDownloadError(configuration, state.hardware)
+    if (error) return rejectPid(get, tag, `PID_LOOP download failed; last-good runtime retained: ${error}`)
+    const savedRevision = record.savedRevision + Number(uploading.length > 0)
+    if (uploading.length) {
+      try {
+        window.localStorage.setItem(savedPidStorageKey(tag), serializeSavedPid(configuration))
+      } catch (error) {
+        return rejectPid(get, tag, `PID_LOOP upload before download failed; last-good runtime retained: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
     const deployed = { ...configuration.module, controllerTag: configuration.controllerTag,
       downloaded: true, lifecycleOnline: false, mode: 'OOS' as const, actualMode: 'OOS' as const,
       pv: runtime.pv, out: runtime.out, pvBad: true }
@@ -2044,9 +2107,16 @@ export const useStore = create<StoreState>((set, get) => ({
       hardware: { ...s.hardware, analogBindings: { ...s.hardware.analogBindings,
         [tag]: { input: configuration.inputDst, output: configuration.outputDst } } },
       pidLifecycle: { ...s.pidLifecycle, [tag]: { ...record,
-        deployed: clonePidConfiguration(configuration), deployedRevision: record.savedRevision } },
+        ...(uploading.length ? { draft: clonePidConfiguration(configuration),
+          saved: clonePidConfiguration(configuration), savedRevision } : {}),
+        deployed: clonePidConfiguration(configuration), deployedRevision: savedRevision } },
       rev: s.rev + 1
     }))
+    if (uploading.length) {
+      get().logEvent('CONFIGURE', tag, `Uploaded selected online PID_LOOP values before download: ${uploading.join(', ').toUpperCase()}`)
+    } else if (changed.length) {
+      get().logEvent('CONFIGURE', tag, 'No online PID_LOOP values selected for upload; configured tuning retained')
+    }
     get().logEvent('CONFIGURE', tag, `Full simulated PID_LOOP download committed atomically to ${configuration.controllerTag}; Go Online to execute`)
     return true
   },

@@ -926,12 +926,20 @@ Acceptance: Verify exact FIC-102 course configuration and picture assignments;
 
 [DV09-060]
 Pages: 259-264
-Status: MISSING
+Status: PARTIAL
 Required: Upload selected online values to configured defaults; prompt during
   download when online values differ; selecting none must not copy parameters.
-Evidence: Single live configuration/runtime state; no Upload selection dialog.
-Acceptance: Configured0.5/3/0 versus online0.7/2.5/0 must remain distinguishable.
-  Test subset and none selections, cancellation, logging and subsequent download.
+Evidence: PID_LOOP tuning upload supports GAIN/RESET/RATE subset selection,
+  persists selected values to the local saved configuration, and leaves live
+  runtime unchanged. Full Download detects retained tuning differences and
+  presents an unchecked-by-default upload prompt; None keeps configured values.
+  Upload, no-selection, selected-subset and subsequent-download store regressions
+  cover the manual's 0.5/3/0 versus 0.7/2.5/0 example. Native database/controller
+  communication is not modeled; UI cancellation is available without invoking
+  a store action.
+Acceptance: Verify p259-264 selection, none, cancel and follow-up download in
+  the PID_LOOP workflow. This implements tuning parameters only, not a generic
+  upload mechanism for every module parameter type.
 
 [DV09-061]
 Pages: 265-265

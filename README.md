@@ -583,6 +583,14 @@ controller-mismatched record cannot be downloaded; the runtime remains OOS
 until a current saved revision has been downloaded and placed Online. Physical
 DeltaV controller communication and native project databases are not modeled.
 
+For a downloaded PID_LOOP that is Online, `Upload Online Values` offers only
+changed GAIN, RESET and RATE values. Selected values persist to the local saved
+configuration while the running module remains unchanged. A later Full Download
+prompts when retained online tuning differs; selections start empty, and
+Download Only preserves the configured defaults. Cancelling either dialog does
+not write values. This is the FIC-102 tuning subset, not general native module
+upload or controller-database communication.
+
 In the Display Builder, a FIC-102 `PID1/SP` datalink can use numeric entry
 bounded by its engineering range. `PID1/MODE.A_TARGET` supports a multiple-item
 selector constrained by `MODE.PERMITTED`; `MODE.A_ACTUAL` can be displayed

@@ -201,6 +201,70 @@ test('p254 PID_LOOP Save, Full Download, controller binding and Online are isola
   assert.ok(global.window.alerts.some(message => message.includes('Go Online')))
 }))
 
+test('p259-264 PID_LOOP tuning uploads selected values and preserves configured defaults when none are selected', () => fixture(store => {
+  store.bindAnalogDst('FIC-102', 'input', 'FT-2')
+  store.bindAnalogDst('FIC-102', 'output', 'FY-2')
+  assert.equal(store.enablePidLifecycle('FIC-102'), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  assert.equal(store.downloadPidModule('FIC-102'), true)
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), true)
+
+  store.setTuning('FIC-102', { gain: 0.7, reset: 2.5, rate: 0 })
+  let state = useStore.getState()
+  assert.deepEqual([fic().gain, fic().reset, fic().rate], [0.7, 2.5, 0])
+  assert.deepEqual([state.pidLifecycle['FIC-102'].saved.module.gain,
+    state.pidLifecycle['FIC-102'].saved.module.reset, state.pidLifecycle['FIC-102'].saved.module.rate],
+  [0.5, 3, 0], 'online changes remain distinct from configured defaults')
+
+  assert.equal(store.uploadPidParameters('FIC-102', ['gain', 'reset']), true)
+  state = useStore.getState()
+  assert.deepEqual([state.pidLifecycle['FIC-102'].saved.module.gain,
+    state.pidLifecycle['FIC-102'].saved.module.reset, state.pidLifecycle['FIC-102'].saved.module.rate],
+  [0.7, 2.5, 0], 'only selected tuning values upload')
+  assert.deepEqual([fic().gain, fic().reset, fic().rate], [0.7, 2.5, 0],
+    'upload does not alter the running controller')
+  assert.equal(state.pidLifecycle['FIC-102'].savedRevision,
+    state.pidLifecycle['FIC-102'].deployedRevision + 1)
+  const persisted = JSON.parse(global.window.localStorage.getItem(savedPidStorageKey('FIC-102')))
+  assert.deepEqual([persisted.configuration.module.gain, persisted.configuration.module.reset,
+    persisted.configuration.module.rate], [0.7, 2.5, 0], 'uploaded configured defaults persist')
+  assert.equal(store.uploadPidParameters('FIC-102', []), true)
+  assert.equal(useStore.getState().pidLifecycle['FIC-102'].savedRevision, state.pidLifecycle['FIC-102'].savedRevision,
+    'selecting none does not revise or copy configured parameters')
+
+  assert.equal(store.setPidLifecycleOnline('FIC-102', false), true)
+  assert.equal(store.downloadPidModule('FIC-102'), true, 'download uses the selected uploaded defaults')
+  state = useStore.getState()
+  assert.deepEqual([state.pidLifecycle['FIC-102'].deployed.module.gain,
+    state.pidLifecycle['FIC-102'].deployed.module.reset], [0.7, 2.5])
+
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), true)
+  store.setTuning('FIC-102', { gain: 0.9, reset: 2.2, rate: 0.4 })
+  assert.equal(store.setPidLifecycleOnline('FIC-102', false), true)
+  state = useStore.getState()
+  const beforeNone = state.pidLifecycle['FIC-102'].saved
+  assert.equal(store.downloadPidModule('FIC-102', []), true, 'an empty selection still completes the requested download')
+  state = useStore.getState()
+  assert.deepEqual([state.pidLifecycle['FIC-102'].saved.module.gain,
+    state.pidLifecycle['FIC-102'].saved.module.reset, state.pidLifecycle['FIC-102'].saved.module.rate],
+  [beforeNone.module.gain, beforeNone.module.reset, beforeNone.module.rate],
+  'none-selected download retains all configured defaults')
+  assert.ok(state.eventLog.some(event => event.tag === 'FIC-102' &&
+    event.description.includes('No online PID_LOOP values selected for upload')))
+
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), true)
+  store.setTuning('FIC-102', { gain: 1.1, reset: 2.1, rate: 0.6 })
+  assert.equal(store.setPidLifecycleOnline('FIC-102', false), true)
+  assert.equal(store.downloadPidModule('FIC-102', ['gain']), true)
+  state = useStore.getState()
+  assert.deepEqual([state.pidLifecycle['FIC-102'].saved.module.gain,
+    state.pidLifecycle['FIC-102'].saved.module.reset, state.pidLifecycle['FIC-102'].saved.module.rate],
+  [1.1, 2.5, 0], 'download prompt applies only selected values')
+  assert.deepEqual([state.pidLifecycle['FIC-102'].deployed.module.gain,
+    state.pidLifecycle['FIC-102'].deployed.module.reset, state.pidLifecycle['FIC-102'].deployed.module.rate],
+  [1.1, 2.5, 0], 'successful transfer deploys the resulting saved configuration')
+}))
+
 test('p256 FIC-102 picture entry writes bounded SP and only permits configured PID target modes', () => fixture(store => {
   const pictures = usePictures.getState()
   const spId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 220,
