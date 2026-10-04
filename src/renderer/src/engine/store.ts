@@ -23,8 +23,9 @@ import type {
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { resetDeviceLock, stepPlant } from './simulate'
-import { captureDevice, deviceActive, deviceConfigurationError, deviceDirty, deviceDownloadError,
+import { captureDevice, cloneDeviceConfiguration, deviceActive, deviceConfigurationError, deviceDirty, deviceDownloadError, deviceEditorModules,
   deviceOperatorError, parseDevice, savedDeviceKey, serializeDevice, type DeviceDraftPatch, type DeviceLifecycle } from './deviceLifecycle'
+import { materializeMotorStrategy, motorStrategyError, motorTemplateStrategy, ownedMotorBlock, strategyModules, type MotorBlockConfiguration } from './motorStrategy'
 import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
 import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
 import {
@@ -35,7 +36,7 @@ import {
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
-import { conditionExpressionError } from './fbCondition'
+import { conditionSourceError } from './fbCondition'
 import { deviceSourceError, resetConditionTiming } from './fb'
 import {
   analogBindingError, channelConfigurationError, deviceBindingError, discreteBindingError, findDst, makeTraditionalCard,
@@ -122,6 +123,8 @@ interface StoreState extends PlantState {
   loadDeviceConfiguration: (tag: string) => boolean
   downloadDeviceConfiguration: (tag: string) => boolean
   setDeviceOnline: (tag: string, online: boolean) => boolean
+  createMotorTemplate: (tag: string, area: string, description?: string) => boolean
+  editMotorBlock: (tag: string, patch: Partial<MotorBlockConfiguration>) => boolean
   namedSets: NamedSetState
   sfcLifecycle: Record<string, SfcLifecycle>
   enableSfcLifecycle: (name: string) => boolean
@@ -354,6 +357,16 @@ export const useStore = create<StoreState>((set, get) => ({
     // Journal every alarm transition: newly active alarms and returns-to-normal.
     const nextById = new Map(next.alarms.map((a) => [a.id, a]))
     const newEntries: EventLogEntry[] = [...sfcDiagnostics]
+    const nextSignals = strategyModules(next.modules)
+    const previousSignals = strategyModules(s.modules)
+    for (const [tag, m] of Object.entries(nextSignals)) {
+      const old = previousSignals[tag]
+      if (m.type === 'FB' && m.fbType === 'CND' && m.expressionError !== (old?.type === 'FB' ? old.expressionError : undefined) &&
+        (m.expressionError || old?.type === 'FB' && old.expressionError)) {
+        newEntries.push({ id: `${tag}-condition-${next.time}`, time: next.time, category: 'DIAGNOSTIC',
+          tag, user: 'SYSTEM', description: m.expressionError ?? 'CND expression source restored' })
+      }
+    }
     for (const [tag, module] of Object.entries(next.modules)) {
       const old = s.modules[tag]
       const error = module.type === 'PID' ? module.io?.splitter?.error :
@@ -490,6 +503,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setFbInput: (tag, which, ref) => {
+    if (motorEditorBlock(get(), tag)) { get().editMotorBlock(tag, { [which]: ref }); return }
     if (!requireUnlockedLock('CAN_CONFIGURE', `Wire ${tag}.${which.toUpperCase()}`)) return
     if (ref.kind === 'ref' && (ref.parameter || ref.block)) {
       const error = ref.tag
@@ -558,6 +572,13 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setFbConfig: (tag, patch) => {
+    if (motorEditorBlock(get(), tag)) {
+      if (Object.keys(patch).some(key => key !== 'expr' && key !== 'delaySec')) {
+        rejectSfc(get, tag, 'Owned motor blocks expose condition expression and delay configuration'); return
+      }
+      get().editMotorBlock(tag, patch)
+      return
+    }
     if (!requireUnlockedLock('CAN_CONFIGURE', `Configure ${tag}`)) return
     const module = get().modules[tag]
     if (module?.type !== 'FB') {
@@ -567,7 +588,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return
     }
     if (module?.type === 'FB' && module.fbType === 'CND') {
-      const error = patch.expr !== undefined ? conditionExpressionError(patch.expr) : null
+      const error = patch.expr !== undefined ? conditionSourceError(patch.expr, get().modules) : null
       const delayError = patch.delaySec !== undefined && (!Number.isFinite(patch.delaySec) || patch.delaySec < 0)
         ? 'Condition delay must be finite and nonnegative' : null
       if (error || delayError) {
@@ -587,7 +608,15 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setFbSafety: (tag, option, value) => {
     if (!requireUnlockedLock('RESTRICTED_CONTROL', `${option} ${tag}`)) return false
-    const module = get().modules[tag]
+    const owned = ownedMotorBlock(get().modules, tag)
+    if (owned && (!owned.owner.downloaded || !get().deviceLifecycle[owned.owner.tag]?.online)) {
+      return rejectSfc(get, tag, 'Download the owned motor strategy and Go Online before safety writes')
+    }
+    if (owned) {
+      const error = deviceOperatorError(owned.owner, get().hardware)
+      if (error) return rejectSfc(get, tag, error)
+    }
+    const module = strategyModules(get().modules)[tag]
     const error = typeof value !== 'boolean' ? 'Safety setting must be Boolean' :
       module?.type !== 'FB' ||
         (option === 'BYPASS' ? module.fbType !== 'CND' :
@@ -1248,7 +1277,9 @@ export const useStore = create<StoreState>((set, get) => ({
     set(s => ({
       areas: s.areas.map(area => area === name ? key : area),
       modules: Object.fromEntries(Object.entries(s.modules).map(([tag, module]) =>
-        [tag, module.area === name ? { ...module, area: key } : module])),
+        [tag, module.area === name ? module.type === 'MOTOR' && module.ownedBlocks ? { ...module, area: key,
+          ownedBlocks: Object.fromEntries(Object.entries(module.ownedBlocks).map(([blockName, b]) => [blockName, { ...b, area: key }])) } :
+          { ...module, area: key } : module])),
       equipment: Object.fromEntries(Object.entries(s.equipment).map(([tag, equipment]) =>
         [tag, equipment.area === name ? { ...equipment, area: key } : equipment])),
       sfcs: Object.fromEntries(Object.entries(s.sfcs).map(([tag, sfc]) =>
@@ -1466,11 +1497,11 @@ export const useStore = create<StoreState>((set, get) => ({
     const state = get()
     const record = state.deviceLifecycle[tag]
     if (!record || record.online) return rejectSfc(get, tag, 'Go Offline to edit device configuration')
-    const draft = { ...record.draft, ...patch }
+    const draft = cloneDeviceConfiguration({ ...record.draft, ...patch })
     draft.inputDst = draft.inputDst.trim().toUpperCase()
     draft.outputDst = draft.outputDst.trim().toUpperCase()
     const error = deviceConfigurationError(draft, state.modules) ??
-      (draft.controllerTag && !state.hardware.controllers[draft.controllerTag] ? 'Assigned controller does not exist' : null)
+      (patch.controllerTag !== undefined && draft.controllerTag && !state.hardware.controllers[draft.controllerTag] ? 'Assigned controller does not exist' : null)
     if (error) return rejectSfc(get, tag, error)
     set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, draft } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', tag, 'Offline device draft changed; runtime and physical bindings unchanged')
@@ -1487,7 +1518,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try { window.localStorage.setItem(savedDeviceKey(tag), serializeDevice(record.draft)) }
     catch (error) { return rejectSfc(get, tag, `Device save failed; database unchanged: ${error instanceof Error ? error.message : String(error)}`) }
     set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record,
-      saved: { ...record.draft }, savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
+      saved: cloneDeviceConfiguration(record.draft), savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', tag, 'Device configuration saved to local browser database; runtime unchanged')
     return true
   },
@@ -1505,7 +1536,7 @@ export const useStore = create<StoreState>((set, get) => ({
     } catch (error) { return rejectSfc(get, tag, `Device load failed; draft/runtime unchanged: ${error instanceof Error ? error.message : String(error)}`) }
     const error = deviceConfigurationError(saved, state.modules)
     if (error) return rejectSfc(get, tag, error)
-    set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, draft: { ...saved },
+    set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, draft: cloneDeviceConfiguration(saved),
       saved, savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', tag, 'Saved device loaded offline; download still required')
     return true
@@ -1523,13 +1554,19 @@ export const useStore = create<StoreState>((set, get) => ({
     const error = deviceDownloadError(record.saved, state.modules, state.hardware)
     if (error) return rejectSfc(get, tag, `Device download failed; last-good runtime retained: ${error}`)
     const c = record.saved
-    set(s => ({ modules: { ...s.modules, [tag]: { ...m, permissiveRequired: c.permissiveRequired,
+    const deployedModule = { ...m, permissiveRequired: c.permissiveRequired,
+      interlockInverted: c.interlockInverted,
       resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec, interlockSource: c.interlockSource,
       permissiveSource: c.permissiveSource, commandSource: c.commandSource, controllerTag: c.controllerTag,
       downloaded: true, ioInputBad: true, ioOutputBad: true, outputCommand: false, travelTimer: 0,
-      interlock: c.interlockSource ? true : m.interlock, permissiveOk: c.permissiveSource ? false : m.permissiveOk } },
+      interlock: c.interlockSource ? true : m.interlock, permissiveOk: c.permissiveSource ? false : m.permissiveOk }
+    if (deployedModule.type === 'MOTOR' && c.strategy) {
+      deployedModule.templateId = 'MTR-11_ILOCK'
+      deployedModule.ownedBlocks = materializeMotorStrategy(tag, m.area, c.strategy)
+    }
+    set(s => ({ modules: { ...s.modules, [tag]: deployedModule },
     hardware: { ...s.hardware, deviceBindings: { ...s.hardware.deviceBindings, [tag]: { input: c.inputDst, output: c.outputDst } } },
-    deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, deployed: { ...c }, deployedRevision: record.savedRevision, online: true } },
+    deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, deployed: cloneDeviceConfiguration(c), deployedRevision: record.savedRevision, online: true } },
     rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', tag, `Saved device revision ${record.savedRevision} Full downloaded to simulated ${c.controllerTag}; external confirmation required`)
     return true
@@ -1544,6 +1581,49 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, online } } }))
     return true
+  },
+
+  createMotorTemplate: (rawTag, area, description) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', 'Copy MTR-11_ILOCK motor template')) return false
+    const tag = rawTag.trim().toUpperCase()
+    const state = get()
+    const error = moduleNameError(tag) ?? (state.modules[tag] || state.sfcs[tag] ? `Module ${tag} already exists` :
+      !state.areas.includes(area) ? `Area ${area} does not exist` : null)
+    if (error) return rejectSfc(get, tag, error)
+    const module = makeModule({ tag, area, type: 'MOTOR', description: description?.trim() || 'Two-condition interlocked motor' })
+    if (module.type !== 'MOTOR') return rejectSfc(get, tag, 'Motor template construction failed')
+    module.templateId = 'MTR-11_ILOCK'
+    module.ownedBlocks = materializeMotorStrategy(tag, area, motorTemplateStrategy(tag))
+    module.interlockSource = `${tag}/NOT1`
+    module.interlockInverted = true
+    module.permissiveSource = `${tag}/AND1`
+    module.permissiveRequired = true
+    module.permissiveOk = false
+    module.downloaded = false
+    module.ioInputBad = true
+    module.ioOutputBad = true
+    const draft = captureDevice(module, state.hardware)
+    set(s => ({ modules: { ...s.modules, [tag]: module }, deviceLifecycle: { ...s.deviceLifecycle,
+      [tag]: { draft, online: false, savedRevision: 0, deployedRevision: 0 } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, 'MTR-11_ILOCK modeled two-condition template copied with owned CND1/CND2/BFI1/OR1/NOT1/AND1 and native healthy interlock polarity; Save/Full Download required')
+    return true
+  },
+
+  editMotorBlock: (tag, patch) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Edit owned block ${tag}`)) return false
+    const state = get()
+    const owned = motorEditorBlock(state, tag)
+    const record = owned ? state.deviceLifecycle[owned.owner.tag] : undefined
+    if (!owned || !record?.draft.strategy || record.online) return rejectSfc(get, tag, 'Go Offline to edit an owned motor strategy')
+    const draft = cloneDeviceConfiguration(record.draft)
+    const blocks = draft.strategy
+    if (!blocks) return rejectSfc(get, tag, 'Motor strategy is not configured')
+    blocks[owned.name] = { ...blocks[owned.name], ...patch }
+    if (patch.in1) blocks[owned.name].in1 = { ...patch.in1 }
+    if (patch.in2) blocks[owned.name].in2 = { ...patch.in2 }
+    const error = motorStrategyError(owned.owner.tag, owned.owner.area, blocks, state.modules)
+    if (error) return rejectSfc(get, tag, error)
+    return get().editDeviceDraft(owned.owner.tag, { strategy: blocks })
   },
 
   enableModuleLifecycle: (tag) => {
@@ -1920,6 +2000,9 @@ export const useStore = create<StoreState>((set, get) => ({
 
   deleteModule: (tag) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Delete module ${tag}`)) return
+    if (motorEditorBlock(get(), tag)) {
+      rejectSfc(get, tag, 'Owned template blocks cannot be deleted independently; delete the stopped/confirmed owning motor'); return
+    }
     const module = get().modules[tag]
     if (get().hardware.deviceBindings?.[tag] &&
       (module?.type === 'MOTOR' && (module.commanded || module.running || module.appliedCommand) ||
@@ -2406,6 +2489,10 @@ function rejectAo(get: () => StoreState, tag: string, message: string): false {
   return false
 }
 
+function motorEditorBlock(state: StoreState, tag: string): ReturnType<typeof ownedMotorBlock> {
+  return ownedMotorBlock(deviceEditorModules(state.modules, state.deviceLifecycle), tag)
+}
+
 function mutateModule(
   set: (fn: (s: StoreState) => Partial<StoreState>) => void,
   get: () => StoreState,
@@ -2413,6 +2500,14 @@ function mutateModule(
   fn: (m: AnyModule) => void
 ): void {
   const s = get()
+  const owned = ownedMotorBlock(s.modules, tag)
+  if (owned) {
+    const block = { ...owned.block }
+    fn(block)
+    set(st => ({ modules: { ...st.modules, [owned.owner.tag]: { ...owned.owner,
+      ownedBlocks: { ...owned.owner.ownedBlocks, [owned.name]: block } } }, rev: st.rev + 1 }))
+    return
+  }
   const existing = s.modules[tag]
   if (!existing) return
   const clone = { ...existing } as AnyModule

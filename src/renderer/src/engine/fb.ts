@@ -1,4 +1,5 @@
 import type { AnyModule, FbBlockType, FunctionBlockModule } from './types'
+import { conditionReferences } from './fbCondition'
 
 export function resetConditionTiming(module: FunctionBlockModule): void {
   module._timerElapsed = 0
@@ -173,6 +174,10 @@ export function moduleExecutionOrder(modules: Record<string, AnyModule>): string
     } else if (m.type === 'FB') {
       for (const input of [m.in1, ...(FB_NEEDS_IN2[m.fbType] ? [m.in2] : [])]) {
         if (input.kind === 'ref' && input.block !== 'AI1') visit(input.tag)
+      }
+      if (m.fbType === 'CND') {
+        const result = conditionReferences(m.expr)
+        if ('references' in result) for (const ref of result.references) visit(ref.tag)
       }
     } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
       visit(m.interlockSource)

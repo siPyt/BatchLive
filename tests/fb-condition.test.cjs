@@ -12,6 +12,71 @@ const { stepFunctionBlock, deviceInterlockSignal } = require('../src/renderer/sr
 const { makeFunctionBlock } = require('../src/renderer/src/engine/plant.ts')
 const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
+test('native healthy interlock polarity maps only qualified zero to trip; Bad trips regardless of polarity', () => {
+  const { makeModule } = require('../src/renderer/src/engine/plant.ts')
+  const m = makeModule({ tag: 'MTR', type: 'MOTOR', area: 'FEED', description: 'Native interlock' })
+  const source = makeFunctionBlock({ tag: 'NOT1', area: 'FEED', description: 'Healthy signal', fbType: 'NOT' })
+  m.interlockSource = 'NOT1'
+  m.interlockInverted = true
+  source.bad = false
+  source.out = 1
+  assert.deepEqual(deviceInterlockSignal(m, { NOT1: source }), { value: 0, bad: false })
+  source.out = 0
+  assert.deepEqual(deviceInterlockSignal(m, { NOT1: source }), { value: 1, bad: false })
+  source.out = 1
+  source.bad = true
+  assert.deepEqual(deviceInterlockSignal(m, { NOT1: source }), { value: 1, bad: true })
+  assert.deepEqual(deviceInterlockSignal(m, {}), { value: 1, bad: true })
+  m.interlockInverted = false
+  source.bad = false
+  assert.deepEqual(deviceInterlockSignal(m, { NOT1: source }), { value: 1, bad: false })
+})
+test('exact course quoted DI1/PV_D and AI1/PV expressions parse without eval and require actual qualified sources', () => {
+  for (const [expr, ref, value] of [
+    ["'//XVSTAT-101/DI1/PV_D' = 0", { tag: 'XVSTAT-101', block: 'DI1', parameter: 'PV_D' }, 0],
+    ["'//LI-101/AI1/PV' < 50", { tag: 'LI-101', block: 'AI1', parameter: 'PV' }, 49],
+    ["'//LI-101/AI1/PV.CV' < 50", { tag: 'LI-101', block: 'AI1', parameter: 'PV' }, 49],
+    ["'//XVSTAT-101/DI1/PV_D.CV' = 0", { tag: 'XVSTAT-101', block: 'DI1', parameter: 'PV_D' }, 0]
+  ]) {
+    assert.equal(conditionExpressionError(expr), null)
+    assert.deepEqual(evaluateConditionExpression(expr, 999, 999, r => {
+      assert.deepEqual(r, ref)
+      return { value, bad: false }
+    }), { value: 1 })
+    assert.ok(evaluateConditionExpression(expr, 0, 0).error)
+    assert.ok(evaluateConditionExpression(expr, 0, 0, () => ({ value, bad: true })).error)
+    assert.ok(evaluateConditionExpression(expr, 0, 0, () => ({ value: Infinity, bad: false })).error)
+  }
+  for (const invalid of ["'//LI-101/AI1/PV_D' < 50", "'//XVSTAT-101/DI1/PV' = 0",
+    "'//LI-101/AI1/PV'<50;run()", "'//LI-101/AI1/PV", "'//LI-101/AI1/OUT'<50"]) assert.ok(conditionExpressionError(invalid))
+})
+test('quoted condition reads real DI/AI feedback; Bad or missing source resets delay even while bypassed', () => {
+  const { makeModule } = require('../src/renderer/src/engine/plant.ts')
+  const level = makeModule({ tag: 'LI-101', type: 'AI', area: 'FEED', description: 'Measured level' })
+  level.pv = 49
+  level.pvBad = false
+  const m = block("'//LI-101/AI1/PV' < 50")
+  m.in1.value = 999
+  scan(m, 39, { 'LI-101': level })
+  assert.equal(m.out, 0)
+  scan(m, 1, { 'LI-101': level })
+  assert.equal(m.out, 1)
+  level.pvBad = true
+  m.bypass = true
+  scan(m, 1, { 'LI-101': level })
+  assert.equal(m.bad, true)
+  assert.equal(m._timerElapsed, 0)
+  assert.match(m.expressionError, /LI-101\/AI1\/PV/)
+  level.pvBad = false
+  m.bypass = false
+  scan(m, 39, { 'LI-101': level })
+  assert.equal(m.out, 0)
+  scan(m, 1, { 'LI-101': level })
+  assert.equal(m.out, 1)
+  scan(m, 1, {})
+  assert.equal(m.bad, true)
+  assert.equal(m.out, 0)
+})
 function block(expr = 'IN1 < 50', delaySec = 4) {
   return { ...makeFunctionBlock({ tag: 'CND2', area: 'FEED', description: 'Low level', fbType: 'CND' }), expr, delaySec,
     in1: { kind: 'const', value: 49 }, in2: { kind: 'const', value: 0 } }

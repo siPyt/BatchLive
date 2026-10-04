@@ -1085,6 +1085,40 @@ verified. Original96-module running plant, UI/security/browser saved data,
 Native MTR template ownership, Partial download, upload/NVM and exact
 500/10gal process remain gaps; no full workshop/course certification.
 
+PASS 30: OWNED TWO-CONDITION MOTOR TEMPLATE / EXACT QUOTED PATHS
+-------------------------------------------------------
+Original p226 image reviewed, including BFI/OR/NOT/AND/DC relationships.
+Explorer MOTOR library selection creates a single inhibited owning motor
+with namespaced CND1/CND2/BFI1/OR1/NOT1/AND1. Offline edits are isolated,
+persist with owner and transfer in one validated Full download. Individual
+owned block deletion rejects. Online bypass/arming/reset mutate only actual
+downloaded blocks. Multiple instances have separate namespace/runtime.
+BFI-to-NOT-to-interlock uses explicit saved healthy-at1 polarity;0 trips and
+Bad always trips. AND start permissive is independent. Existing standalone
+active-trip-at1 behavior is unchanged. OR reads actual independent bypasses.
+Exact quoted p230 DI1/PV_D and AI1/PV references execute against typed,
+qualified live feedback and participate in dependency order. No eval or
+textual command substitution. Invalid paths/types reject, Bad/missing/
+nonfinite sources reset delay and propagate fail-safe trip plus journal.
+Connected diagram shows owned graph and quoted source dependencies.
+Ribbon caption/Save/Download/Properties/Faceplate route to the actual owner.
+14 new regressions,292 total tests/typecheck/build; actual UI template copy/
+owned Apply/Save/Full download/exact quotes3.9-to4.0 boundary/first-out2/
+physical output shutdown/active-feedback distinction/reset/bypass indication
+verified. Original96-module running plant/UI/security/saved browser data/
+720x576 viewport restored and fixtures removed.
+Faceplate captured descriptions/live trips/quality/bypass indicator and
+restricted online history-reset/bypass verified: history reset retains
+actual trip/lock; bypass clears a healthy cause but retains motor lock.
+Ribbon Offline/Online, owner Save/Download/Faceplate and actual independent
+AND-denied start/NOT-healthy interlock additionally verified in browser.
+Persistent restored owned drafts are editable before hardware is recreated;
+deployment still validates current hardware. Area rename preserves owner/
+block membership without prior-scan aliasing.
+Remaining: original8/16-condition graph/palette and Library drag/drop,
+configurable state masks/all DC options/named descriptors, partial device
+download/upload/NVM and exact500/10gal prerequisites. Full DV-09 incomplete.
+
 PASS 27: SUSTAINED CND COMPARISONS / FAIL-SAFE INTERLOCK QUALITY
 -------------------------------------------------------
 Scope: p230 / DV09-050 condition dependency subset. CND now parses actual

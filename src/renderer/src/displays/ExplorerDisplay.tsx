@@ -657,6 +657,7 @@ function NewModuleForm({
   const [unit, setUnit] = useState('%')
   const [pvMin, setPvMin] = useState(0)
   const [pvMax, setPvMax] = useState(100)
+  const [motorTemplate, setMotorTemplate] = useState(false)
 
   const analog = algorithm === 'FBD' && (type === 'PID' || type === 'AI' || type === 'AO')
   const normTag = tag.trim().toUpperCase()
@@ -684,6 +685,14 @@ function NewModuleForm({
       unit: analog ? unit : undefined,
       pvMin: analog ? pvMin : undefined,
       pvMax: analog ? pvMax : undefined
+    }
+    if (type === 'MOTOR' && motorTemplate) {
+      if (!useStore.getState().createMotorTemplate(normTag, area, spec.description)) return
+      if (em) useStore.getState().setModuleEquipment(normTag, em)
+      select(normTag)
+      onDone()
+      useUi.getState().openStudio(normTag)
+      return
     }
     if (!createModule(spec)) return
     select(normTag)
@@ -715,6 +724,12 @@ function NewModuleForm({
           <option value="DI">DI — Discrete Input</option>
           <option value="DO">DO — Discrete Output</option>
           <option value="FB">FB — Math/Logic/Timer Block</option>
+        </select>
+      </label>}
+      {algorithm === 'FBD' && type === 'MOTOR' && <label>Module template
+        <select aria-label="Motor module template" value={motorTemplate ? 'MTR-11_ILOCK' : 'LIVE'} onChange={e => setMotorTemplate(e.target.value === 'MTR-11_ILOCK')}>
+          <option value="LIVE">Live standalone motor (existing behavior)</option>
+          <option value="MTR-11_ILOCK">Library / Motors-2State / MTR-11_ILOCK - owned two-condition strategy</option>
         </select>
       </label>}
       {algorithm === 'FBD' && type === 'FB' && (

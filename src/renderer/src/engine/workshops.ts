@@ -341,7 +341,7 @@ export const COURSE: WModule[] = [
         id: 'motor-sustained-condition',
         title: 'Sustained low-level condition and closed-valve trip',
         objective: 'Execute the p230 condition dependencies with exact threshold/time boundaries and actual motor shutdown.',
-        note: 'Wired IN1/IN2 expression subset, not native quoted expressions or MTR-11_ILOCK. Separate first-out/bypass and saved device workshops follow.',
+        note: 'Wired IN1/IN2 and exact quoted DI1/PV_D/AI1/PV expressions execute. The owned two-condition template workshop follows; full native template/property parity remains incomplete.',
         steps: [
           { id: 'motor-cnd-source', text: 'Use good XVSTAT-101 DI feedback and LI-101 AI measured input. Create CND1/CND2 and OR-TRIP function blocks. Wire CND1.IN1 to XVSTAT-101 and CND2.IN1 to LI-101.', goto: 'studio' },
           { id: 'motor-cnd-expression', text: 'In CND1 EXPR enter IN1 = 0 and Apply; set TIME_DURATION0s. In CND2 enter IN1 < 50 and Apply; set TIME_DURATION4s. An unapplied draft never executes. Malformed syntax is rejected with a notification and diagnostic.' },
@@ -366,13 +366,26 @@ export const COURSE: WModule[] = [
         id: 'motor-saved-device',
         title: 'Saved motor/valve configuration and Full download',
         objective: 'Separate edited and persisted configuration from deployed runtime and physical command/confirmation.',
-        note: 'Full simulated device transfer subset, not native template ownership, Partial download or upload/NVM. Use independent traditional DI/DO. Offline never stops an already-deployed runtime.',
+        note: 'Full simulated device transfer subset, not full native template parity, Partial download or upload/NVM. Use independent traditional DI/DO. Offline never stops an already-deployed runtime.',
         steps: [
           { id: 'motor-save-enable', text: 'Stop/close the device and confirm both physical channels passive. In Control Studio Parameter View choose Enable Saved Device Lifecycle. The selected device is inhibited until first Save/Full Download; other devices remain live.', goto: 'studio' },
           { id: 'motor-save-draft', text: 'In the offline draft assign commissioned CTLR, input XI-2 and output ZX-2. Set permissive/reset options, confirmation time and actual interlock/permissive/command source tags. Verify live configuration, physical bindings and outputs remain unchanged. A true deployed command source can command active after download.' },
           { id: 'motor-save-persist', text: 'Save Device. Edit confirmation time without saving, then Load Saved Device and confirm replacement: persisted value returns to the draft, runtime remains unchanged. Bad schema/type/source or blocked browser storage must report failure, not success.' },
           { id: 'motor-save-download', text: 'Download Device then Cancel: no transfer. Reopen and Confirm Device Download. Require both channels scanned Good, correctly typed, owned by assigned controller, passive, and no output writer conflict. Successful Full download enters Online and exposes actual deployed DSTs/revision; failures retain last-good runtime.' },
           { id: 'motor-save-confirm', text: 'START with physical DI0: DO energizes, feedback stays false and timeout gives FAILED ACTIVE. Actual DI1 confirms running. Stop and DI0 confirm passive before replacement download. Online draft edits reject; Go Offline permits edits without stopping runtime. Faceplate options show deployed values and direct configuration edits back to Studio.' }
+        ]
+      },
+      {
+        id: 'motor-owned-template',
+        title: 'MTR-11_ILOCK owned two-condition template and exact source expressions',
+        objective: 'Save and deploy the whole owned interlock/first-out/bypass/permissive strategy with its motor.',
+        note: 'Modeled two-condition course subset; original8/16-condition palette/library drag-drop/state-mask/all DC-property/Partial-download/NVM parity and500/10gal process remain incomplete.',
+        steps: [
+          { id: 'motor-template-copy', text: 'In Explorer New Module select MOTOR and Library / Motors-2State / MTR-11_ILOCK. Name MTR-102 in the training area. This creates one inhibited motor with owned CND1/CND2/BFI1/OR1/NOT1/AND1, not independent live modules.', goto: 'explorer' },
+          { id: 'motor-template-conditions', text: 'Open owned CND1, set EXPR to \'//XVSTAT-101/DI1/PV_D\' = 0 and Apply, TIME_DURATION0. Open CND2 and Apply \'//LI-101/AI1/PV\' < 50, TIME_DURATION4. Qualified sources must exist with correct type. Owning motor button returns to Save/Download; offline edits leave actual deployed blocks unchanged.', goto: 'studio' },
+          { id: 'motor-template-permit', text: 'Configure AND1.IN1/IN2 with real start-permissive dependencies, or deliberate training constants (defaults1). AND1 drives permissive independently of NOT1, which maps BFI trip output into the explicit healthy-at1 interlock polarity. Bad always trips; do not invert Bad into permission.' },
+          { id: 'motor-template-download', text: 'On owning motor assign commissioned CTLR, XI-2 DI card3channel2 and ZX-2 DO card4channel2; set Reset Required/Permissive. Save then Full Download. Both physical channels must be passive/scanned Good with no writer conflict. All owned configuration transfers together; Online configuration edits reject.' },
+          { id: 'motor-template-verify', text: 'With open-valve DI1 and measured level50, no trip. At49, CND2 remains0 at3.9 and becomes1 at4.0; BFI FIRST_OUT2, NOT1 becomes0, motor trips and ZX-2 de-energizes before XI-2 physically confirms stopped. Clear causes and reset motor lock. In Online owned CND2 toggle BYPASS: independent OR1 becomes1; Bad cannot be bypassed. BFI Reset clears trap only, never actual trip or motor lock. Lost controller marks owned outputs Bad without erasing good historical first-out.' }
         ]
       }
     ]

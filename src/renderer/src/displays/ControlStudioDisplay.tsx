@@ -5,7 +5,8 @@ import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
 import { StandaloneAoControls } from '../components/StandaloneAoControls'
 import { ModuleDownloadDialog, ModuleLifecycleRows } from '../components/ModuleLifecycleControls'
-import { DeviceLifecycleRows } from '../components/DeviceLifecycleControls'
+import { DeviceDownloadDialog, DeviceLifecycleRows } from '../components/DeviceLifecycleControls'
+import { deviceEditorModules } from '../engine/deviceLifecycle'
 import { lifecycleModules } from '../engine/moduleLifecycle'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
@@ -29,8 +30,9 @@ export function ControlStudioDisplay(): JSX.Element {
   const studioTag = useUi((s) => s.studioTag)
   const runtimeModules = useStore((s) => s.modules)
   const moduleLifecycle = useStore(s => s.moduleLifecycle)
-  const modules = useMemo(() => lifecycleModules({ modules: runtimeModules, moduleLifecycle }, studioTag ?? undefined),
-    [runtimeModules, moduleLifecycle, studioTag])
+  const deviceLifecycle = useStore(s => s.deviceLifecycle)
+  const modules = useMemo(() => deviceEditorModules(lifecycleModules({ modules: runtimeModules, moduleLifecycle }, studioTag ?? undefined), deviceLifecycle),
+    [runtimeModules, moduleLifecycle, deviceLifecycle, studioTag])
   const m = studioTag ? modules[studioTag] : undefined
   const openFaceplate = useUi((s) => s.openFaceplate)
   const select = useUi((s) => s.select)
@@ -56,7 +58,7 @@ export function ControlStudioDisplay(): JSX.Element {
     <div className="display studio">
       <StudioRibbon
         tag={m.tag}
-        onFaceplate={() => openFaceplate(m.tag)}
+        onFaceplate={() => openFaceplate(m.tag.split('/')[0])}
         zoom={zoom}
         onZoom={(value) => setZoom(Math.max(0.5, Math.min(1.5, Math.round(value * 10) / 10)))}
         panes={{ hierarchy: showHierarchy, parameters: showParameters, palette: showPalette }}
@@ -84,6 +86,8 @@ export function ControlStudioDisplay(): JSX.Element {
             />
           </div>
           {showParameters && <ParameterView module={m} selectedBlock={selectedBlock} />}
+          {m.type === 'FB' && m.tag.includes('/') && modules[m.tag.split('/')[0]]?.type === 'MOTOR' &&
+            <button className="tbtn sm" onClick={() => openStudio(m.tag.split('/')[0])}>Owning motor: {m.tag.split('/')[0]} - Save / Download</button>}
         </div>
         {showPalette && <PaletteView area={m.area} />}
       </div>
@@ -140,7 +144,9 @@ function ParameterView({ module: m, selectedBlock }: {
   const setPermissiveSource = useStore(s => s.setPermissiveSource)
   const setCommandSource = useStore((s) => s.setCommandSource)
   const setMode = useStore((s) => s.setMode)
-  const modules = useStore((s) => s.modules)
+  const runtimeModules = useStore(s => s.modules)
+  const deviceRecords = useStore(s => s.deviceLifecycle)
+  const modules = useMemo(() => deviceEditorModules(runtimeModules, deviceRecords), [runtimeModules, deviceRecords])
   const setFbInput = useStore((s) => s.setFbInput)
   const setFbConfig = useStore((s) => s.setFbConfig)
   const setPidIo = useStore((s) => s.setPidIo)
@@ -313,7 +319,7 @@ function DeviceIoRows({ m }: { m: MotorModule | ValveModule }): JSX.Element {
     })}
     <tr><td>OUT_D.RESOLVED / APPLIED</td><td>{binding ?
       `${Number(!!m.outputCommand)} / ${Number(!!m.appliedCommand)}` : m.downloaded === false ? 'Inhibited; download required' : 'Local confirmation'}</td>
-      <td>{binding ? 'External DI confirmation; clock never confirms' : 'Internal confirmation timer'}</td></tr>
+      <td>{m.downloaded === false ? 'Inhibited; first download required' : binding ? 'External DI confirmation; clock never confirms' : 'Internal confirmation timer'}</td></tr>
   </>
 }
 
@@ -795,7 +801,9 @@ function FbWireRow({
   onSet: (ref: FbInputRef) => void
   bad?: boolean
 }): JSX.Element {
-  const modules = useStore((s) => s.modules)
+  const runtimeModules = useStore(s => s.modules)
+  const deviceRecords = useStore(s => s.deviceLifecycle)
+  const modules = useMemo(() => deviceEditorModules(runtimeModules, deviceRecords), [runtimeModules, deviceRecords])
   const qualified = (ref: FbInputRef): string => ref.parameter
     ? `${ref.tag}${ref.block ? '/' + ref.block : ''}.${ref.parameter}` : ref.tag ?? ''
   const sourceError = input.kind === 'ref' && (!input.tag || !modules[input.tag] ||
@@ -1298,6 +1306,10 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
   const [tab, setTab] = useState('Diagram')
   const [showDownload, setShowDownload] = useState(false)
   const record = useStore(s => s.moduleLifecycle[tag])
+  const ownerTag = tag.split('/')[0]
+  const deviceRecord = useStore(s => s.deviceLifecycle[ownerTag])
+  const deviceSave = useStore(s => s.saveDeviceConfiguration)
+  const lifecycle = deviceRecord ?? record
   const save = useStore(s => s.saveModuleConfiguration)
   const focusExplorer = useUi((s) => s.focusExplorer)
   const focusAlarms = useUi((s) => s.focusAlarms)
@@ -1306,7 +1318,7 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
   const trendAvailable = module?.type === 'PID' || module?.type === 'AI'
   return (
     <div className="ribbon">
-      <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio</span><span className="studio-caption-status">{record ? record.online ? 'ONLINE - controller runtime' : 'OFFLINE - configuration draft' : 'ONLINE · simulated configuration'}</span></div>
+      <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio</span><span className="studio-caption-status">{lifecycle ? lifecycle.online ? 'ONLINE - controller runtime' : 'OFFLINE - configuration draft' : 'ONLINE · simulated configuration'}</span></div>
       <div className="ribbon-tabs">
         {RIBBON_TABS.map((t) => (
           <button key={t} type="button" className={'ribbon-tab' + (t === 'File' ? ' file' : t === tab ? ' active' : '')}
@@ -1326,11 +1338,11 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
         {tab !== 'View' && <>
           <RibbonGroup label="Module">
             <RibbonBtn ic="download" label="Download" onClick={() => setShowDownload(true)}
-              unavailable={record ? undefined : 'Enable Saved Module Lifecycle on a standalone AO first'} />
-            {record && <RibbonBtn ic="parameters" label="Save" onClick={() => save(tag)}
-              unavailable={record.online ? 'Go Offline before saving configuration' : undefined} />}
+              unavailable={lifecycle ? undefined : 'Enable Saved Module Lifecycle or Saved Device Lifecycle first'} />
+            {lifecycle && <RibbonBtn ic="parameters" label="Save" onClick={() => deviceRecord ? deviceSave(ownerTag) : save(tag)}
+              unavailable={lifecycle.online ? 'Go Offline before saving configuration' : undefined} />}
             <RibbonBtn ic="module" label="Faceplate" onClick={onFaceplate} />
-            <RibbonBtn ic="parameters" label="Properties" onClick={() => focusExplorer(tag)} />
+            <RibbonBtn ic="parameters" label="Properties" onClick={() => focusExplorer(ownerTag)} />
           </RibbonGroup>
           <RibbonGroup label="Algorithm">
             <RibbonBtn ic="diagram" label="Function Block" active onClick={() => setTab('Diagram')} />
@@ -1352,7 +1364,8 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
           <RibbonBtn ic="reset" label="100%" onClick={() => onZoom(1)} />
         </RibbonGroup>
       </div>
-      {showDownload && <ModuleDownloadDialog tag={tag} onClose={() => setShowDownload(false)} />}
+      {showDownload && (deviceRecord ? <DeviceDownloadDialog tag={ownerTag} onClose={() => setShowDownload(false)} /> :
+        <ModuleDownloadDialog tag={tag} onClose={() => setShowDownload(false)} />)}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useStore } from '../engine/store'
 import type { MotorModule } from '../engine/types'
 import { dcStateInfo, fmt } from '../utils/format'
+import { MotorInterlockRows } from './MotorInterlockRows'
 
 export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as MotorModule | undefined
@@ -116,6 +117,7 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
         </label>
       </div>
       {managed && <div className="fp-row">Deployed options; edit the offline draft in Control Studio and Save/Download.</div>}
+      <MotorInterlockRows module={m} />
       {m.permissiveRequired && (
         <div className="fp-row">
           <button className="fp-btn" onClick={() => setPermissive(tag, !m.permissiveOk)}>

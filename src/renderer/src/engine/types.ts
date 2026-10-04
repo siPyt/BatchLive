@@ -320,8 +320,11 @@ export type DcState =
   | 'LOCKED'
 
 export interface MotorModule extends ModuleDisplayProperties {
+  templateId?: 'MTR-11_ILOCK'
+  ownedBlocks?: Record<string, FunctionBlockModule>
   downloaded?: boolean
   controllerTag?: string
+  interlockInverted?: boolean
   tag: string
   type: 'MOTOR'
   description: string
@@ -364,6 +367,7 @@ export interface MotorModule extends ModuleDisplayProperties {
 export interface ValveModule extends ModuleDisplayProperties {
   downloaded?: boolean
   controllerTag?: string
+  interlockInverted?: boolean
   tag: string
   type: 'VALVE'
   description: string

@@ -1069,6 +1069,22 @@ selection, shared names and locked/denied/invalid creation rejection.
 
 ===============================================================================
 40. FIRST-OUT AND BYPASS INDICATION - PRESERVE EXISTING ARTWORK
+Related pass30: owned two-condition template uses existing CND/BFI/OR/NOT/
+AND/DC symbols, connected geometry and source diagrams. Original p226 image
+reviewed; no protected motor/pump/valve palette, body, piping or frame change.
+Offline/online caption now reflects owner; Save/Download/Properties and
+Faceplate route to real owning motor rather than a nonexistent block module.
+Existing standalone equipment behavior is unchanged. Native healthy-at1
+interlock polarity is explicit, saved and fails safe on Bad for either
+polarity. Quoted source paths show actual live feedback dependencies.
+Live copy/owned Apply/save/download/threshold/trap/reset/bypass verified;
+original plant/UI/security/saved browser data/viewport restored.
+Motor faceplate adds live captured cause descriptions, condition trip/Bad
+quality, independent bypass indication and explicit restricted history-reset/
+bypass controls in existing row/button styling. No equipment art change.
+Actual faceplate history-reset retains trip/lock; bypass retains lock. Live
+ribbon Save/Download/Offline/Online, AND/NOT independent safety and real
+owning faceplate routing verified; all temporary fixtures/data restored.
 Related pass29 adds opt-in saved device controls only in Parameter View.
 Offline draft rows are clearly separated from read-only actual deployed DSTs
 and runtime command/feedback. Before download, quality is explicitly Bad and

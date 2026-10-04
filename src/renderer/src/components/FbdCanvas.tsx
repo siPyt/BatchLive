@@ -9,6 +9,7 @@ import { pidIo } from '../engine/analogStrategy'
 import { avoidSavedBlockOverlaps, buildControlDiagram, type DiagramBlock, type DiagramWire } from '../engine/controlDiagram'
 import type { AnalogSignalRef, AnyModule, PidBlockName } from '../engine/types'
 import { lifecycleModules } from '../engine/moduleLifecycle'
+import { deviceEditorModules } from '../engine/deviceLifecycle'
 
 // A true IEC 61131-3 / DeltaV-style Function Block Diagram node editor:
 // draggable nodes, click-drag pin-to-pin wiring, orthogonal colored wires,
@@ -108,8 +109,9 @@ export function FbdCanvas({
 }): JSX.Element {
   const runtimeModules = useStore((s) => s.modules)
   const moduleLifecycle = useStore(s => s.moduleLifecycle)
-  const modules = useMemo(() => lifecycleModules({ modules: runtimeModules, moduleLifecycle }, selectedTag),
-    [runtimeModules, moduleLifecycle, selectedTag])
+  const deviceLifecycle = useStore(s => s.deviceLifecycle)
+  const modules = useMemo(() => deviceEditorModules(lifecycleModules({ modules: runtimeModules, moduleLifecycle }, selectedTag), deviceLifecycle),
+    [runtimeModules, moduleLifecycle, deviceLifecycle, selectedTag])
   const setFbInput = useStore((s) => s.setFbInput)
   const setCasSource = useStore((s) => s.setCasSource)
   const setFeedforward = useStore((s) => s.setFeedforward)

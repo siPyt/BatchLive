@@ -675,7 +675,7 @@ Required: Use MTR-11_ILOCK template, CND/BFI/OR logic and bypass indication,
   bind XI-2 and ZX-2, assign/detail/save/download. Permissive depends on
   XVSTAT and a level condition below 50 sustained four seconds.
 Evidence: FB logic and device command/interlock wiring execute; course template,
-  native template ownership/property parity remains missing; subsequent
+  full native template/property parity remains missing; subsequent
   first-out/bypass and saved device subsets are recorded below.
   Pass25 adds live PERMISSIVE_D wiring for MOTOR/VALVE in Parameter View and
   actual canvas connect/disconnect. Upstream AND/feedback executes before DC.
@@ -721,6 +721,32 @@ Evidence: FB logic and device command/interlock wiring execute; course template,
   edits, and actual Start/timeout/physical DI confirms independently.
   Native template, partial download, upload/NVM and exact process remain
   incomplete. Restored original plant/UI/security/browser data and viewport.
+  Pass30 adds modeled MTR-11_ILOCK library selection in Explorer New Module,
+  one owning motor with namespaced CND1/CND2/BFI1/OR1/NOT1/AND1, isolated
+  offline owned edits and combined persistent Save/Full deployment. The
+  actual p226 image was inspected: BFI first-out/OR bypass/NOT healthy
+  interlock/AND independent permissive are executable, not decorative.
+  Explicit saved native interlock polarity maps qualified0 to trip; Bad
+  trips for either polarity. Existing active-trip devices are unchanged.
+  Exact p230 quoted DI1/PV_D and AI1/PV expressions parse safely and read
+  the .CV-qualified value alias from the p226 image as well as p230 forms.
+  typed live feedback in dependency order. Wrong/missing/Bad sources reject
+  or fail safe, reset timing and journal diagnostics/recovery. Owned blocks
+  are controller-bound, not separately deployable/deletable modules.
+  Live Explorer copy, owned editing/Apply, persistent Save/Full Download,
+  quote expression timing3.9/4.0, first-out2/output shutdown, trap reset and
+  owned bypass/OR verified. Native NOT/AND/polarity additionally tested.
+  Motor faceplate exposes captured descriptions, live condition quality,
+  independent bypass and restricted online history-reset/bypass controls;
+  live history reset retained active trip/motor lock and bypass retained lock.
+  Saved owned drafts remain editable after project recreation before hardware
+  exists; Download still requires valid physical prerequisites. Area rename
+  carries the complete owned graph without aliasing the previous scan.
+ 14 new regressions;292 total tests/typecheck/build pass. Original plant,
+  UI/security/browser saved data/viewport restored and fixtures removed.
+  Original8/16-condition palette, library drag/drop, configurable state
+  masks, all DC options/named descriptors, Partial/upload/NVM and exact
+ 500/10gal process remain incomplete; do not certify the entire workshop.
 Acceptance: Test timing reset, first-out ordering, permissive versus interlock,
   bypass reporting and actual card3ch2/card4ch2 effects.
 

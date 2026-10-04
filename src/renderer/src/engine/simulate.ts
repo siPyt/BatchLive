@@ -13,6 +13,7 @@ import type {
   FbInputRef
 } from './types'
 import { CUSTOM_PHYSICS_TAGS } from './plant'
+import { ownedMotorBlock, strategyModules } from './motorStrategy'
 import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue, resetConditionTiming } from './fb'
 import { evaluateConditionExpression } from './fbCondition'
 import { advanceControllers, computeBadTags, controllerIsDown, type HardwareState } from './hardware'
@@ -421,7 +422,8 @@ export function deviceInterlockSignal(m: MotorModule | ValveModule, modules: Rec
   { value: number; bad: boolean } {
   if (!m.interlockSource) return { value: Number(m.interlock), bad: false }
   const signal = resolveFbInput(modules, { kind: 'ref', tag: m.interlockSource, value: 0 })
-  return signal.bad ? { value: 1, bad: true } : signal
+  return signal.bad ? { value: 1, bad: true } :
+    { value: m.interlockInverted ? Number(signal.value === 0) : signal.value, bad: false }
 }
 
 export function devicePermissiveSignal(module: MotorModule | ValveModule,
@@ -690,7 +692,18 @@ export function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string
       m.out = (Math.floor(a) >> Math.max(0, Math.round(m.tripValue))) & 1
       break
     case 'CND': {
-      const result = evaluateConditionExpression(m.expr, a, b)
+      const result = evaluateConditionExpression(m.expr, a, b, ref => {
+        const source = modules[ref.tag]
+        if (ref.block === 'DI1' && source?.type === 'DI') {
+          return { value: Number(source.state), bad: !!source.ioBad || source.mode === 'OOS' }
+        }
+        if (ref.block === 'AI1' && source?.type === 'AI') return { value: source.pv, bad: source.pvBad }
+        if (ref.block === 'AI1' && source?.type === 'PID') {
+          const ai = pidIo(source).ai
+          return { value: ai.out, bad: ai.bad }
+        }
+        return { value: NaN, bad: true }
+      })
       if ('error' in result || !Number.isFinite(m.delaySec) || m.delaySec < 0) {
         resetConditionTiming(m)
         m.expressionError = 'error' in result ? result.error : 'Condition delay must be finite and nonnegative'
@@ -842,8 +855,10 @@ export function stepPlant(
     const module = prev.modules[k]
     modules[k] = module.type === 'PID' ? { ...module, io: clonePidIo(module) } :
       module.type === 'FB' && module.splitter ? { ...module, splitter: cloneSplitter(module.splitter) } :
-        { ...module }
+        module.type === 'MOTOR' && module.ownedBlocks ? { ...module,
+          ownedBlocks: Object.fromEntries(Object.entries(module.ownedBlocks).map(([name, b]) => [name, { ...b }])) } : { ...module }
   }
+  Object.assign(modules, strategyModules(modules))
   sampleDiscreteInputs(prev.hardware, modules)
   sampleAnalogOutputs(prev.hardware, modules)
   const boundInput = (tag: string): boolean => !!prev.hardware.analogBindings?.[tag]?.input
@@ -900,7 +915,14 @@ export function stepPlant(
   for (const tag of moduleExecutionOrder(modules)) {
     const module = modules[tag]
     if (module.type === 'PID') executeLoop(module)
-    else if (module.type === 'FB') stepFunctionBlock(module, modules, dt)
+    else if (module.type === 'FB') {
+      const owned = ownedMotorBlock(modules, tag)
+      const controller = owned?.owner.controllerTag ? prev.hardware.controllers[owned.owner.controllerTag] : undefined
+      if (owned && (!owned.owner.downloaded || !controller || controllerIsDown(controller))) {
+        if (module.fbType === 'CND') resetConditionTiming(module)
+        module.bad = true
+      } else stepFunctionBlock(module, modules, dt)
+    }
     else if (module.type === 'AO') executeStandaloneAo(module, analogOutputBad(tag) ||
       (!!module.controllerTag && (!prev.hardware.controllers[module.controllerTag] ||
         controllerIsDown(prev.hardware.controllers[module.controllerTag]))))
@@ -1036,13 +1058,15 @@ export function stepPlant(
     }
   }
 
+  const hardware = { ...advanceTraditionalIo(prev.hardware, modules, dt),
+    controllers: advanceControllers(prev.hardware.controllers, dt) }
+  for (const tag of Object.keys(modules)) if (!prev.modules[tag]) delete modules[tag]
   return {
     ...prev,
     time: now,
     modules,
     alarms,
     process: proc,
-    hardware: { ...advanceTraditionalIo(prev.hardware, modules, dt),
-      controllers: advanceControllers(prev.hardware.controllers, dt) }
+    hardware
   }
 }

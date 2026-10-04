@@ -3,6 +3,8 @@ import type { HardwareState } from './hardware'
 import { controllerIsDown } from './hardware'
 import { deviceBindingError, deviceChannelSignal, findDst } from './traditionalIo'
 import { deviceSourceError } from './fb'
+import { captureMotorStrategy, cloneMotorStrategy, materializeMotorStrategy, motorStrategyError, parseMotorStrategy,
+  strategyModules, type MotorStrategyConfiguration } from './motorStrategy'
 
 export interface DeviceConfiguration {
   tag: string
@@ -16,6 +18,8 @@ export interface DeviceConfiguration {
   interlockSource?: string
   permissiveSource?: string
   commandSource?: string
+  interlockInverted?: boolean
+  strategy?: MotorStrategyConfiguration
 }
 export interface DeviceLifecycle {
   draft: DeviceConfiguration
@@ -26,6 +30,18 @@ export interface DeviceLifecycle {
   deployedRevision: number
 }
 export type DeviceDraftPatch = Partial<Omit<DeviceConfiguration, 'tag' | 'type'>>
+export function cloneDeviceConfiguration(c: DeviceConfiguration): DeviceConfiguration {
+  return { ...c, strategy: c.strategy ? cloneMotorStrategy(c.strategy) : undefined }
+}
+export function deviceEditorModules(modules: Record<string, AnyModule>, records: Record<string, DeviceLifecycle>): Record<string, AnyModule> {
+  const view = { ...modules }
+  for (const [tag, r] of Object.entries(records)) {
+    const m = modules[tag]
+    if (m?.type === 'MOTOR' && !r.online && r.draft.strategy) view[tag] = { ...m,
+      ownedBlocks: materializeMotorStrategy(tag, m.area, r.draft.strategy) }
+  }
+  return strategyModules(view)
+}
 export function deviceDirty(record: DeviceLifecycle): boolean {
   return !record.saved || JSON.stringify(record.draft) !== JSON.stringify(record.saved)
 }
@@ -38,17 +54,22 @@ export function captureDevice(m: MotorModule | ValveModule, hw: HardwareState): 
     (binding?.output ? findDst(hw, binding.output)?.card.controllerTag : '') ?? '',
   inputDst: binding?.input ?? '', outputDst: binding?.output ?? '',
   permissiveRequired: m.permissiveRequired, resetRequired: m.resetRequired,
-  confirmTimeSec: m.confirmTimeSec, interlockSource: m.interlockSource,
+  confirmTimeSec: m.confirmTimeSec, interlockInverted: m.interlockInverted, strategy: m.type === 'MOTOR' ? captureMotorStrategy(m) : undefined, interlockSource: m.interlockSource,
   permissiveSource: m.permissiveSource, commandSource: m.commandSource }
 }
 export function deviceConfigurationError(c: DeviceConfiguration, modules: Record<string, AnyModule>): string | null {
   const m = modules[c.tag]
+  const view = c.strategy && m?.type === 'MOTOR' ? strategyModules({ ...modules, [c.tag]: { ...m,
+    ownedBlocks: materializeMotorStrategy(c.tag, m.area, c.strategy) } }) : strategyModules(modules)
   return !m || m.type !== c.type || (c.type !== 'MOTOR' && c.type !== 'VALVE') ? 'Device tag/type does not match the project' :
     !Number.isFinite(c.confirmTimeSec) || c.confirmTimeSec < 0 ? 'Confirmation time must be finite and nonnegative' :
     typeof c.permissiveRequired !== 'boolean' || typeof c.resetRequired !== 'boolean' ? 'Device options must be Boolean' :
-    deviceSourceError(modules, c.tag, c.interlockSource, 'Interlock') ??
-    deviceSourceError(modules, c.tag, c.permissiveSource, 'Permissive') ??
-    deviceSourceError(modules, c.tag, c.commandSource, 'Command')
+    c.interlockInverted !== undefined && typeof c.interlockInverted !== 'boolean' ? 'Interlock polarity must be Boolean' :
+    (c.strategy ? c.type !== 'MOTOR' ? 'Only motor modules can own this strategy' :
+      motorStrategyError(c.tag, m.area, c.strategy, modules) : null) ??
+    deviceSourceError(view, c.tag, c.interlockSource, 'Interlock') ??
+    deviceSourceError(view, c.tag, c.permissiveSource, 'Permissive') ??
+    deviceSourceError(view, c.tag, c.commandSource, 'Command')
 }
 export function deviceDownloadError(c: DeviceConfiguration, modules: Record<string, AnyModule>, hw: HardwareState): string | null {
   const controller = hw.controllers[c.controllerTag]
@@ -84,9 +105,12 @@ export function parseDevice(text: string, tag: string): DeviceConfiguration {
   if ('interlockSource' in c && typeof c.interlockSource !== 'string' ||
       'permissiveSource' in c && typeof c.permissiveSource !== 'string' ||
       'commandSource' in c && typeof c.commandSource !== 'string') throw new Error('Invalid saved device source')
+  if ('interlockInverted' in c && typeof c.interlockInverted !== 'boolean') throw new Error('Invalid saved interlock polarity')
   return { tag, type: c.type, controllerTag: c.controllerTag, inputDst: c.inputDst, outputDst: c.outputDst,
     permissiveRequired: c.permissiveRequired, resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec,
     interlockSource: 'interlockSource' in c && typeof c.interlockSource === 'string' ? c.interlockSource : undefined,
     permissiveSource: 'permissiveSource' in c && typeof c.permissiveSource === 'string' ? c.permissiveSource : undefined,
-    commandSource: 'commandSource' in c && typeof c.commandSource === 'string' ? c.commandSource : undefined }
+    commandSource: 'commandSource' in c && typeof c.commandSource === 'string' ? c.commandSource : undefined,
+    interlockInverted: 'interlockInverted' in c && typeof c.interlockInverted === 'boolean' ? c.interlockInverted : undefined,
+    strategy: 'strategy' in c ? parseMotorStrategy(c.strategy) : undefined }
 }

@@ -183,8 +183,9 @@ Bad/missing/OOS interlock sources now fail safe as **Bad - tripped**, rather
 than clearing a trip from a held/absent signal. Reset Required retains the
 lock after the condition clears until explicit Reset. With external I/O,
 the trip de-energizes ZX-2 before separately sampled XI-2 confirms Stopped.
-Native MTR-11_ILOCK remains incomplete; the separate first-out/bypass subset
-is described next.
+The exact native MTR template remains incomplete; the modeled owned
+two-condition template below executes the course's safety dependencies.
+The separate first-out/bypass subset is described next.
 
 The two-input **BFI** now exposes independently readable **OUT_INT**, **OUT_D**
 and **FIRST_OUT**. Enable **ARM_TRAP** in Parameter View to capture the weighted
@@ -222,8 +223,44 @@ scans and may command active. Online prohibits draft editing. Managed
 faceplates display deployed options and direct edits back to offline Studio.
 Save/Load/Edit and Download use the appropriate permissions plus workstation
 lock checks; persistent storage errors are notified and journaled.
-This models Full device deployment, not native template ownership, Partial
+This models Full device deployment, not full native template parity, Partial
 download, upload/NVM restoration, or physical controller communication.
+
+In Explorer **New Module**, select MOTOR and **Library / Motors-2State /
+MTR-11_ILOCK** to create the modeled two-condition owned template. It creates
+one motor with namespaced **CND1/CND2/BFI1/OR1/NOT1/AND1**, not independently
+running modules. All owned configuration edits are offline, isolated from
+deployed runtime, and persist/deploy with the motor in one Save/Full Download.
+Click its owned block buttons to edit, and use the Owning motor button to
+return to Save/Download. Ribbon Save/Download/Properties route to the owner;
+Faceplate opens the real motor, and the caption reflects Offline/Online.
+Both wired IN expressions and the exact quoted p230 expressions work:
+`'//XVSTAT-101/DI1/PV_D' = 0`, duration0, and
+`'//LI-101/AI1/PV' < 50`, duration4.
+The `.CV` qualified value suffix shown in the p226 image is also supported.
+Quoted paths use actual qualified DI/AI feedback and dependency ordering,
+not textual substitution or JavaScript eval. Wrong source types/paths reject;
+Bad/missing sources reset elapsed time, propagate Bad, trip fail-safe, and
+journal failures/recovery. This applies even when bypassed.
+BFI1 feeds NOT1, whose1 denotes a healthy native interlock signal; the
+explicit saved **native interlock polarity** maps its0 to a trip. Bad always
+trips independently of polarity. Existing devices retain active-trip-at1.
+AND1 drives the independent start permissive (default constants1; configure
+real permissive dependencies in its IN1/IN2). OR1 reports CND bypasses.
+Online bypass/arm/reset operate the downloaded blocks; configuration and
+independent deletion are rejected while online. Deleting a stopped,
+confirmed motor deletes its owned graph, but does not implicitly erase
+the browser's saved configuration.
+The motor faceplate shows captured cause descriptions, current condition
+quality/trips and independent bypass indication. Its first-out Reset clears
+history only, never the motor lock or active trip. Bypass controls require
+an Online deployed strategy and available controller, use Restricted
+Control/lock checks, and are journaled. Offline drafts can be loaded and
+repaired before recreating their hardware; Download still validates every
+current controller/channel dependency.
+This is the two-condition executable course subset, not the original
+eight/sixteen-condition palette, library drag/drop, configurable state masks,
+all DC options/named descriptors, or full DV-09 completion.
 
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are

@@ -1,6 +1,7 @@
 import type { AnalogSignalRef, AnyModule, PidBlockName } from './types'
 import { pidIo } from './analogStrategy'
 import { FB_NEEDS_IN2 } from './fb'
+import { conditionReferences } from './fbCondition'
 
 export interface DiagramBlock {
   id: string
@@ -56,9 +57,16 @@ export function connectedModuleTags(modules: Record<string, AnyModule>, rootTag:
     neighbors.get(source)?.add(tag)
   }
   for (const module of Object.values(modules)) {
+    if (module.type === 'MOTOR' && module.ownedBlocks) {
+      for (const block of Object.values(module.ownedBlocks)) connect(module.tag, block.tag)
+    }
     if (module.type === 'FB') {
       if (module.in1.kind === 'ref') connect(module.tag, module.in1.tag)
       if (FB_NEEDS_IN2[module.fbType] && module.in2.kind === 'ref') connect(module.tag, module.in2.tag)
+      if (module.fbType === 'CND') {
+        const result = conditionReferences(module.expr)
+        if ('references' in result) for (const ref of result.references) connect(module.tag, ref.tag)
+      }
       if (module.fbType === 'SPLTR') {
         connect(module.tag, module.bkcal1Source?.tag)
         connect(module.tag, module.bkcal2Source?.tag)
@@ -198,6 +206,14 @@ export function buildControlDiagram(tags: string[], modules: Record<string, AnyM
           wire.fromPort = 'bkcal'
           wire.feedback = true
         }
+      }
+      if (m.fbType === 'CND') {
+        const result = conditionReferences(m.expr)
+        if ('references' in result) result.references.forEach((source, index) => {
+          if (index > 1 || wires.some(w => w.toTag === tag && w.which === (index === 0 ? 'in1' : 'in2'))) return
+          add(tag, index === 0 ? 'in1' : 'in2', { tag: source.tag, parameter: 'PV',
+            block: modules[source.tag]?.type === 'PID' ? 'AI1' : undefined })
+        })
       }
     } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
       add(tag, 'ilk', ref(m.interlockSource, modules[m.interlockSource ?? '']?.type === 'PID' ? 'PV' : 'OUT'))
