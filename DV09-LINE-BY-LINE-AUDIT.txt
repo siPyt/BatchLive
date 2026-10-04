@@ -745,8 +745,9 @@ Evidence: FB logic and device command/interlock wiring execute; course template,
  14 new regressions;292 total tests/typecheck/build pass. Original plant,
   UI/security/browser saved data/viewport restored and fixtures removed.
   Original8/16-condition palette, library drag/drop, configurable state
-  masks, all DC options/named descriptors, Partial/upload/NVM and exact
- 500/10gal process remain incomplete; do not certify the entire workshop.
+  masks, all DC options/named descriptors and Partial/upload/NVM remain
+  incomplete; pass31 verifies the exact500/10gal dependencies below.
+  Do not certify full native template or whole-course parity.
 Acceptance: Test timing reset, first-out ordering, permissive versus interlock,
   bypass reporting and actual card3ch2/card4ch2 effects.
 
@@ -762,10 +763,29 @@ Acceptance: Implement course animation only in an explicitly isolated/custom
 
 [DV09-052]
 Pages: 234-234
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Verify motor/valve/level interaction using course 500 and 10 gal
   states and the correct permissive/interlock/reset responses.
-Evidence: No exact course process/tieback configuration.
+Evidence: Pass31 executes the exact course dependency chain. Saved/deployed
+  LEVEL-101 AO CAS_SP500 with0-1000gal scale/limits writes LY-1 card2ch1
+  output50%; explicit simulated tieback LT-1 card1ch1 yields sampled LI-101
+  500gal. CAS_SP10 yields1%/10gal, not a synthetic manually forced level.
+  XV-101 DO card4ch1 XV-1 and separately sampled XVSTAT-101 DI card3ch1
+  LSO-1 execute closure/opening. Owned downloaded MTR-102 binds actual
+  XI-2 card3ch2 and ZX-2 card4ch2; explicit simulated tieback confirms on
+  the following scan, not from the requested command or timer.
+  Actual faceplate START at500gal energizes output before running feedback;
+  actual DO closure immediately trips cause1 after sampled DI. Reopening
+  clears the interlock but retains Reset Required lock and denied Start.
+  Actual motor RESET_D/history-reset/START independently verified.
+  Actual LEVEL-101 CAS_SP entry10 produces sampled10gal and no trip at3.9s;
+  at4.0s CND2/BFI cause2 trips, output drops before stopped DI feedback.
+  Returning500 clears cause but retains trap history and motor lock.
+  Three integration regressions also verify50gal is not <50 and Bad
+  tied-back input trips fail-safe/resets delay; recovery needs fresh4s.
+  Existing executable models support this workflow without new plant
+  graphics or speculative fluid dynamics. All tiebacks are explicit
+  simulation, not physical wiring.295 tests/typecheck/build validation.
 Acceptance: Demonstrate each outcome on the actual course channels and motor,
   including preventing invalid start and requiring reset when appropriate.
 

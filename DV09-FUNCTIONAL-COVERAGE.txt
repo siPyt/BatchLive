@@ -1117,7 +1117,32 @@ deployment still validates current hardware. Area rename preserves owner/
 block membership without prior-scan aliasing.
 Remaining: original8/16-condition graph/palette and Library drag/drop,
 configurable state masks/all DC options/named descriptors, partial device
-download/upload/NVM and exact500/10gal prerequisites. Full DV-09 incomplete.
+download/upload/NVM. Exact500/10gal prerequisites are verified in pass31.
+Full DV-09 incomplete.
+
+PASS 31: EXACT500/10GAL MOTOR OPERATING DEPENDENCIES
+--------------------------------------------------
+Scope: DV09-052, p234; AO prerequisites p167 and owned motor p230.
+Status: VERIFIED WORKFLOW for the explicitly simulated course channel chain.
+Saved LEVEL-101 AO with CAS_SP,0-1000gal scale/limits, CAS mode and Full
+deployment produces LY-1 card2ch1 output50% at500 and1% at10. Explicit
+LY-1 -> LT-1 card1ch1 tieback is sampled/scaled by LI-101 on the next scan.
+XV-101 DO card4ch1 XV-1 -> explicit LSO-1 card3ch1 -> XVSTAT-101 DI.
+Owned downloaded MTR-102 reads quoted CND sources, independent AND start
+permissive and native NOT interlock polarity; XI-2/ZX-2 remain separate
+card3ch2/card4ch2 feedback/output with explicit simulated tieback.
+Three new integration regressions verify500gal operation, actual valve
+closure immediate trip/cause1, reopening/required reset, low10gal cause2
+at4.0 not3.9, actual output shutdown before stopped feedback,50gal boundary,
+retained history/lock and Bad-level fail-safe/fresh-delay recovery.
+Live actual faceplate START, DO Toggle, motor RESET_D/history-reset/START
+and AO CAS_SP entry10 execute the same chain. Original96-module running
+plant/UI/security restored, temporary fixture data removed,720x576 restored.
+No new graphics or invented automatic feedback; simulator tiebacks are
+explicit and labeled. This is not a fluid-dynamics, electrical-wiring,
+native8/16-condition/template/property or whole-course certification.
+Workshop instructions now wire all exact prerequisites, not just generic
+level comparisons.295 tests/typecheck/build validation.
 
 PASS 27: SUSTAINED CND COMPARISONS / FAIL-SAFE INTERLOCK QUALITY
 -------------------------------------------------------

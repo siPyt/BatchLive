@@ -262,6 +262,22 @@ This is the two-condition executable course subset, not the original
 eight/sixteen-condition palette, library drag/drop, configurable state masks,
 all DC options/named descriptors, or full DV-09 completion.
 
+The **Operating MTR-102 at the prescribed 500 and 10 gallons** workshop now
+connects those dependencies in a separate training project. Saved/deployed
+LEVEL-101 AO, CAS_SP and 0-1000 gal scale/limits drive LY-1 card2channel1;
+explicit simulated tieback to LT-1 card1channel1 gives sampled LI-101.
+500 gal produces 50% and 10 gal produces 1%, not a manually forced AI value.
+XV-101 DO XV-1/card4channel1 drives separately sampled XVSTAT-101 DI
+LSO-1/card3channel1 through an explicit simulator tieback. Owned MTR-102
+uses XI-2/card3channel2 and ZX-2/card4channel2 independently.
+At 500 gal the actual faceplate operates the motor. Closing the valve
+trips cause1 on sampled feedback; 10 gal trips cause2 at four continuous
+good seconds, not 3.9. Output shutdown precedes stopped feedback.
+Reopening/raising level does not erase the required motor reset or trapped
+history. The 50 gal threshold and Bad-input recovery are regression tested.
+These are labeled simulator signal connections, not physical wiring or a
+fluid-dynamics claim; approved plant equipment and colors are unchanged.
+
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are
 isolated drafts: OK validates and applies, while Cancel/Escape retain the

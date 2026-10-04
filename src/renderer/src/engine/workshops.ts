@@ -379,13 +379,28 @@ export const COURSE: WModule[] = [
         id: 'motor-owned-template',
         title: 'MTR-11_ILOCK owned two-condition template and exact source expressions',
         objective: 'Save and deploy the whole owned interlock/first-out/bypass/permissive strategy with its motor.',
-        note: 'Modeled two-condition course subset; original8/16-condition palette/library drag-drop/state-mask/all DC-property/Partial-download/NVM parity and500/10gal process remain incomplete.',
+        note: 'Modeled two-condition course subset; original8/16-condition palette/library drag-drop/state-mask/all DC-property/Partial-download/NVM parity remains incomplete. The following workshop verifies the exact500/10gal dependencies.',
         steps: [
           { id: 'motor-template-copy', text: 'In Explorer New Module select MOTOR and Library / Motors-2State / MTR-11_ILOCK. Name MTR-102 in the training area. This creates one inhibited motor with owned CND1/CND2/BFI1/OR1/NOT1/AND1, not independent live modules.', goto: 'explorer' },
           { id: 'motor-template-conditions', text: 'Open owned CND1, set EXPR to \'//XVSTAT-101/DI1/PV_D\' = 0 and Apply, TIME_DURATION0. Open CND2 and Apply \'//LI-101/AI1/PV\' < 50, TIME_DURATION4. Qualified sources must exist with correct type. Owning motor button returns to Save/Download; offline edits leave actual deployed blocks unchanged.', goto: 'studio' },
           { id: 'motor-template-permit', text: 'Configure AND1.IN1/IN2 with real start-permissive dependencies, or deliberate training constants (defaults1). AND1 drives permissive independently of NOT1, which maps BFI trip output into the explicit healthy-at1 interlock polarity. Bad always trips; do not invert Bad into permission.' },
           { id: 'motor-template-download', text: 'On owning motor assign commissioned CTLR, XI-2 DI card3channel2 and ZX-2 DO card4channel2; set Reset Required/Permissive. Save then Full Download. Both physical channels must be passive/scanned Good with no writer conflict. All owned configuration transfers together; Online configuration edits reject.' },
           { id: 'motor-template-verify', text: 'With open-valve DI1 and measured level50, no trip. At49, CND2 remains0 at3.9 and becomes1 at4.0; BFI FIRST_OUT2, NOT1 becomes0, motor trips and ZX-2 de-energizes before XI-2 physically confirms stopped. Clear causes and reset motor lock. In Online owned CND2 toggle BYPASS: independent OR1 becomes1; Bad cannot be bypassed. BFI Reset clears trap only, never actual trip or motor lock. Lost controller marks owned outputs Bad without erasing good historical first-out.' }
+        ]
+      },
+      {
+        id: 'motor-course-level',
+        title: 'Operating MTR-102 at the prescribed 500 and 10 gallons',
+        objective: 'Execute p234 through the real saved AO, scaled sampled level, DO/DI valve and downloaded owned motor.',
+        note: 'Use a separate blank training project. All tiebacks below are explicit simulator connections, not claims of physical wiring or a fluid-dynamics model. Keep approved equipment colors unchanged.',
+        steps: [
+          { id: 'motor-course-hardware', text: 'Commission CTLR. Configure AI card1channel1 LT-1, AO card2channel1 LY-1, DI card3channel1 LSO-1 and channel2 XI-2, DO card4channel1 XV-1 and channel2 ZX-2. Enable every channel. Explicitly set LT-1 tieback LY-1, LSO-1 tieback XV-1 and XI-2 tieback ZX-2. Command and feedback remain separate sampled values.', goto: 'hardware' },
+          { id: 'motor-course-analog', text: 'Create LI-101 AI with PV_SCALE0-1000gal and IO_IN LT-1. Create LEVEL-101 AO with PV_SCALE0-1000gal, SP_LO_LIM0 and SP_HI_LIM1000. Enable saved lifecycle, add Floating Point CAS_SP500 and connect to CAS_IN. Offline assign CTLR/LY-1 and mode CAS. Save, Full Download, Online. Verify applied LY-1 output50% and LI-101 sampled500gal on the next scan.', goto: 'studio' },
+          { id: 'motor-course-discrete', text: 'Create XV-101 DO bound to XV-1 and XVSTAT-101 DI bound to LSO-1, AUTO. Use the preceding owned MTR-102 template/exact quoted CND expressions with duration0/4 and XI-2/ZX-2. Wire AND1.IN1 to XVSTAT-101 and IN2 to deliberate constant1. Save and Full Download the whole motor strategy.' },
+          { id: 'motor-course-open', text: 'Energize XV-101 using its actual DO command. Wait for the separately sampled XVSTAT feedback1 and good level500. Clear any initial motor lock with RESET_D and first-out history separately. START MTR-102 from the real faceplate: ZX-2 energizes first; Running becomes true only after XI-2 confirms. STOP/START must operate correctly at500gal.' },
+          { id: 'motor-course-close', text: 'De-energize XV-101. The following good closed DI scan makes CND1 trip and BFI FIRST_OUT1, NOT1 healthy output0, denied permissive and ZX-2 output0. Running is not fabricated Stopped in the command scan; XI-2 must confirm. Reopen valve: trip clears, but Reset Required retains the motor lock and blocks Start. RESET_D permits a new Start.' },
+          { id: 'motor-course-low', text: 'While the valve is open and motor confirmed Running, enter CAS_SP10 on actual LEVEL-101 Parameter View. Verify LY-1 output1% and sampled LI-10110gal. CND2 remains0 through3.9 uninterrupted good seconds and becomes1 at4.0; FIRST_OUT2 and actual motor output shutdown follow. Raise CAS_SP500: condition clears but history and motor lock remain until their separate resets.' },
+          { id: 'motor-course-boundaries', text: 'CAS_SP50 means5%/50gal and must not trip low level. Disable LT-1 or lose its controller: held10/500 is Bad, not a valid permission; the motor trips fail-safe. Restore Good while low: timing starts fresh and must run another continuous four seconds. Never bypass Bad to manufacture permission.' }
         ]
       }
     ]
