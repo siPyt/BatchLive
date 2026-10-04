@@ -581,6 +581,14 @@ OUT uses 0-100%. PID output is not measured valve travel. The original six
 default PV pens remain available. This is simulator-native detail/trending, not
 the proprietary detail-picture template or historian.
 
+Custom Builder valves also offer an independent **Actuator Color Animation**.
+Use body AND conditions for confirmed pump running plus sampled valve-open
+feedback; use `FIC-102 / AO1/OUT > 0` for applied-output actuator indication.
+The two parts resolve shared colors and Bad/error quality independently.
+Disable the actuator link to inherit body color. Both links persist in Picture
+Save/Load. Applied output is a simulator proxy, not measured physical travel;
+baseline plant symbols and colors remain unchanged.
+
 ## DV-09 PID_LOOP / FIC-102 template
 
 Explorer's New Control Module form offers the course `PID_LOOP` template for

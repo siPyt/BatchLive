@@ -205,6 +205,11 @@ C. Pneumatic/modulating control valve: ClassicControlValve.
      Do not claim physical valve feedback.
    - Clicking opens the bound PID faceplate.
    - Do not restore the old always-black, unbound ClassicBlackValve.
+   - Custom Builder valves may explicitly bind an independent actuator color.
+     Body remains bound to its flow conditions; actuator may use applied AO
+     output >0, never claim measured physical travel. Bad/error neutral feedback
+     is independent for each part. No default/baseline caller enables this.
+     Preserve bowtie/dome/block geometry, blue frames and exact output bar.
    - Do not substitute a pale shaded diamond without the dome.
 
 Shared bowtie baseline:

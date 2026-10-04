@@ -25,7 +25,7 @@ export interface PictureAlarmSignal {
 }
 export type PictureAlarmSignalResult = PictureAlarmSignal | { error: string }
 export type PictureDynamicPatch = Pick<Partial<PicElement>,
-  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag' | 'flashWhenNotNormal' | 'flowAnimation'>
+  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag' | 'flashWhenNotNormal' | 'flowAnimation' | 'actuatorFlowAnimation'>
 
 function pictureModePath(path: string): 'target' | 'actual' | null {
   const normalized = path.trim().toUpperCase().replace(/^PID1\//, '').replace(/\.CV$/, '')
@@ -119,6 +119,11 @@ export function pictureElementError(el: PicElement, modules: Record<string, AnyM
     const error = flowAnimationError(el.flowAnimation, modules)
     if (error) return error
   }
+  if (el.actuatorFlowAnimation) {
+    if (el.type !== 'valve') return 'Actuator color animation requires a valve'
+    const error = flowAnimationError(el.actuatorFlowAnimation, modules)
+    if (error) return error
+  }
   if (el.type === 'rectangle' && (![el.width ?? 64, el.height ?? 160].every(v => Number.isFinite(v) && v > 0))) {
     return 'Rectangle dimensions must be finite and positive'
   }
@@ -196,9 +201,9 @@ function element(v: unknown): v is PicElement {
     ['fontSize', 'width', 'height'].every(k => v[k] === undefined || typeof v[k] === 'number' && Number.isFinite(v[k])) &&
     ['label', 'bold'].every(k => v[k] === undefined || typeof v[k] === 'boolean') &&
     (v.flashWhenNotNormal === undefined || typeof v.flashWhenNotNormal === 'boolean') &&
-    (v.flowAnimation === undefined || object(v.flowAnimation) &&
-      typeof v.flowAnimation.table === 'string' && Array.isArray(v.flowAnimation.conditions) &&
-      v.flowAnimation.conditions.every(condition => object(condition) && typeof condition.tag === 'string' &&
+    ['flowAnimation', 'actuatorFlowAnimation'].every(key => v[key] === undefined || object(v[key]) &&
+      typeof v[key].table === 'string' && Array.isArray(v[key].conditions) &&
+      v[key].conditions.every(condition => object(condition) && typeof condition.tag === 'string' &&
         typeof condition.path === 'string' && ['STATE', 'PV', 'PID1/OUT', 'AO1/OUT'].includes(condition.path) &&
         typeof condition.greaterThan === 'number' && Number.isFinite(condition.greaterThan))) &&
     (v.param === undefined || typeof v.param === 'string' && ['PV', 'SP', 'OUT', 'MODE', 'STATE'].includes(v.param)) &&

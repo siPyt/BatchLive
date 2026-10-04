@@ -270,6 +270,10 @@ function Canvas({
         }
         const sel = edit && selEl === el.id
         const flow = el.flowAnimation ? pictureFlowColor(el.flowAnimation, flowTables, modules) : null
+        const actuator = el.actuatorFlowAnimation ? pictureFlowColor(el.actuatorFlowAnimation, flowTables, modules) : null
+        const actuatorError = actuator && 'error' in actuator ? actuator.error : undefined
+        const actuatorBad = !!actuator && !('error' in actuator) && actuator.bad
+        const actuatorColor = actuator && !('error' in actuator) ? actuator.color : actuatorError ? PALE_EQUIP : undefined
         const equipmentMissing = (el.type === 'pump' || el.type === 'valve') && !m
           ? `Equipment module ${el.tag || '(unassigned)'} does not exist` : undefined
         const flowError = equipmentMissing ?? (flow && 'error' in flow ? flow.error : undefined)
@@ -285,20 +289,24 @@ function Canvas({
           return <svg key={el.id} className={'bld-el' + (sel ? ' sel' : '')}
             width={width} height={height} style={{ left: el.x, top: el.y, zIndex: pipe ? 0 : 1 }}
             onMouseDown={startDrag} onClickCapture={event => { if (edit) event.stopPropagation() }}
-            aria-label={`${el.tag ?? ''} ${el.type}${flowError ? `: ${flowError}` : flowBad ? ': Bad' : ''}`}
-            data-flow-color={flowColor} data-flow-quality={flowError ? 'ERROR' : flowBad ? 'BAD' : flow ? 'GOOD' : undefined}>
-            <title>{flowTitle}</title>
+            aria-label={`${el.tag ?? ''} ${el.type}${flowError || actuatorError ? `: ${flowError ?? actuatorError}` : flowBad || actuatorBad ? ': Bad' : ''}`}
+            data-flow-color={flowColor} data-flow-quality={flowError ? 'ERROR' : flowBad ? 'BAD' : flow ? 'GOOD' : undefined}
+            data-actuator-flow-color={actuatorColor}
+            data-actuator-flow-quality={actuatorError ? 'ERROR' : actuatorBad ? 'BAD' : actuator ? 'GOOD' : undefined}>
+            <title>{flowTitle}{actuatorError ? `; Actuator: ${actuatorError}` : actuatorBad ?
+              '; Actuator: Bad feedback' : actuator && !('error' in actuator) ?
+                `; Actuator: ${actuator.flowing ? 'Open' : 'Closed'} (${el.actuatorFlowAnimation?.table}; simulated source)` : ''}</title>
             {pipe ? <line x1={vertical ? width / 2 : 0} y1={vertical ? 0 : height / 2}
               x2={vertical ? width / 2 : width} y2={vertical ? height : height / 2}
               stroke={flowColor ?? PALE_PIPE} strokeWidth={3} strokeDasharray={flowBad || flowError ? '4 3' : undefined} /> :
               el.type === 'pump' && m?.type === 'MOTOR' ?
                 <ClassicPump x={80} y={40} running={m.running} tag={m.tag} animationColor={flowColor} /> :
               el.type === 'valve' && m?.type === 'PID' ?
-                <ClassicControlValve x={80} y={40} position={appliedPidOutput(m)} tag={m.tag} animationColor={flowColor} /> :
+                <ClassicControlValve x={80} y={40} position={appliedPidOutput(m)} tag={m.tag} animationColor={flowColor} actuatorAnimationColor={actuatorColor} /> :
               el.type === 'valve' && m?.type === 'VALVE' ?
-                <ClassicSanitaryValve x={80} y={40} open={m.open} tag={m.tag} animationColor={flowColor} /> : null}
-            {!pipe && (flowError || flowBad) && <text x={4} y={12} fill={PALE_TEXT} fontSize={10}>
-              {flowError ? 'Flow source/table unavailable' : 'Bad flow feedback'}
+                <ClassicSanitaryValve x={80} y={40} open={m.open} tag={m.tag} animationColor={flowColor} actuatorAnimationColor={actuatorColor} /> : null}
+            {!pipe && (flowError || flowBad || actuatorError || actuatorBad) && <text x={4} y={12} fill={PALE_TEXT} fontSize={10}>
+              {flowError || actuatorError ? 'Animation source/table unavailable' : 'Bad animation feedback'}
             </text>}
           </svg>
         }
@@ -489,6 +497,8 @@ function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Eleme
           </div>}
           {['pipe', 'pump', 'valve', 'rectangle', 'dynamo'].includes(el.type) &&
             <FlowAnimationControls key={`flow-${id}-${el.tag}`} picture={picture} element={el} />}
+          {el.type === 'valve' &&
+            <FlowAnimationControls key={`actuator-${id}-${el.tag}`} picture={picture} element={el} part="actuator" />}
         </>
       )}
       <div className="bld-f bld-f-row">

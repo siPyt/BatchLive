@@ -3,9 +3,9 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: PID Detail tuning and
-dynamic PV/SP/OUT real-time trends (Pass41). Previous milestone: 2083629,
-shared custom-picture flow-color tables (Pass40).
+DV-09 is NOT complete. Latest implemented milestone: independent custom valve
+body/actuator animation (Pass42, LOCAL; pushes paused by user).
+Previous milestone: da59138, PID Detail tuning and dynamic PV/SP/OUT (Pass41).
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
   VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
@@ -17,10 +17,10 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:330 repository tests passed; final targeted picture/PID/control
-regressions, typecheck, production build, editor diagnostics and audit validation
-passed. Browser checks verified Detail tuning at RESET2.5, created FIC-102
-PV/SP/OUT curves with advancing samples, and restoration of original plant state.
+Last validation:331 repository tests passed; focused picture/PID regressions,
+typecheck, production build, editor diagnostics and audit validation passed.
+Browser verified independent body/actuator colors and Bad feedback, picture
+persistence, and restoration of original plant/UI/storage state.
 
 Most recent delivered functionality:
   - FIC-102 PID_LOOP template and isolated Save/Download/Online lifecycle.
@@ -28,10 +28,10 @@ Most recent delivered functionality:
   - Selected GAIN/RESET/RATE upload; unchecked-by-default download upload prompt.
   - Shared flow_color tables and opt-in custom-picture pipe/pump/valve links.
   - PID Detail online tuning, fractional RESET and dynamic PID PV/SP/OUT trends.
+  - Independent valve body and actuator colors/quality in opt-in custom pictures.
 
 Remaining adjacent regulatory/picture requirements:
-  DV09-058 pp256-257: OUT ramp, separate valve-body/actuator animation, native
-    PipesAnim parity.
+  DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
   DV09-059 p258: native detail template/file parity; simulated workflow verified.
   DV09-060 pp259-264: upload is tuning-only; generic/native upload remains absent.
   DV09-061 p265: Tune process-test/review/update workflow remains missing.
@@ -50,24 +50,6 @@ HOW TO CHECK PROGRESS
    records means review traceability, NOT zero missing features.
 5. DV-09 Workshops in the app are manual learner checklists, not verified coverage.
 Future milestones must refresh this snapshot as well as their audit evidence.
-
-PASS 41: PID DETAIL TUNING AND REAL-TIME PV/SP/OUT (p258)
--------------------------------------------------------
-Created PID loops, including FIC-102, now appear in the main historian and
-faceplate Trend links. PID PV/SP/requested OUT are sampled together; AI PV and
-AO PV/SP/OUT remain supported. Focused loop trends show all three pens with
-module engineering units/ranges and output percent. The six default PV pens
-remain available. No physical valve travel feedback is inferred from PID OUT.
-PID Detail opens simulator-native online tuning when no custom detail picture
-is assigned; explicit custom assignments retain precedence. Gain/Reset/Rate
-controls are shared with the Tune tab and preserve fractional RESET2.5.
-Tuning requires an unlocked workstation and TUNING key, valid nonnegative
-finite values, and existing execution/lifecycle availability. Invalid writes
-are rejected/logged atomically. Online changes are not silently saved.
-Verification:330 full-suite tests, typecheck/build, focused tests and browser
-Detail0.7/2.5/0 plus created FIC-102 PV/SP/OUT curves. Original browser state
-restored, with no fixture persistence. DV09-059 stays PARTIAL because native
-template layout/file assignment and full prerequisite parity are not certified.
 
 SOURCE AND REVIEW STATUS
 ------------------------
@@ -1566,3 +1548,40 @@ P-101, STOP with confirmed feedback changing all links to no-flow, injected Bad
 feedback showing neutral/Bad, and separate UI table/picture Save. Original
 96-module running plant/UI/security/pictures/browser storage restored; fixture
 and temporary session storage removed.
+
+PASS 41: PID DETAIL TUNING AND REAL-TIME PV/SP/OUT (p258)
+-------------------------------------------------------
+Created PID loops, including FIC-102, now appear in the main historian and
+faceplate Trend links. PID PV/SP/requested OUT are sampled together; AI PV and
+AO PV/SP/OUT remain supported. Focused loop trends show all three pens with
+module engineering units/ranges and output percent. The six default PV pens
+remain available. No physical valve travel feedback is inferred from PID OUT.
+PID Detail opens simulator-native online tuning when no custom detail picture
+is assigned; explicit custom assignments retain precedence. Gain/Reset/Rate
+controls are shared with the Tune tab and preserve fractional RESET2.5.
+Tuning requires an unlocked workstation and TUNING key, valid nonnegative
+finite values, and existing execution/lifecycle availability. Invalid writes
+are rejected/logged atomically. Online changes are not silently saved.
+Verification:330 full-suite tests, typecheck/build, focused tests and browser
+Detail0.7/2.5/0 plus created FIC-102 PV/SP/OUT curves. Original browser state
+restored, with no fixture persistence. DV09-059 stays PARTIAL because native
+template layout/file assignment and full prerequisite parity are not certified.
+
+PASS 42: INDEPENDENT CUSTOM VALVE BODY AND ACTUATOR ANIMATION (p257)
+-----------------------------------------------------------------
+Body flow links combine confirmed motor RUNNING and sampled valve OPEN
+feedback. A separate actuator link can use FIC-102 AO1/OUT >0. This uses
+applied simulator output, not measured physical travel or requested PID OUT.
+Bad/error resolution is independent per part; a bad actuator cannot erase
+confirmed body flow. Disabling the actuator link inherits the existing body
+color. All links resolve shared table colors live. Links persist with picture
+Save/Load, require configuration permission and reject unavailable tables or
+malformed sources atomically. Approved symbol geometry, blue device frames,
+default green/black state and exact output bar behavior remain unchanged.
+Verification:331 full-suite tests,13 focused regressions, typecheck/build,
+editor diagnostics, audit validation and browser Configure
+Apply at0.1% output (body green, actuator yellow), body yellow with actuator
+Bad neutral, and Save/Load preserving the actuator link. Original browser
+plant/UI/security/pictures/tables restored; fixture storage removed.
+DV09-058 remains PARTIAL for OUT ramp and native PipesAnim.
+Pushes paused by user; this checkpoint is local until explicitly authorized.

@@ -17,8 +17,9 @@ const DEVICE_OFF = '#171d18'
 const DEVICE_BLUE = '#252887'
 type ValveOrientation = 'horizontal' | 'vertical'
 
-function ValveBody({ color, orientation = 'horizontal', actuator = 'block' }: {
+function ValveBody({ color, actuatorColor = color, orientation = 'horizontal', actuator = 'block' }: {
   color: string
+  actuatorColor?: string
   orientation?: ValveOrientation
   actuator?: 'block' | 'hand' | 'pneumatic'
 }): JSX.Element {
@@ -26,9 +27,9 @@ function ValveBody({ color, orientation = 'horizontal', actuator = 'block' }: {
     <g transform={orientation === 'vertical' ? 'rotate(90)' : undefined} fill={color} stroke={color} strokeWidth={0.8}>
       <path d="M-8,-6 L0,-1 L8,-6 V6 L0,1 L-8,6 Z" />
       <path d="M0,0 V-10" fill="none" strokeWidth={2} />
-      {actuator === 'block' && <rect x={-8} y={-15} width={16} height={5} />}
-      {actuator === 'hand' && <path d="M-5,-10 H5" fill="none" strokeWidth={2} />}
-      {actuator === 'pneumatic' && <path d="M-9,-10 A9,7 0 0 1 9,-10 Z" />}
+      {actuator === 'block' && <rect x={-8} y={-15} width={16} height={5} fill={actuatorColor} stroke={actuatorColor} />}
+      {actuator === 'hand' && <path d="M-5,-10 H5" fill="none" stroke={actuatorColor} strokeWidth={2} />}
+      {actuator === 'pneumatic' && <path d="M-9,-10 A9,7 0 0 1 9,-10 Z" fill={actuatorColor} stroke={actuatorColor} />}
     </g>
   )
 }
@@ -141,9 +142,10 @@ export function ClassicPump({
   )
 }
 
-export function ClassicControlValve({ x, y, position, tag, label = tag, labelPosition = 'below', animationColor }: {
+export function ClassicControlValve({ x, y, position, tag, label = tag, labelPosition = 'below', animationColor, actuatorAnimationColor }: {
   x: number; y: number; position: number; tag: string; label?: string; labelPosition?: 'above' | 'below'
   animationColor?: string
+  actuatorAnimationColor?: string
 }): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
   const pct = Math.max(0, Math.min(100, position))
@@ -152,7 +154,7 @@ export function ClassicControlValve({ x, y, position, tag, label = tag, labelPos
     <g data-equipment-tag={tag} data-state={pct > 0 ? 'open' : 'closed'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
       <title>{`${label} (${tag}): ${pct.toFixed(1)}% output`}</title>
       <g transform={`translate(${x} ${y})`}>
-        <ValveBody color={color} actuator="pneumatic" />
+        <ValveBody color={color} actuatorColor={actuatorAnimationColor} actuator="pneumatic" />
         <rect x={-10} y={10} width={20} height={3} fill="#eef1f3" stroke={PALE_BORDER} strokeWidth={0.5} />
         <rect x={-10} y={10} width={pct / 5} height={3} fill={color} />
       </g>
@@ -344,10 +346,11 @@ export function ClassicTitle({ x, y, text }: { x: number; y: number; text: strin
   )
 }
 
-export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label = tag ?? 'Reference valve', orientation = 'horizontal', labelPosition = 'below', animationColor }: {
+export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label = tag ?? 'Reference valve', orientation = 'horizontal', labelPosition = 'below', animationColor, actuatorAnimationColor }: {
   x: number; y: number; open: boolean; tag?: string; mode?: string; label?: string
   orientation?: ValveOrientation; labelPosition?: 'above' | 'below' | 'right'
   animationColor?: string
+  actuatorAnimationColor?: string
 }): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
   const color = animationColor ?? (open ? PALE_GREEN : DEVICE_OFF)
@@ -356,7 +359,7 @@ export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label = tag
     <g data-equipment-tag={tag} data-state={open ? 'open' : 'closed'} style={{ cursor: tag ? 'pointer' : 'default' }} onClick={tag ? () => openFp(tag) : undefined}>
       <title>{`${label}${tag ? ` (${tag})` : ' (reference symbol only)'}: ${open ? 'Open' : 'Closed'}`}</title>
       <rect x={x - (vertical ? 26 : 23)} y={y - (vertical ? 19 : 20)} width={vertical ? 44 : 46} height={vertical ? 38 : 34} fill={PALE_BG} stroke={DEVICE_BLUE} strokeWidth={2} />
-      <g transform={`translate(${x} ${y})`}><ValveBody color={color} orientation={orientation} /></g>
+      <g transform={`translate(${x} ${y})`}><ValveBody color={color} actuatorColor={actuatorAnimationColor} orientation={orientation} /></g>
       <rect x={x - 20} y={y + 7} width={4} height={5} fill={DEVICE_BLUE} />
       <line x1={x - 18} y1={y + 8} x2={x - 18} y2={y + 11} stroke="#eef1f3" strokeWidth={0.6} />
       <text x={vertical ? x - 17 : x} y={vertical ? y + 3 : y + 11} fill={PALE_TEXT} fontSize={7} textAnchor="middle">{mode}</text>

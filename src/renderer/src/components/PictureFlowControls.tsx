@@ -54,20 +54,26 @@ export function FlowTablesDialog({ onClose }: { onClose: () => void }): JSX.Elem
   </SimulatorDialog>
 }
 
-export function FlowAnimationControls({ picture, element }: { picture: string; element: PicElement }): JSX.Element {
+export function FlowAnimationControls({ picture, element, part = 'body' }: {
+  picture: string; element: PicElement; part?: 'body' | 'actuator'
+}): JSX.Element {
   const tables = useFlowColors(state => state.tables)
   const modules = useStore(state => state.modules)
   const update = usePictures(state => state.updateElement)
-  const [table, setTable] = useState(element.flowAnimation?.table ?? Object.keys(tables)[0] ?? 'flow_color')
-  const [conditions, setConditions] = useState<FlowCondition[]>(element.flowAnimation?.conditions ?? [
+  const animation = part === 'actuator' ? element.actuatorFlowAnimation : element.flowAnimation
+  const [table, setTable] = useState(animation?.table ?? Object.keys(tables)[0] ?? 'flow_color')
+  const [conditions, setConditions] = useState<FlowCondition[]>(animation?.conditions ?? [
     { tag: element.tag ?? '', path: modules[element.tag ?? '']?.type === 'PID' ? 'AO1/OUT' : 'STATE', greaterThan: 0 }
   ])
-  const [enabled, setEnabled] = useState(!!element.flowAnimation)
+  const [enabled, setEnabled] = useState(!!animation)
   const [status, setStatus] = useState('')
   return <>
-    <b>Shared Flow Color Animation</b>
+    <b>{part === 'actuator' ? 'Actuator Color Animation' : 'Shared Flow Color Animation'}</b>
+    {element.type === 'valve' && <p>{part === 'actuator'
+      ? 'Independent actuator color. AO1/OUT > 0 represents applied simulated output, not measured physical travel. Disable to inherit the body color.'
+      : 'Valve body color; actuator inherits it unless its independent animation is enabled below.'}</p>}
     <label className="bld-f bld-f-row">
-      <input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Enable
+      <input aria-label={`Enable ${part} animation`} type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Enable
     </label>
     {enabled && <>
       <label className="bld-f">Table
@@ -114,10 +120,11 @@ export function FlowAnimationControls({ picture, element }: { picture: string; e
       </button>
     </>}
     <button className="tbtn sm" onClick={() => {
-      if (update(picture, element.id, { flowAnimation: enabled ? { table, conditions } : undefined })) {
+      const value = enabled ? { table, conditions } : undefined
+      if (update(picture, element.id, part === 'actuator' ? { actuatorFlowAnimation: value } : { flowAnimation: value })) {
         setStatus('Flow animation applied. Save Picture to persist the link.')
       }
-    }}>Apply Flow Animation</button>
+    }}>{part === 'actuator' ? 'Apply Actuator Animation' : 'Apply Flow Animation'}</button>
     <p role="status">{status}</p>
   </>
 }

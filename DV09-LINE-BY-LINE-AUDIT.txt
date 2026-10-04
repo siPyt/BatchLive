@@ -909,9 +909,14 @@ Evidence: Builder now supports bounded numeric PID1/SP entry, PID
   MODE.A_ACTUAL, and `ALARMS[1].A_LAALM` visibility based on the simulator's
   active alarms for that module. Existing faceplate controls and protected
   pipes remain. Custom pipe segments and shared flow-color pump/valve links now
-  execute the p266 subset, but OUT ramp entry, separate valve-body/actuator
-  expressions, and native PipesAnim remain incomplete. Native alarm-index
-  behavior is not claimed.
+  execute the p266 subset. Custom valves have independent body/actuator AND
+  bindings: MTR-102 confirmed RUNNING plus XVSTAT-101 sampled OPEN colors the
+  body, while FIC-102 applied AO1/OUT >0 independently colors the actuator.
+  Each part separately reports Bad/error feedback, shared table edits recolor
+  both and Save/Load preserves both links. Automated combinations and browser
+  Configure/Apply/Save/Load are verified without changing baseline artwork.
+  OUT ramp entry and native PipesAnim remain incomplete; applied AO is not
+  measured physical travel. Native alarm-index behavior is not claimed.
 Acceptance: Configure the specified picture expressions and verify resulting
   writes/feedback and alarm-active visibility. Numeric SP bounds and permitted
   target selection reject invalid commands. Complete remaining animation

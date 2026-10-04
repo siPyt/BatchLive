@@ -34,6 +34,7 @@ export interface PicElement {
   height?: number
   backgroundColor?: string
   flowAnimation?: FlowAnimation
+  actuatorFlowAnimation?: FlowAnimation
 }
 
 export interface Picture {
@@ -77,15 +78,16 @@ function rejectPicture(pic: string, message: string): false {
   window.alert(message)
   return false
 }
-function dynamicElement(el: Pick<PicElement, 'type' | 'path' | 'entry' | 'fill' | 'flowAnimation'>): boolean {
+function dynamicElement(el: Pick<PicElement, 'type' | 'path' | 'entry' | 'fill' | 'flowAnimation' | 'actuatorFlowAnimation'>): boolean {
   return el.type === 'rectangle' || el.type === 'tank' || el.path !== undefined ||
-    el.entry !== undefined || el.fill !== undefined || el.flowAnimation !== undefined ||
+    el.entry !== undefined || el.fill !== undefined || el.flowAnimation !== undefined || el.actuatorFlowAnimation !== undefined ||
     el.type === 'pipe' || el.type === 'pump' || el.type === 'valve'
 }
 
-function missingFlowTable(element: Pick<PicElement, 'flowAnimation'>): string | null {
-  return element.flowAnimation && !Object.hasOwn(useFlowColors.getState().tables, element.flowAnimation.table)
-    ? `Shared flow table ${element.flowAnimation.table} does not exist; create or load it first` : null
+function missingFlowTable(element: Pick<PicElement, 'flowAnimation' | 'actuatorFlowAnimation'>): string | null {
+  const missing = [element.flowAnimation, element.actuatorFlowAnimation].find(animation =>
+    animation && !Object.hasOwn(useFlowColors.getState().tables, animation.table))
+  return missing ? `Shared flow table ${missing.table} does not exist; create or load it first` : null
 }
 
 let seq = 0

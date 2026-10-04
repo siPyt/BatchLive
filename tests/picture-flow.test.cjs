@@ -96,6 +96,55 @@ test('flow conditions distinguish applied AO feedback from requested PID output 
   assert.match(pictureFlowColor({ table: 'flow_color', conditions: [] }, {}, useStore.getState().modules).error, /1-8/)
 }))
 
+test('p257 valve body and actuator independently resolve flow, output, Bad and shared table changes', () => fixture(({ pictures, tables, storage }) => {
+  tables.applyTable({ name: 'flow_color', flowColor: '#ffff00', noFlowColor: '#008000' })
+  pictures.createPicture('FEED')
+  const body = { table: 'flow_color', conditions: [
+    { tag: 'PUMP', path: 'STATE', greaterThan: 0 }, { tag: 'OPEN', path: 'STATE', greaterThan: 0 }
+  ] }
+  const actuator = { table: 'flow_color', conditions: [{ tag: 'FLOW', path: 'AO1/OUT', greaterThan: 0 }] }
+  const id = pictures.addElement('FEED', { type: 'valve', x: 5, y: 25, tag: 'FLOW',
+    flowAnimation: body, actuatorFlowAnimation: actuator })
+  assert.ok(id)
+  const colors = () => [body, actuator].map(animation =>
+    pictureFlowColor(animation, useFlowColors.getState().tables, useStore.getState().modules))
+  const output = (out, bad = false) => {
+    const m = useStore.getState().modules.FLOW
+    patchModule('FLOW', { io: { ...m.io, ao: { ...m.io.ao, out, bad } } })
+  }
+  output(0)
+  assert.deepEqual(colors().map(item => item.color), ['#008000', '#008000'])
+  output(0.1)
+  assert.deepEqual(colors().map(item => item.color), ['#008000', '#ffff00'],
+    'positive applied output opens actuator while stopped pump keeps body no-flow')
+  patchModule('PUMP', { running: true })
+  patchModule('OPEN', { state: true })
+  output(0)
+  assert.deepEqual(colors().map(item => item.color), ['#ffff00', '#008000'])
+  output(100, true)
+  assert.deepEqual(colors().map(item => [item.color, item.bad]), [['#ffff00', false], ['#aebdc9', true]])
+  output(100)
+  patchModule('OPEN', { ioBad: true })
+  assert.deepEqual(colors().map(item => [item.color, item.bad]), [['#aebdc9', true], ['#ffff00', false]])
+  patchModule('OPEN', { ioBad: false })
+  tables.applyTable({ name: 'flow_color', flowColor: '#ff00ff', noFlowColor: '#123456' })
+  assert.deepEqual(colors().map(item => item.color), ['#ff00ff', '#ff00ff'])
+  assert.equal(pictures.savePicture('FEED'), true)
+  assert.equal(pictures.updateElement('FEED', id, { actuatorFlowAnimation: undefined }), true)
+  assert.equal(pictures.loadPicture('FEED'), true)
+  assert.deepEqual(usePictures.getState().pictures.FEED.elements[0].actuatorFlowAnimation, actuator)
+  const saved = JSON.parse(storage.get(pictureStorageKey('FEED')))
+  saved.picture.elements[0].actuatorFlowAnimation.conditions[0].path = 'COMMAND'
+  assert.throws(() => parseSavedPicture(JSON.stringify(saved), 'FEED', useStore.getState().modules), /schema/)
+  const before = usePictures.getState().pictures.FEED
+  assert.equal(pictures.updateElement('FEED', id, { actuatorFlowAnimation: { ...actuator, table: 'missing' } }), false)
+  assert.equal(usePictures.getState().pictures.FEED, before)
+  assert.equal(pictures.addElement('FEED', { type: 'pipe', x: 5, y: 5, actuatorFlowAnimation: actuator }), null)
+  useSecurity.setState({ locked: true })
+  assert.equal(pictures.updateElement('FEED', id, { actuatorFlowAnimation: undefined }), false)
+  assert.equal(usePictures.getState().pictures.FEED, before)
+}))
+
 test('shared tables and picture links save/load independently and reject malformed or missing dependencies atomically', () => fixture(({ pictures, tables, storage }) => {
   const table = { name: 'flow_color', flowColor: '#ffff00', noFlowColor: '#008000' }
   tables.applyTable(table)
@@ -175,4 +224,15 @@ test('shared equipment defaults retain protected colors and geometry; custom ani
     x: 40, y: 40, open: true, tag: 'VALVE', animationColor: '#ffff00'
   }))
   assert.ok(sanitary.includes('stroke="#252887"'), 'device-control frame remains blue')
+  for (const [component, props, actuatorPath] of [
+    [ClassicControlValve, { position: 0.1, tag: 'FLOW' }, 'M-9,-10 A9,7 0 0 1 9,-10 Z'],
+    [ClassicSanitaryValve, { open: true, tag: 'VALVE' }, 'x="-8" y="-15" width="16" height="5"']
+  ]) {
+    const independent = renderToStaticMarkup(React.createElement(component, {
+      x: 40, y: 40, ...props, animationColor: '#008000', actuatorAnimationColor: '#ffff00'
+    }))
+    assert.ok(independent.includes('fill="#008000"'))
+    assert.ok(independent.includes(`${actuatorPath}${component === ClassicControlValve ? '"' : ''} fill="#ffff00" stroke="#ffff00"`),
+      'only the actuator geometry receives its independent color')
+  }
 })
