@@ -881,12 +881,21 @@ Acceptance: Resolve all requested paths, keeping commands and feedback distinct.
 
 [DV09-069]
 Pages: 286-290
-Status: MISSING
+Status: PARTIAL
 Required: Case-sensitive NS-T101 with visible/selectable STARTUP=1 and visible,
   non-selectable SELECT SEQUENCE=255; MESSAGE parameter references that set.
-Evidence: No named-set/MESSAGE parameter administration or data-entry model.
+Evidence: Explorer Setup > Named Sets supports case-sensitive custom sets,
+  Properties > Add/Modify/Rename/Delete and nested State Properties drafts.
+  NS-T101 STARTUP=1 and SELECT SEQUENCE=255 preserve independent Visible and
+  User Selectable flags. Properties saves validated browser configuration;
+  Changed Setup Data transfers only changed sets to independent simulated
+  controller/workstation registries. Original pp223/287/288 images reviewed.
+  MESSAGE parameter administration/binding and operator data entry remain
+  missing; native defaults, references and global Setup Data are not claimed.
 Acceptance: Test exact names/values, visibility versus selection, numeric
   conversion and protection against selecting the reserved prompt.
+  Infrastructure validation: seven Named Set regressions and live nested
+  dialog/transfer acceptance. The complete exercise is not yet certified.
 
 [DV09-070]
 Pages: 291-292

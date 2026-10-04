@@ -40,6 +40,10 @@ import {
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
+import {
+  NAMED_SETS_STORAGE_KEY, changedNamedSets, cloneNamedSet, namedSetError, namedSetTargetKey,
+  parseNamedSets, serializeNamedSets, type NamedSetState, type NamedSetDefinition, type NamedSetTarget
+} from './namedSets'
 import { makeDefaultEquipment, makeBlankEquipment, type EquipmentModule } from './equipment'
 import {
   makeDefaultHardware,
@@ -59,6 +63,14 @@ const TREND_HZ = 2
 
 const EVENT_LOG_MAX = 2000
 
+function requireNamedSetLock(lock: 'CAN_CONFIGURE' | 'CAN_DOWNLOAD', action: string): boolean {
+  if (useSecurity.getState().locked) {
+    useSecurity.setState({ lastDenied: `Access Denied — ${action} requires an unlocked workstation` })
+    return false
+  }
+  return useSecurity.getState().requireLock(lock, action)
+}
+
 interface StoreState extends PlantState {
   trend: TrendPoint[]
   rev: number
@@ -77,6 +89,11 @@ interface StoreState extends PlantState {
   /** Physical Network: Controllers / I/O Carriers / CHARM baseplates. */
   hardware: HardwareState
   moduleLifecycle: Record<string, AoLifecycle>
+  namedSets: NamedSetState
+  createNamedSet: (name: string) => boolean
+  applyNamedSetProperties: (expected: NamedSetDefinition, draft: NamedSetDefinition) => boolean
+  loadSavedNamedSets: () => boolean
+  downloadChangedNamedSets: (target: NamedSetTarget) => boolean
   enableModuleLifecycle: (tag: string) => boolean
   setModuleOnline: (tag: string, online: boolean) => boolean
   editModuleDraft: (tag: string, patch: AoDraftPatch) => boolean
@@ -229,6 +246,7 @@ export const useStore = create<StoreState>((set, get) => ({
   equipment: makeDefaultEquipment(),
   hardware: makeDefaultHardware(),
   moduleLifecycle: {},
+  namedSets: { configured: {}, deployed: {} },
   hornSilenced: false,
 
   tick: (dt: number) => {
@@ -1684,6 +1702,83 @@ export const useStore = create<StoreState>((set, get) => ({
     get().logEvent('CONFIGURE', name, 'SFC deleted')
   },
 
+  createNamedSet: (name) => {
+    if (!requireNamedSetLock('CAN_CONFIGURE', `Create Named Set ${name}`)) return false
+    const definition: NamedSetDefinition = { name, description: '', entries: [] }
+    const error = namedSetError(definition, true) ??
+      (Object.hasOwn(get().namedSets.configured, name) ? `Named Set ${name} already exists (case-sensitive)` : null)
+    if (error) { get().logEvent('DIAGNOSTIC', name, error); window.alert(error); return false }
+    const configured = { ...get().namedSets.configured, [name]: definition }
+    try { window.localStorage.setItem(NAMED_SETS_STORAGE_KEY, serializeNamedSets(configured)) }
+    catch (error) {
+      const message = `Named Set creation could not persist configuration: ${error instanceof Error ? error.message : String(error)}`
+      get().logEvent('DIAGNOSTIC', name, message); window.alert(message); return false
+    }
+    set(s => ({ namedSets: { ...s.namedSets, configured }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', name, 'Named Set created; properties and Changed Setup Data transfer required')
+    return true
+  },
+
+  applyNamedSetProperties: (expected, draft) => {
+    if (!requireNamedSetLock('CAN_CONFIGURE', `Named Set Properties ${expected.name}`)) return false
+    const current = get().namedSets.configured[expected.name]
+    const error = current !== expected ? 'Named Set changed or was removed; cancel and reopen Properties' :
+      draft.name !== expected.name ? 'Named Set Properties cannot rename the set' : namedSetError(draft)
+    if (error) { get().logEvent('DIAGNOSTIC', expected.name, error); window.alert(error); return false }
+    const configured = { ...get().namedSets.configured, [draft.name]: cloneNamedSet(draft) }
+    try { window.localStorage.setItem(NAMED_SETS_STORAGE_KEY, serializeNamedSets(configured)) }
+    catch (error) {
+      const message = `Named Set Properties could not persist configuration: ${error instanceof Error ? error.message : String(error)}`
+      get().logEvent('DIAGNOSTIC', expected.name, message); window.alert(message); return false
+    }
+    set(s => ({ namedSets: { ...s.namedSets, configured }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', draft.name, 'Named Set Properties saved to local configuration; setup transfer still required')
+    return true
+  },
+
+  loadSavedNamedSets: () => {
+    if (!requireNamedSetLock('CAN_CONFIGURE', 'Load saved Named Sets')) return false
+    let text: string | null
+    try { text = window.localStorage.getItem(NAMED_SETS_STORAGE_KEY) }
+    catch (error) {
+      const message = `Saved Named Sets could not be read: ${error instanceof Error ? error.message : String(error)}`
+      get().logEvent('DIAGNOSTIC', 'Named Sets', message); window.alert(message); return false
+    }
+    const parsed = text === null ? { error: 'No saved Named Sets exist for this browser profile' } : parseNamedSets(text)
+    const configured = parsed.configured
+    if (parsed.error || !configured) {
+      const message = parsed.error ?? 'Saved Named Set configuration is missing'
+      get().logEvent('DIAGNOSTIC', 'Named Sets', message); window.alert(message); return false
+    }
+    set(s => ({ namedSets: { ...s.namedSets, configured }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', 'Named Sets', 'Saved Named Set configuration loaded; deployed setup data unchanged')
+    return true
+  },
+
+  downloadChangedNamedSets: (target) => {
+    if (!requireNamedSetLock('CAN_DOWNLOAD', 'Download Changed Setup Data: Named Sets')) return false
+    const state = get()
+    const controller = target.kind === 'controller' ? state.hardware.controllers[target.tag] : undefined
+    const error = target.kind === 'controller' && (!controller || controllerIsDown(controller)) ?
+      'Changed Setup Data requires an available commissioned target controller' :
+      Object.values(state.namedSets.configured).map(definition => namedSetError(definition)).find(Boolean)
+    if (error) { get().logEvent('DIAGNOSTIC', namedSetTargetKey(target), error); window.alert(error); return false }
+    const changes = changedNamedSets(state.namedSets, target)
+    if (!changes.length) {
+      const message = 'No Named Set setup changes for this target'
+      get().logEvent('DIAGNOSTIC', namedSetTargetKey(target), message); window.alert(message); return false
+    }
+    const deployed = { ...state.namedSets.deployed[namedSetTargetKey(target)] }
+    for (const name of changes) {
+      if (Object.hasOwn(state.namedSets.configured, name)) deployed[name] = cloneNamedSet(state.namedSets.configured[name])
+      else delete deployed[name]
+    }
+    set(s => ({ namedSets: { ...s.namedSets, deployed: { ...s.namedSets.deployed,
+      [namedSetTargetKey(target)]: deployed } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', namedSetTargetKey(target), `Changed Setup Data: ${changes.join(', ')}; simulated Named Set subset transferred atomically`)
+    return true
+  },
+
   checkSfc: (name) => {
     const sfc = get().sfcs[name]
     const error = !sfc ? `SFC ${name} does not exist` : !sfc.steps.length ?
@@ -1770,6 +1865,7 @@ export const useStore = create<StoreState>((set, get) => ({
       equipment: kind === 'blank' ? makeBlankEquipment() : makeDefaultEquipment(),
       hardware: kind === 'blank' ? makeBlankHardware() : makeDefaultHardware(),
       moduleLifecycle: {},
+      namedSets: { configured: {}, deployed: {} },
       rev: get().rev + 1
     })
   }

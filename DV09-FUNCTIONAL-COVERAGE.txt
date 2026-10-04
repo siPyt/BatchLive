@@ -594,6 +594,46 @@ Validation:149 tests (130 control, nine qualifier, five Properties/parser and
 five audit), typecheck/build/editor diagnostics pass; zero unmapped records.
 Local commit only, no push authorized.
 
+PASS 14: NAMED SET CONFIGURATION / CHANGED SETUP DATA SUBSET
+-----------------------------------------------------------
+Scope: setup infrastructure for DV09-069, not full exercise completion.
+Original PDF pp223/287/288 images inspected. Explorer Setup > Named Sets
+supports New Named Set and right-click/double-click Properties. Properties
+uses Add/Modify/Rename/Delete with nested State Properties, Name, Value,
+Visible and User selectable. Entries remain outer drafts until Properties
+OK. State OK does not persist the parent; Cancel/Escape discard changes.
+Nested Escape closes State Properties only and restores parent focus;
+second Escape cancels Properties. FlexLock discards open drafts.
+Course values: NS-T101 STARTUP=1, Visible Yes/User Selectable Yes;
+SELECT SEQUENCE=255, Visible Yes/User Selectable No. Names preserve case,
+including distinct STARTUP/startup. Invisible entries retain their independent
+User Selectable flag; the supported choice helper requires both flags.
+Properties validates uniqueness and safe integers before browser persistence.
+Invalid/stale/unauthorized/storage-failed commits leave configuration and
+deployed state untouched. Explicit Load Saved validates the entire versioned
+record before replacing configuration; it never alters deployed copies.
+New Project clears session configuration/deployment but leaves saved browser
+data available for explicit Load Saved. This is not multi-project database
+management or automatic restoration.
+Changed Setup Data transfers only changed Named Sets atomically, preserving
+unchanged target entries. Controller and local workstation registries remain
+independent. Controller targets must be commissioned and available. Zero-change
+and invalid transfers report errors; Can Download and unlocked station required.
+Visible target readback is separate from configured properties. Deployed
+copies are session-local and loading configured data does not deploy it.
+Live: created exact NS-T101 through folder context New and nested State
+Properties; parent draft remained empty configured until OK. Cancelled
+STARTUP2 edit retained STARTUP1. Transfer cancellation left deployment empty;
+confirmation deployed the exact entries to CTLR-01 only.
+Boundary: MESSAGE parameter/expression/datalink, vendor default sets and
+reference tracking, native Help/download-status dialogs, full setup categories
+and SFC graph/save/download remain missing. This infrastructure cannot certify
+the complete startup/shutdown exercise. Simulator numeric/name constraints
+are explicitly labelled rather than attributed to the vendor.
+Validation:156 tests (130 control, nine qualifiers, five Properties, seven
+Named Sets, five audit), typecheck/build/editor diagnostics pass.
+Local milestone only; no push authorized.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

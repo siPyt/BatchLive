@@ -88,6 +88,26 @@ unauthorized or running-chart commits reject atomically. This does not yet
 accept the course's Named Set MESSAGE expressions or implement native Confirm
 and arbitrary expression features; the exact workshop remains incomplete.
 
+Explorer **Setup > Named Sets** provides case-sensitive custom-set creation
+and draft **Properties > Add/Modify > State Properties**, including separate
+Visible and User Selectable flags. Configure NS-T101 with STARTUP=1 and
+SELECT SEQUENCE=255; make the latter visible but not user-selectable.
+Properties OK validates and persists configured sets to this browser profile;
+Cancel/Escape discard drafts. **Load Saved Named Sets** explicitly restores
+configured data without altering deployed copies. **Download Changed Setup
+Data** transfers the Named Set subset only, independently to an available
+commissioned controller or the simulated local workstation. The target's
+deployed values are shown separately. Configuration and download require
+their respective keys and an unlocked workstation.
+
+Run `npm run test:named-sets` for configuration, persistence, permissions and
+target-specific transfer regressions. This is not a complete native Setup
+Data download: other categories, protected vendor defaults, parameter
+references, SFC MESSAGE binding and operator Named Set datalinks remain gaps.
+Configured values use the simulator's safe-integer and existing 16-character
+tag syntax, not an assertion of vendor numeric/name limits. Deployed copies
+are session-local; loading browser configuration does not deploy it.
+
 ## DV-09 functional coverage
 
 The primary DV-09 source is the 575-page Engineering Training manual.

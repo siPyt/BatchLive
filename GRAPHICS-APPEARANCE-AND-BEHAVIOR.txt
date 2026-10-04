@@ -912,6 +912,37 @@ complete manual implemented or redesign approved graphics to hide these gaps.
 Commit permitted; push remains unauthorized.
 
 ===============================================================================
+26. DV-09 NAMED SET ADMINISTRATION - REFERENCE-BASED DRAFT WORKFLOW
+===============================================================================
+
+Original PDF pp223/287/288 reviewed locally. Preserve Explorer's approved
+control/equipment icons and existing Control Strategies tree. Setup > Named
+Sets is additive; no plant equipment, piping, palette or Studio ribbon changed.
+Folder context New Named Set and set context Properties open actual drafts.
+Properties uses a named-state table and Add/Modify/Rename/Delete operations.
+Nested State Properties edits Name, Value, Visible and User selectable.
+State OK updates the parent draft only; outer Properties OK validates and
+persists browser configuration. Cancel/Escape/FlexLock discard their drafts.
+Reference values STARTUP1 and SELECT SEQUENCE255 display separate flags.
+The prompt stays visible/nonselectable; do not substitute it with an operator
+command or collapse visibility into selectability.
+Use existing SimulatorDialog/parameter-table styling, with bounded width,
+wrapping names and no horizontal overflow. Nested Escape returns focus to
+the parent, then a second Escape cancels the parent. Live tested.
+Configured and target-deployed values are distinct. Explicit confirmed
+Changed Setup Data transfers only changed Named Sets; cancellation does not
+deploy. Controller and simulated local workstation copies are independent.
+Configuration/download keys and FlexLock are enforced at the store boundary.
+Storage failure, invalid/stale properties and unavailable controller reject
+atomically with diagnostics/notifications.
+This remains the simulated custom Named Set subset, not global Setup Data
+parity. Vendor defaults/references, native Help/status dialogs, MESSAGE,
+operator datalinks and full SFC exercise/lifecycle are still incomplete.
+Validation:156 coupled tests, typecheck/build/diagnostics; original running
+96-module plant/UI and prior Named Set browser storage restored.
+Record local verified milestones only; do not push without authorization.
+
+===============================================================================
 20. DV-09 OPT-IN AO SAVED LIFECYCLE - DO NOT REDESIGN THE APPROVED PLANT
 ===============================================================================
 

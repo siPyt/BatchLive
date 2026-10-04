@@ -8,6 +8,7 @@ import { ModuleIcon } from '../components/EngineeringIcons'
 import { ModuleDisplayControls } from '../components/ModuleDisplayControls'
 import { nextAreaName } from '../engine/areas'
 import { moduleNameError } from '../engine/naming'
+import { NamedSetControls } from '../components/NamedSetControls'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -64,6 +65,7 @@ export function ExplorerDisplay(): JSX.Element {
   const alarms = useStore((s) => s.alarms)
   const equipment = useStore((s) => s.equipment)
   const areas = useStore((s) => s.areas)
+  const namedSets = useStore(s => s.namedSets.configured)
   const addArea = useStore((s) => s.createArea)
   const renameArea = useStore((s) => s.renameArea)
   const deleteModule = useStore((s) => s.deleteModule)
@@ -82,8 +84,13 @@ export function ExplorerDisplay(): JSX.Element {
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
+  const [namedSetView, setNamedSetView] = useState(false)
+  const [selectedNamedSet, setSelectedNamedSet] = useState<string | null>(null)
+  const [namedSetCreateRequest, setNamedSetCreateRequest] = useState(0)
+  const [namedSetPropertiesRequest, setNamedSetPropertiesRequest] =
+    useState<{ name: string; serial: number } | null>(null)
   const [menu, setMenu] = useState<
-    { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'em'; target: string } | null
+    { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'em' | 'namedSets' | 'namedSet'; target: string } | null
   >(null)
 
   useEffect(() => {
@@ -125,10 +132,11 @@ export function ExplorerDisplay(): JSX.Element {
       <div
         key={m.tag}
         className={'exp-node exp-mod' + (nested ? ' nested' : '') + (selectedTag === m.tag ? ' sel' : '')}
-        onClick={() => select(m.tag)}
+        onClick={() => { setNamedSetView(false); select(m.tag) }}
         onDoubleClick={() => openStudio(m.tag)}
         onContextMenu={(e) => {
           e.preventDefault()
+          setNamedSetView(false)
           select(m.tag)
           setMenu({ x: e.clientX, y: e.clientY, kind: 'module', target: m.tag })
         }}
@@ -169,6 +177,30 @@ export function ExplorerDisplay(): JSX.Element {
         {createEmArea && (
           <NewEquipmentModuleForm initialArea={createEmArea} onDone={() => setCreateEmArea(null)} />
         )}
+        <div className="exp-node exp-cell" onClick={() => toggle('SETUP')}>
+          <span className="exp-caret">{open.SETUP === false ? '▸' : '▾'}</span>
+          <b>Setup</b>
+        </div>
+        {open.SETUP !== false && <>
+          <div className={'exp-node exp-area' + (namedSetView && !selectedNamedSet ? ' sel' : '')}
+            onClick={() => { setNamedSetView(true); setSelectedNamedSet(null) }}
+            onContextMenu={e => {
+              e.preventDefault(); setNamedSetView(true); setSelectedNamedSet(null)
+              setMenu({ x: e.clientX, y: e.clientY, kind: 'namedSets', target: 'Named Sets' })
+            }}>
+            <b>Named Sets</b>
+          </div>
+          {Object.keys(namedSets).map(name => <div key={name}
+            className={'exp-node exp-mod nested' + (namedSetView && selectedNamedSet === name ? ' sel' : '')}
+            onClick={() => { setNamedSetView(true); setSelectedNamedSet(name) }}
+            onDoubleClick={() => setNamedSetPropertiesRequest(previous => ({ name, serial: (previous?.serial ?? 0) + 1 }))}
+            onContextMenu={e => {
+              e.preventDefault(); setNamedSetView(true); setSelectedNamedSet(name)
+              setMenu({ x: e.clientX, y: e.clientY, kind: 'namedSet', target: name })
+            }}>
+            <b>{name}</b>
+          </div>)}
+        </>}
         <div
           className="exp-node exp-cell"
           onContextMenu={e => {
@@ -265,7 +297,11 @@ export function ExplorerDisplay(): JSX.Element {
       </div>
 
       <div className="explorer-detail">
-        {!selected ? (
+        {namedSetView ? (
+          <NamedSetControls selected={selectedNamedSet} onSelect={setSelectedNamedSet}
+            createRequest={namedSetCreateRequest} propertiesRequest={namedSetPropertiesRequest}
+            onRequestsHandled={() => { setNamedSetCreateRequest(0); setNamedSetPropertiesRequest(null) }} />
+        ) : !selected ? (
           <div className="exp-empty">Select a control module to view its properties.</div>
         ) : (
           <ModuleProperties module={selected} onStudio={() => openStudio(selected.tag)} onFaceplate={() => openFaceplate(selected.tag)} />
@@ -274,7 +310,22 @@ export function ExplorerDisplay(): JSX.Element {
 
       {menu && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
-          {menu.kind === 'strategies' ? (
+          {menu.kind === 'namedSets' ? (
+            <>
+              <div className="ctx-label">Named Sets</div>
+              <button className="ctx-item" onClick={() => {
+                setNamedSetCreateRequest(value => value + 1); setMenu(null)
+              }}>New Named Set...</button>
+            </>
+          ) : menu.kind === 'namedSet' ? (
+            <>
+              <div className="ctx-label">{menu.target}</div>
+              <button className="ctx-item" onClick={() => {
+                setNamedSetPropertiesRequest(previous => ({ name: menu.target, serial: (previous?.serial ?? 0) + 1 }))
+                setMenu(null)
+              }}>Properties...</button>
+            </>
+          ) : menu.kind === 'strategies' ? (
             <>
               <div className="ctx-label">Control Strategies</div>
               <button className="ctx-item" onClick={newArea}>New Area</button>

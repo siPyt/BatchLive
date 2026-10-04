@@ -2697,6 +2697,21 @@ button {
   width: 100%;
   box-sizing: border-box;
 }
+.named-set-properties {
+  width: min(760px, 90vw);
+}
+.named-set-properties table {
+  table-layout: fixed;
+}
+.named-set-properties td,
+.named-set-properties th {
+  overflow-wrap: anywhere;
+}
+.named-set-properties input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 .studio-param-table th {
   text-align: left;
   background: var(--dv-bg-3);
