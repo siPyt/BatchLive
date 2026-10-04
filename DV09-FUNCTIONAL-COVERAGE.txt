@@ -1,6 +1,55 @@
 BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 ==================================
 
+CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
+-------------------------------------------
+DV-09 is NOT complete. Latest implemented milestone: 2083629, shared custom-
+picture flow-color tables (Pass40). Previous milestone: 153036e, selective
+PID_LOOP tuning upload and download prompting (Pass39).
+
+Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
+  VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
+  PARTIAL         54 - related behavior exists; exact workflow has gaps
+  MISSING         41 - required executable workflow/model is absent
+  BOUNDARY        19 - hardware/vendor/host behavior outside verified simulation
+  CONTEXT          6 - framing/recap, not implementation requirements
+  TOTAL          128
+These groups have unequal scope. Do not turn their counts, test counts, reviewed
+pages or workshop checkmarks into a percentage of functional completion.
+
+Last validation:329 repository tests passed; final targeted picture/PID/control
+regressions, typecheck, production build, editor diagnostics and audit validation
+passed. Browser checks verified shared table recoloring, confirmed STOP feedback,
+Bad flow quality, faceplate routing and separate table/picture persistence.
+
+Most recent delivered functionality:
+  - FIC-102 PID_LOOP template and isolated Save/Download/Online lifecycle.
+  - Picture SP/mode entry, active-alarm visibility and actual-mode indication.
+  - Selected GAIN/RESET/RATE upload; unchecked-by-default download upload prompt.
+  - Shared flow_color tables and opt-in custom-picture pipe/pump/valve links.
+
+Remaining adjacent regulatory/picture requirements:
+  DV09-058 pp256-257: OUT ramp, separate valve-body/actuator animation, native
+    PipesAnim parity.
+  DV09-059 p258: exact FIC-102 detail-picture tuning and trend workflow evidence.
+  DV09-060 pp259-264: upload is tuning-only; generic/native upload remains absent.
+  DV09-061 p265: Tune process-test/review/update workflow remains missing.
+  DV09-062 pp266-267: native System Tree/full course dynamo parity remains partial.
+Broader open requirements include general controller/module download/restart
+lifecycles, remaining SFC/native mode behavior and image-only manual workflows.
+
+HOW TO CHECK PROGRESS
+---------------------
+1. Read this snapshot for the latest milestone and validation.
+2. Read the numbered PASS entries at the end of this file for delivered behavior,
+   evidence and limitations. Pass numbers count milestones, not completed pages.
+3. In DV09-LINE-BY-LINE-AUDIT.txt, find a DV09 requirement ID or PDF page. Each
+   group records Status, Required behavior, Evidence and Acceptance criteria.
+4. DV09-LINE-DISPOSITIONS.csv maps source records to those groups. Zero unmapped
+   records means review traceability, NOT zero missing features.
+5. DV-09 Workshops in the app are manual learner checklists, not verified coverage.
+Future milestones must refresh this snapshot as well as their audit evidence.
+
 SOURCE AND REVIEW STATUS
 ------------------------
 Primary source: 740124885-Deltav-O-M-Training-Manual.pdf

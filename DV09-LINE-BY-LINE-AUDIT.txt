@@ -38,7 +38,9 @@ validation and alarm-ranking regressions delivered with this report.
 Later verified traditional-I/O/discrete subsets are recorded in the updated
 groups below and DV09-FUNCTIONAL-COVERAGE.txt. An opt-in standalone AO saved/
 download/restart subset now exists; general controller/download parity is absent.
-No push is authorized by the user's request to commit and audit.
+Push authorization is separate from audit completion. The user authorized
+publishing the accumulated local milestones on 2026-10-04; this does not change
+any implementation status or certify whole-course completion.
 
 STATUS DEFINITIONS
 ------------------
