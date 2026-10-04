@@ -1044,6 +1044,41 @@ restored, acceptance globals removed. No protected equipment artwork changed.
 Native motor template/external DSTs/download/first-out/bypass/full condition
 language remain gaps. These audit groups stay PARTIAL.
 
+PASS 27: SUSTAINED CND COMPARISONS / FAIL-SAFE INTERLOCK QUALITY
+-------------------------------------------------------
+Scope: p230 / DV09-050 condition dependency subset. CND now parses actual
+arithmetic/comparison expressions over IN1/IN2 rather than silently discarding
+comparison tokens. Parentheses, unary signs, decimal/scientific literals,
+arithmetic and >/< />=/<= /=/==/!=/<> comparisons execute without eval.
+Syntax rejects explicitly; runtime divide-by-zero/nonfinite result/invalid delay
+becomes Bad with an expression diagnostic. CALC/ACT arithmetic is unchanged.
+CND uses continuous good true time, false at3.9 and true at4.0 for4seconds.
+Level50 is not <50; false/Bad/OOS/missing/nonfinite input resets timing.
+Expression/delay edits or rewiring reset state and require a fresh interval.
+Apply-based local text drafts are isolated and explicitly labeled if unapplied;
+invalid Apply leaves the executed configuration intact and logs/notifies rejection.
+Elapsed time, output and errors are visible in the existing Parameter View.
+Bad/missing wired interlock sources fail safe as tripped, with explicit source
+quality; they cannot clear a trip or permit an unsafe new start. Interlock
+configuration reuses source validation, rejects self/missing/wrong targets and
+locked writes. Reset Required keeps the independent lock latch after recovery.
+Eleven regressions verify syntax/precedence/arithmetic compatibility, threshold,
+fractional timing, interruption/recovery, runtime diagnostics, atomic config/
+permissions, CND1 closed-valve and CND2 low-level OR trip, Bad source fail-safe,
+and real ZX-2 output drop before XI-2 passive confirmation.
+Live editor Apply/time configuration, invalid Apply notification/journal,
+explicit unapplied notice,3.9s running/4.0s trip/lock and disabled-input timer
+reset were accepted. Parameter View displayed Bad - tripped; a physically
+disabled device DI showed Bad in DC canvas/parameter feedback instead of Good.
+The existing narrow720x576 viewport collapses the pre-existing center parameter
+pane; actual editor-click acceptance used1440x900, then restored720x576.
+Original96-module/eight-SFC running plant/UI/security restored; fixtures removed.
+All259 repository regressions, typecheck, production build, editor diagnostics,
+audit validator and whitespace checks passed.
+No protected equipment shapes/colors/piping or FBD canvas layout were redesigned.
+Native quoted cross-module conditions, MTR-11_ILOCK, first-out/bypass, saved
+motor lifecycle and exact500/10gal process still prevent full certification.
+
 PASS 26: INDEPENDENT MOTOR / VALVE TRADITIONAL DEVICE I/O
 -------------------------------------------------------
 Scope: DV09-050/068/070/071/072 dependency subset. Typed deviceBindings

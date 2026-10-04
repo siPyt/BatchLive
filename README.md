@@ -166,6 +166,24 @@ be rebound or deleted. Unbound equipment retains its existing internal
 confirmation behavior. These settings are session-local live configuration,
 not native motor Save/Download or physical wiring certification.
 
+For the sustained motor trip condition, wire **CND2.IN1** to **LI-101**,
+enter `IN1 < 50` and **Apply**, then set **TIME_DURATION = 4 s**. CND expressions
+support arithmetic, parentheses and `>`, `<`, `>=`, `<=`, `=`, `==`, `!=`, `<>`
+comparisons over IN1/IN2. This is a wired-input subset, not the native quoted
+cross-module expression language. Unapplied text is explicitly marked and does
+not execute. Invalid syntax/delay rejects with a diagnostic and notification;
+division-by-zero/nonfinite results report Bad at runtime, never a Good zero.
+Only continuously true, good feedback accumulates time: 3.9 s stays false,
+4.0 s becomes true, exactly 50 is not low, and false/Bad input resets timing.
+Rewiring or changing the expression/duration starts a fresh interval.
+For the closed-valve condition, wire CND1.IN1 to XVSTAT-101, use `IN1 = 0`
+with zero delay, and combine CND1/CND2 through OR into the motor interlock.
+Bad/missing/OOS interlock sources now fail safe as **Bad - tripped**, rather
+than clearing a trip from a held/absent signal. Reset Required retains the
+lock after the condition clears until explicit Reset. With external I/O,
+the trip de-energizes ZX-2 before separately sampled XI-2 confirms Stopped.
+Native MTR-11_ILOCK, first-out/bypass and saved motor lifecycle remain incomplete.
+
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are
 isolated drafts: OK validates and applies, while Cancel/Escape retain the

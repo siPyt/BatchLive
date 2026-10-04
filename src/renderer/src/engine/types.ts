@@ -524,8 +524,9 @@ export interface FunctionBlockModule extends ModuleDisplayProperties {
   bias: number
   /** CMP/CND/CTLSL/INSEL/ISELX/SGSL: comparison or selection operator. */
   cmpOp: FbCompareOp
-  /** CALC/ACT/CND: single-line expression using IN1/IN2, basic arithmetic and parentheses only (no eval). */
+  /** CALC/ACT: arithmetic. CND also supports comparisons. Inputs are IN1/IN2 (no eval). */
   expr: string
+  expressionError?: string
   /** OND/OFFD/RET/TP/DT/FLTR/LL/PIN/SGGN: delay, time constant, or period in seconds. */
   delaySec: number
   /** CTR: trip value. BFO/FFMDO: bit index to extract. */

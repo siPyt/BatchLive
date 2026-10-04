@@ -2977,6 +2977,16 @@ button {
   font-size: 10px;
   font-family: 'Consolas', monospace;
 }
+.condition-expr-editor {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+}
+.condition-draft-notice {
+  max-width: 110px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .fb-dcbar {
   display: flex;
   gap: 4px;

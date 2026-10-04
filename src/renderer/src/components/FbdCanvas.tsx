@@ -463,7 +463,8 @@ function FbNode({
     ? inputStage ? io.ai.bad : outputStage ? ao?.bad ?? true :
       split ? split.status === 'BAD' : m.pvBad
     : m.type === 'AI' ? m.pvBad : m.type === 'FB' || m.type === 'AO' ? !!m.bad :
-      m.type === 'DI' || m.type === 'DO' ? !!m.ioBad : false
+      m.type === 'DI' || m.type === 'DO' ? !!m.ioBad :
+        m.type === 'MOTOR' || m.type === 'VALVE' ? !!m.ioInputBad || !!m.ioOutputBad : false
   const inputs = parameter ? [] : inputPorts(m, block.part)
   const outputs = parameter ? [{ which: 'out' as const, label: 'CV' }] : outputPorts(m, block.part)
 

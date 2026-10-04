@@ -336,6 +336,19 @@ export const COURSE: WModule[] = [
           { id: 'motor-dst-stop', text: 'STOP writes ZX-2 =0 but does not overwrite XI-2 or Running. Set XI-2 =0 to confirm Stopped. Alternatively, explicitly select ZX-2 as XI-2 simulated tieback; it is labeled simulation, not physical wiring.' },
           { id: 'motor-dst-safety', text: 'Test false permissive, interlock and required RESET independently. Disable DI or DO, or lose controller power: verify Bad/held feedback, failed state and alarm. SFC confirmation must not advance on Bad values. Restore real channel/controller service; an injected field fault is not automatically cleared.' }
         ]
+      },
+      {
+        id: 'motor-sustained-condition',
+        title: 'Sustained low-level condition and closed-valve trip',
+        objective: 'Execute the p230 condition dependencies with exact threshold/time boundaries and actual motor shutdown.',
+        note: 'Wired IN1/IN2 expression subset, not native quoted expressions, MTR-11_ILOCK, first-out/bypass or saved motor lifecycle.',
+        steps: [
+          { id: 'motor-cnd-source', text: 'Use good XVSTAT-101 DI feedback and LI-101 AI measured input. Create CND1/CND2 and OR-TRIP function blocks. Wire CND1.IN1 to XVSTAT-101 and CND2.IN1 to LI-101.', goto: 'studio' },
+          { id: 'motor-cnd-expression', text: 'In CND1 EXPR enter IN1 = 0 and Apply; set TIME_DURATION0s. In CND2 enter IN1 < 50 and Apply; set TIME_DURATION4s. An unapplied draft never executes. Malformed syntax is rejected with a notification and diagnostic.' },
+          { id: 'motor-cnd-wire', text: 'Wire OR-TRIP IN1/IN2 to CND1/CND2; wire the motor INTERLOCK_SOURCE to OR-TRIP. Keep valve feedback open and level50: no low-level trip. At49, verify CND2 OUT0 at3.9s and OUT1 at4.0s, then actual motor shutdown.' },
+          { id: 'motor-cnd-recovery', text: 'Raise level above50; the condition clears but Reset Required keeps the motor locked until Reset. With XI-2/ZX-2 bindings and explicit simulated tieback, observe the output drop before actual stopped feedback follows.' },
+          { id: 'motor-cnd-quality', text: 'Interrupt low level with a false or Bad/OOS input: elapsed time resets, and recovery requires a new uninterrupted four seconds. Bad/missing interlock sources display Bad - tripped and must not admit a new start. Closed-valve feedback trips through CND1 without the level delay.' }
+        ]
       }
     ]
   },

@@ -13,7 +13,8 @@ import type {
   FbInputRef
 } from './types'
 import { CUSTOM_PHYSICS_TAGS } from './plant'
-import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue } from './fb'
+import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue, resetConditionTiming } from './fb'
+import { evaluateConditionExpression } from './fbCondition'
 import { advanceControllers, computeBadTags, controllerIsDown, type HardwareState } from './hardware'
 import {
   advanceTraditionalIo, analogChannelBad, deviceChannelSignal, sampleAnalogInputs, sampleAnalogOutputs, sampleDiscreteInputs
@@ -360,7 +361,7 @@ function applyExternalDevice(m: MotorModule | ValveModule, hw: HardwareState, dt
 
 function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyModule>, hw: HardwareState): void {
   if (m.permissiveSource) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
-  if (m.interlockSource) m.interlock = readModuleValue(modules[m.interlockSource]) !== 0
+  if (m.interlockSource) m.interlock = deviceInterlockSignal(m, modules).value !== 0
   if (m.commandSource) m.commanded = readModuleValue(modules[m.commandSource]) !== 0
   if (applyExternalDevice(m, hw, dt)) return
   const io: DcIo = {
@@ -386,7 +387,7 @@ function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyMod
 
 function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyModule>, hw: HardwareState): void {
   if (m.permissiveSource) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
-  if (m.interlockSource) m.interlock = readModuleValue(modules[m.interlockSource]) !== 0
+  if (m.interlockSource) m.interlock = deviceInterlockSignal(m, modules).value !== 0
   if (m.commandSource) m.commandedOpen = readModuleValue(modules[m.commandSource]) !== 0
   if (applyExternalDevice(m, hw, dt)) return
   const io: DcIo = {
@@ -407,6 +408,13 @@ function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyMod
   m.locked = io.locked
   m.travelTimer = io.travelTimer
   m.dcState = io.dcState
+}
+
+export function deviceInterlockSignal(m: MotorModule | ValveModule, modules: Record<string, AnyModule>):
+  { value: number; bad: boolean } {
+  if (!m.interlockSource) return { value: Number(m.interlock), bad: false }
+  const signal = resolveFbInput(modules, { kind: 'ref', tag: m.interlockSource, value: 0 })
+  return signal.bad ? { value: 1, bad: true } : signal
 }
 
 export function devicePermissiveSignal(module: MotorModule | ValveModule,
@@ -508,7 +516,10 @@ export function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string
     return
   }
   m.bad = input1.bad || (FB_NEEDS_IN2[m.fbType] && input2.bad)
-  if (m.bad) return // Bad input holds the last output; quality is visible to downstream blocks.
+  if (m.bad) {
+    if (m.fbType === 'CND') resetConditionTiming(m)
+    return // Other blocks hold the last output with explicit Bad quality.
+  }
   const a = input1.value
   const b = input2.value
   const cmp = (x: number, y: number): boolean => {
@@ -655,10 +666,18 @@ export function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string
       m.out = (Math.floor(a) >> Math.max(0, Math.round(m.tripValue))) & 1
       break
     case 'CND': {
-      const condTrue = evalExpr(m.expr, a, b) !== 0
+      const result = evaluateConditionExpression(m.expr, a, b)
+      if ('error' in result || !Number.isFinite(m.delaySec) || m.delaySec < 0) {
+        resetConditionTiming(m)
+        m.expressionError = 'error' in result ? result.error : 'Condition delay must be finite and nonnegative'
+        break
+      }
+      m.expressionError = undefined
+      const condTrue = result.value !== 0
       if (condTrue) {
         m._timerElapsed += dt
-        m._timerOutput = m._timerElapsed >= m.delaySec
+        const tolerance = 64 * Number.EPSILON * Math.max(1, m._timerElapsed, m.delaySec)
+        m._timerOutput = m._timerElapsed + tolerance >= m.delaySec
       } else {
         m._timerElapsed = 0
         m._timerOutput = false

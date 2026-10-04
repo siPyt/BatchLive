@@ -691,8 +691,17 @@ Evidence: FB logic and device command/interlock wiring execute; course template,
   deletion cleanup and operator quality feedback execute. Twelve regressions
   and live UI selection/START/no-confirm timeout/FAIL/physical input/recovery/
   disabled DI denial verified. These bindings remain live/session-local.
-  Native template, saved/downloaded motor, four-second condition/first-out/
-  bypass and exact500/10gal process remain incomplete.
+  Pass27 adds real CND arithmetic/comparison expressions over wired IN1/IN2:
+  CND1 closed-valve =0, CND2 low-level <50 continuously4s, combined OR trip.
+  50 does not trip;3.9s false/4.0s true. False/Bad input, expression/duration
+  changes and rewiring reset timing. Runtime errors are Bad with diagnostics,
+  not silently discarded comparisons. Bad/missing wired interlocks fail safe,
+  shown Bad - tripped. Reset latch persists after condition clears. Eleven
+  regressions include actual XI-2/ZX-2 de-energization before stopped feedback.
+  Live editor Apply/rejected expression/journal,3.9/4.0 motor trip, disabled
+  input timing reset, explicit source Bad and DC block Bad verified.
+  Native template, quoted cross-module expressions, saved/downloaded motor,
+  first-out/bypass and exact500/10gal process remain incomplete.
 Acceptance: Test timing reset, first-out ordering, permissive versus interlock,
   bypass reporting and actual card3ch2/card4ch2 effects.
 

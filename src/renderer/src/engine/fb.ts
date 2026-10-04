@@ -1,4 +1,22 @@
-import type { AnyModule, FbBlockType } from './types'
+import type { AnyModule, FbBlockType, FunctionBlockModule } from './types'
+
+export function resetConditionTiming(module: FunctionBlockModule): void {
+  module._timerElapsed = 0
+  module._timerOutput = false
+  module.out = 0
+  module.bad = true
+  module.expressionError = undefined
+}
+
+export function deviceSourceError(modules: Record<string, AnyModule>, tag: string,
+  source: string | undefined, role: 'Permissive' | 'Interlock'): string | null {
+  const module = modules[tag]
+  if (!module || module.type !== 'MOTOR' && module.type !== 'VALVE') {
+    return `${role} wiring requires an existing motor or valve`
+  }
+  return source !== undefined && (!modules[source] || source === tag)
+    ? `Choose an existing, separate ${role.toLowerCase()} source module` : null
+}
 
 // Shared Function Block helpers used by both the simulation engine
 // (simulate.ts) and the Control Studio FBD canvas UI.

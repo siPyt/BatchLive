@@ -33,6 +33,8 @@ import {
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
+import { conditionExpressionError } from './fbCondition'
+import { deviceSourceError, resetConditionTiming } from './fb'
 import {
   analogBindingError, channelConfigurationError, deviceBindingError, discreteBindingError, findDst, makeTraditionalCard,
   type AnalogBindingPort, type DeviceBindingPort, type TraditionalCardType
@@ -477,7 +479,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setFbInput: (tag, which, ref) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Wire ${tag}.${which.toUpperCase()}`)) return
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Wire ${tag}.${which.toUpperCase()}`)) return
     if (ref.kind === 'ref' && (ref.parameter || ref.block)) {
       const error = ref.tag
         ? signalError({ tag: ref.tag, parameter: ref.parameter ?? 'OUT', block: ref.block }, get().modules)
@@ -489,7 +491,10 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     }
     mutateModule(set, get, tag, (m) => {
-      if (m.type === 'FB') m[which] = ref
+      if (m.type === 'FB') {
+        m[which] = ref
+        if (m.fbType === 'CND') resetConditionTiming(m)
+      }
     })
     const source = ref.kind === 'const' ? ref.value :
       `${ref.tag}${ref.block ? '/' + ref.block : ''}${ref.parameter ? '.' + ref.parameter : ''}`
@@ -542,9 +547,29 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setFbConfig: (tag, patch) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag}`)) return
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure ${tag}`)) return
+    const module = get().modules[tag]
+    if (module?.type !== 'FB') {
+      const error = 'Function block configuration requires an existing function block'
+      get().logEvent('DIAGNOSTIC', tag, error)
+      window.alert(error)
+      return
+    }
+    if (module?.type === 'FB' && module.fbType === 'CND') {
+      const error = patch.expr !== undefined ? conditionExpressionError(patch.expr) : null
+      const delayError = patch.delaySec !== undefined && (!Number.isFinite(patch.delaySec) || patch.delaySec < 0)
+        ? 'Condition delay must be finite and nonnegative' : null
+      if (error || delayError) {
+        get().logEvent('DIAGNOSTIC', tag, `Condition configuration rejected: ${error ?? delayError}`)
+        window.alert(error ?? delayError)
+        return
+      }
+    }
     mutateModule(set, get, tag, (m) => {
-      if (m.type === 'FB') Object.assign(m, patch)
+      if (m.type === 'FB') {
+        Object.assign(m, patch)
+        if (m.fbType === 'CND' && (patch.expr !== undefined || patch.delaySec !== undefined)) resetConditionTiming(m)
+      }
     })
     get().logEvent('CONFIGURE', tag, `Config changed: ${JSON.stringify(patch)}`)
   },
@@ -668,9 +693,18 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setInterlockSource: (tag, source) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Wire interlock source ${tag}`)) return
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Wire interlock source ${tag}`)) return
+    const error = deviceSourceError(get().modules, tag, source, 'Interlock')
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Interlock wiring rejected: ${error}`)
+      window.alert(error)
+      return
+    }
     mutateModule(set, get, tag, (m) => {
-      if (m.type === 'MOTOR' || m.type === 'VALVE') m.interlockSource = source
+      if (m.type === 'MOTOR' || m.type === 'VALVE') {
+        m.interlockSource = source
+        if (source) m.interlock = true
+      }
     })
     get().logEvent('CONFIGURE', tag, `INTERLOCK_SOURCE set to ${source ?? '(none)'}`)
   },
@@ -678,11 +712,7 @@ export const useStore = create<StoreState>((set, get) => ({
   setPermissiveSource: (tag, source) => {
     if (!requireUnlockedLock('CAN_CONFIGURE', `Wire permissive source ${tag}`)) return false
     const state = get()
-    const module = state.modules[tag]
-    const error = !module || module.type !== 'MOTOR' && module.type !== 'VALVE'
-      ? 'Permissive wiring requires an existing motor or valve'
-      : source !== undefined && (!state.modules[source] || source === tag)
-        ? 'Choose an existing, separate permissive source module' : null
+    const error = deviceSourceError(state.modules, tag, source, 'Permissive')
     if (error) {
       get().logEvent('DIAGNOSTIC', tag, `Permissive wiring rejected: ${error}`)
       window.alert(error)

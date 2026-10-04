@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
@@ -12,7 +12,7 @@ import { moduleNameError } from '../engine/naming'
 import { traditionalChannels, type AnalogBindingPort } from '../engine/traditionalIo'
 import { appliedPidOutput, pidIo, readAnalogSignal, signalError } from '../engine/analogStrategy'
 import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
-import { devicePermissiveSignal } from '../engine/simulate'
+import { deviceInterlockSignal, devicePermissiveSignal } from '../engine/simulate'
 import type {
   AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
   PidBlockName, PidIoPatch, SplitterPatch, SplitterState, FbInputRef,
@@ -147,7 +147,8 @@ function ParameterView({ module: m, selectedBlock }: {
   const selectedSplitter = m.type === 'PID' ? pidIo(m).splitter : undefined
   const ioBlock = m.type === 'PID' && selectedBlock !== 'PID1'
   const bad = m.type === 'PID' ? m.pvBad : m.type === 'AI' ? m.pvBad :
-    m.type === 'DI' || m.type === 'DO' ? !!m.ioBad : false
+    m.type === 'DI' || m.type === 'DO' ? !!m.ioBad :
+      m.type === 'MOTOR' || m.type === 'VALVE' ? !!m.ioInputBad || !!m.ioOutputBad : false
 
   const rows: ParamRow[] = []
   if (m.type === 'PID') {
@@ -615,6 +616,20 @@ function SplitterParamRows({ state, onChange }: {
   )
 }
 
+function ConditionExpressionEditor({ m, onApply }: {
+  m: FunctionBlockModule; onApply: (expression: string) => void
+}): JSX.Element {
+  const [draft, setDraft] = useState(m.expr)
+  useEffect(() => setDraft(m.expr), [m.tag, m.expr])
+  return <span className="condition-expr-editor">
+    <input className="fb-exprinput" aria-label={`${m.tag} condition expression`} type="text"
+      value={draft} onChange={e => setDraft(e.target.value)} />
+    <button className="studio-param-btn" aria-label="Apply Condition Expression"
+      onClick={() => onApply(draft)}>Apply</button>
+    {draft !== m.expr && <small className="condition-draft-notice">Unapplied draft. Executing: {m.expr}</small>}
+  </span>
+}
+
 function FbParamRows({
   m,
   tags,
@@ -698,9 +713,12 @@ function FbParamRows({
         <tr>
           <td>EXPR</td>
           <td className="pv">
-            <input className="fb-exprinput" type="text" value={m.expr} onChange={(e) => setFbConfig(m.tag, { expr: e.target.value })} />
+            {field === 'CND' ? <ConditionExpressionEditor m={m}
+              onApply={expr => setFbConfig(m.tag, { expr })} /> :
+              <input className="fb-exprinput" type="text" value={m.expr}
+                onChange={e => setFbConfig(m.tag, { expr: e.target.value })} />}
           </td>
-          <td className="good">Good</td>
+          <td className={m.bad ? 'bad' : 'good'}>{m.expressionError ?? (m.bad ? 'Bad' : 'Good')}</td>
         </tr>
       )}
       {showDelay && (
@@ -721,6 +739,8 @@ function FbParamRows({
           <td className="good">Good</td>
         </tr>
       )}
+      {field === 'CND' && <tr><td>TIME_ELAPSED (s)</td><td>{fmt(m._timerElapsed, 3)}</td>
+        <td className={m.bad ? 'bad' : 'good'}>{m.bad ? 'Bad - timing reset' : 'Continuous true time'}</td></tr>}
       {showCountUp && (
         <tr>
           <td>COUNTER_TYPE</td>
@@ -839,6 +859,7 @@ function DeviceWiringRows({
 }): JSX.Element {
   const modules = useStore(s => s.modules)
   const signal = devicePermissiveSignal(m, modules)
+  const interlock = deviceInterlockSignal(m, modules)
   return (
     <>
       <tr>
@@ -859,8 +880,10 @@ function DeviceWiringRows({
       <tr>
         <td>INTERLOCK_SOURCE</td>
         <td className="pv">
-          <select className="fb-select" value={m.interlockSource ?? ''} onChange={(e) => setInterlockSource(m.tag, e.target.value || undefined)}>
+          <select className="fb-select" aria-label="Interlock source" value={m.interlockSource ?? ''} onChange={(e) => setInterlockSource(m.tag, e.target.value || undefined)}>
             <option value="">(manual only)</option>
+            {m.interlockSource && !tags.includes(m.interlockSource) &&
+              <option value={m.interlockSource}>{m.interlockSource} (missing)</option>}
             {tags.map((t) => (
               <option key={t} value={t}>
                 {t}
@@ -868,7 +891,8 @@ function DeviceWiringRows({
             ))}
           </select>
         </td>
-        <td className="good">Good</td>
+        <td className={interlock.bad ? 'bad' : 'good'}>{interlock.bad ? 'Bad - tripped' :
+          interlock.value !== 0 ? 'Good - tripped' : 'Good - clear'}</td>
       </tr>
       <tr>
         <td>COMMAND_SOURCE</td>
