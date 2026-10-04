@@ -1,5 +1,5 @@
 import type { PlantState, AnyModule, PidModule, ControlMode } from './types'
-import { cloneSfcParameters, namedParameterReferenceError, type SfcExpressionContext, type SfcParameters } from './sfcParameters'
+import { booleanParameterReferenceError, cloneSfcParameters, namedParameterReferenceError, type SfcExpressionContext, type SfcParameters } from './sfcParameters'
 import type { NamedSetDefinition } from './namedSets'
 
 // ---------------------------------------------------------------------------
@@ -31,6 +31,7 @@ export type SfcAction = ActionBase &
     | { kind: 'valve'; tag: string; open: boolean }
     | { kind: 'do'; tag: string; on: boolean }
     | { kind: 'namedSet'; tag: string; parameter: string; namedSet: string; entry: string }
+    | { kind: 'boolean'; tag: string; parameter: string }
   )
 
 export type SfcCondition =
@@ -43,6 +44,7 @@ export type SfcCondition =
   | { kind: 'discrete'; tag: string; state: boolean }
   | { kind: 'mode'; tag: string; mode: SfcActualMode }
   | { kind: 'namedSet'; parameter: string; namedSet: string; entry: string }
+  | { kind: 'boolean'; parameter: string; value: boolean }
 
 export interface SfcStep {
   id: string
@@ -82,7 +84,27 @@ export interface SfcActionState {
 }
 
 export function actionIdentity(action: SfcAction): string {
-  return action.name?.trim() || `${action.tag}/${action.kind === 'namedSet' ? action.parameter : action.kind}`
+  return action.name?.trim() || actionOutput(action)
+}
+
+function actionOutput(action: SfcAction): string {
+  return `${action.tag}/${action.kind === 'namedSet' || action.kind === 'boolean' ? action.parameter : action.kind}`
+}
+
+export function syncSfcBooleanActions(sfc: SfcDef): void {
+  const targets = new Set(sfc.steps.flatMap(step => step.actions.filter(action => action.kind === 'boolean')
+    .map(action => action.parameter)))
+  for (const parameter of targets) {
+    const binding = sfc.parameters?.[parameter]
+    if (binding?.type === 'BOOLEAN') binding.value = Object.values(sfc.actionStates ?? {}).some(runtime =>
+      runtime.action.kind === 'boolean' && runtime.action.parameter === parameter && runtime.active)
+  }
+}
+
+export function resetSfcBooleanActions(sfc: SfcDef): SfcParameters | undefined {
+  const next = { ...sfc, parameters: cloneSfcParameters(sfc.parameters), actionStates: {} }
+  syncSfcBooleanActions(next)
+  return next.parameters
 }
 
 export function sfcActionStateKey(step: SfcStep, action: SfcAction, parallel: boolean): string {
@@ -155,7 +177,7 @@ function parallelGraphError(steps: SfcStep[]): string | null {
           if (identities.has(identity) && identities.get(identity) !== leg) return 'Parallel legs cannot share action/reset identities'
           identities.set(identity, leg)
           if (action.qualifier === 'R') continue
-          const output = `${action.tag}/${action.kind === 'namedSet' ? action.parameter : action.kind}`
+          const output = actionOutput(action)
           if (writers.has(output) && writers.get(output) !== leg) return 'Parallel legs cannot write the same output'
           writers.set(output, leg)
         }
@@ -187,11 +209,11 @@ function parallelGraphError(steps: SfcStep[]): string | null {
   }
   if (joins.size) {
     const storedOutputs = steps.flatMap(step => step.actions.filter(isStored).map(action => ({
-      step: step.id, output: `${action.tag}/${action.kind === 'namedSet' ? action.parameter : action.kind}`
+      step: step.id, output: actionOutput(action)
     })))
     if (steps.some(step => step.actions.some(action => action.qualifier !== 'R' &&
       storedOutputs.some(stored => stored.step !== step.id &&
-        stored.output === `${action.tag}/${action.kind === 'namedSet' ? action.parameter : action.kind}`)))) {
+        stored.output === actionOutput(action))))) {
       return 'Stored outputs in parallel charts must have one owning step'
     }
   }
@@ -236,6 +258,8 @@ export function describeAction(a: SfcAction, module?: AnyModule): string {
       return `${q}^/${a.tag}/DO1/SP_D.CV := ${a.on ? 1 : 0} (${a.on ? 'ON' : 'OFF'})`
     case 'namedSet':
       return `${q}'${a.parameter}' := '${a.namedSet}:${a.entry}'`
+    case 'boolean':
+      return `${q}Boolean '${a.parameter}.CV'`
   }
 }
 
@@ -259,6 +283,8 @@ export function describeCondition(c: SfcCondition, module?: AnyModule): string {
       return `^/${c.tag}/${module?.type === 'AO' ? 'AO1' : 'PID1'}/MODE.ACTUAL = ${c.mode}`
     case 'namedSet':
       return `'${c.parameter}' = '${c.namedSet}:${c.entry}'`
+    case 'boolean':
+      return `'${c.parameter}.CV' = ${c.value ? 'TRUE' : 'FALSE'}`
   }
 }
 
@@ -274,6 +300,8 @@ export function evalCondition(c: SfcCondition, state: PlantState, elapsed: numbe
       const entry = context?.sets[c.namedSet].entries.find(item => item.name === c.entry)
       return !!entry && context?.parameters[c.parameter].value === entry.value
     }
+    case 'boolean':
+      return !booleanParameterReferenceError(c.parameter, context) && context?.parameters[c.parameter].value === c.value
     case 'pv':
       return m && 'pv' in m ? cmp(m.pv, c.op, c.value) : false
     case 'out':
@@ -562,6 +590,8 @@ function isStored(action: SfcAction): boolean {
 }
 
 function conditionError(condition: SfcCondition, modules: Record<string, AnyModule>, context?: SfcExpressionContext): string | null {
+  if (condition.kind === 'boolean') return typeof condition.value !== 'boolean' ? 'Boolean comparison requires true or false' :
+    booleanParameterReferenceError(condition.parameter, context)
   if (condition.kind === 'namedSet') return namedParameterReferenceError(condition.parameter, condition.namedSet, condition.entry, context)
   if (condition.kind === 'timer') {
     return !Number.isFinite(condition.seconds) || condition.seconds < 0 ? 'Timer must be finite and nonnegative' : null
@@ -619,8 +649,13 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
         const error = namedParameterReferenceError(action.parameter, action.namedSet, action.entry, context)
         if (error) return error
       }
+      if (action.kind === 'boolean') {
+        if (action.tag !== context?.name) return 'Boolean actions must address their owning SFC'
+        const error = booleanParameterReferenceError(action.parameter, context)
+        if (error) return error
+      }
       const module = modules[action.tag]
-      if (action.kind !== 'namedSet') {
+      if (action.kind !== 'namedSet' && action.kind !== 'boolean') {
         if (!module) return `Missing action module ${action.tag}`
         const required = action.kind === 'motor' ? 'MOTOR' : action.kind === 'valve' ? 'VALVE' : action.kind === 'do' ? 'DO' : null
         if (required ? module.type !== required : module.type !== 'PID' && module.type !== 'AO') return 'Action/module type mismatch'
@@ -702,6 +737,7 @@ function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
     actionStates[key] = updated
     if (updated.active) execute(updated.action)
   }
+  syncSfcBooleanActions(sfc)
   const entering = new Set<string>()
   const arrive = (id: string, source: string): void => {
     const target = sfc.steps.find(step => step.id === id)!
@@ -747,6 +783,7 @@ function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
     actionStates[key] = { ...runtime, active: false, pending: false }
   }
   const first = sfc.steps.findIndex(step => Object.hasOwn(active, step.id))
+  syncSfcBooleanActions(sfc)
   return { ...sfc, status: complete ? 'COMPLETE' : 'RUNNING', actionStates,
     activeSteps: active, joinArrivals: arrivals, active: first < 0 ? sfc.active : first,
     elapsed: first < 0 ? 0 : active[sfc.steps[first].id] }
@@ -776,7 +813,11 @@ export function advanceSfcs(
       if (action.kind === 'namedSet') {
         if (namedParameterReferenceError(action.parameter, action.namedSet, action.entry, context)) return
         const entry = context.sets[action.namedSet].entries.find(item => item.name === action.entry)
-        if (entry) context.parameters[action.parameter].value = entry.value
+        const binding = context.parameters[action.parameter]
+        if (entry && binding.type === 'NAMED_SET') binding.value = entry.value
+      } else if (action.kind === 'boolean') {
+        const binding = context.parameters[action.parameter]
+        if (binding?.type === 'BOOLEAN') binding.value = true
       } else {
         const module = modules[action.tag]
         if (module) applyAction(module, action)
@@ -798,6 +839,7 @@ export function advanceSfcs(
       actionStates[identity] = updated
       if (updated.active) execute(updated.action)
     }
+    syncSfcBooleanActions(next)
     const primary = evalCondition(step.transition, state, next.elapsed, context)
     const alternate = !primary ? step.alternatives?.find(route => evalCondition(route.condition, state, next.elapsed, context)) : undefined
     if (primary || alternate) {
@@ -828,6 +870,7 @@ export function advanceSfcs(
         next.status = 'COMPLETE'
       }
     }
+    syncSfcBooleanActions(next)
     sfcs[name] = next
   }
   return { modules, sfcs }

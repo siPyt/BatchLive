@@ -75,8 +75,24 @@ state for N/R/L/D/P/S/SD/DS/SL. Named reset targets stop stored execution; they 
 not invert earlier assignments or fabricate actual device feedback. Timed pulse,
 stored delay across step exit, delay cancellation and stored limits are supported,
 including the existing structured condition subset. Full native action-property/
-expression features, universal expressions, Boolean parameter/block activation
-and graph divergence/convergence remain gaps.
+expression features, universal expressions, non-Boolean block activation
+and native graph editing/nested parallel graphs remain gaps.
+
+Managed SFC **Add Parameter... / Parameter Properties** now supports **Boolean**
+as well as Named Set defaults. In Action Properties choose **Type: Boolean
+parameter** and reference a local parameter, for example `'ACTIVE.CV'`, rather
+than an assignment. Expression Assistant lists only that SFC's Boolean references.
+The qualified action drives TRUE while active and FALSE after deactivation,
+expiration, reset or completion. Stored qualifiers retain activation across step
+exit; R resets their named action. P lasts one execution scan after its delay.
+Multiple active actions on a local flag combine by OR; parallel conflicting
+writers are rejected. `'ACTIVE.CV' = TRUE` or FALSE (also 1/0) can be used in
+transitions and timing conditions. HOLD/controller loss freezes the actual flag
+and clock. Reset clears action-driven flags but retains unreferenced parameter
+values. Draft/default/saved/deployed/runtime values remain isolated; Named Set
+operator-entry controls cannot write Boolean parameters. This implements the
+course's Boolean action class in the simulator, not every native action/property
+or function-block activation workflow.
 
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are

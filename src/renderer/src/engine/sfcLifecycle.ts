@@ -67,6 +67,7 @@ function condition(value: unknown): value is SfcCondition {
   if (value.kind === 'always') return true
   if (value.kind === 'timer') return typeof value.seconds === 'number'
   if (value.kind === 'namedSet') return ['parameter', 'namedSet', 'entry'].every(key => typeof value[key] === 'string')
+  if (value.kind === 'boolean') return typeof value.parameter === 'string' && typeof value.value === 'boolean'
   if (typeof value.tag !== 'string') return false
   if (value.kind === 'motorRunning') return typeof value.running === 'boolean'
   if (value.kind === 'valveOpen') return typeof value.open === 'boolean'
@@ -85,6 +86,7 @@ function action(value: unknown): value is SfcAction {
     value.timingCondition !== undefined && !condition(value.timingCondition)) return false
   if (value.kind === 'sp' || value.kind === 'out') return typeof value.value === 'number'
   if (value.kind === 'namedSet') return ['parameter', 'namedSet', 'entry'].every(key => typeof value[key] === 'string')
+  if (value.kind === 'boolean') return typeof value.parameter === 'string'
   if (value.kind === 'mode') return ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN'].includes(String(value.mode))
   if (value.kind === 'motor') return typeof value.run === 'boolean'
   if (value.kind === 'valve') return typeof value.open === 'boolean'
@@ -118,9 +120,12 @@ export function parseSavedSfc(text: string, modules: Record<string, AnyModule>, 
     if (!record(value.parameters)) return { error: 'Malformed saved SFC parameters' }
     const entries: [string, SfcParameters[string]][] = []
     for (const [name, parameter] of Object.entries(value.parameters)) {
-      if (!record(parameter) || parameter.type !== 'NAMED_SET' || typeof parameter.namedSet !== 'string' ||
-        typeof parameter.value !== 'number') return { error: 'Malformed saved Named Set parameter' }
-      entries.push([name, { type: 'NAMED_SET', namedSet: parameter.namedSet, value: parameter.value }])
+      if (!record(parameter)) return { error: 'Malformed saved SFC parameter' }
+      if (parameter.type === 'BOOLEAN' && typeof parameter.value === 'boolean') {
+        entries.push([name, { type: 'BOOLEAN', value: parameter.value }])
+      } else if (parameter.type === 'NAMED_SET' && typeof parameter.namedSet === 'string' && typeof parameter.value === 'number') {
+        entries.push([name, { type: 'NAMED_SET', namedSet: parameter.namedSet, value: parameter.value }])
+      } else return { error: 'Malformed saved SFC parameter' }
     }
     configuration.parameters = Object.fromEntries(entries)
   }

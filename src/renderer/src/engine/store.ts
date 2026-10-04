@@ -38,10 +38,10 @@ import {
   type AnalogBindingPort, type TraditionalCardType
 } from './traditionalIo'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
-import { advanceSfcs, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
+import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
 import {
-  cloneSfcParameters, controllerNamedSets, sfcParameterError, type SfcExpressionContext, type SfcNamedParameter
+  cloneSfcParameters, controllerNamedSets, sfcParameterError, type SfcExpressionContext, type SfcParameter
 } from './sfcParameters'
 import {
   cloneSfcConfiguration, parseSavedSfc, savedSfcKey, serializeSavedSfc,
@@ -117,7 +117,7 @@ interface StoreState extends PlantState {
   loadSavedSfc: (name: string) => boolean
   downloadSavedSfc: (name: string, expected?: SfcConfiguration) => boolean
   setSfcOnline: (name: string, online: boolean) => boolean
-  configureSfcParameter: (name: string, parameter: string, binding: SfcNamedParameter, expected: SfcConfiguration) => boolean
+  configureSfcParameter: (name: string, parameter: string, binding: SfcParameter, expected: SfcConfiguration) => boolean
   writeSfcNamedValue: (name: string, parameter: string, value: number) => boolean
   createNamedSet: (name: string) => boolean
   applyNamedSetProperties: (expected: NamedSetDefinition, draft: NamedSetDefinition) => boolean
@@ -1965,7 +1965,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (error) return rejectSfc(get, name, error)
     const draft = { ...lifecycle.draft, parameters }
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { ...lifecycle, draft } }, rev: s.rev + 1 }))
-    get().logEvent('CONFIGURE', name, `${parameter} configured as Named Set ${binding.namedSet}; Save/Download required`)
+    get().logEvent('CONFIGURE', name, `${parameter} configured as ${binding.type === 'BOOLEAN' ? 'Boolean' : `Named Set ${binding.namedSet}`}; Save/Download required`)
     return true
   },
 
@@ -1976,7 +1976,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const runtime = state.sfcs[name]
     const binding = runtime?.parameters && Object.hasOwn(runtime.parameters, parameter) ? runtime.parameters[parameter] : undefined
     const controller = deployed ? state.hardware.controllers[deployed.controllerTag] : undefined
-    if (!binding || !deployed || !controller || controllerIsDown(controller)) {
+    if (!binding || binding.type !== 'NAMED_SET' || !deployed || !controller || controllerIsDown(controller)) {
       return rejectSfc(get, name, 'Named Set entry requires a downloaded parameter on an available controller')
     }
     const controllerSet = controllerNamedSets(state.namedSets, deployed.controllerTag)[binding.namedSet]
@@ -2064,7 +2064,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!sfc) return {}
       // Editing resets the run so the chart starts clean.
       return {
-        sfcs: { ...s.sfcs, [name]: { ...sfc, steps, status: 'READY', active: 0, elapsed: 0, actionStates: {},
+        sfcs: { ...s.sfcs, [name]: { ...sfc, steps, parameters: resetSfcBooleanActions(sfc), status: 'READY', active: 0, elapsed: 0, actionStates: {},
           activeSteps: undefined, joinArrivals: undefined } },
         rev: s.rev + 1
       }
@@ -2092,9 +2092,9 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!sfc) return {}
       let next = sfc
       if (cmd === 'run') next = sfc.status === 'COMPLETE' ?
-        { ...sfc, status: 'RUNNING', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined } : { ...sfc, status: 'RUNNING' }
+        { ...sfc, parameters: resetSfcBooleanActions(sfc), status: 'RUNNING', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined } : { ...sfc, status: 'RUNNING' }
       else if (cmd === 'hold') next = { ...sfc, status: sfc.status === 'RUNNING' ? 'HELD' : sfc.status }
-      else if (cmd === 'reset') next = { ...sfc, status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined }
+      else if (cmd === 'reset') next = { ...sfc, parameters: resetSfcBooleanActions(sfc), status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined }
       return { sfcs: { ...s.sfcs, [name]: next }, rev: s.rev + 1 }
     })
     get().logEvent('BATCH', name, `SFC command: ${cmd}`)

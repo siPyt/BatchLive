@@ -1,6 +1,6 @@
 import type { AnyModule, ControlMode } from './types'
 import type { SfcAction, SfcCondition, CompareOp, SfcActualMode } from './sfc'
-import { namedParameterReferenceError, type SfcExpressionContext } from './sfcParameters'
+import { booleanParameterReferenceError, namedParameterReferenceError, type SfcExpressionContext } from './sfcParameters'
 
 export type ExpressionResult<T> = { value: T; error?: never } | { error: string; value?: never }
 
@@ -63,6 +63,12 @@ export function parseSfcAssignment(text: string, modules: Record<string, AnyModu
 }
 
 export function parseSfcCondition(text: string, modules: Record<string, AnyModule>, context?: SfcExpressionContext): ExpressionResult<SfcCondition> {
+  const boolean = text.trim().match(/^'([A-Za-z0-9_$-]+)(?:\.CV)?'\s*=\s*(TRUE|FALSE|0|1)$/i)
+  if (boolean) {
+    const parameter = boolean[1].toUpperCase()
+    const error = booleanParameterReferenceError(parameter, context)
+    return error ? { error } : { value: { kind: 'boolean', parameter, value: /^(TRUE|1)$/i.test(boolean[2]) } }
+  }
   const named = namedExpression(text, '=', context)
   if (named) return named.error !== undefined ? { error: named.error } : { value: { kind: 'namedSet', ...named.value } }
   const trimmed = text.trim()
@@ -73,6 +79,7 @@ export function parseSfcCondition(text: string, modules: Record<string, AnyModul
     return Number.isFinite(seconds) && seconds >= 0 ? { value: { kind: 'timer', seconds } } :
       { error: 'Timer must be finite and nonnegative' }
   }
+
   const match = trimmed.match(/^(.+?)\s*(>=|<=|>|<|=)\s*(.+)$/)
   const reference = match ? path(match[1]) : null
   if (!match || !reference) return { error: 'Use TRUE, T_ACTIVE >= seconds, or a supported module-path comparison' }
@@ -104,7 +111,17 @@ export function parseSfcCondition(text: string, modules: Record<string, AnyModul
   return { error: `Unsupported condition path ${tag}/${parameter}; use a supported feedback path or configured Named Set expression` }
 }
 
+export function parseSfcBooleanAction(text: string, context?: SfcExpressionContext): ExpressionResult<SfcAction> {
+  const match = text.trim().match(/^'([A-Za-z0-9_$-]+)(?:\.CV)?'$/i)
+  if (!match) return { error: "Boolean action requires a quoted local parameter reference, for example 'ACTIVE.CV'; not an assignment" }
+  const parameter = match[1].toUpperCase()
+  const error = booleanParameterReferenceError(parameter, context)
+  return error || !context ? { error: error ?? 'Boolean action requires an SFC context' } :
+    { value: { kind: 'boolean', tag: context.name, parameter } }
+}
+
 export function assignmentExpression(action: SfcAction, module?: AnyModule): string {
+  if (action.kind === 'boolean') return `'${action.parameter}.CV'`
   if (action.kind === 'namedSet') return `'${action.parameter}' := '${action.namedSet}:${action.entry}'`
   const block = module?.type === 'AO' ? 'AO1' : 'PID1'
   if (action.kind === 'mode') return `'^/${action.tag}/${block}/MODE.TARGET' := ${action.mode}`
@@ -114,6 +131,7 @@ export function assignmentExpression(action: SfcAction, module?: AnyModule): str
 }
 
 export function conditionExpression(condition: SfcCondition, module?: AnyModule): string {
+  if (condition.kind === 'boolean') return `'${condition.parameter}.CV' = ${condition.value ? 'TRUE' : 'FALSE'}`
   if (condition.kind === 'namedSet') return `'${condition.parameter}' = '${condition.namedSet}:${condition.entry}'`
   if (condition.kind === 'always') return 'TRUE'
   if (condition.kind === 'timer') return `T_ACTIVE >= ${condition.seconds}`

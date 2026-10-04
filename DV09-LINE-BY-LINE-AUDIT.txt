@@ -816,8 +816,14 @@ Pages: 273-274
 Status: PARTIAL
 Required: Execute steps/transitions/termination and assignment, Boolean
   module-parameter and non-Boolean function-block actions.
-Evidence: SFC has linear structured actions/conditions and COMPLETE state.
-  No universal expressions, Boolean action variables or block activation.
+Evidence: SFC has structured assignments/conditions and COMPLETE state.
+  Pass22 adds distinct local Boolean parameter-reference actions with actual
+  qualified TRUE/FALSE lifecycle, Boolean comparisons, isolated defaults,
+  Properties/Browser and saved/deployed schema. Ten regressions cover all
+  qualifiers and parallel lifetimes; live Cancel/OK/Check/controller/Save/
+  Download/Online/RUN/HOLD/RESTART/STOP verified runtime/default isolation.
+  Original p274 image reviewed. Universal expressions and non-Boolean
+  function-block activation remain missing; this entry stays PARTIAL.
 Acceptance: Verify all three action classes and termination independently;
   command assignment alone is not every type of SFC action.
 
@@ -834,8 +840,11 @@ Evidence: Original p276 timing-chart image reviewed locally. Separate named
   Termination clears activations; DO actions preserve actual hardware readback.
   Batch phase routines reuse the same execution engine.
   Supported Properties drafts and opt-in linear-SFC Save/Download/Online now
-  exist. Full native property/expression features, module Boolean parameters,
-  non-Boolean block activation and graph editing still
+  exist. Pass22 applies the same nine qualifier lifetimes to distinct Boolean
+  reference actions: expiry/reset/deactivation clear their flags rather than
+  treating them like latched assignment results. Independent flags, stored
+  resets, pulse/delay deadlines and completion are tested. Full native
+  property/expression features, non-Boolean block activation and graph editing still
   prevent exact completion of the course procedures.
 Acceptance: Build action lifecycle state separate from output assignments.
   Test activation and step exit before/at/after delay, delayed pulse once,
@@ -880,7 +889,8 @@ Evidence: Original pp281-283 screenshots reviewed locally. Select step and
   discard drafts; nested Browser Escape restores parent-dialog focus.
   Configured Named Set MESSAGE assignment/condition expressions and Browser
   paths now resolve to actual runtime parameters. Full expression language, native
-  Confirm tab and Boolean/non-Boolean action types remain missing. Opt-in
+  Confirm tab and non-Boolean action types remain missing. Boolean parameter
+  Type/reference and its Browser now have real lifecycle behavior. Opt-in
   linear SFC configuration now has real controller assignment, browser Save,
   explicit Download and independent Offline/Online algorithms. Explorer New
   Control Module now selects FBD/SFC, creates an empty managed Offline chart

@@ -371,6 +371,18 @@ export const COURSE: WModule[] = [
         ]
       },
       {
+        id: 'sfc-boolean',
+        title: 'Boolean parameter action lifecycle',
+        objective: 'Distinguish a qualified Boolean reference action from a one-way assignment.',
+        steps: [
+          { id: 'boolean-parameter', text: 'Create a managed SFC with an initial ACTIVE_TEST step waiting one second, followed by a WAIT_TEST step waiting longer. Add Parameter -> Type Boolean -> ACTIVE -> FALSE. Cancel must create nothing; OK creates only a draft parameter.', goto: 'sfc' },
+          { id: 'boolean-action', text: 'Select ACTIVE_TEST -> + action -> Type Boolean parameter -> name RUNFLAG -> qualifier N. Expression Assistant lists the local ACTIVE.CV reference, not a module output assignment. Cancel changes nothing; OK stores the Boolean reference. Transition Properties may compare ACTIVE.CV = TRUE or FALSE (quoted local path).' },
+          { id: 'boolean-online', text: 'Check, assign controller, Save, Download -> confirm, Online, RUN. ACTIVE must remain FALSE until the action executes, then become TRUE during ACTIVE_TEST and FALSE when that step leaves. HOLD freezes the flag and timer; RESTART continues. STOP clears action activation without changing the saved default or unrelated parameters.' },
+          { id: 'boolean-qualifiers', text: 'Reset/Offline and use Properties to compare P/D/L/S/SD/DS/SL. P drives one scan after its delay, D waits while its step is active, L expires, stored actions survive departure, pending DS cancels but SD continues and SL expires after departure. Add an R action named RUNFLAG to reset a stored activation. Do not substitute a TRUE assignment that stays latched after expiry.' },
+          { id: 'boolean-boundary', text: 'Boolean defaults and references are saved/deployed independently of Named Sets. Named Set operator entry cannot write them. Native Confirm/full expression language and non-Boolean function-block activation remain unsupported; this is not completion of the whole course.' }
+        ]
+      },
+      {
         id: 'sfc-shutdown',
         title: 'Adapted feed shutdown sample',
         objective: 'Create and run a shutdown sequence using steps, actions and transitions.',

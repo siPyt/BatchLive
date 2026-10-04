@@ -1068,6 +1068,27 @@ Regression:189 coupled tests, typecheck/build/diagnostics/audit, exact chart
 selection, shared names and locked/denied/invalid creation rejection.
 
 ===============================================================================
+34. SFC BOOLEAN ACTION FEEDBACK - ACTIVATION IS NOT AN ASSIGNMENT
+===============================================================================
+
+Preserve approved plant equipment, palettes, piping and FBD/chart geometry.
+Parameter Properties exposes Boolean/Named Set Type in its existing dialog.
+Action Properties uses its existing Type field for Assignment/Boolean; do
+not add a second conflicting type picker. Boolean Browser addresses local
+SFC parameters, not an unrelated process module or fabricated field device.
+Online parameter pane shows actual TRUE/FALSE, not configured default.
+Action tooltip/highlight remains driven by actual qualifier activation.
+Expiry/step exit/reset/completion turn the referenced Boolean flag FALSE;
+HOLD/controller loss freeze flag and clock. Do not invert prior numeric or
+device assignments to implement Boolean-action cleanup. Parallel outputs
+have independent flags and validated ownership. Inline summaries direct
+parameter edits through isolated Properties rather than unsupported tags.
+Live Cancel/OK/Browser/Save/Download/Online/RUN/HOLD/RESTART/STOP acceptance
+showed TRUE during activation, FALSE after departure and unchanged saved
+default. Original96-module/eight-SFC plant/UI/security/pictures/storage/
+viewport restored. Non-Boolean blocks/native Confirm/full parity not claimed.
+
+===============================================================================
 31. SFC COURSE FEEDBACK PATHS - SHOW CONFIRMATION, NOT REQUESTED STATE
 ===============================================================================
 

@@ -903,6 +903,40 @@ Validation:199 coupled tests, typecheck/build/diagnostics/audit.
 Earlier verified commits pushed with explicit authorization. This milestone
 is committed locally while further DV-09 work continues.
 
+PASS 22: BOOLEAN MODULE PARAMETERS / DISTINCT SFC ACTION ACTIVATION
+-----------------------------------------------------------------------
+Scope: Boolean action class subset of DV09-064/065/067, original p274 image.
+Boolean module parameters are discriminated typed bindings, with validated
+true/false defaults separate from Named Sets. The production saved schema
+deep-clones and validates them. Offline Parameter Properties has a real Type
+choice; Cancel changes nothing, OK edits only the expected current draft.
+Action Properties has Assignment/Boolean Type. A Boolean action references
+a local parameter (for example 'ACTIVE.CV'), not ':=' assignment syntax.
+Browser lists only local Boolean references for that action class, and true/
+false comparisons for conditions. Missing/wrong-type/foreign-owner references
+and malformed schemas reject explicitly; Named Set data entry cannot write
+a Boolean parameter or interpret it as a Named Set binding.
+The existing N/P/D/L/S/SD/DS/SL/R action runtime drives flags: TRUE while
+qualified active, FALSE on deactivation/expiration/reset/termination. Stored
+activations survive departure; pending DS cancels, SD continues, SL expires.
+P is one scan after delay. Multiple active actions for one local Boolean
+combine by OR, whereas concurrent-leg writer conflicts reject. Actual flags
+and clocks freeze under HOLD; store reset clears referenced Boolean flags
+without changing unreferenced values or prior immutable snapshots.
+Ten independent regressions cover parser/formatters, all qualifiers, exact
+thresholds, stored reset/completion, independent/aggregated flags, parallel
+lifetimes/join/conflict, saved cloning/schema and managed deployment isolation.
+Live Parameter and Add Action Cancel retained the draft; actual Boolean Type/
+Browser/OK created ACTIVE and RUNFLAG. Check/controller Properties/Save/
+confirmed Download/Online preserved FALSE until RUN/scan. First0.1s scan
+showed TRUE, saved/configured default stayed FALSE. HOLD plus2s retained TRUE
+and0.1s; RESTART plus0.9s entered WAIT_TEST and showed FALSE. STOP returned
+READY. Original96 modules/eight SFCs, running plant/UI/security/pictures/
+browser records and720x576 viewport were restored; fixture/globals removed.
+Non-Boolean function-block activation, native Confirm/full expressions and
+the full DV-09 course remain incomplete; group statuses are not upgraded.
+Validation:209 coupled tests, typecheck/build/diagnostics, audit and diff check.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

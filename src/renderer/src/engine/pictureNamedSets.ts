@@ -20,7 +20,7 @@ export function pictureNamedSignal(el: PicElement, state: PictureNamedContext, c
   const lifecycle = state.sfcLifecycle[name]
   const parameters = configured ? lifecycle?.draft.parameters : state.sfcs[name]?.parameters
   const binding = parameters && Object.hasOwn(parameters, parameter) ? parameters[parameter] : undefined
-  if (!binding || !lifecycle) return { error: `Named Set parameter ${name}/${parameter} does not exist` }
+  if (!binding || binding.type !== 'NAMED_SET' || !lifecycle) return { error: `Named Set parameter ${name}/${parameter} does not exist` }
   const sets = configured ? state.namedSets.configured : state.namedSets.deployed.WORKSTATION ?? {}
   const definition = Object.hasOwn(sets, binding.namedSet) ? sets[binding.namedSet] : undefined
   if (!definition) return { error: `${binding.namedSet} is not ${configured ? 'configured' : 'downloaded to this workstation'}` }

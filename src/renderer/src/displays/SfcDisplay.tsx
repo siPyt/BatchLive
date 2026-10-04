@@ -162,7 +162,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
       <SfcParameterControls name={sfc.name} />
       {check && check.steps === sfc.steps && <div role={check.error ? 'alert' : 'status'} className="traditional-note">
         {check.error ? `Check failed: ${check.error}` : 'Check passed for supported actions, conditions, routes and synchronized parallel legs.'}
-        {' '}This validates configured Named Set references, route targets and joins, not arbitrary expressions, nested parallel graphs or controller downloads.
+        {' '}        This validates configured Named Set/Boolean references, route targets and joins, not arbitrary expressions, nested parallel graphs or controller downloads.
       </div>}
 
       <div className="sfc-canvas-wrap">
@@ -506,7 +506,7 @@ export function ActionEditor({
     else onChange({ ...timing, kind: 'do', tag, on: true })
   }
 
-  if (action.kind === 'namedSet') return <div className="sfc-edit-row">
+  if (action.kind === 'namedSet' || action.kind === 'boolean') return <div className="sfc-edit-row">
     <span>{describeAction(action)} [{action.qualifier ?? 'N'}]</span>
     <button className="sfc-x" onClick={onRemove}>Remove</button>
   </div>
@@ -627,7 +627,7 @@ export function TransitionEditor({
   const tags = cond.kind === 'pv' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AI'), ...tagsOf(modules, 'AO')] :
     cond.kind === 'out' || cond.kind === 'mode' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AO')] : tagsOf(modules, tagType)
 
-  if (cond.kind === 'namedSet') return <div className="sfc-edit-row sfc-trans-edit">{describeCondition(cond)}</div>
+  if (cond.kind === 'namedSet' || cond.kind === 'boolean') return <div className="sfc-edit-row sfc-trans-edit">{describeCondition(cond)}</div>
   return (
     <div className="sfc-edit-row sfc-trans-edit">
       <span className="sfc-trans-arrow">⟶</span>
