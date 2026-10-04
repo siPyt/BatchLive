@@ -1,0 +1,115 @@
+import type { AnyModule } from './types'
+import type { PicElement, Picture } from './pictureStore'
+
+export interface PictureSignal {
+  value: number
+  unit: string
+  bad: boolean
+  low?: number
+  high?: number
+  parameter?: string
+}
+export type PictureSignalResult = PictureSignal | { error: string }
+export type PictureDynamicPatch = Pick<Partial<PicElement>,
+  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag'>
+
+export function pictureSignal(el: PicElement, modules: Record<string, AnyModule>): PictureSignalResult {
+  const m = el.tag ? modules[el.tag] : undefined
+  if (!m) return { error: `Module ${el.tag || '(unassigned)'} does not exist` }
+  const path = (el.path ?? el.param ?? 'PV').trim().toUpperCase()
+  const parameter = path.replace(/\.(F_)?CV$/, '')
+  let result: PictureSignal
+  if ((parameter === 'PV' || parameter === 'AI1/PV' && m.type !== 'AO') &&
+      (m.type === 'AI' || m.type === 'PID' || m.type === 'AO')) {
+    result = { value: m.pv, unit: m.unit, low: m.pvMin, high: m.pvMax,
+      bad: m.type === 'AO' ? m.bad : m.pvBad }
+  } else if (m.type === 'AO' && m.parameters[parameter]) {
+    result = { value: m.parameters[parameter].value, unit: '', bad: m.bad, parameter }
+  } else if ((parameter === 'SP' || parameter === 'AO1/SP' && m.type === 'AO') && (m.type === 'PID' || m.type === 'AO')) {
+    result = { value: m.sp, unit: m.unit, bad: m.type === 'PID' ? m.pvBad : m.bad,
+      low: m.type === 'AO' ? m.spLow : m.pvMin, high: m.type === 'AO' ? m.spHigh : m.pvMax }
+  } else if ((parameter === 'OUT' || parameter === 'AO1/OUT' && m.type === 'AO') && (m.type === 'PID' || m.type === 'AO')) {
+    result = { value: m.out, unit: '%', low: 0, high: 100,
+      bad: m.type === 'PID' ? m.io?.ao.bad ?? m.pvBad : m.bad }
+  } else return { error: `Unsupported numeric source ${m.tag}/${path}` }
+  return Number.isFinite(result.value) ? result : { error: `Source ${m.tag}/${path} is not finite` }
+}
+
+export function pictureLimits(settings: { fetchLimits: boolean; low: number; high: number },
+  source: PictureSignal): { low: number; high: number } | { error: string } {
+  const low = settings.fetchLimits ? source.low : settings.low
+  const high = settings.fetchLimits ? source.high : settings.high
+  if (low === undefined || high === undefined || !Number.isFinite(low) || !Number.isFinite(high) || low >= high) {
+    return { error: settings.fetchLimits ? 'Source does not provide valid limits; configure explicit limits' :
+      'Limits require finite low < high' }
+  }
+  return { low, high }
+}
+
+export function pictureElementError(el: PicElement, modules: Record<string, AnyModule>): string | null {
+  if (!Number.isFinite(el.x) || !Number.isFinite(el.y) || el.x < 0 || el.y < 0) return 'Element position must be finite and nonnegative'
+  if (el.type === 'rectangle' && (![el.width ?? 64, el.height ?? 160].every(v => Number.isFinite(v) && v > 0))) {
+    return 'Rectangle dimensions must be finite and positive'
+  }
+  if ([el.color, el.backgroundColor].some(v => v !== undefined && !/^#[0-9a-f]{6}$/i.test(v))) return 'Colors require six-digit hex values'
+  if (el.entry && el.type !== 'datalink') return 'Numeric entry requires a datalink'
+  if (el.entry && el.entry.method !== 'NUMERIC') return 'Only Numeric Entry is supported'
+  if (el.fill && el.type !== 'rectangle') return 'Fill animation requires a rectangle'
+  if (el.fill && typeof el.fill.vertical !== 'boolean') return 'Fill direction must be vertical or horizontal'
+  if (!el.entry && !el.fill && el.path === undefined) return null
+  const source = pictureSignal(el, modules)
+  if ('error' in source) return source.error
+  if (el.entry && !source.parameter) return 'Numeric entry currently requires a standalone AO Floating Point parameter'
+  for (const settings of [el.entry, el.fill]) {
+    if (!settings) continue
+    if (typeof settings.fetchLimits !== 'boolean') return 'Fetch Limits must be a Boolean'
+    if (![settings.low, settings.high].every(Number.isFinite)) return 'Limits must be finite'
+    const limits = pictureLimits(settings, source)
+    if ('error' in limits) return limits.error
+  }
+  return null
+}
+
+export function pictureFill(el: PicElement, modules: Record<string, AnyModule>): PictureSignalResult & { percent?: number } {
+  const source = pictureSignal(el, modules)
+  if ('error' in source || !el.fill) return source
+  const limits = pictureLimits(el.fill, source)
+  if ('error' in limits) return limits
+  return { ...source, percent: Math.max(0, Math.min(100, (source.value - limits.low) / (limits.high - limits.low) * 100)) }
+}
+
+function object(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+function limits(v: unknown): boolean {
+  return object(v) && typeof v.fetchLimits === 'boolean' &&
+    typeof v.low === 'number' && Number.isFinite(v.low) && typeof v.high === 'number' && Number.isFinite(v.high)
+}
+function element(v: unknown): v is PicElement {
+  return object(v) && typeof v.id === 'string' && typeof v.type === 'string' &&
+    ['text', 'datalink', 'dynamo', 'rectangle', 'tank'].includes(v.type) &&
+    typeof v.x === 'number' && Number.isFinite(v.x) && typeof v.y === 'number' && Number.isFinite(v.y) &&
+    ['content', 'color', 'backgroundColor', 'tag', 'path'].every(k => v[k] === undefined || typeof v[k] === 'string') &&
+    ['fontSize', 'width', 'height'].every(k => v[k] === undefined || typeof v[k] === 'number' && Number.isFinite(v[k])) &&
+    ['label', 'bold'].every(k => v[k] === undefined || typeof v[k] === 'boolean') &&
+    (v.param === undefined || typeof v.param === 'string' && ['PV', 'SP', 'OUT', 'MODE', 'STATE'].includes(v.param)) &&
+    (v.entry === undefined || object(v.entry) && v.entry.method === 'NUMERIC' && limits(v.entry)) &&
+    (v.fill === undefined || object(v.fill) && typeof v.fill.vertical === 'boolean' && limits(v.fill))
+}
+export function parseSavedPicture(text: string, name: string, modules: Record<string, AnyModule>): Picture {
+  const data: unknown = JSON.parse(text)
+  if (!object(data) || data.version !== 1 || !object(data.picture)) throw new Error('Unsupported saved picture format/version')
+  const p = data.picture
+  if (p.name !== name || typeof p.name !== 'string' || !Array.isArray(p.elements) || !p.elements.every(element) ||
+      !['previousPicture', 'nextPicture'].every(k => p[k] === undefined || typeof p[k] === 'string')) {
+    throw new Error('Saved picture name/schema is invalid')
+  }
+  if (new Set(p.elements.map(e => e.id)).size !== p.elements.length) throw new Error('Saved picture has duplicate element IDs')
+  for (const el of p.elements) {
+    const error = pictureElementError(el, modules)
+    if (error) throw new Error(error)
+  }
+  return { name: p.name, elements: p.elements,
+    previousPicture: typeof p.previousPicture === 'string' ? p.previousPicture : undefined,
+    nextPicture: typeof p.nextPicture === 'string' ? p.nextPicture : undefined }
+}

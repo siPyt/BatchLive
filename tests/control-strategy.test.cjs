@@ -2272,6 +2272,179 @@ function withPictureProject(run) {
   }
 }
 
+function pictureAnalogFixture(pictures, store) {
+  standaloneAoCourseProject(store)
+  store.configureTraditionalChannel('CTRL1/C01', 1, { dst: 'LT-1', enabled: true, tiebackDst: 'LY-1' })
+  const entry = pictures.addElement('TANK101', { type: 'datalink', x: 20, y: 20, tag: 'LEVEL-101', param: 'PV' })
+  const fill = pictures.addElement('TANK101', { type: 'rectangle', x: 200, y: 50, tag: 'LI-101', width: 64, height: 160 })
+  assert.equal(pictures.configureDynamics('TANK101', entry, { path: 'CAS_SP.F_CV',
+    entry: { method: 'NUMERIC', fetchLimits: false, low: 0, high: 1000 } }), true)
+  assert.equal(pictures.configureDynamics('TANK101', fill, { path: 'AI1/PV.F_CV',
+    fill: { vertical: true, fetchLimits: true, low: 0, high: 1000 } }), true)
+  return { entry, fill }
+}
+
+test('DV09 pp173-177 bounded picture entry drives actual LEVEL-101 output and LI-101 fill through scan tieback', () => {
+  withPictureProject((pictures, store, alerts) => {
+    const { pictureFill, pictureSignal } = require('../src/renderer/src/engine/pictureDynamics.ts')
+    const { entry, fill } = pictureAnalogFixture(pictures, store)
+    const element = id => usePictures.getState().pictures.TANK101.elements.find(e => e.id === id)
+    for (const value of [0, 250.5, 1000]) {
+      assert.equal(pictures.writeNumericValue('TANK101', entry, value), true)
+      store.tick(0.1)
+      store.tick(0.1)
+      const m = useStore.getState().modules
+      assert.ok(Math.abs(m['LEVEL-101'].out - value / 10) < 1e-9)
+      assert.ok(Math.abs(m['LI-101'].pv - value) < 1e-9)
+      assert.equal(pictureSignal(element(entry), m).value, value)
+      assert.ok(Math.abs(pictureFill(element(fill), m).percent - value / 10) < 1e-9)
+    }
+    const before = useStore.getState().modules
+    for (const invalid of [-0.1, 1000.1, NaN, Infinity]) {
+      assert.equal(pictures.writeNumericValue('TANK101', entry, invalid), false)
+      assert.equal(useStore.getState().modules, before)
+      assert.match(alerts.at(-1), /finite value from 0 to 1000/)
+    }
+  })
+})
+
+test('fetched fill limits track the live engineering scale rather than stale default bounds', () => {
+  withPictureProject((pictures, store) => {
+    const { pictureFill } = require('../src/renderer/src/engine/pictureDynamics.ts')
+    const { fill } = pictureAnalogFixture(pictures, store)
+    const el = usePictures.getState().pictures.TANK101.elements.find(e => e.id === fill)
+    const m = useStore.getState().modules['LI-101']
+    const modules = { ...useStore.getState().modules, 'LI-101': { ...m, pv: 200, pvMin: -200, pvMax: 800, pvBad: false } }
+    assert.equal(pictureFill(el, modules).percent, 40)
+    const manual = { ...el, fill: { ...el.fill, fetchLimits: false } }
+    assert.equal(pictureFill(manual, modules).percent, 20)
+    for (const [pv, expected] of [[-400, 0], [1200, 100]]) {
+      assert.equal(pictureFill(el, { ...modules, 'LI-101': { ...modules['LI-101'], pv } }).percent, expected)
+    }
+    assert.match(pictureFill(el, { ...modules, 'LI-101': { ...modules['LI-101'], pvMax: -200 } }).error, /limits/)
+  })
+})
+
+test('picture fill holds real last-good input with Bad when the output channel fails', () => {
+  withPictureProject((pictures, store) => {
+    const { pictureFill } = require('../src/renderer/src/engine/pictureDynamics.ts')
+    const { entry, fill } = pictureAnalogFixture(pictures, store)
+    pictures.writeNumericValue('TANK101', entry, 750)
+    store.tick(0.1); store.tick(0.1)
+    store.configureTraditionalChannel('CTRL1/C02', 1, { dst: 'LY-1', enabled: false })
+    pictures.writeNumericValue('TANK101', entry, 900)
+    store.tick(0.1); store.tick(0.1)
+    const el = usePictures.getState().pictures.TANK101.elements.find(e => e.id === fill)
+    const result = pictureFill(el, useStore.getState().modules)
+    assert.equal(result.percent, 75)
+    assert.equal(result.bad, true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value, 900)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 75)
+  })
+})
+
+test('read-only datalinks and unsupported numeric paths reject writes without proxying unrelated values', () => {
+  withPictureProject((pictures, store, alerts) => {
+    const { pictureSignal } = require('../src/renderer/src/engine/pictureDynamics.ts')
+    standaloneAoCourseProject(store)
+    const id = pictures.addElement('TANK101', { type: 'datalink', x: 0, y: 0, tag: 'LI-101', param: 'PV' })
+    assert.equal(pictures.writeNumericValue('TANK101', id, 500), false)
+    assert.match(alerts.at(-1), /no numeric entry/)
+    assert.equal(pictures.configureDynamics('TANK101', id, { path: 'AI1/PV.F_CV',
+      entry: { method: 'NUMERIC', fetchLimits: false, low: 0, high: 1000 } }), false)
+    assert.match(alerts.at(-1), /Floating Point parameter/)
+    for (const path of ['AI2/PV.F_CV', 'MISSING.CV', 'AI1/PV.CV']) {
+      const source = pictureSignal({ tag: 'LEVEL-101', path }, useStore.getState().modules)
+      assert.match(source.error, /Unsupported numeric source/)
+    }
+  })
+})
+
+test('invalid experts reject atomically including unavailable fetched parameter limits and empty dimensions', () => {
+  withPictureProject((pictures, store) => {
+    const { entry, fill } = pictureAnalogFixture(pictures, store)
+    const before = usePictures.getState().pictures
+    for (const [id, patch] of [
+      [entry, { entry: { method: 'NUMERIC', fetchLimits: true, low: 0, high: 1000 } }],
+      [entry, { entry: { method: 'NUMERIC', fetchLimits: false, low: 1000, high: 0 } }],
+      [fill, { width: 0 }], [fill, { height: NaN }], [fill, { color: 'invalid' }],
+      [fill, { path: 'MISSING.CV' }], [fill, { path: '' }]
+    ]) {
+      assert.equal(pictures.configureDynamics('TANK101', id, patch), false)
+      assert.equal(usePictures.getState().pictures, before)
+    }
+  })
+})
+
+test('dynamic configuration and numeric writes honor separate Can Configure and Control permissions', () => {
+  withPictureProject((pictures, store) => {
+    const { entry, fill } = pictureAnalogFixture(pictures, store)
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    const before = usePictures.getState().pictures
+    assert.equal(pictures.configureDynamics('TANK101', fill, { width: 100 }), false)
+    assert.equal(pictures.updateElement('TANK101', fill, { tag: 'LEVEL-101' }), false)
+    assert.equal(pictures.addElement('TANK101', { type: 'tank', x: 0, y: 0 }), null)
+    assert.equal(pictures.savePicture('TANK101'), false)
+    pictures.removeElement('TANK101', fill)
+    pictures.deletePicture('TANK101')
+    assert.equal(usePictures.getState().pictures, before)
+    assert.equal(pictures.writeNumericValue('TANK101', entry, 600), true)
+    useSecurity.setState({ currentUser: 'NO_CONTROL_USER' })
+    const runtime = useStore.getState().modules
+    assert.equal(pictures.writeNumericValue('TANK101', entry, 700), false)
+    assert.equal(useStore.getState().modules, runtime)
+  })
+})
+
+test('saved picture restores experts and tank elements without writing live module values', () => {
+  withPictureProject((pictures, store) => {
+    const { pictureStorageKey } = require('../src/renderer/src/engine/pictureStore.ts')
+    const { entry } = pictureAnalogFixture(pictures, store)
+    pictures.addElement('TANK101', { type: 'tank', x: 180, y: 24, tag: 'LI-101' })
+    assert.equal(pictures.savePicture('TANK101'), true)
+    pictures.writeNumericValue('TANK101', entry, 750)
+    assert.equal(pictures.configureDynamics('TANK101', entry, {
+      entry: { method: 'NUMERIC', fetchLimits: false, low: 0, high: 2000 } }), true)
+    pictures.deletePicture('TANK101')
+    assert.equal(pictures.loadPicture('TANK101'), true)
+    const el = usePictures.getState().pictures.TANK101.elements.find(e => e.id === entry)
+    assert.equal(el.entry.high, 1000)
+    assert.ok(usePictures.getState().pictures.TANK101.elements.some(e => e.type === 'tank'))
+    assert.equal(useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value, 750)
+    assert.match(global.window.localStorage.getItem(pictureStorageKey('TANK101')), /"version":1/)
+  })
+})
+
+test('picture storage quota and corrupt saved schemas report failure without replacing last-good picture', () => {
+  withPictureProject((pictures, store, alerts) => {
+    const { pictureStorageKey } = require('../src/renderer/src/engine/pictureStore.ts')
+    pictureAnalogFixture(pictures, store)
+    pictures.savePicture('TANK101')
+    const key = pictureStorageKey('TANK101')
+    const valid = global.window.localStorage.getItem(key)
+    const before = usePictures.getState().pictures
+    for (const edit of [
+      p => { p.version = 0 },
+      p => { p.picture.name = 'WRONG' },
+      p => { p.picture.elements[0].entry.high = null },
+      p => { p.picture.elements[1].path = 'UNSUPPORTED.CV' },
+      p => { p.picture.elements[1].id = p.picture.elements[0].id }
+    ]) {
+      const data = JSON.parse(valid); edit(data)
+      global.window.localStorage.setItem(key, JSON.stringify(data))
+      assert.equal(pictures.loadPicture('TANK101'), false)
+      assert.equal(usePictures.getState().pictures, before)
+      assert.match(alerts.at(-1), /Picture Load failed/)
+    }
+    global.window.localStorage.setItem(key, valid)
+    global.window.localStorage.setItem = () => { throw new Error('Quota exceeded') }
+    assert.equal(pictures.savePicture('TANK101'), false)
+    assert.equal(global.window.localStorage.getItem(key), valid)
+    assert.equal(usePictures.getState().pictures, before)
+    assert.match(alerts.at(-1), /Picture Save failed.*Quota/)
+  })
+})
+
 test('DV09 page 136: Previous Ovw_ref.grf and Next alarmList.grf resolve to real displays', () => {
   withPictureProject(pictures => {
     const original = pictures.pictures.TANK101

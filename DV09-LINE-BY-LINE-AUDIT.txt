@@ -76,6 +76,7 @@ RANK = src\renderer\src\utils\format.ts: compareAlarmRank
 TESTS = tests\control-strategy.test.cjs
 LIFECYCLE = src\renderer\src\engine\moduleLifecycle.ts
 LIFECYCLE_UI = src\renderer\src\components\ModuleLifecycleControls.tsx
+PICTURE_DYNAMICS = src\renderer\src\engine\pictureDynamics.ts
 
 Evidence denotes source inspection unless explicitly called a regression or
 live verification. Never treat a label, icon, disabled ribbon control,
@@ -518,8 +519,21 @@ Required: Numeric CAS_SP entry bounded 0-1000, tank/rectangle fill animation
 Verified subset: Studio/faceplate CAS_SP writes drive actual LEVEL-101 output.
   Simulated LY-1 -> LT-1 tieback converts percent through LI-101 PV_SCALE on
   the following scan; disabled/down/OOS signal holds level with Bad.
-Gaps: Picture-level bounded CAS_SP entry and fill expert are absent. Floating
-  Point parameters permit finite values; AO SP limits clamp the command.
+Additional verified subset: BUILDER/PICTURES/PICTURE_DYNAMICS implement the
+  numeric datalink paths AI1/PV.F_CV and CAS_SP.F_CV. Data Entry Expert defaults
+  to None; explicit Numeric Entry with Fetch Limits off and bounds0-1000
+  writes the actual AO Floating Point parameter. Out-of-range/nonfinite/
+  denied/cancelled entries leave runtime unchanged. Rectangle Fill Percentage
+  supports vertical/horizontal direction and fetches the current AI PV scale.
+  Tank Dynamo reuses approved ClassicTank artwork. Save/Load Picture persists
+  the applied configuration locally without writing live values.
+  UI750.5 produced physical OUT75.05%, LI-101750.5 and75.05% fill;1001 rejected.
+  Real browser reload recovered the experts and tank/rectangle settings while
+  leaving recreated runtime at its own500 default.
+Boundary: Supported numeric source subset and browser-profile persistence,
+  not arbitrary vendor paths, native .grf files or native expert-dialog fidelity.
+  Original-PDF image-only review is outstanding. Floating Point module writes
+  remain finite-value inputs; these picture bounds do not replace AO SP limits.
   This is an explicit simulated tieback, not physical 4-20 mA wiring.
 Acceptance: Test low/high/out-of-range entry and fill percentage computed from
   actual source scale, without recoloring the protected baseline tank.

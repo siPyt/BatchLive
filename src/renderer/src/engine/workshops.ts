@@ -237,6 +237,20 @@ export const COURSE: WModule[] = [
         ]
       },
       {
+        id: 'dv09-analog-picture',
+        title: 'TANK101 Bounded Entry and Fill Animation',
+        objective: 'Enter LEVEL-101 CAS_SP from the operator picture and animate LI-101 using its fetched engineering limits.',
+        note: 'This is the pp173-177 functional subset, not a native DeltaV Operate editor or .grf file. Picture Save uses this browser profile. Supported numeric paths cover the course AI PV and standalone AO Floating Point parameters; arbitrary vendor paths and image-only dialog fidelity remain unverified. The tank reuses the approved ClassicTank artwork.',
+        steps: [
+          { id: 'dv09-pic-1', text: 'Finish the standalone AO and LI-101 tieback fixture first. Open Display Builder and TANK101 in Configure mode. Add a Datalink with Module tag LI-101. Set Source Path AI1/PV.F_CV, leave Numeric Entry off, and Apply Expert.', goto: 'builder' },
+          { id: 'dv09-pic-2', text: 'Add a second Datalink, choose LEVEL-101, and set Source Path CAS_SP.F_CV. Check Numeric Entry, leave Fetch Limits unchecked, enter Low0 and High1000, then Apply Expert. This configures display-entry bounds, not an implicit clamp of every module parameter write.' },
+          { id: 'dv09-pic-3', text: 'Add Tank Dynamo and Rectangle. Position the rectangle within the tank level column or in its own bounded region. For the rectangle, choose LI-101 and Source Path PV, enable Fill Percentage, Vertical Direction and Fetch Limits from Data Source, then Apply Expert. Foreground/background and positive dimensions are independently configurable.' },
+          { id: 'dv09-pic-4', text: 'Save Picture. Switch Configure to Run. Click the CAS_SP value and apply750.5. After output and input scans, verify LY-1 is75.05%, LI-101 is750.5gal and the rectangle is75.05% filled. Entry0 gives0%; entry1000 gives100%. Entry1001 must reject visibly without changing runtime.' },
+          { id: 'dv09-pic-5', text: 'Type a different value and Cancel or Escape: no write occurs. Disable LY-1 to verify last-good level holds with Bad; the requested CAS_SP and physical applied output remain separate. Restore the channel to recover.' },
+          { id: 'dv09-pic-6', text: 'Load Saved Picture explicitly to recover the applied picture configuration, without writing any live module value. After browser reload, recreate source-module prerequisites before loading. This is local browser configuration, not downloaded controller memory or a vendor graphics file.' }
+        ]
+      },
+      {
         id: 'dv09-analog-dst',
         title: 'LI-101 Input and Analog Channel Signal Paths',
         objective: 'Read LT-1 into LI-101, verify HI950/LO100, and exercise real PID analog output channels.',

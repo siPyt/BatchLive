@@ -980,6 +980,59 @@ No motor/valve/tank/piping redesign was made in this milestone.
 Commit locally; do not push until the user authorizes it.
 
 ===============================================================================
+21. OPERATOR PICTURE DATA ENTRY / RECTANGLE FILL - APPROVED ARTWORK STILL WINS
+===============================================================================
+
+Do not redraw the approved equipment to add the DV-09 picture exercise.
+The builder's Tank Dynamo REUSES ClassicTank from ClassicGraphics.tsx,
+with its domed top, dished bottom, supports, gradients and existing level
+column intact. No changes were made to that primitive or the pharma displays.
+The course rectangle is a separate user-authored picture element. It is not
+a motor circle, device-state lamp or substitute tank shape.
+
+Picture-specific foreground/background colors are user-authored settings,
+not permission to change global palettes or plant motor/valve feedback.
+Rectangle defaults use the existing level-column blue and pale background.
+Preserve the existing Display Builder grid, legacy datalinks/dynamos, sidebar
+and configure/run controls. Add experts inside its existing property pane.
+
+Data Entry Expert:
+- Default is None; an ordinary datalink is read-only.
+- Explicit Numeric Entry writes the actual AO Floating Point parameter,
+  using the existing Control key and managed-controller availability rules.
+- The course CAS_SP.F_CV uses manual0-1000 bounds with Fetch Limits off.
+  Entry1001/nonfinite input must reject, not silently clamp or falsely succeed.
+- The modal reuses the same native SimulatorDialog as module download:
+  background is inert, Escape/Cancel writes nothing, and focus is restored.
+  FlexLock engagement closes it; a native top-layer dialog must not remain
+  interactive over the lock screen.
+- Unapplied expert edits are not saved. Apply Expert then Save Picture.
+- Never confuse configured defaults, requested CAS_SP, actual OUT percent
+  and received LI-101 PV. Bad telemetry is not confirmed actuation.
+
+Fill Animation Expert:
+- Vertical fill grows from the bottom; horizontal fill grows from the left.
+- Fetch Limits reads the current source engineering range on every render.
+  Do not hard-code0-1000 or use AO requested CAS_SP as LI-101 feedback.
+- Invalid source/scale is explicitly identified; no success-shaped zero.
+- A failed channel holds the last-good input with Bad. Wide rectangles show
+  Bad inside their bounds. Narrow level columns use a neutral dashed border,
+  tooltip and accessible Bad label so text does not spill outside the symbol.
+- Keep fills and status text contained in the rectangle. The live fixture's
+ 6x126 rectangle fitted inside the existing tank level column;750.5gal yielded
+ 75.05% fill with no geometry overflow. Do not enlarge protected tanks to fit it.
+
+Save/Load Picture persists only local browser configuration, not native .grf
+files, controller memory or automatically executing module values.
+Source modules/parameters must exist before loading. Malformed/version/tag/
+duplicate-ID data and quota failures retain the last-good picture.
+Preserve121 control/five audit regressions, typecheck/build/diagnostics and
+live numeric-entry, cancellation, fill-containment and reload checks.
+Restore the running96-module plant and original profile storage after tests.
+The course/image-only/native-dialog parity is not yet complete.
+Local commit only; no push until explicit authorization.
+
+===============================================================================
 19. DV-09 STANDALONE AO - PRESERVE THE REFERENCE PRESENTATION
 ===============================================================================
 

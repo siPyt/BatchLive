@@ -448,6 +448,55 @@ Validation: 113 control regressions plus five audit regressions; typecheck,
 production build, editor diagnostics and audit mapping checks pass.
 Local commit only; do not push without explicit authorization.
 
+PASS 9: PICTURE-LEVEL NUMERIC ENTRY / SOURCE-SCALED FILL
+------------------------------------------------------
+Scope: DV09-037, pp173-177. This supersedes the previous picture-entry/fill
+limitation only for the explicitly supported numeric sources.
+
+- Datalinks resolve LI-101/AI1/PV.F_CV and LEVEL-101/CAS_SP.F_CV to actual
+  runtime fields, never an unrelated module PV or invented constant.
+- Data Entry remains None unless Numeric Entry is explicitly applied.
+  The course's manual bounds0-1000 reject out-of-range/nonfinite values.
+  Numeric entry writes standalone AO Floating Point parameters through
+  existing Control permission/controller availability checks.
+- Cancel/Escape writes nothing. Invalid entries report an error and keep
+  the modal open for correction. Requested CAS_SP and applied OUT/PV remain
+  distinct, including failures and OOS.
+- Shared native modals close when FlexLock engages, rather than covering
+  the lock screen with an interactive top-layer dialog.
+- Rectangles support independent dimensions/colors, Fill Percentage and
+  vertical/horizontal direction. Fetch Limits uses the source's current PV
+  engineering scale; manual bounds are separately supported. Fill clamps
+  between0 and100%, holds the actual last-good signal with Bad, and reports
+  missing/invalid source data explicitly.
+- Tank Dynamo reuses the approved ClassicTank primitive, not new equipment
+  artwork. The isolated fixture placed a6x126 fill rectangle inside its
+  existing level column; nothing changed in the approved pharma displays.
+- Save/Load Picture persists only applied picture configuration in this
+  browser profile. Loading requires source modules/parameters to exist and
+  cannot write runtime values. Invalid schemas/versions/names/duplicate IDs
+  and storage quota failures retain the last-good picture/profile entry.
+- Dynamic element creation/edit/removal and picture save/load require Can
+  Configure. Numeric entry uses Control instead. Existing legacy picture
+  element behavior remains unchanged outside the new dynamic workflow.
+
+Live UI evidence:
+- Authored both course datalinks, explicit numeric entry, reused tank and
+  fetched/vertical rectangle through Display Builder controls; saved it.
+-1001 rejected and left CAS_SP500. Applying750.5 produced75.05% actual AO,
+  LI-101750.5gal and a75.05% rectangle, wholly contained within its bounds.
+- Cancel and Escape both preserved750.5; numeric modal fit the viewport.
+- Real browser reload and explicit Load Saved recovered all four elements
+  and their experts, while recreated module runtime remained500/50%.
+- Restored the original running96-module Overview, original pictures and
+  prior local picture storage entry; removed isolated test globals.
+
+Boundary: Local simulator authoring, supported numeric paths and browser JSON
+configuration, not native .grf files or vendor Data Entry/Animation dialogs.
+Full DV-09 operating parity and original-PDF image-only review remain incomplete.
+Validation:121 control and five audit regressions, typecheck/build/diagnostics
+and zero-unmapped audit checks. Commit locally; no push is authorized.
+
 FIFTH PASS: STANDALONE LEVEL-101 AO AND SIMULATED ANALOG TIEBACK
 --------------------------------------------------------------
 Sources: standalone module procedure pp164-168 and signal check pp173-178.

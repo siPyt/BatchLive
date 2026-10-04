@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { SimulatorDialog } from './SimulatorDialog'
 import { useStore } from '../engine/store'
 import { lifecycleDirty } from '../engine/moduleLifecycle'
 
@@ -88,19 +89,12 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
 }
 
 export function ModuleDownloadDialog({ tag, onClose }: { tag: string; onClose: () => void }): JSX.Element {
-  const dialog = useRef<HTMLDialogElement>(null)
   const record = useStore(s => s.moduleLifecycle[tag])
   const runtime = useStore(s => s.modules[tag])
   const download = useStore(s => s.downloadModule)
   const downloaded = runtime?.type === 'AO' && runtime.downloaded === true
   const [scope, setScope] = useState<'FULL' | 'PARTIAL'>(downloaded ? 'PARTIAL' : 'FULL')
-  useEffect(() => {
-    const element = dialog.current
-    if (element && !element.open) element.showModal()
-    return () => element?.close()
-  }, [])
-  return <dialog ref={dialog} className="module-download-dialog" aria-label={`${tag} Download`} onCancel={onClose}
-    onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }}>
+  return <SimulatorDialog className="module-download-dialog" label={`${tag} Download`} onClose={onClose}>
     <b>{tag} - Simulated Module Download</b>
     <p>Validate saved configuration, then transfer atomically. Failed or cancelled downloads leave the last-good runtime unchanged.</p>
     <label>Scope <select aria-label={`${tag} download scope`} value={scope} onChange={e => {
@@ -113,5 +107,5 @@ export function ModuleDownloadDialog({ tag, onClose }: { tag: string; onClose: (
       <button className="tbtn sm" onClick={() => { if (download(tag, scope)) onClose() }}>Confirm Download</button>
       <button className="tbtn sm" onClick={onClose}>Cancel Download</button>
     </div>
-  </dialog>
+  </SimulatorDialog>
 }

@@ -2296,6 +2296,35 @@ button {
   font-weight: 700;
   color: var(--dv-pv);
 }
+.bld-entry-value {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--dv-pv);
+  cursor: pointer;
+  text-align: left;
+}
+.bld-rectangle {
+  border: 1px solid;
+  overflow: hidden;
+}
+.bld-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+.bld-quality {
+  position: relative;
+  display: block;
+  font-size: 10px;
+  padding: 2px;
+  color: #17222b;
+  background: #eef2f5;
+  overflow-wrap: anywhere;
+}
 .bld-props {
   width: 240px;
   min-width: 240px;
@@ -2618,7 +2647,8 @@ button {
   border-collapse: collapse;
   font-size: 12px;
 }
-.module-download-dialog {
+.module-download-dialog,
+.bld-entry-dialog {
   position: fixed;
   z-index: 100;
   top: 25%;
@@ -2635,10 +2665,12 @@ button {
   color: var(--dv-text);
   white-space: normal;
 }
-.module-download-dialog select {
+.module-download-dialog select,
+.bld-entry-dialog input {
   max-width: 100%;
 }
-.module-download-dialog::backdrop {
+.module-download-dialog::backdrop,
+.bld-entry-dialog::backdrop {
   background: rgba(0, 0, 0, 0.3);
 }
 .studio-param-table th {

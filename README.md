@@ -141,6 +141,17 @@ current membership, and transfer/restart does not resurrect renamed/deleted pare
 Arbitrary typed parameters/paths, 4-20 mA scaling, discrete CAS, native templates,
 independent display assignment and general saved/controller lifecycle remain gaps.
 
+Display Builder now supports the course's `LI-101/AI1/PV.F_CV` and
+`LEVEL-101/CAS_SP.F_CV` numeric datalinks. The Data Entry Expert enables
+standalone AO Floating Point writes with explicit bounds; invalid, denied or
+cancelled entries do not change runtime. Rectangle fills support vertical/
+horizontal direction and either explicit limits or the source's live engineering
+scale. Failed signals retain the real last-good value with Bad indication,
+not the requested AO command. The new Tank Dynamo reuses approved artwork.
+Save/Load Picture persists configuration in the browser profile, not a native
+`.grf` file or controller download; source modules must exist before loading.
+Existing datalinks/dynamos and approved plant graphics are unchanged.
+
 Module creation in Explorer and Control Studio now enforces the course's
 16-character naming rule and reports invalid/duplicate/denied creation without
 false success. Existing protected equipment and graphics are unchanged.
