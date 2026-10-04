@@ -208,6 +208,20 @@ export const COURSE: WModule[] = [
     module: 'DV-09 · Analog & Regulatory Control',
     workshops: [
       {
+        id: 'dv09-pid-oos-lo',
+        title: 'PID OOS and Tracking LO',
+        objective: 'Execute pp246-247 algorithm stop, independent input quality, tracking override and return to target.',
+        note: 'This is the modeled mode subset, not complete normal/permitted masks, remote-host protocols or Fieldbus writes. Use a separate training session; independent manual AO blocks continue to execute when PID1 is OOS.',
+        steps: [
+          { id: 'dv09-pid-mode-1', text: 'Open a PID in Studio. Select AI1, choose MAN input and a constant PV. Select PID1 and request AUTO. Create an unbound DO TRK-TEST as an explicit simulated tracking trigger.', goto: 'studio' },
+          { id: 'dv09-pid-mode-2', text: 'Select TRK-TEST for tracking source, set tracking value35%, and enable tracking. Toggle TRK-TEST on from its faceplate. After sampling, confirm target AUTO, actual LO, requested output35% and separate applied AO output.' },
+          { id: 'dv09-pid-mode-3', text: 'Toggle the trigger off. Confirm actual returns to AUTO without an immediate proportional or derivative kick. LO is not offered as a target. Output entry cannot override LO.' },
+          { id: 'dv09-pid-mode-4', text: 'Select OOS from the PID faceplate or PID1 target selector. Confirm the PID algorithm stops, its output holds Bad, and AI1 remains independently Good. Return to AUTO and verify recovery.' },
+          { id: 'dv09-pid-mode-5', text: 'Make the trigger OOS while tracking is enabled. Confirm held applied output, actual IMAN and a visible tracking diagnostic; restore the trigger to recover. A missing or Bad tracking-value source also cannot supply a successful override.' },
+          { id: 'dv09-pid-mode-6', text: 'In an SFC action/transition editor, use PID1/MODE.TARGET := 1 for OOS and PID1/MODE.ACTUAL = 4 for LO. Target CAS48 differs from actual CAS32. Target LO/4 and unsupported numeric masks reject. Save/Load retains supported conditions.', goto: 'sfc' }
+        ]
+      },
+      {
         id: 'dv09-standalone-ao',
         title: 'LEVEL-101 Standalone AO and CAS_SP',
         objective: 'Build the actual AO/CAS_SP path and verify applied channel output with a simulated LI-101 tieback.',

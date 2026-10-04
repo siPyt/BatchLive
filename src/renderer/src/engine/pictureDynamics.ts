@@ -1,3 +1,4 @@
+import { pidExecutionBad } from './pidModes'
 import type { AnyModule } from './types'
 import type { PicElement, Picture } from './pictureStore'
 import { pictureNamedSignal, type PictureNamedContext } from './pictureNamedSets'
@@ -20,18 +21,21 @@ export function pictureSignal(el: PicElement, modules: Record<string, AnyModule>
   const path = (el.path ?? el.param ?? 'PV').trim().toUpperCase()
   const parameter = path.replace(/\.(F_)?CV$/, '')
   let result: PictureSignal
-  if ((parameter === 'PV' || parameter === 'AI1/PV' && m.type !== 'AO') &&
+  if (parameter === 'AI1/PV' && m.type === 'PID') {
+    result = { value: m.io?.ai.out ?? m.pv, unit: m.unit, low: m.pvMin, high: m.pvMax,
+      bad: m.io?.ai.bad ?? m.pvBad }
+  } else if ((parameter === 'PV' || parameter === 'AI1/PV' && m.type !== 'AO') &&
       (m.type === 'AI' || m.type === 'PID' || m.type === 'AO')) {
     result = { value: m.pv, unit: m.unit, low: m.pvMin, high: m.pvMax,
-      bad: m.type === 'AO' ? m.bad : m.pvBad }
+      bad: m.type === 'AO' ? m.bad : m.pvBad || (m.type === 'PID' && pidExecutionBad(m)) }
   } else if (m.type === 'AO' && m.parameters[parameter]) {
     result = { value: m.parameters[parameter].value, unit: '', bad: m.bad, parameter }
   } else if ((parameter === 'SP' || parameter === 'AO1/SP' && m.type === 'AO') && (m.type === 'PID' || m.type === 'AO')) {
-    result = { value: m.sp, unit: m.unit, bad: m.type === 'PID' ? m.pvBad : m.bad,
+    result = { value: m.sp, unit: m.unit, bad: m.type === 'PID' ? m.pvBad || pidExecutionBad(m) : m.bad,
       low: m.type === 'AO' ? m.spLow : m.pvMin, high: m.type === 'AO' ? m.spHigh : m.pvMax }
   } else if ((parameter === 'OUT' || parameter === 'AO1/OUT' && m.type === 'AO') && (m.type === 'PID' || m.type === 'AO')) {
     result = { value: m.out, unit: '%', low: 0, high: 100,
-      bad: m.type === 'PID' ? m.io?.ao.bad ?? m.pvBad : m.bad }
+      bad: m.type === 'PID' ? pidExecutionBad(m) || (m.io?.ao.bad ?? m.pvBad) : m.bad }
   } else return { error: `Unsupported numeric source ${m.tag}/${path}` }
   return Number.isFinite(result.value) ? result : { error: `Source ${m.tag}/${path} is not finite` }
 }

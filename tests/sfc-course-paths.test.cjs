@@ -63,6 +63,7 @@ test('course DI feedback and actual-mode paths roundtrip while command paths and
     const modules = useStore.getState().modules
     for (const expression of ["'^/XVSTAT-101/DI1/PV_D.CV' = 1", "'^/XVSTAT-101/DI1/PV_D.CV' = 0",
       "'^/FIC-102/PID1/MODE.ACTUAL' = AUTO", "'^/FIC-102/PID1/MODE.ACTUAL' = IMAN",
+      "'^/FIC-102/PID1/MODE.ACTUAL' = OOS", "'^/FIC-102/PID1/MODE.ACTUAL' = LO",
       "'^/MODE-AO/AO1/MODE.ACTUAL' = OOS"]) {
       const result = parseSfcCondition(expression, modules)
       assert.equal(result.error, undefined)
@@ -70,11 +71,11 @@ test('course DI feedback and actual-mode paths roundtrip while command paths and
     }
     for (const expression of ["'^/XVSTAT-101/DI1/SP_D.CV' = 1", "'^/XVSTAT-101/DI1/PV_D.CV' = 2",
       "'^/XVSTAT-101/DI1/PV_D.CV' > 0", "'^/XV-101/DI1/PV_D.CV' = 1",
-      "'^/FIC-102/PID1/MODE.TARGET' = AUTO", "'^/FIC-102/PID1/MODE.ACTUAL' = OOS"]) {
+      "'^/FIC-102/PID1/MODE.TARGET' = AUTO", "'^/FIC-102/PID1/MODE.ACTUAL' = INVALID"]) {
       assert.ok(parseSfcCondition(expression, modules).error, expression)
     }
     assert.ok(parseSfcAssignment("'^/XVSTAT-101/DI1/PV_D.CV' := 1", modules).error)
-    assert.ok(parseSfcAssignment("'^/MODE-AO/AO1/MODE.TARGET' := OOS", modules).error)
+    assert.equal(parseSfcAssignment("'^/MODE-AO/AO1/MODE.TARGET' := OOS", modules).value.mode, 'OOS')
     assert.ok(parseSfcCondition("'^/MODE-AO/AO1/MODE.ACTUAL' = IMAN", modules).error)
     const actualOos = parseSfcCondition("'^/MODE-AO/AO1/MODE.ACTUAL' = OOS", modules).value
     assert.equal(describeCondition(actualOos, modules['MODE-AO']), '^/MODE-AO/AO1/MODE.ACTUAL = OOS')
@@ -204,7 +205,7 @@ test('saved DI and actual-mode conditions validate schema/module type and preser
     assert.equal(parseSavedSfc(serializeSavedSfc(configuration), modules).error, undefined)
     for (const condition of [
       { kind: 'discrete', tag: 'XV-101', state: true },
-      { kind: 'mode', tag: 'FIC-102', mode: 'OOS' },
+      { kind: 'mode', tag: 'FIC-102', mode: 'INVALID' },
       { kind: 'mode', tag: 'XVSTAT-101', mode: 'AUTO' }
     ]) assert.ok(sfcStepsError([{ ...configuration.steps[0], transition: condition }], modules))
     assert.ok(parseSavedSfc(JSON.stringify({ version: 1, configuration: {

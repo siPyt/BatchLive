@@ -1,3 +1,4 @@
+import { pidExecutionBad } from '../engine/pidModes'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt, isPid } from '../utils/format'
@@ -39,7 +40,7 @@ export function ValueBox({ tag, x, y, svg }: Props): JSX.Element | null {
   if (!m) return null
 
   const alm = moduleAlarm(tag, alarms)
-  const bad = m.type === 'AO' ? m.bad : (m.type === 'PID' || m.type === 'AI') && m.pvBad
+  const bad = m.type === 'AO' ? m.bad : m.type === 'PID' ? m.pvBad || pidExecutionBad(m) : m.type === 'AI' && m.pvBad
   const almClass = (bad ? ' vb-bad' : alm ? ' alm-' + alm.priority.toLowerCase() : '')
 
   let value = 0

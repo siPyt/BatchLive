@@ -1,3 +1,4 @@
+import { pidExecutionBad } from './pidModes'
 import type {
   AnalogOutputStage, AnalogSignalRef, AnyModule, PidIoPatch, PidIoStrategy, PidModule
 } from './types'
@@ -87,6 +88,7 @@ export function readAnalogSignal(
   const value = (source.type === 'PID' || source.type === 'AO') && ref.parameter === 'OUT'
     ? source.out : source.type === 'FB' ? source.out : 'pv' in source ? source.pv : NaN
   return { value, bad: !Number.isFinite(value) ||
+    (source.type === 'PID' && pidExecutionBad(source)) ||
     ('pvBad' in source && source.pvBad && (ref.parameter === 'PV' || source.type === 'AI')) ||
     ((source.type === 'FB' || source.type === 'AO') && !!source.bad) }
 }
@@ -246,7 +248,7 @@ export function executePidOutput(
     const split = io.splitter
     const feedback1 = outputFeedback(io.ao, io.aoConnected && !io.outputSource)
     const feedback2 = outputFeedback(io.ao2, !!io.ao2Connected && !io.output2Source)
-    executeSplitter(split, { value: m.out, bad: false }, feedback1, feedback2, dt)
+    executeSplitter(split, { value: m.out, bad: pidExecutionBad(m) }, feedback1, feedback2, dt)
     executeAnalogOutput(io.ao, io.outputSource ? readAnalogSignal(io.outputSource, modules) :
       { value: split.out1, bad: split.status === 'BAD' }, io.aoConnected, hardwareBad)
     executeAnalogOutput(io.ao2, io.output2Source ? readAnalogSignal(io.output2Source, modules) :
@@ -255,7 +257,7 @@ export function executePidOutput(
       refreshSplitterStatus(split,
         outputFeedback(io.ao, io.aoConnected && !io.outputSource),
         outputFeedback(io.ao2, !!io.ao2Connected && !io.output2Source))
-      if (m.mode !== 'MAN' && m.mode !== 'ROUT' &&
+      if (!pidExecutionBad(m) && m.actualMode !== 'LO' && m.mode !== 'MAN' && m.mode !== 'ROUT' &&
           (m.actualMode === 'IMAN' || split.status === 'NOT_INVITED' || split.status === 'BAD')) {
         if (split.status === 'NOT_INVITED' || split.status === 'BAD') m.actualMode = 'IMAN'
         m.out = split.bkcal
@@ -270,10 +272,10 @@ export function executePidOutput(
     io.splitter.actualMode = 'OOS'
     return
   }
-  const source = io.outputSource ? readAnalogSignal(io.outputSource, modules) : { value: m.out, bad: false }
+  const source = io.outputSource ? readAnalogSignal(io.outputSource, modules) : { value: m.out, bad: pidExecutionBad(m) }
   executeAnalogOutput(io.ao, source, io.aoConnected, hardwareBad)
-  if (io.bkcalConnected && io.ao.limited && io.ao.mode === 'CAS' && !io.outputSource) {
-    m._integral = clamp(m._integral + io.ao.out - m.out, -100, 100)
+  if (!pidExecutionBad(m) && m.actualMode !== 'LO' && io.bkcalConnected && io.ao.limited && io.ao.mode === 'CAS' && !io.outputSource) {
+    m._integral += io.ao.out - m.out
   }
 }
 

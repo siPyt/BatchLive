@@ -1,5 +1,6 @@
-import type { AnyModule, ControlMode } from './types'
-import type { SfcAction, SfcCondition, CompareOp, SfcActualMode } from './sfc'
+import type { AnyModule } from './types'
+import type { SfcAction, SfcCondition, CompareOp } from './sfc'
+import { parsePidActualMode, parsePidTargetMode } from './pidModes'
 import { booleanParameterReferenceError, namedParameterReferenceError, type SfcExpressionContext } from './sfcParameters'
 
 export type ExpressionResult<T> = { value: T; error?: never } | { error: string; value?: never }
@@ -45,8 +46,8 @@ export function parseSfcAssignment(text: string, modules: Record<string, AnyModu
   const tag = module.tag
   const analogBlock = module.type === 'AO' ? 'AO1' : module.type === 'PID' ? 'PID1' : ''
   if (analogBlock && parameter === `${analogBlock}/MODE.TARGET`) {
-    const modes: ControlMode[] = module.type === 'AO' ? ['MAN', 'AUTO', 'CAS'] : ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN']
-    const mode = modes.find(item => item === value.toUpperCase())
+    const parsed = parsePidTargetMode(value)
+    const mode = module.type === 'AO' && parsed && !['MAN', 'AUTO', 'CAS', 'OOS'].includes(parsed) ? undefined : parsed
     return mode ? { value: { kind: 'mode', tag, mode } } : { error: 'Unsupported target mode for this module' }
   }
   if (analogBlock && [`${analogBlock}/SP.CV`, `${analogBlock}/OUT.CV`].includes(parameter)) {
@@ -93,8 +94,8 @@ export function parseSfcCondition(text: string, modules: Record<string, AnyModul
   const tag = module.tag
   const analogBlock = module.type === 'AO' ? 'AO1' : module.type === 'PID' ? 'PID1' : ''
   if (match[2] === '=' && analogBlock && parameter === `${analogBlock}/MODE.ACTUAL`) {
-    const modes: SfcActualMode[] = module.type === 'AO' ? ['MAN', 'AUTO', 'CAS', 'OOS'] : ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN']
-    const mode = modes.find(item => item === value.toUpperCase())
+    const parsed = parsePidActualMode(value)
+    const mode = module.type === 'AO' && parsed && !['MAN', 'AUTO', 'CAS', 'OOS'].includes(parsed) ? undefined : parsed
     return mode ? { value: { kind: 'mode', tag, mode } } : { error: 'Unsupported actual mode for this module' }
   }
   if (match[2] === '=' && module.type === 'DI' && parameter === 'DI1/PV_D.CV' && ['0', '1'].includes(value)) {

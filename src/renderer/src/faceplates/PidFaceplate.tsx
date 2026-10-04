@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
-import type { PidModule, ControlMode, AlarmPriority, AlarmType, AlarmLimit, AnalogOutputStage } from '../engine/types'
+import type { PidModule, PidTargetMode, AlarmPriority, AlarmType, AlarmLimit, AnalogOutputStage } from '../engine/types'
+import { pidExecutionBad } from '../engine/pidModes'
 import { fmt, fmtQ, modeColor } from '../utils/format'
 import { appliedPidOutput, pidIo } from '../engine/analogStrategy'
 
-const MODES: ControlMode[] = ['MAN', 'AUTO', 'CAS']
+const MODES: PidTargetMode[] = ['MAN', 'AUTO', 'CAS', 'OOS']
 type Tab = 'operate' | 'tune' | 'alarm' | 'trend'
 
 export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
@@ -20,7 +21,8 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const span = m.pvMax - m.pvMin || 1
   const pvPct = ((m.pv - m.pvMin) / span) * 100
   const spPct = ((m.sp - m.pvMin) / span) * 100
-  const shed = m.actualMode !== m.mode
+  const shed = m.actualMode !== m.mode && m.actualMode !== 'LO'
+  const bad = m.pvBad || pidExecutionBad(m)
   const spEditable = m.actualMode === 'AUTO'
   const outEditable = m.actualMode === 'MAN' || m.actualMode === 'ROUT'
   const io = pidIo(m)
@@ -38,9 +40,9 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
       {tab === 'operate' && (
         <>
           <div className="fp-readouts">
-            <Readout label="PV" cls="fp-pv" value={fmtQ(m.pv, m.decimals, m.pvBad)} unit={m.unit} bad={m.pvBad} />
+            <Readout label="PV" cls="fp-pv" value={fmtQ(m.pv, m.decimals, bad)} unit={m.unit} bad={bad} />
             <Readout label="SP" cls="fp-sp" value={fmt(m.sp, m.decimals)} unit={m.unit} />
-            <Readout label="OUT" cls="fp-out" value={fmt(m.out, 1)} unit="%" />
+            <Readout label="OUT" cls="fp-out" value={fmtQ(m.out, 1, pidExecutionBad(m))} unit="%" bad={pidExecutionBad(m)} />
           </div>
 
           <div className="fp-bars">
@@ -55,7 +57,7 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
               unit={m.unit}
               min={m.pvMin}
               max={m.pvMax}
-              bad={m.pvBad}
+              bad={bad}
               alarms={m.alarms}
             />
           </div>
@@ -76,7 +78,9 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
               <b style={{ color: modeColor(m.actualMode) }}>{m.actualMode}</b>
             </span>
             {shed && <span style={{ color: 'var(--dv-critical)', fontWeight: 700, marginLeft: 6 }}>SHED</span>}
+            {m.actualMode === 'LO' && <span> TRACKING</span>}
           </div>
+          {(m.trackError || m.ffError) && <div role="alert" style={{ color: 'var(--dv-bad)' }}>{m.trackError || m.ffError}</div>}
 
           <div className="fp-modes">
             {MODES.map((mode) => (

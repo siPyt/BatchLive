@@ -1,4 +1,6 @@
-import type { PlantState, AnyModule, PidModule, ControlMode } from './types'
+import type { PlantState, AnyModule, PidModule, ControlMode, PidTargetMode } from './types'
+import { isPidTargetMode, PID_ACTUAL_MODES, pidExecutionBad } from './pidModes'
+import { readAnalogSignal } from './analogStrategy'
 import { booleanParameterReferenceError, cloneSfcParameters, namedParameterReferenceError, type SfcExpressionContext, type SfcParameters } from './sfcParameters'
 import type { NamedSetDefinition } from './namedSets'
 import { executeSfcBlock, syncSfcBlockActivation, type SfcBlockConfiguration, type SfcBlockState } from './sfcBlocks'
@@ -26,7 +28,7 @@ interface ActionBase {
 
 export type SfcAction = ActionBase &
   (
-    | { kind: 'mode'; tag: string; mode: ControlMode }
+    | { kind: 'mode'; tag: string; mode: PidTargetMode }
     | { kind: 'sp'; tag: string; value: number }
     | { kind: 'out'; tag: string; value: number }
     | { kind: 'motor'; tag: string; run: boolean }
@@ -313,10 +315,14 @@ export function evalCondition(c: SfcCondition, state: PlantState, elapsed: numbe
       return !booleanParameterReferenceError(c.parameter, context) && context?.parameters[c.parameter].value === c.value
     case 'pv':
       if (!m || !('pv' in m) || !Number.isFinite(m.pv)) return false
-      if (m.type === 'AI' || m.type === 'PID') return !m.pvBad && cmp(m.pv, c.op, c.value)
+      if (m.type === 'AI' || m.type === 'PID') return !m.pvBad &&
+        (m.type !== 'PID' || !pidExecutionBad(m)) && cmp(m.pv, c.op, c.value)
       return m.type === 'AO' && !m.bad && m.actualMode !== 'OOS' && cmp(m.pv, c.op, c.value)
-    case 'out':
-      return m && (m.type === 'PID' || m.type === 'AO') ? cmp(m.out, c.op, c.value) : false
+    case 'out': {
+      if (!m || (m.type !== 'PID' && m.type !== 'AO')) return false
+      const signal = readAnalogSignal({ tag: m.tag, parameter: 'OUT' }, state.modules)
+      return !signal.bad && cmp(signal.value, c.op, c.value)
+    }
     case 'motorRunning':
       return m && m.type === 'MOTOR' && !m.ioInputBad && !m.ioOutputBad ? m.running === c.running : false
     case 'valveOpen':
@@ -330,7 +336,7 @@ export function evalCondition(c: SfcCondition, state: PlantState, elapsed: numbe
 
 export function applyAction(m: AnyModule, a: SfcAction): void {
   if (m.type === 'AO') {
-    if (a.kind === 'mode' && (a.mode === 'MAN' || a.mode === 'AUTO' || a.mode === 'CAS')) {
+    if (a.kind === 'mode' && (a.mode === 'MAN' || a.mode === 'AUTO' || a.mode === 'CAS' || a.mode === 'OOS')) {
       if (a.mode === 'MAN' && m.mode !== 'MAN') m.manualOutput = m.out
       if (a.mode === 'AUTO' && m.mode !== 'AUTO') m.sp = m.pv
       m.mode = a.mode
@@ -340,13 +346,15 @@ export function applyAction(m: AnyModule, a: SfcAction): void {
   }
   if ((a.kind === 'mode' || a.kind === 'sp' || a.kind === 'out') && m.type === 'PID') {
     const p = m as PidModule
-    if (a.kind === 'mode') {
+    if (a.kind === 'mode' && isPidTargetMode(a.mode)) {
       p.mode = a.mode
       if (a.mode === 'MAN') p._integral = p.out
     } else if (a.kind === 'sp') {
       p.sp = clamp(a.value, p.pvMin, p.pvMax)
     } else if (a.kind === 'out') {
-      if (p.mode === 'MAN' || p.mode === 'ROUT') p.out = clamp(a.value, 0, 100)
+      if ((p.mode === 'MAN' || p.mode === 'ROUT') && p.actualMode !== 'LO' && p.actualMode !== 'OOS') {
+        p.out = clamp(a.value, 0, 100)
+      }
     }
   } else if (a.kind === 'deviceReset' && (m.type === 'MOTOR' || m.type === 'VALVE')) {
     if (a.reset) resetDeviceLock(m)
@@ -616,7 +624,7 @@ function conditionError(condition: SfcCondition, modules: Record<string, AnyModu
   if (condition.kind === 'valveOpen') return module.type !== 'VALVE' ? 'Open condition requires a valve' : null
   if (condition.kind === 'discrete') return module.type !== 'DI' ? 'Discrete feedback condition requires a DI module' : null
   if (condition.kind === 'mode') return module.type !== 'PID' && module.type !== 'AO' ? 'Actual mode condition requires PID or AO' :
-    (module.type === 'AO' ? ['MAN', 'AUTO', 'CAS', 'OOS'] : ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN']).includes(condition.mode) ?
+    (module.type === 'AO' ? ['MAN', 'AUTO', 'CAS', 'OOS'] : PID_ACTUAL_MODES).includes(condition.mode) ?
       null : 'Unsupported actual mode'
   if (!Number.isFinite(condition.value) || !['>', '<', '>=', '<='].includes(condition.op)) return 'Invalid comparison'
   if (condition.kind === 'pv') return !['PID', 'AI', 'AO'].includes(module.type) ? 'PV condition requires an analog module' : null
@@ -685,8 +693,8 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
         }
         if ((action.kind === 'sp' || action.kind === 'out') && !Number.isFinite(action.value)) return 'Action value must be finite'
         if (action.kind === 'mode' && (module.type === 'AO' ?
-          !['MAN', 'AUTO', 'CAS'].includes(action.mode) :
-          !['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN'].includes(action.mode))) return 'Invalid target mode'
+          !['MAN', 'AUTO', 'CAS', 'OOS'].includes(action.mode) :
+          !isPidTargetMode(action.mode))) return 'Invalid target mode'
       }
       if (TIMED_QUALIFIERS.includes(action.qualifier ?? 'N')) {
         if (action.timingCondition) {

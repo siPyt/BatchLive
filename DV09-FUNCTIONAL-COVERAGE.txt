@@ -386,6 +386,43 @@ Save/Download/Online and original-PDF image-only review. A PID output stage
 is not a substitute for the standalone course module. No full-parity claim.
 Commit permitted; no push without explicit authorization.
 
+PASS 34: PID OOS AND QUALIFIED TRACKING LO (pp246-247)
+---------------------------------------------------
+OOS stops PID integral/derivative/output calculation and reports Bad block
+quality without poisoning the independently sampled AI1. Default cascaded
+AO holds applied output Bad; independent manual AOs remain independent.
+Qualified tracking reports actual LO while preserving target. Release
+returns to the resolved target without proportional/derivative kick,
+including gains/errors requiring internal integral bias below-100.
+Conditional integration and AO back-calculation constrain field actuation,
+not the signed internal bias. Split-range Not Invited feedback cannot
+overwrite an active PID tracking override.
+
+Missing/Bad trigger or value source holds applied output, reports IMAN/Bad
+and exposes a diagnostic. Bad PID feedforward sources cannot drive a Good
+output; CAS/RCAS sheds to AUTO for an OOS/Bad PID source.
+PID faceplates, Studio, FBD value status, numeric dynamos, picture sources,
+FB references and SFC comparisons distinguish PID Bad from AI1 Good.
+Held Bad OUT now fails SFC numeric transitions, including standalone AO OOS;
+the old regression expecting success from stale OOS output was corrected.
+
+LO is never a selectable target. Operator mode/output/tracking writes use
+the existing unlocked security guards. Invalid tracking setup and LO target
+requests reject explicitly. SFC parsing/validation/Save-Load support OOS and
+LO actual comparisons and the prescribed target/actual numeric mode codes.
+CAS target48 is distinct from actual32; unsupported target masks reject.
+
+DV09-055 remains PARTIAL: normal/permitted fields, arbitrary bitmasks,
+actual remote-host protocols/timeouts and physical Fieldbus writes are not
+claimed. Whole-course and original-PDF image-only review remain unfinished.
+Validation: eight new PID-mode regressions; all317 tests, typecheck,
+production build, source audit and editor diagnostics pass. Live faceplate
+OOS selection held35% Bad with AI1 Good; Studio selector returned AUTO/LO35
+and tracking release35.032%. Bad trigger showed the actual IMAN diagnostic.
+Original96-module plant, running state, UI and security restored; acceptance
+global removed. Protected mechanical artwork and diagram geometry unchanged.
+Local commit permitted; no push authorized.
+
 PASS 8: STANDALONE AO SAVED CONFIGURATION / DOWNLOAD / RESTART
 ------------------------------------------------------------
 Scope: DV09-034 assignment/save subset and DV09-035 pp169-171 lifecycle.

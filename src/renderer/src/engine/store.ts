@@ -37,6 +37,7 @@ import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
 import { conditionSourceError } from './fbCondition'
+import { isPidTargetMode } from './pidModes'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from './deviceDescriptors'
 import { deviceSourceError, resetConditionTiming } from './fb'
 import {
@@ -167,7 +168,7 @@ interface StoreState extends PlantState {
   setDiscreteMode: (tag: string, mode: 'AUTO' | 'OOS') => boolean
   configureDiscreteAlarm: (tag: string, onValue: boolean, enabled: boolean) => boolean
   // operator actions
-  setMode: (tag: string, mode: ControlMode) => void
+  setMode: (tag: string, mode: PidModule['mode']) => void
   setSetpoint: (tag: string, sp: number) => void
   setOutput: (tag: string, out: number) => void
   setTuning: (tag: string, t: { gain?: number; reset?: number; rate?: number }) => void
@@ -426,7 +427,11 @@ export const useStore = create<StoreState>((set, get) => ({
   silenceHorn: () => set({ hornSilenced: true }),
 
   setMode: (tag, mode) => {
-    if (!useSecurity.getState().requireLock('CONTROL', `Set Mode ${tag}`)) return
+    if (!requireUnlockedLock('CONTROL', `Set Mode ${tag}`)) return
+    if (get().modules[tag]?.type !== 'PID' || !isPidTargetMode(mode)) {
+      rejectSfc(get, tag, 'PID target requires a supported mode; LO is an actual tracking mode, not a target')
+      return
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') {
         const p = m as PidModule
@@ -449,7 +454,13 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setOutput: (tag, out) => {
-    if (!useSecurity.getState().requireLock('CONTROL', `Set Output ${tag}`)) return
+    if (!requireUnlockedLock('CONTROL', `Set Output ${tag}`)) return
+    const module = get().modules[tag]
+    if (module?.type !== 'PID' || (module.mode !== 'MAN' && module.mode !== 'ROUT') ||
+      module.actualMode === 'LO' || module.actualMode === 'OOS' || !Number.isFinite(out)) {
+      rejectSfc(get, tag, 'PID output entry requires a finite value and MAN/ROUT target outside LO/OOS')
+      return
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') {
         const p = m as PidModule
@@ -492,7 +503,22 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setTracking: (tag, patch) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure tracking ${tag}`)) return
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure tracking ${tag}`)) return
+    const state = get()
+    const module = state.modules[tag]
+    const enabled = patch.enable ?? (module?.type === 'PID' && module.trackEnable)
+    const source = 'source' in patch ? patch.source : module?.type === 'PID' ? module.trackSource : undefined
+    if (state.modules[tag]?.type !== 'PID' || patch.value !== undefined &&
+      (!Number.isFinite(patch.value) || patch.value < 0 || patch.value > 100) ||
+      patch.enable !== undefined && typeof patch.enable !== 'boolean' ||
+      patch.source !== undefined && typeof patch.source !== 'string' ||
+      patch.valueSource !== undefined && typeof patch.valueSource !== 'string' ||
+      enabled && !source ||
+      patch.source && (!state.modules[patch.source] || patch.source === tag) ||
+      patch.valueSource && (!state.modules[patch.valueSource] || patch.valueSource === tag)) {
+      rejectSfc(get, tag, 'Tracking requires a PID, valid independent source tags and a finite 0-100% constant')
+      return
+    }
     mutateModule(set, get, tag, (m) => {
       if (m.type !== 'PID') return
       if ('enable' in patch) m.trackEnable = !!patch.enable

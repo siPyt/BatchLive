@@ -1,5 +1,6 @@
 import { moduleNameError } from './naming'
 import { sfcStepsError, type SfcAction, type SfcCondition, type SfcDef, type SfcStep } from './sfc'
+import { isPidTargetMode, PID_ACTUAL_MODES } from './pidModes'
 import type { AnyModule } from './types'
 import { cloneSfcParameters, sfcParameterError, type SfcParameters } from './sfcParameters'
 import type { NamedSetDefinition } from './namedSets'
@@ -75,7 +76,7 @@ function condition(value: unknown): value is SfcCondition {
   if (value.kind === 'motorRunning') return typeof value.running === 'boolean'
   if (value.kind === 'valveOpen') return typeof value.open === 'boolean'
   if (value.kind === 'discrete') return typeof value.state === 'boolean'
-  if (value.kind === 'mode') return typeof value.mode === 'string' && ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN', 'OOS'].includes(value.mode)
+  if (value.kind === 'mode') return PID_ACTUAL_MODES.some(mode => mode === value.mode)
   return (value.kind === 'pv' || value.kind === 'out') && typeof value.value === 'number' &&
     ['>', '<', '>=', '<='].includes(String(value.op))
 }
@@ -91,7 +92,7 @@ function action(value: unknown): value is SfcAction {
   if (value.kind === 'namedSet') return ['parameter', 'namedSet', 'entry'].every(key => typeof value[key] === 'string')
   if (value.kind === 'boolean') return typeof value.parameter === 'string'
   if (value.kind === 'block') return typeof value.block === 'string'
-  if (value.kind === 'mode') return ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN'].includes(String(value.mode))
+  if (value.kind === 'mode') return isPidTargetMode(value.mode)
   if (value.kind === 'motor') return typeof value.run === 'boolean'
   if (value.kind === 'deviceReset') return typeof value.reset === 'boolean'
   if (value.kind === 'valve') return typeof value.open === 'boolean'

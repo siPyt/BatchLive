@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../engine/store'
+import { isPidTargetMode, PID_TARGET_MODES, pidExecutionBad } from '../engine/pidModes'
 import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
@@ -19,7 +20,7 @@ import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/d
 import type {
   AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
   PidBlockName, PidIoPatch, SplitterPatch, SplitterState, FbInputRef,
-  ControlMode, MotorModule, ValveModule, AnalogOutputModule
+  MotorModule, ValveModule, AnalogOutputModule
 } from '../engine/types'
 import type { ReactNode } from 'react'
 
@@ -157,7 +158,7 @@ function ParameterView({ module: m, selectedBlock }: {
   const namedSets = useStore(s => s.namedSets)
   const selectedSplitter = m.type === 'PID' ? pidIo(m).splitter : undefined
   const ioBlock = m.type === 'PID' && selectedBlock !== 'PID1'
-  const bad = m.type === 'PID' ? m.pvBad : m.type === 'AI' ? m.pvBad :
+  const bad = m.type === 'PID' ? m.pvBad || pidExecutionBad(m) : m.type === 'AI' ? m.pvBad :
     m.type === 'DI' || m.type === 'DO' ? !!m.ioBad :
       m.type === 'MOTOR' || m.type === 'VALVE' ? !!m.ioInputBad || !!m.ioOutputBad : false
 
@@ -165,10 +166,8 @@ function ParameterView({ module: m, selectedBlock }: {
   if (m.type === 'PID') {
     const spEditable = m.actualMode === 'AUTO'
     const outEditable = m.actualMode === 'MAN' || m.actualMode === 'ROUT'
-    const modeCycle: ControlMode[] = m.casSource ? ['MAN', 'AUTO', 'CAS'] : ['MAN', 'AUTO']
-    const nextMode = modeCycle[(modeCycle.indexOf(m.mode) + 1) % modeCycle.length] ?? 'AUTO'
     rows.push(
-      { key: 'MODE.TARGET', value: m.mode, toggle: { onClick: () => setMode(m.tag, nextMode), label: `→ ${nextMode}` } },
+      { key: 'MODE.TARGET', value: m.mode },
       { key: 'MODE.ACTUAL', value: m.actualMode },
       { key: 'PV.CV', value: `${fmt(m.pv, m.decimals)} ${m.unit}` },
       {
@@ -188,6 +187,7 @@ function ParameterView({ module: m, selectedBlock }: {
       { key: 'RATE', value: `${m.rate} s`, edit: { kind: 'num', step: 0.5, decimals: 1, raw: m.rate, onChange: (v) => setTuning(m.tag, { rate: v }) } },
       { key: 'BKCAL_OUT', value: bkcalOutStatus(m, modules) }
     )
+    if (m.trackError || m.ffError) rows.push({ key: 'EXECUTION DIAGNOSTIC', value: m.trackError || m.ffError || '', error: m.trackError || m.ffError })
   } else if (m.type === 'AI') {
     rows.push({ key: 'PV.CV', value: `${fmt(m.pv, m.decimals)} ${m.unit}` }, { key: 'PV_FTIME', value: '2 s' })
   } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
@@ -255,7 +255,14 @@ function ParameterView({ module: m, selectedBlock }: {
               <tr key={r.key}>
                 <td>{r.key}</td>
                 <td className="pv">
-                  {r.edit ? (
+                  {m.type === 'PID' && r.key === 'MODE.TARGET' ? (
+                    <select aria-label={`${m.tag} PID target mode`} value={m.mode} onChange={event => {
+                      if (isPidTargetMode(event.target.value)) setMode(m.tag, event.target.value)
+                    }}>
+                      {PID_TARGET_MODES.map(mode => <option key={mode} value={mode}
+                        disabled={(mode === 'CAS' || mode === 'RCAS') && !m.casSource}>{mode}</option>)}
+                    </select>
+                  ) : r.edit ? (
                     <ParamStepper step={r.edit.step} decimals={r.edit.decimals} value={r.edit.raw} onChange={r.edit.onChange} />
                   ) : r.toggle ? (
                     <button className="studio-param-btn" onClick={r.toggle.onClick}>

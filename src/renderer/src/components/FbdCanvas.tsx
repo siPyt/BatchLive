@@ -6,6 +6,7 @@ import { FB_NEEDS_IN2, isDiscreteModule, readModuleValue, outputPinLabel } from 
 import { fmt } from '../utils/format'
 import { FunctionBlockIcon } from './EngineeringIcons'
 import { pidIo } from '../engine/analogStrategy'
+import { pidExecutionBad } from '../engine/pidModes'
 import { avoidSavedBlockOverlaps, buildControlDiagram, type DiagramBlock, type DiagramWire } from '../engine/controlDiagram'
 import type { AnalogSignalRef, AnyModule, PidBlockName } from '../engine/types'
 import { lifecycleModules } from '../engine/moduleLifecycle'
@@ -463,7 +464,7 @@ function FbNode({
     m.type === 'AI' || m.type === 'AO' ? m.decimals : m.type === 'FB' ? 2 : 0
   const bad = parameter ? !Number.isFinite(parameter.value) : m.type === 'PID' && io
     ? inputStage ? io.ai.bad : outputStage ? ao?.bad ?? true :
-      split ? split.status === 'BAD' : m.pvBad
+      split ? split.status === 'BAD' : m.pvBad || pidExecutionBad(m)
     : m.type === 'AI' ? m.pvBad : m.type === 'FB' || m.type === 'AO' ? !!m.bad :
       m.type === 'DI' || m.type === 'DO' ? !!m.ioBad :
         m.type === 'MOTOR' || m.type === 'VALVE' ? !!m.ioInputBad || !!m.ioOutputBad : false

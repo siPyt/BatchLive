@@ -850,8 +850,12 @@ Pages: 243-249
 Status: PARTIAL
 Required: Distinguish MAN/AUTO/CAS/IMAN/OOS/LO/RCAS/ROUT and target, actual,
   normal and permitted modes, named-set bitmasks and remote-host paths.
-Evidence: PID supports MAN/AUTO/CAS/IMAN/RCAS/ROUT; no PID OOS/LO.
-  Tracking does not report LO. RCAS reuses CAS source, not remote-host protocol.
+Evidence: PID OOS stops calculation and reports Bad independently of AI1.
+  Qualified tracking reports actual LO without changing target; removal
+  returns bumplessly. Missing/Bad trigger/value holds and diagnoses.
+  Native course target/actual numeric codes parse and persist in SFCs.
+  LO is actual-only; OOS/LO output override and locked mode changes reject.
+  Normal/permitted masks remain absent. RCAS reuses CAS, not remote-host protocol.
 Acceptance: Test each mode and transition, normal/permitted fields, remote
   inputs/timeouts and initialization; do not label approximate CAS as RCAS.
 

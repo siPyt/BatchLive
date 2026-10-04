@@ -9,7 +9,7 @@ An offline **operator HMI sandbox** that recreates the look and feel of an Emers
 ## Features
 
 - **Live process simulation** — a continuous reactor train (feed → reactor → product) with tank hydraulics, temperature/pressure dynamics, and a classic cascade loop (feed-tank level → feed flow).
-- **PID faceplates** — PV/SP/OUT bargraphs, MAN/AUTO/CAS mode switching, setpoint & output control, and a tuning tab (gain / reset / rate).
+- **PID faceplates** — PV/SP/OUT bargraphs, MAN/AUTO/CAS/OOS mode switching, qualified tracking LO, setpoint & output control, and a tuning tab (gain / reset / rate).
 - **Device faceplates** — motors (start/stop, interlock, fault injection, runtime), on/off valves, analog indicators, and discrete I/O.
 - **Alarm system** — Critical / Warning / Advisory priorities, blinking unacknowledged banner tiles, acknowledge-per-point or acknowledge-all, and a sortable/filterable alarm list.
 - **Process graphics** — interactive SVG tanks, pumps, valves and piping with live dynamos; click any element to open its faceplate.
@@ -562,6 +562,28 @@ the local `pdf_om.txt` extraction identified in the report, not bundled source
 material. Zero unmapped lines proves traceability, **not feature coverage**.
 
 Workshop checkmarks are a manual exercise checklist, **not verified coverage**.
+
+## PID OOS and tracking LO
+
+PID1's Studio target selector exposes supported target modes; LO is actual-only.
+OOS stops PID calculations and holds its requested output with Bad block
+quality. AI1 keeps its own input quality. A normally cascaded AO holds Bad,
+but an independently configured manual AO continues its own operation.
+
+Enable tracking with a known independent trigger and a finite 0-100% constant
+or a qualified live value source. A healthy nonzero trigger gives actual LO
+without changing the target. Releasing it returns to the resolved target
+bumplessly, including large proportional errors and derivative changes.
+Missing/Bad tracking data holds applied output and displays a diagnostic.
+Operator and SFC output assignments cannot override LO/OOS; workstation locks
+also block operator mode, output and tracking changes.
+
+SFC mode expressions accept names and the course's numeric codes: targets
+OOS1/IMAN2/MAN8/AUTO16/CAS48/RCAS80/ROUT144; actual modes use LO4, CAS32,
+RCAS64 and ROUT128. LO4 is not a target. Unsupported target masks reject.
+Held Bad PV/OUT cannot satisfy numeric SFC transitions, including AO OOS.
+This models supported modes, not arbitrary permitted/normal masks, native
+remote-host communication or physical Fieldbus writes.
 
 ## Project layout
 

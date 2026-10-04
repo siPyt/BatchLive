@@ -10,7 +10,8 @@ export type ModuleType = 'PID' | 'AI' | 'AO' | 'DI' | 'DO' | 'MOTOR' | 'VALVE' |
 /** DeltaV control modes for a function block. IMAN (Initialization Manual) is
  * an actual-mode-only state: the block has a downstream cascade consumer that
  * hasn't accepted Cas/RCas yet ("Not Invited"), so it can't close the loop. */
-export type ControlMode = 'MAN' | 'AUTO' | 'CAS' | 'ROUT' | 'RCAS' | 'IMAN'
+export type PidTargetMode = 'MAN' | 'AUTO' | 'CAS' | 'ROUT' | 'RCAS' | 'IMAN' | 'OOS'
+export type ControlMode = PidTargetMode | 'LO'
 
 /** DeltaV-style alarm priorities (drive banner color + sort order). */
 export type AlarmPriority = 'CRITICAL' | 'WARNING' | 'ADVISORY'
@@ -96,9 +97,11 @@ export interface PidModule extends ModuleDisplayProperties {
   area: string
   /** Equipment Module this Control Module belongs to, if any. */
   equipmentModule?: string
-  mode: ControlMode // target mode (what the operator/host requested)
+  mode: PidTargetMode // target mode (what the operator/host requested)
   /** actual mode the block is executing in; differs from `mode` while shed. */
   actualMode: ControlMode
+  trackError?: string
+  ffError?: string
   pv: number
   sp: number
   out: number // 0-100 %

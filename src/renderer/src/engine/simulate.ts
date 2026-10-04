@@ -21,6 +21,7 @@ import {
   advanceTraditionalIo, analogChannelBad, deviceChannelSignal, sampleAnalogInputs, sampleAnalogOutputs, sampleDiscreteInputs
 } from './traditionalIo'
 import { executeStandaloneAo } from './standaloneAo'
+import { pidExecutionBad } from './pidModes'
 import {
   appliedPidOutput, clonePidIo, executePidOutput, pidIo, pidOutputUnavailable,
   readAnalogSignal, resolvePidInput, samplePidInput
@@ -50,8 +51,10 @@ const DERIV_ALPHA = 0.125
  * exactly as the PDF describes ("the block would have remained with mode
  * Auto/IMan because of the Not Invited status").
  */
-function resolveActualMode(m: PidModule, modules: Record<string, AnyModule>): PidModule['mode'] {
+function resolveActualMode(m: PidModule, modules: Record<string, AnyModule>): PidModule['actualMode'] {
+  if (m.mode === 'OOS') return 'OOS'
   const source = m.casSource ? modules[m.casSource] : undefined
+  if ((m.mode === 'CAS' || m.mode === 'RCAS') && source?.type === 'PID' && pidExecutionBad(source)) return 'AUTO'
   if ((m.mode === 'CAS' || m.mode === 'RCAS') && source?.type === 'AO' && source.bad) return 'AUTO'
   if ((m.mode === 'CAS' || m.mode === 'RCAS') && !m.casHealthy) return 'AUTO'
   if (m.mode === 'MAN' || m.mode === 'ROUT') return m.mode
@@ -117,7 +120,6 @@ function computePid(m: PidModule, dt: number, ffVal = 0, bkcalLimited = false): 
   const saturated = bkcalLimited || (pre >= 100 && ePct > 0) || (pre <= 0 && ePct < 0)
   if (!saturated) {
     m._integral += (m.gain / Math.max(m.reset, 0.5)) * ePct * dt
-    m._integral = clamp(m._integral, -100, 100)
   }
   return clamp(fixed + m._integral, 0, 100)
 }
@@ -143,7 +145,10 @@ function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, d
   resolvePidInput(m, modules)
   const io = pidIo(m)
   const previousMode = m.actualMode
+  m.trackError = undefined
+  m.ffError = undefined
   m.actualMode = resolveActualMode(m, modules)
+  if (m.actualMode === 'OOS') return
   const outputUnavailable = pidOutputUnavailable(m)
   if (m.mode !== 'MAN' && m.mode !== 'ROUT' && (m.pvBad || (io.bkcalConnected && outputUnavailable))) {
     m.actualMode = 'IMAN'
@@ -157,19 +162,46 @@ function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, d
     if (src) m.sp = clamp(src.type === 'PID' || src.type === 'AO'
       ? m.pvMin + (src.out / 100) * (m.pvMax - m.pvMin) : readModuleValue(src), m.pvMin, m.pvMax)
   }
-  if (m.trackEnable && m.trackSource && readModuleValue(modules[m.trackSource]) !== 0) {
-    const trackVal = m.trackValueSource ? readModuleValue(modules[m.trackValueSource]) : m.trackValue
-    m.out = clamp(trackVal, 0, 100)
-    m._integral = m.out
-    m._prevPv = m.pv
-    m._dFilt = 0
-    return
+  if (m.trackEnable) {
+    const trigger = resolveFbInput(modules, { kind: 'ref', tag: m.trackSource, value: 0 })
+    if (trigger.bad) {
+      m.trackError = `Tracking trigger ${m.trackSource ?? '(unassigned)'} is missing or Bad`
+      m.actualMode = 'IMAN'
+      return
+    }
+    if (trigger.value !== 0) {
+      const value = m.trackValueSource ? resolveFbInput(modules, { kind: 'ref', tag: m.trackValueSource, value: 0 }) :
+        { value: m.trackValue, bad: !Number.isFinite(m.trackValue) }
+      if (value.bad) {
+        m.trackError = `Tracking value ${m.trackValueSource ?? '(constant)'} is missing or Bad`
+        m.actualMode = 'IMAN'
+        return
+      }
+      m.actualMode = 'LO'
+      m.out = clamp(value.value, 0, 100)
+      m._integral = m.out
+      m._prevPv = m.pv
+      m._dFilt = 0
+      return
+    }
   }
-  const ffVal = m.ffEnable && m.ffSource ? readModuleValue(modules[m.ffSource]) * m.ffGain : 0
-  if (previousMode === 'IMAN' && m.actualMode !== 'IMAN' &&
+  let ffVal = 0
+  if (m.ffEnable && m.ffSource && m.mode !== 'MAN' && m.mode !== 'ROUT' && m.mode !== 'IMAN') {
+    const source = resolveFbInput(modules, { kind: 'ref', tag: m.ffSource, value: 0 })
+    ffVal = source.value * m.ffGain
+    if (source.bad || !Number.isFinite(ffVal)) {
+      m.ffError = `Feedforward source ${m.ffSource} or gain is missing or Bad`
+      m.actualMode = 'IMAN'
+      return
+    }
+  }
+  if ((previousMode === 'IMAN' || previousMode === 'LO' || previousMode === 'OOS') && m.actualMode !== 'IMAN' &&
       m.actualMode !== 'MAN' && m.actualMode !== 'ROUT') {
     const errorPct = ((m.sp - m.pv) / (m.pvMax - m.pvMin || 1)) * 100 * (m.direct ? -1 : 1)
-    m._integral = clamp(m.out - m.gain * errorPct - ffVal, -100, 100)
+    // Integral is a signed bias; output limits apply to the final sum.
+    m._integral = m.out - m.gain * errorPct - ffVal
+    m._prevPv = m.pv
+    m._dFilt = 0
   }
   const child = findCascadeChild(modules, m.tag)
   const errorDirection = (m.sp - m.pv) * (m.direct ? -1 : 1)
@@ -449,6 +481,7 @@ function resolveFbInput(
       ((m.type === 'MOTOR' || m.type === 'VALVE') && (!!m.ioInputBad || !!m.ioOutputBad)) ||
       ((m.type === 'DI' || m.type === 'DO') && m.mode === 'OOS') ||
       (m.type === 'AO' && m.actualMode === 'OOS') ||
+      (m.type === 'PID' && pidExecutionBad(m)) ||
       ((m.type === 'FB' || m.type === 'AO') && !!m.bad)
   }
 }
