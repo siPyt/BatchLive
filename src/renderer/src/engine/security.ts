@@ -152,3 +152,11 @@ export const useSecurity = create<SecurityState>((set, get) => ({
 
   clearDenied: () => set({ lastDenied: null })
 }))
+
+export function requireUnlockedKey(lock: LockType, action: string): boolean {
+  if (useSecurity.getState().locked) {
+    useSecurity.setState({ lastDenied: `Access Denied — ${action} requires an unlocked workstation` })
+    return false
+  }
+  return useSecurity.getState().requireLock(lock, action)
+}

@@ -107,7 +107,8 @@ export function ClassicPump({
   tag,
   label = tag,
   labelPosition = 'below',
-  discharge = 'up'
+  discharge = 'up',
+  animationColor
 }: {
   x: number
   y: number
@@ -116,10 +117,11 @@ export function ClassicPump({
   label?: string
   labelPosition?: 'below' | 'left' | 'right'
   discharge?: 'up' | 'right'
+  animationColor?: string
 }): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
-  const stateColor = running ? PALE_GREEN : DEVICE_OFF
-  const outline = running ? '#24551b' : DEVICE_OFF
+  const stateColor = animationColor ?? (running ? PALE_GREEN : DEVICE_OFF)
+  const outline = animationColor ? PALE_BORDER : running ? '#24551b' : DEVICE_OFF
   return (
     <g data-equipment-tag={tag} data-state={running ? 'running' : 'stopped'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
       <title>{`${label} (${tag}): ${running ? 'Running' : 'Stopped'}`}</title>
@@ -139,12 +141,13 @@ export function ClassicPump({
   )
 }
 
-export function ClassicControlValve({ x, y, position, tag, label = tag, labelPosition = 'below' }: {
+export function ClassicControlValve({ x, y, position, tag, label = tag, labelPosition = 'below', animationColor }: {
   x: number; y: number; position: number; tag: string; label?: string; labelPosition?: 'above' | 'below'
+  animationColor?: string
 }): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
   const pct = Math.max(0, Math.min(100, position))
-  const color = pct > 0 ? PALE_GREEN : DEVICE_OFF
+  const color = animationColor ?? (pct > 0 ? PALE_GREEN : DEVICE_OFF)
   return (
     <g data-equipment-tag={tag} data-state={pct > 0 ? 'open' : 'closed'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
       <title>{`${label} (${tag}): ${pct.toFixed(1)}% output`}</title>
@@ -341,12 +344,13 @@ export function ClassicTitle({ x, y, text }: { x: number; y: number; text: strin
   )
 }
 
-export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label = tag ?? 'Reference valve', orientation = 'horizontal', labelPosition = 'below' }: {
+export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label = tag ?? 'Reference valve', orientation = 'horizontal', labelPosition = 'below', animationColor }: {
   x: number; y: number; open: boolean; tag?: string; mode?: string; label?: string
   orientation?: ValveOrientation; labelPosition?: 'above' | 'below' | 'right'
+  animationColor?: string
 }): JSX.Element {
   const openFp = useUi((s) => s.openFaceplate)
-  const color = open ? PALE_GREEN : DEVICE_OFF
+  const color = animationColor ?? (open ? PALE_GREEN : DEVICE_OFF)
   const vertical = orientation === 'vertical'
   return (
     <g data-equipment-tag={tag} data-state={open ? 'open' : 'closed'} style={{ cursor: tag ? 'pointer' : 'default' }} onClick={tag ? () => openFp(tag) : undefined}>

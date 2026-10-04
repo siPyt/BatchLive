@@ -596,9 +596,28 @@ bounded by its engineering range. `PID1/MODE.A_TARGET` supports a multiple-item
 selector constrained by `MODE.PERMITTED`; `MODE.A_ACTUAL` can be displayed
 read-only. An `ALARMS[1].A_LAALM` datalink is hidden until the module has an
 active simulator alarm. Writes use the same operator permission and PID
-lifecycle checks as the faceplate. The course's OUT ramp entry, animated
-valve/actuator dynamos and PipesAnim connections remain incomplete; native
+lifecycle checks as the faceplate. The course's OUT ramp entry, separate
+valve-body/actuator animation and native PipesAnim remain incomplete; native
 alarm-index semantics are not claimed.
+
+### Shared custom-picture flow colors
+
+Builder's **User Flow Tables** configures two-color tables such as `flow_color`.
+The **Pipe**, **Pump**, and **Valve** objects can opt into a table through
+**Shared Flow Color Animation**. Every linked object resolves the shared table
+live, including links in other pictures; changing a table does not copy colors
+into individual objects. Existing plant graphics are not linked or recolored.
+Straight pipe segments support horizontal/vertical placement with X/Y and
+Width/Height; equipment dynamos reuse the approved shared silhouettes.
+
+Each animation combines 1-8 greater-than conditions with AND. `STATE` reads
+confirmed motor/valve feedback or DI/DO state; `AO1/OUT` reads the applied
+simulator output, not measured valve travel. Missing sources/tables show an
+explicit diagnostic. Bad feedback uses neutral quality indication rather than
+claiming product flow or no-flow. Save/Load Tables and Save/Load Picture are
+separate browser-profile actions; load required tables before linked pictures.
+This models the p266 shared-color behavior, not the native System Tree or
+complete ValveHorizontalControlD1/PipesAnim library.
 
 PID1's Studio target selector exposes supported target modes; LO is actual-only.
 OOS stops PID calculations and holds its requested output with Bad block

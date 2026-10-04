@@ -1,9 +1,11 @@
 import { create } from 'zustand'
-import { useSecurity } from './security'
+import { requireUnlockedKey, useSecurity } from './security'
 import { useStore } from './store'
 import { parseSavedPicture, pictureElementError, pictureLimits, pictureModeSignal, pictureSignal,
   type PictureDynamicPatch } from './pictureDynamics'
 import { pictureNamedSignal } from './pictureNamedSets'
+import { useFlowColors } from './flowColorStore'
+import type { FlowAnimation } from './pictureFlow'
 
 // Operator-display builder model (DV-09 "Creating a New Picture / Datalink / Dynamo / Text").
 
@@ -11,7 +13,7 @@ export type PicParam = 'PV' | 'SP' | 'OUT' | 'MODE' | 'STATE'
 
 export interface PicElement {
   id: string
-  type: 'text' | 'datalink' | 'dynamo' | 'rectangle' | 'tank'
+  type: 'text' | 'datalink' | 'dynamo' | 'rectangle' | 'tank' | 'pipe' | 'pump' | 'valve'
   x: number
   y: number
   // text
@@ -31,6 +33,7 @@ export interface PicElement {
   width?: number
   height?: number
   backgroundColor?: string
+  flowAnimation?: FlowAnimation
 }
 
 export interface Picture {
@@ -74,9 +77,15 @@ function rejectPicture(pic: string, message: string): false {
   window.alert(message)
   return false
 }
-function dynamicElement(el: Pick<PicElement, 'type' | 'path' | 'entry' | 'fill'>): boolean {
+function dynamicElement(el: Pick<PicElement, 'type' | 'path' | 'entry' | 'fill' | 'flowAnimation'>): boolean {
   return el.type === 'rectangle' || el.type === 'tank' || el.path !== undefined ||
-    el.entry !== undefined || el.fill !== undefined
+    el.entry !== undefined || el.fill !== undefined || el.flowAnimation !== undefined ||
+    el.type === 'pipe' || el.type === 'pump' || el.type === 'valve'
+}
+
+function missingFlowTable(element: Pick<PicElement, 'flowAnimation'>): string | null {
+  return element.flowAnimation && !Object.hasOwn(useFlowColors.getState().tables, element.flowAnimation.table)
+    ? `Shared flow table ${element.flowAnimation.table} does not exist; create or load it first` : null
 }
 
 let seq = 0
@@ -106,7 +115,7 @@ export const usePictures = create<PictureState>((set, get) => ({
     set((s) => {
       if (!s.pictures[name]) return {}
       if (s.pictures[name].elements.some(dynamicElement) &&
-          !useSecurity.getState().requireLock('CAN_CONFIGURE', `Delete dynamic picture ${name}`)) return {}
+          !requireUnlockedKey('CAN_CONFIGURE', `Delete dynamic picture ${name}`)) return {}
       const pictures = { ...s.pictures }
       delete pictures[name]
       return { pictures }
@@ -115,8 +124,8 @@ export const usePictures = create<PictureState>((set, get) => ({
   addElement: (pic, el) => {
     if (!get().pictures[pic]) { rejectPicture(pic, 'Picture does not exist'); return null }
     if (dynamicElement(el)) {
-      if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create dynamic picture element ${pic}`)) return null
-      const error = pictureElementError({ ...el, id: '' }, useStore.getState().modules, useStore.getState())
+      if (!requireUnlockedKey('CAN_CONFIGURE', `Create dynamic picture element ${pic}`)) return null
+      const error = missingFlowTable(el) ?? pictureElementError({ ...el, id: '' }, useStore.getState().modules, useStore.getState())
       if (error) { rejectPicture(pic, error); return null }
     }
     const id = uid()
@@ -134,8 +143,8 @@ export const usePictures = create<PictureState>((set, get) => ({
     if (!element) return rejectPicture(pic, 'Picture element does not exist')
     const candidate = { ...element, ...patch }
     if (dynamicElement(element) || dynamicElement(candidate)) {
-      if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Edit dynamic picture element ${pic}`)) return false
-      const error = pictureElementError(candidate, useStore.getState().modules, useStore.getState())
+      if (!requireUnlockedKey('CAN_CONFIGURE', `Edit dynamic picture element ${pic}`)) return false
+      const error = missingFlowTable(candidate) ?? pictureElementError(candidate, useStore.getState().modules, useStore.getState())
       if (error) return rejectPicture(pic, error)
     }
     set(s => ({ pictures: { ...s.pictures, [pic]: {
@@ -147,7 +156,7 @@ export const usePictures = create<PictureState>((set, get) => ({
   removeElement: (pic, id) => {
     const el = get().pictures[pic]?.elements.find(e => e.id === id)
     if (el && dynamicElement(el) &&
-        !useSecurity.getState().requireLock('CAN_CONFIGURE', `Remove dynamic picture element ${pic}`)) return
+        !requireUnlockedKey('CAN_CONFIGURE', `Remove dynamic picture element ${pic}`)) return
     set((s) => {
       const p = s.pictures[pic]
       if (!p) return {}
@@ -156,11 +165,11 @@ export const usePictures = create<PictureState>((set, get) => ({
   },
 
   configureDynamics: (pic, id, patch) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure picture dynamics ${pic}`)) return false
+    if (!requireUnlockedKey('CAN_CONFIGURE', `Configure picture dynamics ${pic}`)) return false
     const element = get().pictures[pic]?.elements.find(e => e.id === id)
     if (!element) return rejectPicture(pic, 'Picture element does not exist')
     const candidate = { ...element, ...patch }
-    const error = pictureElementError(candidate, useStore.getState().modules, useStore.getState())
+    const error = missingFlowTable(candidate) ?? pictureElementError(candidate, useStore.getState().modules, useStore.getState())
     if (error) return rejectPicture(pic, error)
     if (!get().updateElement(pic, id, patch)) return false
     useStore.getState().logEvent('CONFIGURE', pic, `Dynamics configured for ${id}`)
@@ -206,12 +215,16 @@ export const usePictures = create<PictureState>((set, get) => ({
   },
 
   savePicture: (pic) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Save picture ${pic}`)) return false
+    if (!requireUnlockedKey('CAN_CONFIGURE', `Save picture ${pic}`)) return false
     const picture = get().pictures[pic]
     if (!picture) return rejectPicture(pic, 'Picture does not exist')
     try {
       const text = JSON.stringify({ version: 1, picture })
       parseSavedPicture(text, pic, useStore.getState().modules, useStore.getState())
+      for (const element of picture.elements) {
+        const error = missingFlowTable(element)
+        if (error) throw new Error(error)
+      }
       window.localStorage.setItem(pictureStorageKey(pic), text)
     } catch (error) {
       return rejectPicture(pic, `Picture Save failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -221,12 +234,16 @@ export const usePictures = create<PictureState>((set, get) => ({
   },
 
   loadPicture: (pic) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Load picture ${pic}`)) return false
+    if (!requireUnlockedKey('CAN_CONFIGURE', `Load picture ${pic}`)) return false
     let picture: Picture
     try {
       const text = window.localStorage.getItem(pictureStorageKey(pic))
       if (text === null) return rejectPicture(pic, 'No saved picture exists in this browser profile')
       picture = parseSavedPicture(text, pic, useStore.getState().modules, useStore.getState())
+      for (const element of picture.elements) {
+        const error = missingFlowTable(element)
+        if (error) throw new Error(error)
+      }
     } catch (error) {
       return rejectPicture(pic, `Picture Load failed: ${error instanceof Error ? error.message : String(error)}`)
     }

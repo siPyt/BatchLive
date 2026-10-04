@@ -2,6 +2,7 @@ import { pidExecutionBad, pidModeFieldsError, pidNormalMode, pidPermittedModes }
 import type { ActiveAlarm, AnyModule, PidTargetMode } from './types'
 import type { PicElement, Picture } from './pictureStore'
 import { pictureNamedSignal, type PictureNamedContext } from './pictureNamedSets'
+import { flowAnimationError } from './pictureFlow'
 
 export interface PictureSignal {
   value: number
@@ -24,7 +25,7 @@ export interface PictureAlarmSignal {
 }
 export type PictureAlarmSignalResult = PictureAlarmSignal | { error: string }
 export type PictureDynamicPatch = Pick<Partial<PicElement>,
-  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag' | 'flashWhenNotNormal'>
+  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag' | 'flashWhenNotNormal' | 'flowAnimation'>
 
 function pictureModePath(path: string): 'target' | 'actual' | null {
   const normalized = path.trim().toUpperCase().replace(/^PID1\//, '').replace(/\.CV$/, '')
@@ -106,6 +107,18 @@ export function pictureLimits(settings: { fetchLimits: boolean; low: number; hig
 
 export function pictureElementError(el: PicElement, modules: Record<string, AnyModule>, context?: PictureNamedContext): string | null {
   if (!Number.isFinite(el.x) || !Number.isFinite(el.y) || el.x < 0 || el.y < 0) return 'Element position must be finite and nonnegative'
+  if (el.type === 'pump' && modules[el.tag ?? '']?.type !== 'MOTOR') return 'Pump dynamo requires a MOTOR module'
+  if (el.type === 'valve' && !['PID', 'VALVE'].includes(modules[el.tag ?? '']?.type ?? '')) {
+    return 'Valve dynamo requires a PID output or VALVE feedback module'
+  }
+  if (el.type === 'pipe' && ![el.width ?? 120, el.height ?? 12].every(value => Number.isFinite(value) && value > 0)) {
+    return 'Pipe dimensions must be finite and positive'
+  }
+  if (el.flowAnimation) {
+    if (!['pipe', 'pump', 'valve', 'rectangle', 'dynamo'].includes(el.type)) return 'Flow color animation requires a pipe, pump, valve, rectangle or dynamo'
+    const error = flowAnimationError(el.flowAnimation, modules)
+    if (error) return error
+  }
   if (el.type === 'rectangle' && (![el.width ?? 64, el.height ?? 160].every(v => Number.isFinite(v) && v > 0))) {
     return 'Rectangle dimensions must be finite and positive'
   }
@@ -177,12 +190,17 @@ function limits(v: unknown): boolean {
 }
 function element(v: unknown): v is PicElement {
   return object(v) && typeof v.id === 'string' && typeof v.type === 'string' &&
-    ['text', 'datalink', 'dynamo', 'rectangle', 'tank'].includes(v.type) &&
+    ['text', 'datalink', 'dynamo', 'rectangle', 'tank', 'pipe', 'pump', 'valve'].includes(v.type) &&
     typeof v.x === 'number' && Number.isFinite(v.x) && typeof v.y === 'number' && Number.isFinite(v.y) &&
     ['content', 'color', 'backgroundColor', 'tag', 'path'].every(k => v[k] === undefined || typeof v[k] === 'string') &&
     ['fontSize', 'width', 'height'].every(k => v[k] === undefined || typeof v[k] === 'number' && Number.isFinite(v[k])) &&
     ['label', 'bold'].every(k => v[k] === undefined || typeof v[k] === 'boolean') &&
     (v.flashWhenNotNormal === undefined || typeof v.flashWhenNotNormal === 'boolean') &&
+    (v.flowAnimation === undefined || object(v.flowAnimation) &&
+      typeof v.flowAnimation.table === 'string' && Array.isArray(v.flowAnimation.conditions) &&
+      v.flowAnimation.conditions.every(condition => object(condition) && typeof condition.tag === 'string' &&
+        typeof condition.path === 'string' && ['STATE', 'PV', 'PID1/OUT', 'AO1/OUT'].includes(condition.path) &&
+        typeof condition.greaterThan === 'number' && Number.isFinite(condition.greaterThan))) &&
     (v.param === undefined || typeof v.param === 'string' && ['PV', 'SP', 'OUT', 'MODE', 'STATE'].includes(v.param)) &&
     (v.entry === undefined || object(v.entry) &&
       (v.entry.method === 'NAMED_SET' || v.entry.method === 'PID_MODE' ||

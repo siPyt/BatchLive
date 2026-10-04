@@ -1562,5 +1562,21 @@ DV-09 p267 custom-picture MODE.ISAN indication:
 - Regressions: target changes alone do not trigger the indicator; an actual
   mode change away from normal reveals the red indicator; return to normal
   hides it. Preserve p256's always-readable actual-mode datalink when this
-  per-element option is off. The p266 shared flow_color table is separate and
-  remains unimplemented.
+  per-element option is off. The p266 shared flow_color table is separate.
+
+DV-09 p266 opt-in shared custom-picture flow colors:
+- Builder supports named two-color tables and explicit pipe/pump/valve links.
+  Only objects with flowAnimation configured use the selected table.
+- Shared ClassicPump, ClassicControlValve and ClassicSanitaryValve accept an
+  optional animationColor for these custom pictures. All existing callers omit
+  it and retain original green/black bodies, blue frames, paths and output bars.
+- Straight custom pipe segments can be placed horizontally or vertically. Do
+  not change baseline pipe routes or shell colors to match course animations.
+- Conditions use confirmed motor/valve/DI states, not requested commands.
+  AO1/OUT is applied simulator output, not measured physical valve position.
+- Unknown flow quality is neutral with a Bad indication; missing tables or
+  source modules display diagnostics rather than inventing flow state.
+- One table edit updates every linked object across custom pictures. Save/Load
+  shared tables separately from pictures; references do not embed stale colors.
+- Native System Tree/PipesAnim and separate valve-body/actuator color expressions
+  are not certified by this simulator-native subset.

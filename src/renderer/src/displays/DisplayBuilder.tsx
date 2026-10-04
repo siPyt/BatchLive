@@ -4,10 +4,15 @@ import { useUi } from '../ui/uiStore'
 import { resolvePictureTarget, usePictures, type PicElement, type PicParam } from '../engine/pictureStore'
 import { fmt } from '../utils/format'
 import type { AnyModule } from '../engine/types'
-import { ClassicTank, PALE_BORDER, PALE_TEXT } from '../components/ClassicGraphics'
+import { ClassicTank, ClassicPump, ClassicControlValve, ClassicSanitaryValve,
+  PALE_BORDER, PALE_TEXT, PALE_PIPE, PALE_EQUIP } from '../components/ClassicGraphics'
 import { pictureAlarmSignal, pictureFill, pictureLimits, pictureModeSignal, pictureSignal } from '../engine/pictureDynamics'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 import { pictureNamedSignal } from '../engine/pictureNamedSets'
+import { appliedPidOutput } from '../engine/analogStrategy'
+import { pictureFlowColor } from '../engine/pictureFlow'
+import { useFlowColors } from '../engine/flowColorStore'
+import { FlowAnimationControls, FlowTablesDialog } from '../components/PictureFlowControls'
 
 const PARAMS: PicParam[] = ['PV', 'SP', 'OUT', 'MODE', 'STATE']
 
@@ -44,6 +49,7 @@ export function DisplayBuilder(): JSX.Element {
   const [selEl, setSelEl] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [pictureProperties, setPictureProperties] = useState(false)
+  const [flowTablesOpen, setFlowTablesOpen] = useState(false)
   const navigate = useUi(s => s.navigate)
   const requestedPicture = useUi(s => s.builderPicture)
   const requestedRun = useUi(s => s.builderRun)
@@ -80,12 +86,15 @@ export function DisplayBuilder(): JSX.Element {
   const add = (type: PicElement['type']): void => {
     if (!pic) return
     const base = { x: 40, y: 40 }
-    const tag = modules['LIC-101'] ? 'LIC-101' : Object.values(modules).find(m => m.type === 'AI')?.tag ?? Object.keys(modules)[0]
+    const tag = type === 'pump' ? Object.values(modules).find(module => module.type === 'MOTOR')?.tag :
+      type === 'valve' ? Object.values(modules).find(module => module.type === 'PID' || module.type === 'VALVE')?.tag :
+        modules['LIC-101'] ? 'LIC-101' : Object.values(modules).find(m => m.type === 'AI')?.tag ?? Object.keys(modules)[0]
     const id =
       type === 'text'
         ? addElement(selected, { type, ...base, content: 'Text', fontSize: 14 })
         : addElement(selected, { type, ...base, tag, param: 'PV', label: true,
-          ...(type === 'rectangle' ? { width: 64, height: 160 } : {}) })
+          ...(type === 'rectangle' ? { width: 64, height: 160 } :
+            type === 'pipe' ? { width: 120, height: 12 } : {}) })
     setSelEl(id)
   }
 
@@ -150,6 +159,10 @@ export function DisplayBuilder(): JSX.Element {
             </button>
             <button className="tbtn sm" onClick={() => add('tank')}>+ Tank Dynamo</button>
             <button className="tbtn sm" onClick={() => add('rectangle')}>+ Rectangle</button>
+            <button className="tbtn sm" onClick={() => add('pipe')}>+ Pipe</button>
+            <button className="tbtn sm" onClick={() => add('pump')}>+ Pump</button>
+            <button className="tbtn sm" onClick={() => add('valve')}>+ Valve</button>
+            <button className="tbtn sm" onClick={() => setFlowTablesOpen(true)}>User Flow Tables</button>
           </>
         )}
         <span style={{ flex: 1 }} />
@@ -159,6 +172,7 @@ export function DisplayBuilder(): JSX.Element {
           </button>
         )}
       </div>
+      {flowTablesOpen && <FlowTablesDialog onClose={() => setFlowTablesOpen(false)} />}
 
       <div className="bld-body">
         {!pic ? (
@@ -218,6 +232,7 @@ function Canvas({
   const els = usePictures((s) => s.pictures[picture]?.elements ?? [])
   const updateElement = usePictures((s) => s.updateElement)
   const modules = useStore((s) => s.modules)
+  const flowTables = useFlowColors(state => state.tables)
   const alarms = useStore(s => s.alarms)
   const namedContext = useStore(s => s)
   const openFaceplate = useUi((s) => s.openFaceplate)
@@ -254,6 +269,39 @@ function Canvas({
           drag.current = { id: el.id, dx: e.clientX - el.x, dy: e.clientY - el.y }
         }
         const sel = edit && selEl === el.id
+        const flow = el.flowAnimation ? pictureFlowColor(el.flowAnimation, flowTables, modules) : null
+        const equipmentMissing = (el.type === 'pump' || el.type === 'valve') && !m
+          ? `Equipment module ${el.tag || '(unassigned)'} does not exist` : undefined
+        const flowError = equipmentMissing ?? (flow && 'error' in flow ? flow.error : undefined)
+        const flowBad = !!flow && !('error' in flow) && flow.bad
+        const flowColor = flow && !('error' in flow) ? flow.color : flowError ? PALE_EQUIP : undefined
+        const flowTitle = flowError ?? (flowBad ? 'Bad flow feedback; flow state unknown' :
+          flow && !('error' in flow) ? `${flow.flowing ? 'Product flow' : 'No flow'} (${el.flowAnimation?.table})` : '')
+        if (el.type === 'pipe' || el.type === 'pump' || el.type === 'valve') {
+          const pipe = el.type === 'pipe'
+          const width = pipe ? el.width ?? 120 : 160
+          const height = pipe ? el.height ?? 12 : 90
+          const vertical = height > width
+          return <svg key={el.id} className={'bld-el' + (sel ? ' sel' : '')}
+            width={width} height={height} style={{ left: el.x, top: el.y, zIndex: pipe ? 0 : 1 }}
+            onMouseDown={startDrag} onClickCapture={event => { if (edit) event.stopPropagation() }}
+            aria-label={`${el.tag ?? ''} ${el.type}${flowError ? `: ${flowError}` : flowBad ? ': Bad' : ''}`}
+            data-flow-color={flowColor} data-flow-quality={flowError ? 'ERROR' : flowBad ? 'BAD' : flow ? 'GOOD' : undefined}>
+            <title>{flowTitle}</title>
+            {pipe ? <line x1={vertical ? width / 2 : 0} y1={vertical ? 0 : height / 2}
+              x2={vertical ? width / 2 : width} y2={vertical ? height : height / 2}
+              stroke={flowColor ?? PALE_PIPE} strokeWidth={3} strokeDasharray={flowBad || flowError ? '4 3' : undefined} /> :
+              el.type === 'pump' && m?.type === 'MOTOR' ?
+                <ClassicPump x={80} y={40} running={m.running} tag={m.tag} animationColor={flowColor} /> :
+              el.type === 'valve' && m?.type === 'PID' ?
+                <ClassicControlValve x={80} y={40} position={appliedPidOutput(m)} tag={m.tag} animationColor={flowColor} /> :
+              el.type === 'valve' && m?.type === 'VALVE' ?
+                <ClassicSanitaryValve x={80} y={40} open={m.open} tag={m.tag} animationColor={flowColor} /> : null}
+            {!pipe && (flowError || flowBad) && <text x={4} y={12} fill={PALE_TEXT} fontSize={10}>
+              {flowError ? 'Flow source/table unavailable' : 'Bad flow feedback'}
+            </text>}
+          </svg>
+        }
         if (el.type === 'tank') return <svg key={el.id}
           className={'bld-el' + (sel ? ' sel' : '')} width={160} height={220}
           style={{ left: el.x, top: el.y }} onMouseDown={startDrag}
@@ -271,12 +319,12 @@ function Canvas({
             onMouseDown={startDrag} title={error ?? (bad ? 'Bad - held signal' : `${percent}% fill`)}
             aria-label={`${el.tag ?? ''} fill rectangle${error ? `: ${error}` : bad ? ': Bad - held signal' : ''}`}
             data-fill-percent={error ? undefined : percent}>
-            {!error && <div className="bld-fill" style={{ background: el.color ?? '#5f7f94',
+            {!error && <div className="bld-fill" style={{ background: flowColor ?? el.color ?? '#5f7f94',
               width: el.fill?.vertical ? '100%' : `${percent}%`,
               height: el.fill?.vertical ? `${percent}%` : '100%' }} />}
             {(el.width ?? 64) >= 24 && (el.height ?? 160) >= 16 &&
-              (error ? <span className="bld-quality" role="alert">{error}</span> :
-                bad ? <span className="bld-quality">Bad</span> : null)}
+              (error || flowError ? <span className="bld-quality" role="alert">{error ?? flowError}</span> :
+                bad || flowBad ? <span className="bld-quality">Bad</span> : null)}
           </div>
         }
         if (el.type === 'text') {
@@ -296,7 +344,8 @@ function Canvas({
             <div
               key={el.id}
               className={'bld-el valbox' + (sel ? ' sel' : '')}
-              style={{ left: el.x, top: el.y, position: 'absolute' }}
+              style={{ left: el.x, top: el.y, position: 'absolute', background: flowColor }}
+              title={flowTitle}
               onMouseDown={startDrag}
               onClick={(e) => {
                 e.stopPropagation()
@@ -305,6 +354,7 @@ function Canvas({
             >
               <span className="vb-tag">{el.tag}</span>
               <span className="vb-val">{paramValue(m, 'PV')}</span>
+              {(flowError || flowBad) && <span role={flowError ? 'alert' : undefined}>{flowError ?? 'Bad flow feedback'}</span>}
             </div>
           )
         }
@@ -431,6 +481,14 @@ function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Eleme
           )}
           {(el.type === 'datalink' || el.type === 'rectangle') &&
             <DynamicsExpert key={`${id}-${el.tag}`} picture={picture} element={el} />}
+          {el.type === 'pipe' && <div className="bld-f bld-f-row">
+            <label>Width <input aria-label="Pipe width" type="number" min={1} value={el.width ?? 120}
+              onChange={event => updateElement(picture, id, { width: Number(event.target.value) })} /></label>
+            <label>Height <input aria-label="Pipe height" type="number" min={1} value={el.height ?? 12}
+              onChange={event => updateElement(picture, id, { height: Number(event.target.value) })} /></label>
+          </div>}
+          {['pipe', 'pump', 'valve', 'rectangle', 'dynamo'].includes(el.type) &&
+            <FlowAnimationControls key={`flow-${id}-${el.tag}`} picture={picture} element={el} />}
         </>
       )}
       <div className="bld-f bld-f-row">

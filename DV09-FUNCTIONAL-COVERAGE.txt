@@ -1473,3 +1473,28 @@ event logging and a subsequent download.
 DV09-060 remains PARTIAL: the simulated FIC-102 tuning subset is implemented,
 not native configuration-database communication or uploads for other module
 parameter types. No protected plant artwork, color, pipe or FBD geometry changed.
+
+PASS 40: SHARED CUSTOM-PICTURE FLOW COLOR TABLES (p266)
+-----------------------------------------------------
+Builder User Flow Tables configures two-color named tables, including flow_color.
+Pipe, pump and valve objects opt in through explicit AND/threshold conditions;
+rectangle/dynamo objects can also link. Every link resolves the shared colors
+live, including across pictures. Confirmed motor/valve/DI feedback is separate
+from requested commands; AO1/OUT is the actual applied simulator stage output.
+Bad feedback uses neutral quality rather than confirmed flow/no-flow. Missing
+tables/modules are explicit diagnostics. Tables save/load separately from
+picture links; malformed persistence and missing dependencies preserve last-good
+state. Shared equipment defaults retain green/black bodies, blue device frames,
+mechanical geometry and exact 0/0.1/100% output bars.
+
+DV09-062 remains PARTIAL for native System Tree and full course dynamo parity.
+Straight custom pipe segments are modeled, not the native PipesAnim library.
+Separate valve-body/actuator expressions and measured physical valve travel
+are not claimed. Baseline plant pictures have no flow links and are unchanged.
+Validation: five focused flow regressions plus PID/control regressions, typecheck,
+build and editor diagnostics. Browser verified one table edit changing all three
+linked objects, Configure selection without opening a faceplate, Run opening
+P-101, STOP with confirmed feedback changing all links to no-flow, injected Bad
+feedback showing neutral/Bad, and separate UI table/picture Save. Original
+96-module running plant/UI/security/pictures/browser storage restored; fixture
+and temporary session storage removed.

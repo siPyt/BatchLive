@@ -906,8 +906,10 @@ Evidence: Builder now supports bounded numeric PID1/SP entry, PID
   MODE.A_TARGET Multiple-Item Select limited to MODE.PERMITTED, read-only
   MODE.A_ACTUAL, and `ALARMS[1].A_LAALM` visibility based on the simulator's
   active alarms for that module. Existing faceplate controls and protected
-  pipes remain. OUT ramp entry, valve/actuator state animation, and PipesAnim
-  connections are not implemented. Native alarm-index behavior is not claimed.
+  pipes remain. Custom pipe segments and shared flow-color pump/valve links now
+  execute the p266 subset, but OUT ramp entry, separate valve-body/actuator
+  expressions, and native PipesAnim remain incomplete. Native alarm-index
+  behavior is not claimed.
 Acceptance: Configure the specified picture expressions and verify resulting
   writes/feedback and alarm-active visibility. Numeric SP bounds and permitted
   target selection reject invalid commands. Complete remaining animation
@@ -964,8 +966,13 @@ Required: Shared flow_color threshold table affecting all linked objects,
 Evidence: A custom-picture MODE.A_ACTUAL datalink can be configured to hide
   when actual equals MODE.NORMAL and flash red otherwise. The state uses the
   live actual mode; requested mode alone does not change its visibility.
-  The shared flow_color threshold registry and linked flow/pump/valve/piping
-  animations remain absent.
+  A shared two-color flow_color table now drives opt-in custom-picture pipe,
+  pump, valve, rectangle and dynamo animations across pictures. One table edit
+  updates all linked objects. AND conditions use confirmed state or explicit
+  numeric thresholds; Bad feedback is neutral/Bad, missing dependencies report
+  diagnostics. Tables and picture links save/load separately in this browser.
+  Native System Tree, PipesAnim and separate ValveHorizontalControlD1
+  body/actuator animation remain incomplete; applied AO is not measured travel.
 Acceptance: Verify AUTO/normal is hidden and a differing actual mode flashes
   red; return to normal and verify it hides. One flow_color table edit must
   update all linked custom objects. Preserve baseline equipment styling.

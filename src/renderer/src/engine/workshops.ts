@@ -247,10 +247,23 @@ export const COURSE: WModule[] = [
         ]
       },
       {
+        id: 'dv09-shared-flow-color',
+        title: 'Shared flow_color Picture Animation',
+        objective: 'Configure the p266 two-color shared flow table and verify one edit recolors linked custom-picture pipes, pumps and valves.',
+        note: 'This is a simulator-native custom-picture workflow, not the native DeltaV System Tree or PipesAnim library. Existing plant graphics keep their approved geometry and colors. The p257 separate valve-body/actuator expressions remain incomplete.',
+        steps: [
+          { id: 'dv09-flow-1', text: 'Open Display Builder in Configure. Select User Flow Tables, name the table flow_color, select Product flow and No flow colors, Apply Table and Save Tables. The dialog initially offers the p257 yellow/green colors; p266 allows your chosen pair.', goto: 'builder' },
+          { id: 'dv09-flow-2', text: 'Add Pipe, Pump and Valve objects to a custom picture. Bind the pump to MTR-102 and valve to FIC-102. Place straight horizontal/vertical pipe segments using X/Y and Width/Height; multiple segments can form an elbow. The pump and valve reuse the approved equipment silhouettes.', goto: 'builder' },
+          { id: 'dv09-flow-3', text: 'For each object, enable Shared Flow Color Animation, select flow_color, and add AND conditions MTR-102 / STATE > 0 and XVSTAT-101 / STATE > 0. Apply Flow Animation. STATE reads confirmed running or sampled DI state, not commands. AO1/OUT reads applied output; it is a simulator output proxy, not measured valve travel.', goto: 'builder' },
+          { id: 'dv09-flow-4', text: 'Switch to Run. Verify both conditions true give Product flow color and either false gives No flow color. Bad feedback must show neutral/Bad, not flow. Return to Configure, edit only the table Product flow color, Apply Table, and verify every linked object changes, including links in other pictures.', goto: 'builder' },
+          { id: 'dv09-flow-5', text: 'Save Tables and Save Picture separately. Load Saved Tables before loading a picture that references them. Missing tables, missing sources and malformed saved data must reject or display an explicit diagnostic rather than inventing a color. Plant pictures remain unchanged.', goto: 'builder' }
+        ]
+      },
+      {
         id: 'dv09-pid-isan-indicator',
         title: 'PID Actual-Mode Picture Indication',
         objective: 'Execute the p267 ISAN display rule: hide the actual-mode datalink at normal AUTO and flash it red otherwise.',
-        note: 'This is an explicit per-datalink option in custom pictures. It compares actual mode to MODE.NORMAL (AUTO by default), not the target request. The shared flow_color table from p266 is still unavailable.',
+        note: 'This is an explicit per-datalink option in custom pictures. It compares actual mode to MODE.NORMAL (AUTO by default), not the target request. The preceding workshop configures the independent shared flow_color table.',
         steps: [
           { id: 'dv09-isan-1', text: 'In a custom Builder picture, add a FIC-102 datalink with Source Path PID1/MODE.A_ACTUAL. In Data Entry Expert enable “Flash actual mode red when it differs from normal; hide when normal,” then Apply Expert.', goto: 'builder' },
           { id: 'dv09-isan-2', text: 'Switch to Run with actual AUTO and normal AUTO; the datalink should be invisible. Request MAN and allow the simulator scan to update actual mode; the datalink should appear and flash red. Return actual to normal and verify it hides again.', goto: 'builder' },
