@@ -140,6 +140,8 @@ function pid(
     type: 'PID',
     mode: 'AUTO',
     actualMode: 'AUTO',
+    normalMode: 'AUTO',
+    permittedModes: ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN', 'OOS'],
     pv: 0,
     sp: 0,
     out: 0,

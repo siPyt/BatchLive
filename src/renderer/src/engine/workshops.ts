@@ -211,8 +211,9 @@ export const COURSE: WModule[] = [
         id: 'dv09-pid-oos-lo',
         title: 'PID OOS and Tracking LO',
         objective: 'Execute pp246-247 algorithm stop, independent input quality, tracking override and return to target.',
-        note: 'This is the modeled mode subset, not complete normal/permitted masks, remote-host protocols or Fieldbus writes. Use a separate training session; independent manual AO blocks continue to execute when PID1 is OOS.',
+        note: 'This is the modeled mode subset, not a native mode bitmask or remote-host/Fieldbus protocol. Normal is informational; Permitted gates target selections. Use a separate training session; independent manual AO blocks continue to execute when PID1 is OOS.',
         steps: [
+          { id: 'dv09-pid-mode-0', text: 'Open or create the PID in Studio. Inspect MODE.NORMAL (informational only) and MODE.ISAN. Temporarily set MODE.PERMITTED to AUTO and OOS; verify the algorithm is not forced into OOS and CAS target requests reject. Restore all target modes before continuing.', goto: 'studio' },
           { id: 'dv09-pid-mode-1', text: 'Open a PID in Studio. Select AI1, choose MAN input and a constant PV. Select PID1 and request AUTO. Create an unbound DO TRK-TEST as an explicit simulated tracking trigger.', goto: 'studio' },
           { id: 'dv09-pid-mode-2', text: 'Select TRK-TEST for tracking source, set tracking value35%, and enable tracking. Toggle TRK-TEST on from its faceplate. After sampling, confirm target AUTO, actual LO, requested output35% and separate applied AO output.' },
           { id: 'dv09-pid-mode-3', text: 'Toggle the trigger off. Confirm actual returns to AUTO without an immediate proportional or derivative kick. LO is not offered as a target. Output entry cannot override LO.' },

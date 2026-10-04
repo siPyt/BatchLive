@@ -855,7 +855,10 @@ Evidence: PID OOS stops calculation and reports Bad independently of AI1.
   returns bumplessly. Missing/Bad trigger/value holds and diagnoses.
   Native course target/actual numeric codes parse and persist in SFCs.
   LO is actual-only; OOS/LO output override and locked mode changes reject.
-  Normal/permitted masks remain absent. RCAS reuses CAS, not remote-host protocol.
+  MODE.NORMAL is stored/read-only to the algorithm; MODE.PERMITTED filters
+  target selection and rejects operator/SFC requests. MODE.ISAN exposes
+  actual-equals-normal. Arbitrary native state-mask editing remains absent.
+  RCAS reuses CAS, not remote-host protocol.
 Acceptance: Test each mode and transition, normal/permitted fields, remote
   inputs/timeouts and initialization; do not label approximate CAS as RCAS.
 

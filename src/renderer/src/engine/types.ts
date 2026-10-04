@@ -100,6 +100,10 @@ export interface PidModule extends ModuleDisplayProperties {
   mode: PidTargetMode // target mode (what the operator/host requested)
   /** actual mode the block is executing in; differs from `mode` while shed. */
   actualMode: ControlMode
+  /** MODE.NORMAL is configuration/readback metadata; it does not affect execution. */
+  normalMode?: PidTargetMode
+  /** Requested targets not in MODE.PERMITTED are rejected before they are applied. */
+  permittedModes?: PidTargetMode[]
   trackError?: string
   ffError?: string
   pv: number

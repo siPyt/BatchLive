@@ -1,6 +1,6 @@
 import type { AnyModule } from './types'
 import type { SfcAction, SfcCondition, CompareOp } from './sfc'
-import { parsePidActualMode, parsePidTargetMode } from './pidModes'
+import { parsePidActualMode, parsePidTargetMode, pidTargetAllowed } from './pidModes'
 import { booleanParameterReferenceError, namedParameterReferenceError, type SfcExpressionContext } from './sfcParameters'
 
 export type ExpressionResult<T> = { value: T; error?: never } | { error: string; value?: never }
@@ -48,7 +48,9 @@ export function parseSfcAssignment(text: string, modules: Record<string, AnyModu
   if (analogBlock && parameter === `${analogBlock}/MODE.TARGET`) {
     const parsed = parsePidTargetMode(value)
     const mode = module.type === 'AO' && parsed && !['MAN', 'AUTO', 'CAS', 'OOS'].includes(parsed) ? undefined : parsed
-    return mode ? { value: { kind: 'mode', tag, mode } } : { error: 'Unsupported target mode for this module' }
+    if (!mode) return { error: 'Unsupported target mode for this module' }
+    if (module.type === 'PID' && !pidTargetAllowed(module, mode)) return { error: `${mode} is not in ${tag} MODE.PERMITTED` }
+    return { value: { kind: 'mode', tag, mode } }
   }
   if (analogBlock && [`${analogBlock}/SP.CV`, `${analogBlock}/OUT.CV`].includes(parameter)) {
     const numeric = numericLiteral(value)

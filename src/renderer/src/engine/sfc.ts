@@ -1,5 +1,5 @@
 import type { PlantState, AnyModule, PidModule, ControlMode, PidTargetMode } from './types'
-import { isPidTargetMode, PID_ACTUAL_MODES, pidExecutionBad } from './pidModes'
+import { isPidTargetMode, PID_ACTUAL_MODES, pidExecutionBad, pidTargetAllowed } from './pidModes'
 import { readAnalogSignal } from './analogStrategy'
 import { booleanParameterReferenceError, cloneSfcParameters, namedParameterReferenceError, type SfcExpressionContext, type SfcParameters } from './sfcParameters'
 import type { NamedSetDefinition } from './namedSets'
@@ -346,7 +346,7 @@ export function applyAction(m: AnyModule, a: SfcAction): void {
   }
   if ((a.kind === 'mode' || a.kind === 'sp' || a.kind === 'out') && m.type === 'PID') {
     const p = m as PidModule
-    if (a.kind === 'mode' && isPidTargetMode(a.mode)) {
+    if (a.kind === 'mode' && pidTargetAllowed(p, a.mode)) {
       p.mode = a.mode
       if (a.mode === 'MAN') p._integral = p.out
     } else if (a.kind === 'sp') {
@@ -694,7 +694,7 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
         if ((action.kind === 'sp' || action.kind === 'out') && !Number.isFinite(action.value)) return 'Action value must be finite'
         if (action.kind === 'mode' && (module.type === 'AO' ?
           !['MAN', 'AUTO', 'CAS', 'OOS'].includes(action.mode) :
-          !isPidTargetMode(action.mode))) return 'Invalid target mode'
+          module.type !== 'PID' || !pidTargetAllowed(module, action.mode))) return 'Invalid or non-permitted target mode'
       }
       if (TIMED_QUALIFIERS.includes(action.qualifier ?? 'N')) {
         if (action.timingCondition) {

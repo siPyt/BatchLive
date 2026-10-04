@@ -37,7 +37,7 @@ import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
 import { conditionSourceError } from './fbCondition'
-import { isPidTargetMode } from './pidModes'
+import { isPidTargetMode, pidTargetAllowed } from './pidModes'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from './deviceDescriptors'
 import { deviceSourceError, resetConditionTiming } from './fb'
 import {
@@ -169,6 +169,7 @@ interface StoreState extends PlantState {
   configureDiscreteAlarm: (tag: string, onValue: boolean, enabled: boolean) => boolean
   // operator actions
   setMode: (tag: string, mode: PidModule['mode']) => void
+  setPidModeFields: (tag: string, patch: { normalMode?: PidModule['mode']; permittedModes?: PidModule['permittedModes'] }) => boolean
   setSetpoint: (tag: string, sp: number) => void
   setOutput: (tag: string, out: number) => void
   setTuning: (tag: string, t: { gain?: number; reset?: number; rate?: number }) => void
@@ -428,8 +429,13 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setMode: (tag, mode) => {
     if (!requireUnlockedLock('CONTROL', `Set Mode ${tag}`)) return
-    if (get().modules[tag]?.type !== 'PID' || !isPidTargetMode(mode)) {
+    const module = get().modules[tag]
+    if (module?.type !== 'PID' || !isPidTargetMode(mode)) {
       rejectSfc(get, tag, 'PID target requires a supported mode; LO is an actual tracking mode, not a target')
+      return
+    }
+    if (!pidTargetAllowed(module, mode)) {
+      rejectSfc(get, tag, `PID target mode ${mode} is not in MODE.PERMITTED`)
       return
     }
     mutateModule(set, get, tag, (m) => {
@@ -440,6 +446,32 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     })
     get().logEvent('OPERATOR', tag, `Mode set to ${mode}`)
+  },
+
+  setPidModeFields: (tag, patch) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure mode fields ${tag}`)) return false
+    const module = get().modules[tag]
+    if (module?.type !== 'PID') {
+      rejectSfc(get, tag, 'Mode fields can only be configured on a PID')
+      return false
+    }
+    const nextNormal = patch.normalMode ?? module.normalMode ?? 'AUTO'
+    const nextPermitted = patch.permittedModes ?? module.permittedModes ??
+      ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN', 'OOS']
+    if (!isPidTargetMode(nextNormal) || !Array.isArray(nextPermitted) || !nextPermitted.length ||
+      nextPermitted.some(mode => !isPidTargetMode(mode)) ||
+      new Set(nextPermitted).size !== nextPermitted.length ||
+      !nextPermitted.includes(nextNormal) || !nextPermitted.includes(module.mode)) {
+      rejectSfc(get, tag, 'Mode fields require a PID, a valid Normal target, and a nonempty unique Permitted list containing the current target')
+      return false
+    }
+    mutateModule(set, get, tag, m => {
+      if (m.type !== 'PID') return
+      if (patch.normalMode !== undefined) m.normalMode = patch.normalMode
+      if (patch.permittedModes !== undefined) m.permittedModes = [...patch.permittedModes]
+    })
+    get().logEvent('CONFIGURE', tag, `Mode fields changed: ${JSON.stringify(patch)}`)
+    return true
   },
 
   setSetpoint: (tag, sp) => {

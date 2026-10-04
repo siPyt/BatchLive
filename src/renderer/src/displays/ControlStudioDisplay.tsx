@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../engine/store'
-import { isPidTargetMode, PID_TARGET_MODES, pidExecutionBad } from '../engine/pidModes'
+import { isPidTargetMode, PID_TARGET_MODES, pidExecutionBad, pidModeFieldsError, pidNormalMode, pidPermittedModes } from '../engine/pidModes'
 import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
@@ -143,6 +143,7 @@ function ParameterView({ module: m, selectedBlock }: {
   const setCasSource = useStore((s) => s.setCasSource)
   const setFeedforward = useStore((s) => s.setFeedforward)
   const setTracking = useStore((s) => s.setTracking)
+  const setPidModeFields = useStore((s) => s.setPidModeFields)
   const setInterlockSource = useStore((s) => s.setInterlockSource)
   const setPermissiveSource = useStore(s => s.setPermissiveSource)
   const setCommandSource = useStore((s) => s.setCommandSource)
@@ -259,7 +260,7 @@ function ParameterView({ module: m, selectedBlock }: {
                     <select aria-label={`${m.tag} PID target mode`} value={m.mode} onChange={event => {
                       if (isPidTargetMode(event.target.value)) setMode(m.tag, event.target.value)
                     }}>
-                      {PID_TARGET_MODES.map(mode => <option key={mode} value={mode}
+                      {pidPermittedModes(m).map(mode => <option key={mode} value={mode}
                         disabled={(mode === 'CAS' || mode === 'RCAS') && !m.casSource}>{mode}</option>)}
                     </select>
                   ) : r.edit ? (
@@ -275,6 +276,46 @@ function ParameterView({ module: m, selectedBlock }: {
                 <td className={bad || r.error ? 'bad' : 'good'}>{bad || r.error ? 'Bad' : 'Good'}</td>
               </tr>
             ))
+          )}
+          {m.type === 'PID' && !ioBlock && (
+            <>
+              <tr>
+                <td>MODE.NORMAL</td>
+                <td className="pv">
+                  <select aria-label={`${m.tag} PID normal mode`} value={pidNormalMode(m)}
+                    onChange={event => { if (isPidTargetMode(event.target.value)) setPidModeFields(m.tag, { normalMode: event.target.value }) }}>
+                    {PID_TARGET_MODES.map(mode => <option key={mode} value={mode}>{mode}</option>)}
+                  </select>
+                </td>
+                <td className={pidModeFieldsError(m) ? 'bad' : 'good'}>
+                  {pidModeFieldsError(m) ?? 'Not used by algorithm'}
+                </td>
+              </tr>
+              <tr>
+                <td>MODE.ISAN</td>
+                <td className="pv">{m.actualMode === pidNormalMode(m) ? '1' : '0'}</td>
+                <td className={bad || m.actualMode !== pidNormalMode(m) ? 'bad' : 'good'}>
+                  {bad ? 'Bad' : m.actualMode === pidNormalMode(m) ? 'Normal' : 'Not Normal'}
+                </td>
+              </tr>
+              <tr>
+                <td>MODE.PERMITTED</td>
+                <td className="pv">
+                  <select aria-label={`${m.tag} PID permitted modes`} multiple size={4}
+                    value={pidPermittedModes(m)}
+                    onChange={event => {
+                      const values = Array.from(event.target.selectedOptions, option => option.value)
+                        .filter(isPidTargetMode)
+                      setPidModeFields(m.tag, { permittedModes: values })
+                    }}>
+                    {PID_TARGET_MODES.map(mode => <option key={mode} value={mode}>{mode}</option>)}
+                  </select>
+                </td>
+                <td className={pidModeFieldsError(m) ? 'bad' : 'good'}>
+                  {pidModeFieldsError(m) ?? 'Control-click to select multiple'}
+                </td>
+              </tr>
+            </>
           )}
           {m.type === 'PID' && !ioBlock && (
             <PidIoWiringRows m={m} modules={modules} setPidIo={setPidIo} />

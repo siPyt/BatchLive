@@ -578,12 +578,18 @@ Missing/Bad tracking data holds applied output and displays a diagnostic.
 Operator and SFC output assignments cannot override LO/OOS; workstation locks
 also block operator mode, output and tracking changes.
 
+Studio exposes PID `MODE.NORMAL`, `MODE.ISAN` and `MODE.PERMITTED`. Normal
+is stored/readable but does not change the algorithm; ISAN reports whether
+actual mode equals normal. Permitted target choices are stored on the live
+PID module, editable as a multi-select, and enforced on operator and SFC writes.
+The current target and Normal mode must remain permitted.
+
 SFC mode expressions accept names and the course's numeric codes: targets
 OOS1/IMAN2/MAN8/AUTO16/CAS48/RCAS80/ROUT144; actual modes use LO4, CAS32,
 RCAS64 and ROUT128. LO4 is not a target. Unsupported target masks reject.
 Held Bad PV/OUT cannot satisfy numeric SFC transitions, including AO OOS.
-This models supported modes, not arbitrary permitted/normal masks, native
-remote-host communication or physical Fieldbus writes.
+This models the course mode fields, not the native packed mode mask, remote-
+host communication or physical Fieldbus writes.
 
 ## Project layout
 

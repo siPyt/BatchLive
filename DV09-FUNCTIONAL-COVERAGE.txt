@@ -412,16 +412,37 @@ requests reject explicitly. SFC parsing/validation/Save-Load support OOS and
 LO actual comparisons and the prescribed target/actual numeric mode codes.
 CAS target48 is distinct from actual32; unsupported target masks reject.
 
-DV09-055 remains PARTIAL: normal/permitted fields, arbitrary bitmasks,
-actual remote-host protocols/timeouts and physical Fieldbus writes are not
-claimed. Whole-course and original-PDF image-only review remain unfinished.
-Validation: eight new PID-mode regressions; all317 tests, typecheck,
+DV09-055 remains PARTIAL: arbitrary packed state masks, actual remote-host
+protocols/timeouts and physical Fieldbus writes are not claimed.
+Whole-course and original-PDF image-only review remain unfinished.
+Validation: eight PID execution-mode and one Normal/Permitted regression;
+all318 tests, typecheck,
 production build, source audit and editor diagnostics pass. Live faceplate
 OOS selection held35% Bad with AI1 Good; Studio selector returned AUTO/LO35
 and tracking release35.032%. Bad trigger showed the actual IMAN diagnostic.
 Original96-module plant, running state, UI and security restored; acceptance
 global removed. Protected mechanical artwork and diagram geometry unchanged.
 Local commit permitted; no push authorized.
+
+PASS 35: PID NORMAL, ISAN AND PERMITTED MODE FIELDS (pp249, 267)
+----------------------------------------------------------------
+PID Normal target is stored/readable and deliberately does not control
+execution. ISAN is exposed as actual-equals-normal with not-normal indication.
+Permitted choices live on the PID module and gate Studio/operator and SFC
+target changes. Normal and current target must remain in the permitted list;
+invalid/empty/duplicate lists and unsupported modes reject with explicit
+diagnostics. Legacy PID records without these fields retain documented
+defaults; explicit invalid configuration is diagnosed rather than widened.
+
+Normal/Permitted editing uses the Studio parameter view, not a plant-graphic
+redesign. Existing OOS/LO quality, output and physical input independence are
+preserved. DV09-055 remains PARTIAL for packed native mode masks and real
+RCAS/ROUT host protocols. Live Studio verification confirmed Normal changes
+do not alter actual mode, ISAN reflects the comparison, and permitted target
+choices update immediately. Original plant/session state was restored.
+Eight PID execution-mode and one Normal/Permitted regression pass; full test
+suite, typecheck, production build, audit validator and editor diagnostics
+pass. No PID saved/download lifecycle or native packed masks are claimed.
 
 PASS 8: STANDALONE AO SAVED CONFIGURATION / DOWNLOAD / RESTART
 ------------------------------------------------------------

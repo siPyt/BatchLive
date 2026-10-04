@@ -15,6 +15,7 @@ const { evalCondition, sfcStepsError, applyAction } = require('../src/renderer/s
 const { parseSfcAssignment: parseActionExpression, parseSfcCondition: parseConditionExpression } = require('../src/renderer/src/engine/sfcExpressions.ts')
 const { parseSavedSfc } = require('../src/renderer/src/engine/sfcLifecycle.ts')
 const { pictureSignal } = require('../src/renderer/src/engine/pictureDynamics.ts')
+const { pidModeFieldsError, pidNormalMode, pidPermittedModes, pidTargetAllowed } = require('../src/renderer/src/engine/pidModes.ts')
 const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const TAG = 'TIC-401'
@@ -176,7 +177,7 @@ test('native target/actual numeric mode codes, OOS and LO persist through SFC va
   const payload = { version: 1, configuration: { name: 'PID-MODES', area: 'FEED', controllerTag: '', steps } }
   assert.equal(parseSavedSfc(JSON.stringify(payload), state.modules).configuration.steps[0].transition.mode, 'LO')
   steps[0].actions[0].mode = 'LO'
-  assert.match(sfcStepsError(steps, state.modules), /Invalid target mode/)
+  assert.match(sfcStepsError(steps, state.modules), /Invalid.*target mode/)
   assert.ok(parseSavedSfc(JSON.stringify(payload), state.modules).error)
 })
 
@@ -210,6 +211,66 @@ test('operator and SFC output entries cannot override LO/OOS; invalid setup and 
     s.setOutput(TAG, 60)
     assert.deepEqual([useStore.getState().modules[TAG].actualMode, useStore.getState().modules[TAG].out], ['OOS', 35])
     assert.ok(useStore.getState().eventLog.some(event => event.category === 'DIAGNOSTIC'))
+  } finally {
+    useStore.setState(before.store, true)
+    useSecurity.setState(before.security, true)
+    global.window = before.window
+  }
+})
+
+test('Normal is informational; Permitted constrains target, operator and SFC writes', () => {
+  const before = { store: useStore.getState(), security: useSecurity.getState(), window: global.window }
+  const alerts = []
+  global.window = { alert: text => alerts.push(text) }
+  try {
+    useStore.setState({ ...fixture(), running: true })
+    useSecurity.setState({ currentUser: 'admin', locked: false })
+    const s = useStore.getState()
+    let m = s.modules[TAG]
+    assert.equal(pidNormalMode(m), 'AUTO')
+    assert.deepEqual(pidPermittedModes(m), ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN', 'OOS'])
+    assert.equal(pidModeFieldsError(m), null)
+    assert.equal(s.setPidModeFields(TAG, { normalMode: 'OOS', permittedModes: ['AUTO', 'OOS'] }), true)
+    m = useStore.getState().modules[TAG]
+    assert.equal(pidNormalMode(m), 'OOS')
+    assert.equal(pidModeFieldsError(m), null)
+    assert.equal(m.actualMode, 'AUTO', 'normal metadata does not act on the controller algorithm')
+    assert.equal(parseActionExpression(`${TAG}/PID1/MODE.TARGET := CAS`, useStore.getState().modules).error,
+      'CAS is not in TIC-401 MODE.PERMITTED')
+    assert.equal(parseActionExpression(`${TAG}/PID1/MODE.TARGET := 48`, useStore.getState().modules).error,
+      'CAS is not in TIC-401 MODE.PERMITTED')
+    assert.equal(parseActionExpression(`${TAG}/PID1/MODE.TARGET := OOS`, useStore.getState().modules).value.mode, 'OOS')
+    const stepDef = mode => [{ id: 'M1', name: 'MODE', actions: [{ kind: 'mode', tag: TAG, mode }],
+      transition: { kind: 'always' } }]
+    assert.match(sfcStepsError(stepDef('CAS'), useStore.getState().modules), /non-permitted/)
+    assert.equal(sfcStepsError(stepDef('OOS'), useStore.getState().modules), null)
+    s.setMode(TAG, 'CAS')
+    assert.equal(useStore.getState().modules[TAG].mode, 'AUTO')
+    assert.match(alerts.at(-1), /not in MODE.PERMITTED/)
+    const rejected = { ...m, mode: 'AUTO' }
+    applyAction(rejected, { kind: 'mode', tag: TAG, mode: 'CAS' })
+    assert.equal(rejected.mode, 'AUTO')
+    const count = alerts.length
+    assert.equal(s.setPidModeFields(TAG, { permittedModes: ['AUTO'] }), false,
+      'the current normal mode may not be silently removed from the permitted list')
+    assert.equal(s.setPidModeFields(TAG, { permittedModes: [] }), false)
+    assert.equal(s.setPidModeFields(TAG, { permittedModes: ['AUTO', 'AUTO'] }), false)
+    assert.equal(s.setPidModeFields(TAG, { normalMode: 'LO' }), false)
+    assert.equal(s.setPidModeFields(TAG, { permittedModes: ['OOS'] }), false,
+      'the active target may not be removed')
+    assert.equal(alerts.length, count + 5)
+    const malformed = { ...m, permittedModes: ['AUTO', 'BAD'] }
+    assert.match(pidModeFieldsError(malformed), /invalid or duplicate/)
+    assert.equal(pidTargetAllowed(malformed, 'AUTO'), false)
+    assert.equal(s.setPidModeFields(TAG, { normalMode: 'AUTO', permittedModes: ['AUTO', 'OOS'] }), true,
+      'Normal and Permitted can be updated atomically')
+    assert.equal(useStore.getState().modules[TAG].actualMode, 'AUTO')
+    assert.equal(s.setPidModeFields(TAG, { permittedModes: ['AUTO'] }), true)
+    s.setMode(TAG, 'OOS')
+    assert.equal(useStore.getState().modules[TAG].mode, 'AUTO')
+    useSecurity.setState({ locked: true })
+    assert.equal(s.setPidModeFields(TAG, { normalMode: 'AUTO' }), false)
+    assert.equal(pidModeFieldsError(useStore.getState().modules[TAG]), null)
   } finally {
     useStore.setState(before.store, true)
     useSecurity.setState(before.security, true)
