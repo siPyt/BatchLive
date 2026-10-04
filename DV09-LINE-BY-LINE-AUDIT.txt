@@ -873,8 +873,11 @@ Evidence: Original pp281-283 screenshots reviewed locally. Select step and
   paths now resolve to actual runtime parameters. Full expression language, native
   Confirm tab and Boolean/non-Boolean action types remain missing. Opt-in
   linear SFC configuration now has real controller assignment, browser Save,
-  explicit Download and independent Offline/Online algorithms, but native New,
-  graph and restart boundaries remain missing. The screenshot's exact MESSAGE
+  explicit Download and independent Offline/Online algorithms. Explorer New
+  Control Module now selects FBD/SFC, creates an empty managed Offline chart
+  atomically and opens the specified algorithm, rather than an unrelated first
+  chart. Native dialog/template, graph and restart boundaries remain missing.
+  The screenshot's exact MESSAGE
   expressions are executable; full native property workflows and the exact
   graph-based workshop remain PARTIAL.
 Acceptance: Configure resolvable parameter expressions and explicit validation
@@ -947,7 +950,10 @@ Evidence: Generic structured motor/valve/SP/out transitions and supported
   Bad DI and no pump command until repaired. Saved defaults stayed255.
   Native parallel graph execution, palette/connector editing, motor/DC templates
   with external feedback,
-  native New workflow and restart/nonvolatile restoration remain missing.
+  full native New/template workflow and restart/nonvolatile restoration remain
+  missing. New Control Module FBD/SFC choice, guarded atomic Offline creation
+  and Explorer area-row properties/opening are now verified subsets; native
+  SFC description/equipment membership and Save As remain unsupported.
 Acceptance: Execute each state in the exact dependency order with real
   feedback; failed confirmation must hold the appropriate transition.
 

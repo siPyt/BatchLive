@@ -9,6 +9,7 @@ import { ModuleDisplayControls } from '../components/ModuleDisplayControls'
 import { nextAreaName } from '../engine/areas'
 import { moduleNameError } from '../engine/naming'
 import { NamedSetControls } from '../components/NamedSetControls'
+import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -62,6 +63,7 @@ function statusText(m: AnyModule): { text: string; color: string } {
 
 export function ExplorerDisplay(): JSX.Element {
   const modules = useStore((s) => s.modules)
+  const sfcs = useStore(s => s.sfcs)
   const alarms = useStore((s) => s.alarms)
   const equipment = useStore((s) => s.equipment)
   const areas = useStore((s) => s.areas)
@@ -73,6 +75,7 @@ export function ExplorerDisplay(): JSX.Element {
   const selectedTag = useUi((s) => s.selectedTag)
   const select = useUi((s) => s.select)
   const openStudio = useUi((s) => s.openStudio)
+  const openSfc = useUi(s => s.openSfc)
   const openFaceplate = useUi((s) => s.openFaceplate)
   const [open, setOpen] = useState<Record<string, boolean>>({
     CELL: true,
@@ -90,7 +93,7 @@ export function ExplorerDisplay(): JSX.Element {
   const [namedSetPropertiesRequest, setNamedSetPropertiesRequest] =
     useState<{ name: string; serial: number } | null>(null)
   const [menu, setMenu] = useState<
-    { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'em' | 'namedSets' | 'namedSet'; target: string } | null
+    { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'sfc' | 'em' | 'namedSets' | 'namedSet'; target: string } | null
   >(null)
 
   useEffect(() => {
@@ -107,6 +110,7 @@ export function ExplorerDisplay(): JSX.Element {
   const toggle = (k: string): void => setOpen((o) => ({ ...o, [k]: !o[k] }))
   const list = Object.values(modules)
   const selected = selectedTag ? modules[selectedTag] : undefined
+  const selectedSfc = selectedTag ? sfcs[selectedTag] : undefined
   const newArea = (): void => {
     const name = nextAreaName(areas)
     if (addArea(name)) {
@@ -220,6 +224,7 @@ export function ExplorerDisplay(): JSX.Element {
           areas.map((area) => {
             const mods = list.filter((m) => m.area === area)
             const ems = Object.values(equipment).filter((em) => em.area === area)
+            const areaSfcs = Object.values(sfcs).filter(sfc => sfc.area === area)
             const unassigned = mods.filter((m) => !m.equipmentModule || !equipment[m.equipmentModule])
             return (
               <div key={area}>
@@ -250,7 +255,7 @@ export function ExplorerDisplay(): JSX.Element {
                       }}
                     />
                   ) : <span className="exp-area-name" title={area}>{AREA_LABEL[area] ?? area}</span>}
-                  <span className="exp-sub">{mods.length} modules</span>
+                  <span className="exp-sub">{mods.length + areaSfcs.length} modules</span>
                 </div>
                 {open[area] && (
                   <>
@@ -289,6 +294,18 @@ export function ExplorerDisplay(): JSX.Element {
                         {unassigned.map((m) => renderModuleRow(m, true))}
                       </div>
                     )}
+                    {areaSfcs.map(sfc => <div key={sfc.name}
+                      className={'exp-node exp-mod' + (selectedTag === sfc.name ? ' sel' : '')}
+                      onClick={() => { setNamedSetView(false); select(sfc.name) }}
+                      onDoubleClick={() => openSfc(sfc.name)}
+                      onContextMenu={event => {
+                        event.preventDefault(); setNamedSetView(false); select(sfc.name)
+                        setMenu({ x: event.clientX, y: event.clientY, kind: 'sfc', target: sfc.name })
+                      }}>
+                      <span className="exp-caret" /><ModuleIcon kind="control" />
+                      <span className="exp-badge">SFC</span><b className="exp-tag">{sfc.name}</b>
+                      <span className="exp-status">{sfc.status}</span>
+                    </div>)}
                   </>
                 )}
               </div>
@@ -301,6 +318,16 @@ export function ExplorerDisplay(): JSX.Element {
           <NamedSetControls selected={selectedNamedSet} onSelect={setSelectedNamedSet}
             createRequest={namedSetCreateRequest} propertiesRequest={namedSetPropertiesRequest}
             onRequestsHandled={() => { setNamedSetCreateRequest(0); setNamedSetPropertiesRequest(null) }} />
+        ) : selectedSfc ? (
+          <div className="exp-props">
+            <div className="exp-props-head">
+              <b>{selectedSfc.name}</b><span>Sequential Function Chart · {selectedSfc.area}</span>
+              <div className="exp-props-actions">
+                <button className="tbtn sm" onClick={() => openSfc(selectedSfc.name)}>Open SFC</button>
+              </div>
+            </div>
+            <SfcLifecycleControls name={selectedSfc.name} />
+          </div>
         ) : !selected ? (
           <div className="exp-empty">Select a control module to view its properties.</div>
         ) : (
@@ -357,6 +384,11 @@ export function ExplorerDisplay(): JSX.Element {
               >
                 Equipment Module…
               </button>
+            </>
+          ) : menu.kind === 'sfc' ? (
+            <>
+              <div className="ctx-label">{menu.target}</div>
+              <button className="ctx-item" onClick={() => { openSfc(menu.target); setMenu(null) }}>Open SFC</button>
             </>
           ) : menu.kind === 'em' ? (
             <>
@@ -612,10 +644,12 @@ function NewModuleForm({
   const createModule = useStore((s) => s.createModule)
   const areas = useStore((s) => s.areas)
   const modules = useStore((s) => s.modules)
+  const sfcs = useStore(s => s.sfcs)
   const equipment = useStore((s) => s.equipment)
   const select = useUi((s) => s.select)
   const [tag, setTag] = useState('')
   const [type, setType] = useState<ModuleType>('PID')
+  const [algorithm, setAlgorithm] = useState<'FBD' | 'SFC'>('FBD')
   const [fbType, setFbType] = useState<FbBlockType>('ADD')
   const [description, setDescription] = useState('')
   const [area, setArea] = useState(initialArea)
@@ -624,16 +658,22 @@ function NewModuleForm({
   const [pvMin, setPvMin] = useState(0)
   const [pvMax, setPvMax] = useState(100)
 
-  const analog = type === 'PID' || type === 'AI' || type === 'AO'
+  const analog = algorithm === 'FBD' && (type === 'PID' || type === 'AI' || type === 'AO')
   const normTag = tag.trim().toUpperCase()
   const nameError = moduleNameError(normTag)
-  const exists = normTag.length > 0 && !!modules[normTag]
+  const exists = normTag.length > 0 && !!(modules[normTag] || sfcs[normTag])
   const areaExists = areas.includes(area)
   const valid = !nameError && !exists && areaExists
   const emsInArea = Object.values(equipment).filter((e) => e.area === area)
 
   const submit = (): void => {
     if (!valid) return
+    if (algorithm === 'SFC') {
+      if (!useStore.getState().createSfc(normTag, area, { managed: true })) return
+      onDone()
+      useUi.getState().openSfc(normTag)
+      return
+    }
     const spec: NewModuleSpec = {
       tag: normTag,
       type,
@@ -658,6 +698,13 @@ function NewModuleForm({
         <input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="e.g. FIC-102" />
       </label>
       <label>
+        Algorithm Type
+        <select aria-label="New module algorithm type" value={algorithm} onChange={e => setAlgorithm(e.target.value === 'SFC' ? 'SFC' : 'FBD')}>
+          <option value="FBD">Function Block Diagram</option>
+          <option value="SFC">Sequential Function Chart</option>
+        </select>
+      </label>
+      {algorithm === 'FBD' && <label>
         Type
         <select value={type} onChange={(e) => setType(e.target.value as ModuleType)}>
           <option value="PID">PID — Control Loop</option>
@@ -669,8 +716,8 @@ function NewModuleForm({
           <option value="DO">DO — Discrete Output</option>
           <option value="FB">FB — Math/Logic/Timer Block</option>
         </select>
-      </label>
-      {type === 'FB' && (
+      </label>}
+      {algorithm === 'FBD' && type === 'FB' && (
         <label>
           Block
           <select value={fbType} onChange={(e) => setFbType(e.target.value as FbBlockType)}>
@@ -738,10 +785,10 @@ function NewModuleForm({
           </select>
         </label>
       )}
-      <label>
+      {algorithm === 'FBD' && <label>
         Description
         <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" />
-      </label>
+      </label>}
       <label>
         Area
         <select
@@ -755,7 +802,7 @@ function NewModuleForm({
           {areas.map(name => <option key={name}>{name}</option>)}
         </select>
       </label>
-      <label>
+      {algorithm === 'FBD' && <label>
         Equipment Module
         <select value={em} onChange={(e) => setEm(e.target.value)}>
           <option value="">(Unassigned)</option>
@@ -765,7 +812,9 @@ function NewModuleForm({
             </option>
           ))}
         </select>
-      </label>
+      </label>}
+      {algorithm === 'SFC' && <p className="traditional-note">Creates an empty Offline SFC in the selected area; Save and Download are required before execution.
+        Native templates, SFC description/equipment membership, palette and restart workflows are not yet implemented.</p>}
       {analog && (
         <div className="exp-newmod-range">
           <label>

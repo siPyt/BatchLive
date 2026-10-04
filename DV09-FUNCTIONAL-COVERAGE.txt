@@ -823,6 +823,44 @@ New/category/restart boundaries and image-only review remain incomplete.
 Validation:186 coupled regressions, typecheck/build/diagnostics and audit.
 Commit locally only; no further push authorized.
 
+PASS 20: NEW CONTROL MODULE ALGORITHM CHOICE / EXACT SFC NAVIGATION
+-----------------------------------------------------------------------
+Explorer Area -> New -> Control Module exposes Function Block Diagram
+(default) and Sequential Function Chart. Existing FBD type/block/description/
+equipment/scale fields and creation semantics are retained. SFC choice shows
+the name/area and its explicit unsupported metadata/template boundaries.
+Create makes an empty READY SFC plus independent Offline lifecycle in one
+state update; no intermediate immediately executable algorithm, Save,
+transfer or implicit actions. Legacy charts remain opt-in/session-local.
+SFC and FBD names share validation/uniqueness, including normalized case.
+Invalid tags, deleted areas, missing configure keys and FlexLock reject
+without partial state. Creation errors journal/notify instead of silently
+reporting success. Cancel creates neither algorithm nor saved browser record.
+Explorer includes SFCs in their actual area's module count/hierarchy, offers
+existing lifecycle Properties and exact Open SFC/double-click navigation.
+Shared selection ensures a newly created ninth chart opens rather than the
+first pre-existing sample. Missing target navigation reports a diagnostic
+and preserves the current view; project-navigation reset clears selection.
+Three added regressions cover atomic creation/deployment gates, invalid/
+collision/permission/lock boundaries, exact selection and legacy/FBD behavior.
+Live: Area right-click New Control Module offered FBD/SFC, FIC-101 duplicate
+disabled Create, and canceled NEW-ALGO-SFC remained absent. Actual SFC Create
+opened that named empty Offline chart, not any of the existing eight. Explorer
+properties/double-click reopened the same chart. Default FBD/AO created an
+actual AO without SFC/lifecycle entries. UI Add Step and Add Action Properties
+configured FIC-101 AUTO/SP61 while runtime steps remained empty and actual
+SP55.61858277070658 stayed unchanged. Check, controller Properties, Save and
+confirmed Download left READY with the same SP. Online/RUN and one real scan
+set requested SP61/AUTO and completed the TRUE-terminated chart.
+At720x576, SFC New form and every control stayed horizontally within viewport;
+Cancel retained objects. Original96-module/eight-SFC running plant/UI/security/
+pictures/browser record and original viewport were restored; no fixtures left.
+Native dialog/template appearance, SFC description/equipment membership,
+Save As, native graph/parallel joins and restart remain unsupported. This is
+the functional algorithm-choice subset, not completion of pp286-292.
+Validation:189 coupled tests, typecheck/build/diagnostics and audit.
+Commit locally only; no push authorized.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

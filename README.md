@@ -88,7 +88,18 @@ unauthorized or running-chart commits reject atomically. Configured Named Set
 MESSAGE expressions are supported; native Confirm, arbitrary expression
 features and graph workflows remain incomplete.
 
-Reset an SFC and choose **Use Save/Download lifecycle** to opt it into isolated
+In Explorer, right-click an Area → **New → Control Module...** and choose
+**Algorithm Type: Sequential Function Chart**. Create opens the named empty
+chart as an Offline managed draft, with no implicit Save, Download or execution.
+Its area row provides properties and **Open SFC**/double-click navigation to
+that exact chart. The default Function Block Diagram option retains existing
+PID/AI/AO/MOTOR/VALVE/DI/DO/FB creation. Names are validated and shared between
+FBD modules and SFCs; duplicates, missing areas, denied keys and FlexLock reject
+creation without partial algorithms. Cancel does not create an object.
+This is the supported algorithm-choice subset, not native dialog/template,
+SFC description/equipment-membership or Save As parity.
+
+Reset an existing sample SFC and choose **Use Save/Download lifecycle** to opt it into isolated
 configured, saved and deployed linear algorithms. **Module Properties**
 assigns its configured controller; **Save** validates/persists browser
 configuration without changing execution. **Download...** confirms transfer
@@ -102,10 +113,12 @@ native controller restart behavior or nonvolatile restoration. Saved drafts
 can be explicitly loaded after recreating/attaching the SFC; fresh Download
 is required after reload. Current project area membership is preserved.
 
-This lifecycle is opt-in to preserve existing session-local sample behavior.
+Existing sample charts retain opt-in lifecycle to preserve session-local behavior;
+Explorer's new SFC algorithm path starts managed.
 `npm run test:sfc` covers qualifier, Properties/parser and lifecycle
-regressions, including MESSAGE parameters and picture entry. Native New algorithm selection,
-graph routing, broader download dialogs and restart restoration remain gaps.
+regressions, including algorithm creation/navigation, MESSAGE parameters and
+picture entry. Native templates/graph editing, broader download dialogs and
+restart restoration remain gaps.
 
 Explorer **Setup > Named Sets** provides case-sensitive custom-set creation
 and draft **Properties > Add/Modify > State Properties**, including separate

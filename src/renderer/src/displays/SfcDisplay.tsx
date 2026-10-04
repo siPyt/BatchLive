@@ -19,6 +19,7 @@ import {
   type ActionQualifier
 } from '../engine/sfc'
 import type { AnyModule, PlantState } from '../engine/types'
+import { useUi } from '../ui/uiStore'
 
 const STATUS_COLOR: Record<SfcDef['status'], string> = {
   READY: '#9aa0a7',
@@ -33,7 +34,9 @@ export function SfcDisplay(): JSX.Element {
   const createSfc = useStore((s) => s.createSfc)
   const areas = useStore((s) => s.areas)
   const names = Object.keys(sfcs)
-  const [selected, setSelected] = useState<string>(names[0] ?? '')
+  const selectedName = useUi(s => s.sfcName)
+  const selected = selectedName && sfcs[selectedName] ? selectedName : names[0] ?? ''
+  const setSelected = useUi(s => s.openSfc)
   const [newName, setNewName] = useState('')
   const [newArea, setNewArea] = useState('FEED')
 
@@ -58,8 +61,7 @@ export function SfcDisplay(): JSX.Element {
             className="tbtn sm"
             disabled={!newName.trim() || !areas.includes(newArea)}
             onClick={() => {
-              createSfc(newName, newArea)
-              if (!useStore.getState().sfcs[newName.trim().toUpperCase()]) return
+              if (!createSfc(newName, newArea)) return
               setSelected(newName.trim().toUpperCase())
               setNewName('')
             }}

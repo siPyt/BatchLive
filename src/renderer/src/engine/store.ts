@@ -226,7 +226,7 @@ interface StoreState extends PlantState {
   deleteEquipmentModule: (tag: string) => void
   /** Assign (or clear, with null) a Control Module's Equipment Module. */
   setModuleEquipment: (moduleTag: string, emTag: string | null) => void
-  createSfc: (name: string, area: string) => void
+  createSfc: (name: string, area: string, options?: { managed: boolean }) => boolean
   deleteSfc: (name: string) => void
   setSfcSteps: (name: string, steps: SfcStep[]) => void
   checkSfc: (name: string) => string | null
@@ -1157,10 +1157,10 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   createModule: (spec) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create module ${spec.tag}`)) return false
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Create module ${spec.tag}`)) return false
     const tag = spec.tag.trim().toUpperCase()
     const state = get()
-    const error = moduleNameError(tag) ?? (state.modules[tag] ? `Module ${tag} already exists` :
+    const error = moduleNameError(tag) ?? (state.modules[tag] || state.sfcs[tag] ? `Module ${tag} already exists` :
       !state.areas.includes(spec.area) ? `Area ${spec.area} does not exist` : null)
     if (error) {
       get().logEvent('DIAGNOSTIC', tag, `Module creation rejected: ${error}`)
@@ -1730,21 +1730,22 @@ export const useStore = create<StoreState>((set, get) => ({
     get().logEvent('CONFIGURE', moduleTag, `Assigned to Equipment Module ${emTag ?? '(unassigned)'}`)
   },
 
-  createSfc: (name, area) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create SFC ${name}`)) return
-    if (!get().areas.includes(area)) {
-      const message = `Area ${area} does not exist`
-      get().logEvent('DIAGNOSTIC', name, `SFC creation rejected: ${message}`)
-      window.alert(message)
-      return
-    }
-    set((s) => {
-      const key = name.trim().toUpperCase()
-      if (!key || s.sfcs[key]) return {}
-      const sfc: SfcDef = { name: key, area, steps: [], status: 'READY', active: 0, elapsed: 0 }
-      return { sfcs: { ...s.sfcs, [key]: sfc }, rev: s.rev + 1 }
-    })
-    get().logEvent('CONFIGURE', name, 'SFC created')
+  createSfc: (name, area, options) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Create SFC ${name}`)) return false
+    const key = name.trim().toUpperCase()
+    const state = get()
+    const error = moduleNameError(key) ??
+      (state.sfcs[key] || state.modules[key] ? `Module ${key} already exists` :
+        !state.areas.includes(area) ? `Area ${area} does not exist` : null)
+    if (error) return rejectSfc(get, key, `SFC creation rejected: ${error}`)
+    const sfc: SfcDef = { name: key, area, steps: [], status: 'READY', active: 0, elapsed: 0 }
+    const draft = cloneSfcConfiguration({ name: key, area, controllerTag: '', steps: [] })
+    set(s => ({ sfcs: { ...s.sfcs, [key]: sfc },
+      sfcLifecycle: options?.managed ? { ...s.sfcLifecycle, [key]: { draft, online: false } } : s.sfcLifecycle,
+      rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', key, options?.managed ?
+      'SFC module created Offline; configure steps, Save and Download before execution' : 'SFC created')
+    return true
   },
 
   deleteSfc: (name) => {

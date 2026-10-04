@@ -40,6 +40,7 @@ interface UiState {
   faceplates: OpenFaceplate[]
   selectedTag: string | null
   studioTag: string | null
+  sfcName: string | null
   /** FBD canvas node positions, keyed by module tag (Control Studio drag-and-drop layout). */
   studioLayout: Record<string, { x: number; y: number }>
   setStudioLayout: (tag: string, x: number, y: number) => void
@@ -55,6 +56,7 @@ interface UiState {
   moveFaceplate: (tag: string, x: number, y: number) => void
   select: (tag: string | null) => void
   openStudio: (tag: string) => void
+  openSfc: (name: string) => boolean
   /** Close every open faceplate and return to Overview — used when switching projects. */
   resetToOverview: () => void
   /** Faceplate "Explorer" link: jump to DeltaV Explorer with this module selected. */
@@ -81,6 +83,7 @@ export const useUi = create<UiState>((set, get) => ({
   faceplates: [],
   selectedTag: null,
   studioTag: null,
+  sfcName: null,
   studioLayout: {},
   setStudioLayout: (tag, x, y) => set((s) => ({ studioLayout: { ...s.studioLayout, [tag]: { x, y } } })),
   trendFocusTag: null,
@@ -147,11 +150,25 @@ export const useUi = create<UiState>((set, get) => ({
       }
     }),
 
+  openSfc: name => {
+    const key = name.trim().toUpperCase()
+    if (!useStore.getState().sfcs[key]) {
+      const message = `SFC not found: ${key || '(unassigned)'}`
+      useStore.getState().logEvent('DIAGNOSTIC', key, message)
+      window.alert(message)
+      return false
+    }
+    set({ sfcName: key, selectedTag: key })
+    get().navigate('sfc')
+    return true
+  },
+
   resetToOverview: () =>
     set({
       faceplates: [],
       selectedTag: null,
       studioTag: null,
+      sfcName: null,
       display: 'overview',
       history: ['overview'],
       histIndex: 0,

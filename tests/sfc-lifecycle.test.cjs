@@ -10,6 +10,7 @@ require.extensions['.ts'] = (module, filename) => {
 }
 const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
+const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const {
   savedSfcKey, sfcDraftDirty, sfcNeedsDownload, sfcEditorDefinition, parseSavedSfc, serializeSavedSfc
 } = require('../src/renderer/src/engine/sfcLifecycle.ts')
@@ -21,6 +22,7 @@ function steps(value = 50) {
 function withProject(run) {
   const previousStore = useStore.getState()
   const previousSecurity = useSecurity.getState()
+  const previousUi = useUi.getState()
   const previousWindow = global.window
   const storage = new Map()
   const alerts = []
@@ -40,6 +42,7 @@ function withProject(run) {
   } finally {
     useStore.setState(previousStore, true)
     useSecurity.setState(previousSecurity, true)
+    useUi.setState(previousUi, true)
     if (previousWindow === undefined) delete global.window
     else global.window = previousWindow
   }
@@ -51,6 +54,92 @@ function deploy(store) {
   assert.equal(store.downloadSavedSfc(NAME), true)
   assert.equal(store.setSfcOnline(NAME, true), true)
 }
+
+test('New SFC algorithm creates one atomic offline module and does not run before saved deployment', () => {
+  withProject(store => {
+    const snapshots = []
+    const unsubscribe = useStore.subscribe(state => {
+      if (state.sfcs['NEW-SFC']) snapshots.push(!!state.sfcLifecycle['NEW-SFC'])
+    })
+    try { assert.equal(store.createSfc(' new-sfc ', 'FEED', { managed: true }), true) }
+    finally { unsubscribe() }
+    assert.ok(snapshots.length > 0)
+    assert.ok(snapshots.every(Boolean))
+    const runtime = useStore.getState().sfcs['NEW-SFC']
+    const managed = () => useStore.getState().sfcLifecycle['NEW-SFC']
+    assert.equal(runtime.status, 'READY')
+    assert.equal(managed().online, false)
+    assert.equal(managed().saved, undefined)
+    assert.equal(managed().deployed, undefined)
+    assert.equal(managed().draft.controllerTag, '')
+    assert.notEqual(managed().draft.steps, runtime.steps)
+    assert.equal(store.saveSfc('NEW-SFC'), false)
+    store.setSfcSteps('NEW-SFC', steps(67))
+    const sp = useStore.getState().modules['FIC-101'].sp
+    store.sfcCommand('NEW-SFC', 'run')
+    assert.equal(useStore.getState().sfcs['NEW-SFC'], runtime)
+    assert.equal(useStore.getState().modules['FIC-101'].sp, sp)
+    assert.equal(store.configureSfcController('NEW-SFC', 'CTLR-01'), true)
+    assert.equal(store.saveSfc('NEW-SFC'), true)
+    assert.equal(useStore.getState().modules['FIC-101'].sp, sp)
+    assert.equal(store.downloadSavedSfc('NEW-SFC'), true)
+    assert.equal(useStore.getState().modules['FIC-101'].sp, sp)
+    assert.equal(store.setSfcOnline('NEW-SFC', true), true)
+    store.sfcCommand('NEW-SFC', 'run')
+    store.tick(.1)
+    assert.equal(useStore.getState().modules['FIC-101'].sp, 67)
+  })
+})
+
+test('algorithm creation rejects invalid/shared names, stale areas, denied keys and FlexLock without partial modules', () => {
+  withProject((store, storage, alerts) => {
+    const before = useStore.getState()
+    for (const [name, area] of [['FIC-101', 'FEED'], [NAME.toLowerCase(), 'FEED'],
+      ['', 'FEED'], ['BAD/NAME', 'FEED'], ['ABCDEFGHIJKLMNOPQ', 'FEED'], ['NEW-SFC', 'DELETED_AREA']]) {
+      assert.equal(store.createSfc(name, area, { managed: true }), false)
+      assert.equal(useStore.getState().sfcs, before.sfcs)
+      assert.equal(useStore.getState().sfcLifecycle, before.sfcLifecycle)
+    }
+    useSecurity.setState({ currentUser: 'Supervisor1' })
+    assert.equal(store.createSfc('NEW-SFC', 'FEED', { managed: true }), false)
+    useSecurity.setState({ currentUser: 'admin', locked: true })
+    assert.equal(store.createSfc('NEW-SFC', 'FEED', { managed: true }), false)
+    assert.equal(store.createModule({ tag: 'NEW-FBD', type: 'AI', area: 'FEED', description: '' }), false)
+    assert.equal(useStore.getState().sfcs, before.sfcs)
+    assert.equal(useStore.getState().sfcLifecycle, before.sfcLifecycle)
+    assert.equal(useStore.getState().modules, before.modules)
+    useSecurity.setState({ locked: false })
+    assert.equal(store.createSfc('NEW-SFC', 'FEED', { managed: true }), true)
+    assert.equal(store.createModule({ tag: 'new-sfc', type: 'AI', area: 'FEED', description: '' }), false)
+    assert.equal(useStore.getState().modules['NEW-SFC'], undefined)
+    assert.equal(store.createModule({ tag: 'NEW-FBD', type: 'AI', area: 'FEED', description: '' }), true)
+    assert.equal(useStore.getState().sfcLifecycle['NEW-FBD'], undefined)
+    assert.ok(alerts.length >= 7)
+    assert.equal(storage.size, 0)
+  })
+})
+
+test('Explorer SFC opening selects the requested chart, rejects missing targets and resets project navigation', () => {
+  withProject(store => {
+    assert.equal(store.createSfc('NEW-SFC', 'FEED', { managed: true }), true)
+    assert.equal(useUi.getState().openSfc(' new-sfc '), true)
+    assert.equal(useUi.getState().display, 'sfc')
+    assert.equal(useUi.getState().sfcName, 'NEW-SFC')
+    assert.equal(useUi.getState().selectedTag, 'NEW-SFC')
+    const previous = useUi.getState()
+    assert.equal(useUi.getState().openSfc('MISSING-SFC'), false)
+    assert.equal(useUi.getState(), previous)
+    useUi.getState().navigate('explorer')
+    assert.equal(useUi.getState().openSfc(NAME), true)
+    assert.equal(useUi.getState().sfcName, NAME)
+    useUi.getState().resetToOverview()
+    assert.equal(useUi.getState().display, 'overview')
+    assert.equal(useUi.getState().sfcName, null)
+    assert.equal(useUi.getState().selectedTag, null)
+    assert.equal(store.createSfc('LEGACY-SFC', 'FEED'), true)
+    assert.equal(useStore.getState().sfcLifecycle['LEGACY-SFC'], undefined)
+  })
+})
 
 test('managed SFC drafts, Save, Download and Online remain separate and only deployed commands execute', () => {
   withProject((store, storage) => {

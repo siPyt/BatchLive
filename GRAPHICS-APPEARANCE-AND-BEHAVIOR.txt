@@ -1026,6 +1026,27 @@ behavior was preserved. No plant layout, symbols, palette or CSS changed.
 local commit only, no push authorized.
 
 ===============================================================================
+32. NEW ALGORITHM CHOICE - PRESERVE EXPLORER AND CHART PRESENTATION
+===============================================================================
+
+Use the existing Explorer New Control Module form, module icon, area rows,
+exp-props heading/actions and lifecycle controls for FBD/SFC choice. Do not
+replace its chrome or redesign the approved FBD or equipment artwork.
+Existing FBD type/block/description/equipment/scale choices remain intact.
+SFC creation starts empty/Offline, not falsely energized or COMPLETE.
+Opening a specific SFC must display that chart, not the first sample.
+Area module counts now include their actual SFC definitions. SFC rows show
+runtime status and properties without inventing FBD blocks or faceplates.
+Unsupported SFC templates/metadata/native dialog layouts are stated, not
+substituted with lookalike artwork or stored into unsupported module fields.
+Live New SFC form/control bounds fit720x576 without horizontal overflow.
+Cancel retained the source objects; FBD/AO creation still produced an AO.
+UI-created SFC actions, Check/controller/Save/Download/Online and actual scan
+changed SP only after RUN. Original running plant/UI/storage were restored.
+Regression:189 coupled tests, typecheck/build/diagnostics/audit, exact chart
+selection, shared names and locked/denied/invalid creation rejection.
+
+===============================================================================
 31. SFC COURSE FEEDBACK PATHS - SHOW CONFIRMATION, NOT REQUESTED STATE
 ===============================================================================
 

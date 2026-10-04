@@ -1091,12 +1091,13 @@ const PALETTE: { group: string; items: PaletteItem[] }[] = [
 function PaletteView({ area }: { area: string }): JSX.Element {
   const createModule = useStore((s) => s.createModule)
   const modules = useStore((s) => s.modules)
+  const sfcs = useStore(s => s.sfcs)
   const openStudio = useUi((s) => s.openStudio)
   const [pending, setPending] = useState<PaletteItem | null>(null)
   const [tag, setTag] = useState('')
   const normTag = tag.trim().toUpperCase()
   const nameError = moduleNameError(normTag)
-  const exists = normTag.length > 0 && !!modules[normTag]
+  const exists = normTag.length > 0 && !!(modules[normTag] || sfcs[normTag])
 
   const submit = (): void => {
     if (!pending || nameError || exists) return
