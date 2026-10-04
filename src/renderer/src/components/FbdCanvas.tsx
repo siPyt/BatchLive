@@ -59,6 +59,7 @@ function inputPorts(m: AnyModule, part?: PidBlockName): InputPort[] {
   if (m.type === 'MOTOR' || m.type === 'VALVE') {
     return [
       { which: 'ilk', label: 'ILK' },
+      { which: 'permissive', label: 'PERMISSIVE_D' },
       { which: 'command', label: 'SP_D' }
     ]
   }
@@ -114,6 +115,7 @@ export function FbdCanvas({
   const setFeedforward = useStore((s) => s.setFeedforward)
   const setTracking = useStore((s) => s.setTracking)
   const setInterlockSource = useStore((s) => s.setInterlockSource)
+  const setPermissiveSource = useStore(s => s.setPermissiveSource)
   const setCommandSource = useStore((s) => s.setCommandSource)
   const setPidIo = useStore((s) => s.setPidIo)
   const connectAoParameter = useStore(s => s.connectAoParameter)
@@ -194,6 +196,7 @@ export function FbdCanvas({
         else if (selectedWire.which === 'track') setTracking(selectedWire.tag, { source: undefined })
         else if (selectedWire.which === 'trackValue') setTracking(selectedWire.tag, { valueSource: undefined })
         else if (selectedWire.which === 'ilk') setInterlockSource(selectedWire.tag, undefined)
+        else if (selectedWire.which === 'permissive') setPermissiveSource(selectedWire.tag, undefined)
         else if (selectedWire.which === 'command') setCommandSource(selectedWire.tag, undefined)
         else if (selectedWire.which === 'in1' || selectedWire.which === 'in2') {
           setFbInput(selectedWire.tag, selectedWire.which, { kind: 'const', value: 0 })
@@ -206,7 +209,7 @@ export function FbdCanvas({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedWire, selectedTag, modules, setPidIo, connectAoParameter, setSplitterConfig, setFbInput, setCasSource, setFeedforward, setTracking, setInterlockSource, setCommandSource, deleteModule])
+  }, [selectedWire, selectedTag, modules, setPidIo, connectAoParameter, setSplitterConfig, setFbInput, setCasSource, setFeedforward, setTracking, setInterlockSource, setPermissiveSource, setCommandSource, deleteModule])
 
   // Draw every configured live reference so the canvas reflects the same
   // cascade, feedforward, tracking, interlock, and command wiring as the engine.
@@ -336,6 +339,7 @@ export function FbdCanvas({
     else if (which === 'track') setTracking(to.moduleTag, { source: from.moduleTag })
     else if (which === 'trackValue') setTracking(to.moduleTag, { valueSource: from.moduleTag })
     else if (which === 'ilk') setInterlockSource(to.moduleTag, from.moduleTag)
+    else if (which === 'permissive') setPermissiveSource(to.moduleTag, from.moduleTag)
     else if (which === 'command') setCommandSource(to.moduleTag, from.moduleTag)
   }
 

@@ -71,6 +71,7 @@ export function connectedModuleTags(modules: Record<string, AnyModule>, rootTag:
       }
     } else if (module.type === 'MOTOR' || module.type === 'VALVE') {
       connect(module.tag, module.interlockSource)
+      connect(module.tag, module.permissiveSource)
       connect(module.tag, module.commandSource)
     }
   }
@@ -200,6 +201,7 @@ export function buildControlDiagram(tags: string[], modules: Record<string, AnyM
       }
     } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
       add(tag, 'ilk', ref(m.interlockSource, modules[m.interlockSource ?? '']?.type === 'PID' ? 'PV' : 'OUT'))
+      add(tag, 'permissive', ref(m.permissiveSource, modules[m.permissiveSource ?? '']?.type === 'PID' ? 'PV' : 'OUT'))
       add(tag, 'command', ref(m.commandSource, modules[m.commandSource ?? '']?.type === 'PID' ? 'PV' : 'OUT'))
     }
   }

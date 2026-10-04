@@ -192,6 +192,7 @@ interface StoreState extends PlantState {
   setDeviceOptions: (tag: string, opts: { permissiveRequired?: boolean; resetRequired?: boolean }) => void
   /** Wire a logic/alarm tag to automatically drive a MOTOR/VALVE's INTERLOCK_D every scan (the missing link between an FB trip and real equipment). */
   setInterlockSource: (tag: string, source: string | undefined) => void
+  setPermissiveSource: (tag: string, source: string | undefined) => boolean
   /** Wire a logic/alarm tag to automatically drive a MOTOR/VALVE's SP_D (commanded) every scan, overriding manual Start/Stop or Open/Close. */
   setCommandSource: (tag: string, source: string | undefined) => void
   /** CAS_IN_D connection health; false sheds a Cas/RCas PID to Auto. */
@@ -671,6 +672,29 @@ export const useStore = create<StoreState>((set, get) => ({
       if (m.type === 'MOTOR' || m.type === 'VALVE') m.interlockSource = source
     })
     get().logEvent('CONFIGURE', tag, `INTERLOCK_SOURCE set to ${source ?? '(none)'}`)
+  },
+
+  setPermissiveSource: (tag, source) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Wire permissive source ${tag}`)) return false
+    const state = get()
+    const module = state.modules[tag]
+    const error = !module || module.type !== 'MOTOR' && module.type !== 'VALVE'
+      ? 'Permissive wiring requires an existing motor or valve'
+      : source !== undefined && (!state.modules[source] || source === tag)
+        ? 'Choose an existing, separate permissive source module' : null
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Permissive wiring rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    mutateModule(set, get, tag, module => {
+      if (module.type === 'MOTOR' || module.type === 'VALVE') {
+        module.permissiveSource = source
+        module.permissiveOk = false
+      }
+    })
+    get().logEvent('CONFIGURE', tag, `PERMISSIVE_SOURCE set to ${source ?? '(manual; permit cleared)'}`)
+    return true
   },
 
   setCommandSource: (tag, source) => {

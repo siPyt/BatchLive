@@ -158,6 +158,7 @@ export function moduleExecutionOrder(modules: Record<string, AnyModule>): string
       }
     } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
       visit(m.interlockSource)
+      visit(m.permissiveSource)
       visit(m.commandSource)
     }
     visiting.delete(tag)

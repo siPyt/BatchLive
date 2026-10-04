@@ -12,6 +12,7 @@ import { moduleNameError } from '../engine/naming'
 import { traditionalChannels, type AnalogBindingPort } from '../engine/traditionalIo'
 import { appliedPidOutput, pidIo, readAnalogSignal, signalError } from '../engine/analogStrategy'
 import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
+import { devicePermissiveSignal } from '../engine/simulate'
 import type {
   AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
   PidBlockName, PidIoPatch, SplitterPatch, SplitterState, FbInputRef,
@@ -135,6 +136,7 @@ function ParameterView({ module: m, selectedBlock }: {
   const setFeedforward = useStore((s) => s.setFeedforward)
   const setTracking = useStore((s) => s.setTracking)
   const setInterlockSource = useStore((s) => s.setInterlockSource)
+  const setPermissiveSource = useStore(s => s.setPermissiveSource)
   const setCommandSource = useStore((s) => s.setCommandSource)
   const setMode = useStore((s) => s.setMode)
   const modules = useStore((s) => s.modules)
@@ -266,6 +268,7 @@ function ParameterView({ module: m, selectedBlock }: {
               m={m}
               tags={Object.keys(modules).filter((t) => t !== m.tag).sort()}
               setInterlockSource={setInterlockSource}
+              setPermissiveSource={setPermissiveSource}
               setCommandSource={setCommandSource}
             />
           )}
@@ -787,22 +790,41 @@ function FbWireRow({
 }
 
 /** The glue that makes an interlock strategy actually DO something: wire any
- * logic/alarm tag's live boolean output to INTERLOCK_SOURCE or COMMAND_SOURCE
+ * logic/alarm tag's live boolean output to interlock, permissive or command
  * on a MOTOR/VALVE, so an OR/latch/comparator block can automatically trip,
  * close, or open real equipment every scan \u2014 not just display a number. */
 function DeviceWiringRows({
   m,
   tags,
   setInterlockSource,
+  setPermissiveSource,
   setCommandSource
 }: {
   m: MotorModule | ValveModule
   tags: string[]
   setInterlockSource: (tag: string, source: string | undefined) => void
+  setPermissiveSource: (tag: string, source: string | undefined) => boolean
   setCommandSource: (tag: string, source: string | undefined) => void
 }): JSX.Element {
+  const modules = useStore(s => s.modules)
+  const signal = devicePermissiveSignal(m, modules)
   return (
     <>
+      <tr>
+        <td>PERMISSIVE_SOURCE</td>
+        <td className="pv">
+          <select className="fb-select" aria-label="Permissive source" value={m.permissiveSource ?? ''}
+            onChange={e => setPermissiveSource(m.tag, e.target.value || undefined)}>
+            <option value="">(manual; disconnect clears permit)</option>
+            {m.permissiveSource && !tags.includes(m.permissiveSource) &&
+              <option value={m.permissiveSource}>{m.permissiveSource} (missing)</option>}
+            {tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+          </select>
+        </td>
+        <td className={signal.bad ? 'bad' : 'good'}>
+          {signal.bad ? 'Bad - denied' : signal.value !== 0 ? 'Good - permitted' : 'Good - denied'}
+        </td>
+      </tr>
       <tr>
         <td>INTERLOCK_SOURCE</td>
         <td className="pv">

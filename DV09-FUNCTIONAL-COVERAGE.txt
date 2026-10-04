@@ -1018,6 +1018,32 @@ The native MTR-11_ILOCK template, external XI-2/ZX-2 confirmation/output,
 native interlock/permissive blocks/dialogs and global alarm setup still
 prevent full exercise/course certification. DV09-072 remains PARTIAL.
 
+PASS 25: LIVE DEVICE PERMISSIVE WIRING
+-----------------------------------------------------------------------
+Scope: DV09-050/052/072 dependency subset. MOTOR/VALVE PERMISSIVE_SOURCE
+is actual configuration, with Parameter View and canvas PERMISSIVE_D port.
+Shared connected strategy/wires and execution order include this dependency.
+Good nonzero source permits Passive -> Active only if Permissive is enabled.
+Bad/OOS/missing/nonfinite sources deny it, including a held-high logic result.
+FB input quality now carries OOS/nonfinite through upstream logic; no silent
+zero is presented as Good. Parameter row reports Good/Bad and permit state.
+Interlock/reset/field confirmation stay independent. Losing a permissive
+does not trip already-confirmed equipment. Disconnect clears the inherited
+permit and returns to explicit manual control; missing/deleted sources deny.
+Seven regressions verify motor/valve startup, upstream execution, independent
+trip/reset, real disabled DI channel/recovery and OOS held-high logic, bad
+sources, immutable validation/locked writes, disconnect/manual fallback and
+diagram/JSON configuration preservation. All236 repository tests/typecheck
+pass. Live Parameter View selection denied commanded startup with false AND;
+both feedbacks true gave actual running confirmation. OOS feedback propagated
+Bad through held OUT1, denied the permit without tripping the running motor.
+Actual canvas wire selection/Delete cleared the source/permit; actual
+output-port drag to PERMISSIVE_D reconnected the exact source.
+Original96-module/eight-SFC running plant/UI/security and720x576 viewport
+restored, acceptance globals removed. No protected equipment artwork changed.
+Native motor template/external DSTs/download/first-out/bypass/full condition
+language remain gaps. These audit groups stay PARTIAL.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

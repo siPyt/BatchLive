@@ -324,6 +324,7 @@ function stepDeviceControl(io: DcIo, dt: number): void {
 }
 
 function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyModule>): void {
+  if (m.permissiveSource) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
   if (m.interlockSource) m.interlock = readModuleValue(modules[m.interlockSource]) !== 0
   if (m.commandSource) m.commanded = readModuleValue(modules[m.commandSource]) !== 0
   const io: DcIo = {
@@ -348,6 +349,7 @@ function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyMod
 }
 
 function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyModule>): void {
+  if (m.permissiveSource) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
   if (m.interlockSource) m.interlock = readModuleValue(modules[m.interlockSource]) !== 0
   if (m.commandSource) m.commandedOpen = readModuleValue(modules[m.commandSource]) !== 0
   const io: DcIo = {
@@ -370,8 +372,14 @@ function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyMod
   m.dcState = io.dcState
 }
 
-/** Reads the live numeric value a function block can wire to: PV for AI/PID,
- * 1/0 for discrete states, and OUT for another function block's result. */
+export function devicePermissiveSignal(module: MotorModule | ValveModule,
+  modules: Record<string, AnyModule>): { value: number; bad: boolean } {
+  if (!module.permissiveSource) return { value: Number(module.permissiveOk), bad: false }
+  const signal = resolveFbInput(modules, { kind: 'ref', tag: module.permissiveSource, value: 0 })
+  return { value: signal.bad ? 0 : signal.value, bad: signal.bad }
+}
+
+/** Reads PV, discrete feedback or block OUT with source quality. */
 function resolveFbInput(
   modules: Record<string, AnyModule>, ref: FbInputRef
 ): { value: number; bad: boolean } {
@@ -380,9 +388,12 @@ function resolveFbInput(
     return readAnalogSignal({ tag: ref.tag, parameter: ref.parameter ?? 'OUT', block: ref.block }, modules)
   }
   const m = ref.tag ? modules[ref.tag] : undefined
+  const value = readModuleValue(m)
   return {
-    value: readModuleValue(m),
-    bad: !m || ('pvBad' in m && m.pvBad) || ('ioBad' in m && !!m.ioBad) ||
+    value,
+    bad: !m || !Number.isFinite(value) || ('pvBad' in m && m.pvBad) || ('ioBad' in m && !!m.ioBad) ||
+      ((m.type === 'DI' || m.type === 'DO') && m.mode === 'OOS') ||
+      (m.type === 'AO' && m.actualMode === 'OOS') ||
       ((m.type === 'FB' || m.type === 'AO') && !!m.bad)
   }
 }

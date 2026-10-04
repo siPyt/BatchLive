@@ -676,6 +676,14 @@ Required: Use MTR-11_ILOCK template, CND/BFI/OR logic and bypass indication,
   XVSTAT and a level condition below 50 sustained four seconds.
 Evidence: FB logic and device command/interlock wiring execute; course template,
   DST path, first-out/bypass semantics and property/lifecycle parity missing.
+  Pass25 adds live PERMISSIVE_D wiring for MOTOR/VALVE in Parameter View and
+  actual canvas connect/disconnect. Upstream AND/feedback executes before DC.
+  Good nonzero permits a new start; held Bad/OOS/missing/nonfinite source
+  denies it. Loss of permissive does not trip a confirmed device; interlock/
+  reset remain independent. Seven regressions and actual browser wiring,
+  denied start, valid confirmation, OOS held-high denial, canvas Delete and
+  actual output-to-PERMISSIVE_D connection verified. Native template, external
+  XI-2/ZX-2, four-second condition/first-out/bypass remain incomplete.
 Acceptance: Test timing reset, first-out ordering, permissive versus interlock,
   bypass reporting and actual card3ch2/card4ch2 effects.
 

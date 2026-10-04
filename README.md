@@ -132,6 +132,18 @@ The modeled MOTOR confirmation is still not the native MTR-11_ILOCK template
 or external XI-2/ZX-2 DC binding; native motor template/I/O/interlock
 configuration and full DV-09 parity remain incomplete.
 
+Control Studio can wire a live **PERMISSIVE_SOURCE** to a motor or valve,
+using the Parameter View or a wire into **PERMISSIVE_D** on the DC block.
+The source strategy executes before the device. Good nonzero feedback permits
+a new start/open when the Permissive option is enabled; Bad, OOS, nonfinite
+or missing feedback denies it, including a logic block holding a previous
+high output. Loss of a permissive is not an interlock: already-confirmed
+equipment stays active, while a separate interlock still trips and requires
+reset. The parameter row reports actual Good/Bad and permitted/denied status.
+Deleting the wire clears the inherited permit and restores explicit manual
+permissive control. This is executable live wiring, not the native
+MTR-11_ILOCK template, first-out/bypass or saved motor-download workflow.
+
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are
 isolated drafts: OK validates and applies, while Cancel/Escape retain the
