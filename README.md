@@ -78,6 +78,16 @@ including the existing structured condition subset. Native action-property/
 expression dialogs, universal expressions, Boolean parameter/block activation,
 graph divergence/convergence and downloaded SFC configuration remain gaps.
 
+SFC charts now provide right-click **Add...** in a selected step's Action
+window and **Properties...** on existing actions/transitions. Properties are
+isolated drafts: OK validates and applies, while Cancel/Escape retain the
+original. Expression Assistant opens a supported-path Browser; assignments
+and conditions resolve into actual engine actions, not JavaScript evaluation.
+Check reports supported algorithm errors without executing it. Stale,
+unauthorized or running-chart commits reject atomically. This does not yet
+accept the course's Named Set MESSAGE expressions or implement native Confirm
+and arbitrary expression features; the exact workshop remains incomplete.
+
 ## DV-09 functional coverage
 
 The primary DV-09 source is the 575-page Engineering Training manual.

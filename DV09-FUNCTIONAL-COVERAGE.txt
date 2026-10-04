@@ -559,6 +559,41 @@ DV09-064/065 and the wider course remain PARTIAL; do not mark them completed.
 Validation:130 control, nine qualifier and five audit tests pass; typecheck,
 production build, editor diagnostics and zero-unmapped audit pass. Local commit.
 
+PASS 13: SFC ADD / ACTION AND TRANSITION PROPERTIES / CHECK
+---------------------------------------------------------
+Scope: supported editing operations within DV09-067 pp281-283, image reviewed.
+Select a step, right-click its Action window and Add; right-click an existing
+action or transition and Properties. Keyboard-accessible Properties buttons
+and chart double-click also open the same real draft operation.
+Description, named action/reset target, qualifier, time/expression timing and
+assignment/transition expression changes remain isolated until OK succeeds.
+Cancel/Escape retain original configuration/runtime. Nested Expression Browser
+has actual supported module paths; Escape closes only Browser and restores
+focus to its launching button. FlexLock closes/discards Properties drafts.
+Parser resolves PID/AO SP/OUT/mode, device/DC commands and DO SP_D; transitions
+read actual motor/valve feedback, analog PV/OUT and supported timers.
+Finite literals, exact block/type match and allowed mode/operator checks reject
+arbitrary JavaScript, unsupported paths/functions and nonfinite input explicitly.
+No fake values, dynamic eval or feedback-as-command shortcut is introduced.
+Atomic application rejects permission failure, missing/deleted/stale steps,
+running/held edits and invalid algorithms without overwriting another edit.
+Check logs and reports actual supported-algorithm validation; it is read-only
+with respect to the SFC, module values and revision. Check results clear on edit.
+Live: cancelled SP60 draft retained configured50; Browser inserted FIC-101
+SP path; OK60 changed configured action only, retaining actual SP55.1519893.
+Transition Properties applied actual FIC-101 OUT>30; Check passed that subset.
+Right-click Action window Add created P-101 start assignment. An attempted
+PV_D feedback write rejected visibly and retained the original motor action.
+Modal stayed within viewport; nested Escape and FlexLock closure were verified.
+Original running96-module plant/security/UI restored; no fixtures/dialogs remain.
+Boundary: native Confirm/Print/Help behavior, full expression language and
+Browser hierarchy, Named Set MESSAGE, module Boolean/block activation classes,
+graph/SFC Save/Download remain missing. The actual course MESSAGE example is
+still rejected, not substituted, so the exact exercise remains incomplete.
+Validation:149 tests (130 control, nine qualifier, five Properties/parser and
+five audit), typecheck/build/editor diagnostics pass; zero unmapped records.
+Local commit only, no push authorized.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

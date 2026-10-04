@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { SfcPropertiesDialog, type SfcPropertiesTarget } from '../components/SfcPropertiesDialog'
 import { useStore } from '../engine/store'
 import {
   describeAction,
@@ -75,7 +76,7 @@ export function SfcDisplay(): JSX.Element {
       </div>
 
       <div className="sfc-detail">
-        {!sfc ? <div className="exp-empty">Select or create an SFC.</div> : <SfcEditor sfc={sfc} />}
+        {!sfc ? <div className="exp-empty">Select or create an SFC.</div> : <SfcEditor key={sfc.name} sfc={sfc} />}
       </div>
     </div>
   )
@@ -88,6 +89,24 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
   const deleteSfc = useStore((s) => s.deleteSfc)
   const editable = sfc.status === 'READY' || sfc.status === 'COMPLETE'
   const [selected, setSelected] = useState<number | null>(null)
+  const [properties, setProperties] = useState<SfcPropertiesTarget | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; target: SfcPropertiesTarget } | null>(null)
+  const [check, setCheck] = useState<{ steps: SfcStep[]; error: string | null } | null>(null)
+  useEffect(() => {
+    const close = (event: MouseEvent): void => {
+      if (!(event.target instanceof Element) || !event.target.closest('.ctx-menu')) setMenu(null)
+    }
+    const escape = (event: KeyboardEvent): void => { if (event.key === 'Escape') setMenu(null) }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape) }
+  }, [])
+  useEffect(() => { if (!editable) { setProperties(null); setMenu(null) } }, [editable])
+  const context = (target: SfcPropertiesTarget, x: number, y: number): void => {
+    if (!editable) return
+    setSelected(sfc.steps.findIndex(step => step.id === target.step.id))
+    setMenu({ target, x: Math.min(x, window.innerWidth - 210), y: Math.min(y, window.innerHeight - 130) })
+  }
 
   const update = (steps: SfcStep[]): void => setSfcSteps(sfc.name, steps)
   const setStep = (i: number, patch: Partial<SfcStep>): void =>
@@ -102,6 +121,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
           {sfc.status}
         </span>
         <span style={{ flex: 1 }} />
+        <button className="tbtn sm" onClick={() => setCheck({ steps: sfc.steps, error: useStore.getState().checkSfc(sfc.name) })}>Check</button>
         {/* S88 Phase Routine tabs — RUN/HOLD map to real engine commands; RESTART
          * re-runs from the current state, STOP/ABORT reset (the engine does not
          * yet distinguish a controlled stop from an abort). */}
@@ -126,12 +146,17 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
           Delete
         </button>
       </div>
+      {check && check.steps === sfc.steps && <div role={check.error ? 'alert' : 'status'} className="traditional-note">
+        {check.error ? `Check failed: ${check.error}` : 'Check passed for supported linear actions and conditions.'}
+        {' '}This does not validate unsupported Named Sets, expressions, graph paths or controller downloads.
+      </div>}
 
       <div className="sfc-canvas-wrap">
         {sfc.steps.length === 0 ? (
           <div className="exp-empty">No steps. Add the first step below.</div>
         ) : (
-          <SfcChart sfc={sfc} selected={selected} onSelect={setSelected} />
+          <SfcChart sfc={sfc} selected={selected} onSelect={setSelected}
+            onContext={context} onProperties={target => editable && setProperties(target)} />
         )}
         {editable && (
           <button
@@ -154,8 +179,19 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
             setSelected(null)
           }}
           onChange={(patch) => setStep(selected, patch)}
+          onProperties={index => setProperties({ kind: 'action', step: sfc.steps[selected], index })}
+          onTransitionProperties={() => setProperties({ kind: 'transition', step: sfc.steps[selected] })}
+          onContext={(index, x, y) => context({ kind: 'action', step: sfc.steps[selected], index }, x, y)}
         />
       )}
+      {menu && editable && <div className="ctx-menu" role="menu" style={{ left: menu.x, top: menu.y }}>
+        {menu.target.kind === 'action' && <button role="menuitem" className="ctx-item" onClick={() => {
+          setProperties({ kind: 'action', step: menu.target.step, index: null }); setMenu(null)
+        }}>Add...</button>}
+        {(menu.target.kind === 'transition' || menu.target.index !== null) && <button role="menuitem"
+          className="ctx-item" onClick={() => { setProperties(menu.target); setMenu(null) }}>Properties...</button>}
+      </div>}
+      {properties && editable && <SfcPropertiesDialog name={sfc.name} target={properties} onClose={() => setProperties(null)} />}
     </>
   )
 }
@@ -164,7 +200,11 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
  * standard steps, transition cross-bars with live boolean evaluation, and
  * attached [qualifier | parameter | value] action blocks — a 2D vector
  * flowchart instead of stacked HTML form cards. */
-function SfcChart({ sfc, selected, onSelect }: { sfc: SfcDef; selected: number | null; onSelect: (i: number) => void }): JSX.Element {
+function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
+  sfc: SfcDef; selected: number | null; onSelect: (i: number) => void
+  onContext: (target: SfcPropertiesTarget, x: number, y: number) => void
+  onProperties: (target: SfcPropertiesTarget) => void
+}): JSX.Element {
   const modules = useStore((s) => s.modules)
   const state = { modules } as PlantState
   const STEP_W = 120
@@ -196,7 +236,8 @@ function SfcChart({ sfc, selected, onSelect }: { sfc: SfcDef; selected: number |
               />
             )}
             {/* step box */}
-            <g onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}>
+            <g onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
+              onContextMenu={e => { e.preventDefault(); onContext({ kind: 'action', step, index: null }, e.clientX, e.clientY) }}>
               {i === 0 && (
                 <rect x={CENTER_X - STEP_W / 2 - 5} y={y - 5} width={STEP_W + 10} height={STEP_H + 10} rx={1} className="sfc-step-box" />
               )}
@@ -230,6 +271,8 @@ function SfcChart({ sfc, selected, onSelect }: { sfc: SfcDef; selected: number |
                     runtime?.stepId === step.id && runtime.active
                   return (
                     <g key={ai} transform={`translate(14, ${ai * 22})`}
+                      onDoubleClick={() => onProperties({ kind: 'action', step, index: ai })}
+                      onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onContext({ kind: 'action', step, index: ai }, e.clientX, e.clientY) }}
                       data-action-name={actionIdentity(a)}
                       data-action-active={!!actionActive}>
                       <title>{a.qualifier === 'R' ? `Reset stored action ${actionIdentity(a)}${actionActive ? ' (Fired)' : ''}` :
@@ -254,7 +297,9 @@ function SfcChart({ sfc, selected, onSelect }: { sfc: SfcDef; selected: number |
 
             {/* transition cross-bar + live boolean condition text */}
             {!isLast && (
-              <g transform={`translate(${CENTER_X}, ${transY})`} onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}>
+              <g transform={`translate(${CENTER_X}, ${transY})`} onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
+                onDoubleClick={() => onProperties({ kind: 'transition', step })}
+                onContextMenu={e => { e.preventDefault(); onContext({ kind: 'transition', step }, e.clientX, e.clientY) }}>
                 <rect x={-20} y={-2} width={40} height={4} className={transTrue ? 'sfc-trans-bar sfc-trans-true' : 'sfc-trans-bar'} />
                 <text x={28} y={3} className="trans-label" fill={transTrue ? '#2e6b4f' : '#555'}>
                   T{String(i + 1).padStart(2, '0')}: {describeCondition(step.transition)}
@@ -296,13 +341,19 @@ function StepPropertiesPanel({
   modules,
   onClose,
   onDelete,
-  onChange
+  onChange,
+  onProperties,
+  onTransitionProperties,
+  onContext
 }: {
   step: SfcStep
   modules: Record<string, AnyModule>
   onClose: () => void
   onDelete: () => void
   onChange: (patch: Partial<SfcStep>) => void
+  onProperties: (index: number | null) => void
+  onTransitionProperties: () => void
+  onContext: (index: number | null, x: number, y: number) => void
 }): JSX.Element {
   return (
     <div className="sfc-props">
@@ -316,21 +367,24 @@ function StepPropertiesPanel({
           ✕
         </button>
       </div>
-      <div className="sfc-props-section">
+      <div className="sfc-props-section"
+        onContextMenu={e => { e.preventDefault(); onContext(null, e.clientX, e.clientY) }}>
         <div className="sfc-props-label">Actions</div>
         {step.actions.map((a, ai) => (
-          <div key={ai} className="sfc-action">
+          <div key={ai} className="sfc-action"
+            onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onContext(ai, e.clientX, e.clientY) }}>
             <ActionEditor
               action={a}
               modules={modules}
               onChange={(na) => onChange({ actions: step.actions.map((x, idx) => (idx === ai ? na : x)) })}
               onRemove={() => onChange({ actions: step.actions.filter((_, idx) => idx !== ai) })}
             />
+            <button className="tbtn sm" onClick={() => onProperties(ai)}>Properties...</button>
           </div>
         ))}
         <button
           className="sfc-add"
-          onClick={() => onChange({ actions: [...step.actions, { kind: 'valve', tag: firstTag(modules, 'VALVE'), open: true }] })}
+          onClick={() => onProperties(null)}
         >
           + action
         </button>
@@ -338,6 +392,7 @@ function StepPropertiesPanel({
       <div className="sfc-props-section">
         <div className="sfc-props-label">Transition</div>
         <TransitionEditor cond={step.transition} modules={modules} onChange={(c) => onChange({ transition: c })} />
+        <button className="tbtn sm" onClick={onTransitionProperties}>Transition Properties...</button>
       </div>
     </div>
   )

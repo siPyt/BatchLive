@@ -14,6 +14,7 @@ export const TIMED_QUALIFIERS: ActionQualifier[] = ['P', 'D', 'L', 'SD', 'DS', '
 interface ActionBase {
   qualifier?: ActionQualifier
   name?: string
+  description?: string
   seconds?: number
   timingCondition?: SfcCondition
 }
@@ -41,6 +42,7 @@ export interface SfcStep {
   name: string
   actions: SfcAction[]
   transition: SfcCondition
+  transitionDescription?: string
 }
 
 export type SfcStatus = 'READY' | 'RUNNING' | 'HELD' | 'COMPLETE'

@@ -853,7 +853,21 @@ Acceptance: Model a validated graph, concurrent active steps and correct joins;
 Pages: 281-283
 Status: PARTIAL
 Required: Add action/transition via context properties and Expression Assistant.
-Evidence: Structured SFC UI editing exists; no full expression browser.
+Evidence: Original pp281-283 screenshots reviewed locally. Select step and
+  right-click its Action window -> Add opens an isolated draft. Existing
+  action/transition right-click -> Properties opens Description, qualifier/
+  delay/duration and expression fields with OK/Cancel. Expression Assistant
+  opens a real supported-path Browser. Check reports reference/type/timer/
+  identity errors without executing or altering configured/runtime values.
+  Supported numeric/mode/device assignments and actual-feedback comparisons
+  resolve to the production action engine, not evaluated JavaScript or proxies.
+  Invalid syntax/path/values are explicitly rejected. Stale/deleted/running/
+  unauthorized property commits reject atomically. Escape/Cancel/FlexLock
+  discard drafts; nested Browser Escape restores parent-dialog focus.
+  Full Expression Assistant language, MESSAGE/Named Set expressions, native
+  Confirm tab, Boolean/non-Boolean action types and course SFC lifecycle are
+  still missing. The course screenshot's MESSAGE example is not executable
+  yet, so these pages and the exact workshop remain PARTIAL.
 Acceptance: Configure resolvable parameter expressions and explicit validation
   failures using the same path model as operator/configuration tools.
 

@@ -1033,6 +1033,28 @@ The course/image-only/native-dialog parity is not yet complete.
 Local commit only; no push until explicit authorization.
 
 ===============================================================================
+25. SFC PROPERTIES - REFERENCE-BASED OPERATIONS WITHOUT CHART REDESIGN
+===============================================================================
+The pp281-283 source screenshots were reviewed locally before editing.
+Existing step/action geometry, ribbons, tree, cell fonts/palette and equipment
+artwork remain unchanged. Context commands reuse the existing ctx-menu styles.
+Properties/Expression Browser use contained native dialogs with Description,
+qualifier/timing/expression fields and actual OK/Cancel. Check result wraps
+below the toolbar, never inside the phase buttons or across the chart.
+Expression Browser is a supported-path subset, not a native full-language
+replacement. Unsupported MESSAGE/Named Set and Boolean/block actions remain
+explicit errors; do not pretend the course exercise is complete.
+Shared modal Escape/cancel events stop propagation so a nested Browser closes
+only itself, restores parent focus, and a second Escape cancels Properties.
+FlexLock discards the modal draft. Numeric Entry/Download modal behavior must
+remain intact after the shared focus-restoration change.
+Properties never alter live module values before routine execution. Invalid,
+stale/deleted/running/unauthorized commits retain configuration/runtime.
+Live UI verified Add/Properties, Browser insertion, OK/Cancel, invalid feedback
+assignment rejection, nested Escape, FlexLock and modal viewport containment.
+Restore running96-module plant after fixtures. No push without authorization.
+
+===============================================================================
 24. SFC ACTION TIMING - KEEP THE APPROVED CHART, CORRECT EXECUTION
 ===============================================================================
 Existing chart geometry, parameter/value cells, fonts, tree/ribbons, plant

@@ -183,6 +183,8 @@ interface StoreState extends PlantState {
   createSfc: (name: string, area: string) => void
   deleteSfc: (name: string) => void
   setSfcSteps: (name: string, steps: SfcStep[]) => void
+  checkSfc: (name: string) => string | null
+  applySfcStepProperties: (name: string, expected: SfcStep, patch: Partial<SfcStep>) => boolean
   sfcCommand: (name: string, cmd: 'run' | 'hold' | 'reset') => void
   /** File > New: reload either the GMP Pharma Factory baseline or a blank project. */
   newProject: (kind: 'pharma' | 'blank') => void
@@ -1680,6 +1682,37 @@ export const useStore = create<StoreState>((set, get) => ({
       return { sfcs, rev: s.rev + 1 }
     })
     get().logEvent('CONFIGURE', name, 'SFC deleted')
+  },
+
+  checkSfc: (name) => {
+    const sfc = get().sfcs[name]
+    const error = !sfc ? `SFC ${name} does not exist` : !sfc.steps.length ?
+      'SFC requires at least one step' : sfcStepsError(sfc.steps, get().modules)
+    get().logEvent(error ? 'DIAGNOSTIC' : 'CONFIGURE', name,
+      error ? `SFC Check failed: ${error}` : 'SFC Check passed for supported linear actions/conditions')
+    return error
+  },
+
+  applySfcStepProperties: (name, expected, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Apply SFC properties ${name}`)) return false
+    const state = get()
+    const sfc = state.sfcs[name]
+    const step = sfc?.steps.find(item => item.id === expected.id)
+    const candidate = { ...expected, ...patch }
+    const steps = sfc?.steps.map(item => item.id === expected.id ? candidate : item) ?? []
+    const error = !sfc || !step ? 'SFC or selected step no longer exists' :
+      sfc.status !== 'READY' && sfc.status !== 'COMPLETE' ? 'Reset the SFC before applying Properties' :
+      step !== expected ? 'Step changed while Properties was open; cancel and reopen to avoid overwriting edits' :
+      sfcStepsError(steps, state.modules)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', name, `SFC Properties rejected: ${error}`); window.alert(error)
+      return false
+    }
+    if (!sfc) return false
+    set(s => ({ sfcs: { ...s.sfcs, [name]: { ...sfc, steps, active: 0, elapsed: 0,
+      status: 'READY', actionStates: {} } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', name, `SFC step ${candidate.name} Properties applied`)
+    return true
   },
 
   setSfcSteps: (name, steps) => {
