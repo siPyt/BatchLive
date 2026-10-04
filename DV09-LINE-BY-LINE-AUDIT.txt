@@ -20,6 +20,10 @@ page, text classification and the manually reviewed requirement group below.
 No copyrighted source text is reproduced in that ledger.
 
 This completes the EXTRACTED-TEXT review, NOT full operational parity.
+The user's acceptance standard is each exercise's prescribed sequence:
+setup and names, editing/property dialogs, Save/Download/Online boundaries,
+operator actions and measured results. A different simulator operation,
+partial feature, adapted workshop or completion checkbox does not satisfy it.
 Image-only dialog controls, drawings, waveform plots and screenshots are not
 fully represented by the extraction. Their visual review remains outstanding.
 The line ledger proves traceability and zero unmapped records, not correctness
@@ -822,9 +826,16 @@ Pages: 275-278
 Status: PARTIAL
 Required: N/R/L/D/P and stored S/SD/DS/SL semantics, time/expression delays,
   lifetime across step exit, reset and pulse scheduling.
-Evidence: SFC supports N/P/S/R/D/L only. P only runs on entry; D/L cleanup,
-  stored lifetime and delayed-expression variants differ from course.
-  SD/DS/SL are absent; R inversions are not a general stored-action reset.
+Evidence: Original p276 timing-chart image reviewed locally. Separate named
+  action runtime now supports all nine qualifiers, timed/structured-condition
+  pulse/delay/limit, stored lifetime across step exit, DS cancellation and
+  reset on step entry. Chart deadlines tested at 1s and fractional100ms scans.
+  Reset/expiry stop action execution, not invent inverse output assignments.
+  Termination clears activations; DO actions preserve actual hardware readback.
+  Batch phase routines reuse the same execution engine.
+  Native action-property dialogs, arbitrary expression text, module Boolean
+  parameters, non-Boolean block activation, graph editing and downloaded
+  SFC configuration still prevent exact completion of the course procedures.
 Acceptance: Build action lifecycle state separate from output assignments.
   Test activation and step exit before/at/after delay, delayed pulse once,
   stored action continuing after exit, explicit reset and limited expiry.

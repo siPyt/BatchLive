@@ -1033,6 +1033,27 @@ The course/image-only/native-dialog parity is not yet complete.
 Local commit only; no push until explicit authorization.
 
 ===============================================================================
+24. SFC ACTION TIMING - KEEP THE APPROVED CHART, CORRECT EXECUTION
+===============================================================================
+Existing chart geometry, parameter/value cells, fonts, tree/ribbons, plant
+symbols and colors are unchanged. The action editor adds all nine qualifiers,
+named reset targets and time/structured-condition fields within its wrapping
+properties row. Reset text identifies a stored action, not an inverse command.
+Unqualified legacy assignments are labeled N (active with step), not falsely S.
+SVG accessible titles/data-action-active report real independent action state;
+stored activity can legitimately continue while its originating step is past.
+The source p276 timing chart was visually inspected. Regression tests measure
+timed/stored/nonstored/reset/termination behavior, including fractional scans.
+Inactive assignments keep their last value; expiry of STOP must never START
+a motor. DO assignment writes command only; confirmed state comes from actual
+channel/local execution, and disabled I/O holds Bad readback.
+SFC and batch phases share action runtime. Timers use simulation speed; reset
+clears state; HOLD pauses this simulated routine, not a claim of full S88 parity.
+Native action dialogs, full expressions, Boolean parameter and function-block
+activation classes, graph topology and SFC Save/Download remain unimplemented.
+Restore the original running96-module plant after fixtures; local commits only.
+
+===============================================================================
 23. AI CHANNEL FILTER - PRESERVE PHYSICAL NETWORK AND SIGNAL FEEDBACK
 ===============================================================================
 AI channels add configured filter seconds, deployed seconds and actual sampled

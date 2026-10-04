@@ -525,6 +525,40 @@ DV09-061 remains PARTIAL, not completed. Preserve approved graphics.
 Validation:130 control plus five audit regressions pass; typecheck, production
 build, editor diagnostics and zero-unmapped575-page audit pass. Local commit only.
 
+PASS 12: SFC ACTION LIFETIMES GROUNDED IN THE ORIGINAL TIMING CHART
+----------------------------------------------------------------
+Original p276 image examined locally, not inferred solely from extracted text.
+Independent action runtime tracks active/pending/fired status and stored timers.
+N/D/L stop executing at step exit; P can fire once after time or a structured
+condition; S persists across steps until reset/termination; SD remains pending
+after exit; DS cancels if the step exits before its delay; SL expires across
+steps. R identifies a stored action and stops it on entry without inverse writes.
+The p276 timing matrix, step-exit before/at/after delay, delayed/reset SD,
+stored expiry, pulse once, expression-subset timing and termination are tested.
+Fractional100ms scans do not acquire an extra scan through accumulated roundoff.
+Incoming step actions/reset execute at the transition boundary. Held routines
+pause simulated timers; resume retains them; reset clears memory; RUN from
+COMPLETE starts clean. Batch phases share the same engine and clock scaling.
+Undefined legacy assignments still execute only with their step and retain
+their last written value afterward. Explicit S is now stored execution.
+An inactive assignment is not an automatic contrary output command: a STOP
+assignment's expiry must not start a motor. Boolean parameter/block activation
+remain separate missing action classes. Hardware-bound DO commands no longer
+forge state feedback before physical channel reconciliation.
+Editor exposes all nine qualifiers, named reset targets, time and supported
+structured conditions, live accessible action status. Run validates action/
+condition references, types, identities and timers; running/held editing rejects.
+Live UI selected SD14, then RUN; at10s the originating step exited with a
+pending action, at14s the stored assignment ran, and at20s R stopped it without
+changing the previously assigned SP50. The original plant/UI is restored.
+Boundary: this is tested action-lifetime infrastructure, NOT the exact full
+SFC workshop. Native Properties/Expression Assistant, arbitrary expressions,
+Boolean module parameters, non-Boolean block activation, Named Sets, graph
+divergence/convergence and full Save/Download workflows remain incomplete.
+DV09-064/065 and the wider course remain PARTIAL; do not mark them completed.
+Validation:130 control, nine qualifier and five audit tests pass; typecheck,
+production build, editor diagnostics and zero-unmapped audit pass. Local commit.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

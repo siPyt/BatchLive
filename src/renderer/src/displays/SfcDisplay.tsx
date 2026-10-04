@@ -3,6 +3,8 @@ import { useStore } from '../engine/store'
 import {
   describeAction,
   describeCondition,
+  actionIdentity,
+  TIMED_QUALIFIERS,
   evalCondition,
   newStep,
   type SfcDef,
@@ -222,15 +224,24 @@ function SfcChart({ sfc, selected, onSelect }: { sfc: SfcDef; selected: number |
                 <line x1={0} y1={step.actions.length === 1 ? 17 : 21} x2={14} y2={step.actions.length === 1 ? 17 : 21} className={isActive ? 'sfc-line-active' : 'sfc-line'} />
                 {step.actions.map((a, ai) => {
                   const [param, value] = splitAction(a, modules[a.tag])
+                  const runtime = sfc.actionStates?.[actionIdentity(a)]
+                  const actionActive = a.qualifier === 'R' ?
+                    sfc.status === 'RUNNING' && sfc.active === i && sfc.elapsed === 0 && runtime?.resetStep === step.id :
+                    runtime?.stepId === step.id && runtime.active
                   return (
-                    <g key={ai} transform={`translate(14, ${ai * 22})`}>
+                    <g key={ai} transform={`translate(14, ${ai * 22})`}
+                      data-action-name={actionIdentity(a)}
+                      data-action-active={!!actionActive}>
+                      <title>{a.qualifier === 'R' ? `Reset stored action ${actionIdentity(a)}${actionActive ? ' (Fired)' : ''}` :
+                        `${actionIdentity(a)}: ${actionActive ? 'Active' :
+                          runtime?.stepId === step.id && runtime.pending ? 'Waiting' : 'Inactive'}`}</title>
                       <rect x={0} y={0} width={20} height={20} className="qual-box" />
                       <text x={10} y={14} className="qual-box">
-                        {a.qualifier ?? 'S'}
+                        {a.qualifier ?? 'N'}
                       </text>
                       <rect x={20} y={0} width={220} height={20} className="action-box" />
                       <text x={25} y={14} fontSize={9} fontWeight={700} fill="#333">
-                        {param}
+                        {a.qualifier === 'R' && param.length > 40 ? `${param.slice(0, 37)}...` : param}
                       </text>
                       <text x={240} y={14} fontSize={9} fill="#0070b0" textAnchor="end">
                         {value}
@@ -342,7 +353,7 @@ export function firstTag(modules: Record<string, AnyModule>, type: AnyModule['ty
 }
 
 const ACTION_KINDS: SfcAction['kind'][] = ['mode', 'sp', 'out', 'motor', 'valve', 'do']
-const QUALIFIERS: ActionQualifier[] = ['S', 'N', 'P', 'R', 'D', 'L']
+const QUALIFIERS: ActionQualifier[] = ['N', 'R', 'L', 'D', 'P', 'S', 'SD', 'DS', 'SL']
 
 export function ActionEditor({
   action,
@@ -362,16 +373,20 @@ export function ActionEditor({
 
   const changeKind = (k: SfcAction['kind']): void => {
     const tag = firstTag(modules, typeFor(k)) || (['mode', 'sp', 'out'].includes(k) ? firstTag(modules, 'AO') : '')
-    if (k === 'mode') onChange({ kind: 'mode', tag, mode: 'AUTO' })
-    else if (k === 'sp') onChange({ kind: 'sp', tag, value: 50 })
-    else if (k === 'out') onChange({ kind: 'out', tag, value: 0 })
-    else if (k === 'motor') onChange({ kind: 'motor', tag, run: true })
-    else if (k === 'valve') onChange({ kind: 'valve', tag, open: true })
-    else onChange({ kind: 'do', tag, on: true })
+    const timing = { name: action.name, qualifier: action.qualifier, seconds: action.seconds, timingCondition: action.timingCondition }
+    if (k === 'mode') onChange({ ...timing, kind: 'mode', tag, mode: 'AUTO' })
+    else if (k === 'sp') onChange({ ...timing, kind: 'sp', tag, value: 50 })
+    else if (k === 'out') onChange({ ...timing, kind: 'out', tag, value: 0 })
+    else if (k === 'motor') onChange({ ...timing, kind: 'motor', tag, run: true })
+    else if (k === 'valve') onChange({ ...timing, kind: 'valve', tag, open: true })
+    else onChange({ ...timing, kind: 'do', tag, on: true })
   }
 
   return (
+    <>
     <div className="sfc-edit-row">
+      <input className="fp-numinput" aria-label="Action name or reset target" placeholder="Action name (optional)"
+        value={action.name ?? ''} onChange={e => onChange({ ...action, name: e.target.value })} />
       <select className="exp-alm-select" value={action.kind} onChange={(e) => changeKind(e.target.value as SfcAction['kind'])}>
         {ACTION_KINDS.map((k) => (
           <option key={k} value={k}>
@@ -417,10 +432,12 @@ export function ActionEditor({
       <select
         className="exp-alm-select"
         title="Action qualifier (IEC 61131-3)"
-        value={action.qualifier ?? 'S'}
+        value={action.qualifier ?? 'N'}
         onChange={(e) => {
           const q = e.target.value as ActionQualifier
-          onChange({ ...action, qualifier: q, seconds: q === 'D' || q === 'L' ? (action.seconds ?? 5) : undefined })
+          onChange({ ...action, qualifier: q,
+            seconds: TIMED_QUALIFIERS.includes(q) ? (action.seconds ?? (q === 'P' ? 0 : 5)) : undefined,
+            timingCondition: TIMED_QUALIFIERS.includes(q) ? action.timingCondition : undefined })
         }}
       >
         {QUALIFIERS.map((q) => (
@@ -429,19 +446,28 @@ export function ActionEditor({
           </option>
         ))}
       </select>
-      {(action.qualifier === 'D' || action.qualifier === 'L') && (
+      {TIMED_QUALIFIERS.includes(action.qualifier ?? 'N') && !action.timingCondition && (
         <input
           className="fp-numinput sm"
           type="number"
-          title="seconds"
+          title="seconds" min={0} step="any"
+          aria-label="Action time seconds"
           value={action.seconds ?? 0}
           onChange={(e) => onChange({ ...action, seconds: Number(e.target.value) })}
         />
       )}
+      {TIMED_QUALIFIERS.includes(action.qualifier ?? 'N') && <label>
+        <input type="checkbox" checked={!!action.timingCondition} onChange={e => onChange({ ...action,
+          timingCondition: e.target.checked ? { kind: 'timer', seconds: action.seconds ?? 0 } : undefined })} />
+        Timing condition
+      </label>}
       <button className="sfc-x" onClick={onRemove}>
         ✕
       </button>
     </div>
+    {action.timingCondition && <TransitionEditor cond={action.timingCondition} modules={modules}
+      onChange={cond => onChange({ ...action, timingCondition: cond })} />}
+    </>
   )
 }
 

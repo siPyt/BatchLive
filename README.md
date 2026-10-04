@@ -69,6 +69,15 @@ Run the focused engine regressions with `npm run test:control`, then
 `npm run typecheck` and `npm run build`. The appearance and regression contract
 is maintained in [GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt](GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt).
 
+Run `npm run test:sfc` for SFC qualifier timing regressions against the original
+DV-09 timing-chart image. SFCs and batch phases share independent action lifetime
+state for N/R/L/D/P/S/SD/DS/SL. Named reset targets stop stored execution; they do
+not invert earlier assignments or fabricate actual device feedback. Timed pulse,
+stored delay across step exit, delay cancellation and stored limits are supported,
+including the existing structured condition subset. Native action-property/
+expression dialogs, universal expressions, Boolean parameter/block activation,
+graph divergence/convergence and downloaded SFC configuration remain gaps.
+
 ## DV-09 functional coverage
 
 The primary DV-09 source is the 575-page Engineering Training manual.
@@ -80,6 +89,9 @@ acceptance criteria are in
 records to 128 reviewed groups across 575 pages without copying the manual.
 Verified workflows and remaining implementation gaps are recorded in
 [DV09-FUNCTIONAL-COVERAGE.txt](DV09-FUNCTIONAL-COVERAGE.txt).
+An exercise is complete only when its prescribed sequence and expected results
+are executable, including configuration/download and operator boundaries.
+Adapted simulator workflows or learner checkmarks do not certify completion.
 
 Explorer supports creating and renaming actual plant areas, shared by module,
 equipment and SFC configuration. Physical Network commissioning offers an

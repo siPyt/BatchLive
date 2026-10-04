@@ -1,5 +1,5 @@
 import type { PlantState, AnyModule } from './types'
-import { evalCondition, applyStepActions, revertNonStoredActions, type SfcStep } from './sfc'
+import { advanceSfcs, type SfcDef, type SfcActionState, type SfcStep } from './sfc'
 
 // ---------------------------------------------------------------------------
 // DeltaV Batch (ISA-88) layer.
@@ -46,6 +46,7 @@ export interface BatchPhaseRuntime {
   step: number
   stepName: string
   elapsed: number
+  actionStates?: Record<string, SfcActionState>
 }
 
 export interface BatchRuntime {
@@ -249,40 +250,32 @@ export function advanceBatch(
     return { modules: state.modules, batch: b }
   }
 
-  // Clone modules so phase actions produce fresh references.
-  const modules: Record<string, AnyModule> = {}
-  for (const k of Object.keys(state.modules)) modules[k] = { ...state.modules[k] }
-
   const phase = { ...b.phase }
   const def = state.phases[phase.name]
-  const step = def.steps[phase.step]
-
-  // Apply the current step's actions, honoring N/P/S/R/D/L qualifiers.
-  applyStepActions(modules, step, phase.elapsed)
-
-  phase.elapsed += dt
+  const routine: SfcDef = { name: phase.name, area: def.unit, steps: def.steps,
+    status: 'RUNNING', active: phase.step, elapsed: phase.elapsed, actionStates: phase.actionStates }
+  const advanced = advanceSfcs({ ...state, sfcs: { [phase.name]: routine } }, state.modules, dt)
+  const nextRoutine = advanced.sfcs[phase.name]
+  const modules = advanced.modules
+  phase.step = nextRoutine.active
+  phase.stepName = def.steps[phase.step].name
+  phase.elapsed = nextRoutine.elapsed
+  phase.actionStates = nextRoutine.actionStates
   const nextBatch: BatchRuntime = { ...b, phase, log: b.log }
 
-  if (evalCondition(step.transition, state, phase.elapsed)) {
-    revertNonStoredActions(modules, step)
-    if (phase.step < def.steps.length - 1) {
-      phase.step += 1
-      phase.stepName = def.steps[phase.step].name
-      phase.elapsed = 0
+  if (nextRoutine.status === 'COMPLETE') {
+    // Phase complete → advance to next operation.
+    phase.state = 'COMPLETE'
+    log(nextBatch, now, `Phase ${phase.name} complete`)
+    const nextOp = b.opIndex + 1
+    if (nextOp < PROCEDURE.length) {
+      nextBatch.opIndex = nextOp
+      nextBatch.phase = newPhaseRuntime(state.phases, PROCEDURE[nextOp])
+      log(nextBatch, now, `Phase ${PROCEDURE[nextOp]} running`)
     } else {
-      // Phase complete → advance to next operation.
-      phase.state = 'COMPLETE'
-      log(nextBatch, now, `Phase ${phase.name} complete`)
-      const nextOp = b.opIndex + 1
-      if (nextOp < PROCEDURE.length) {
-        nextBatch.opIndex = nextOp
-        nextBatch.phase = newPhaseRuntime(state.phases, PROCEDURE[nextOp])
-        log(nextBatch, now, `Phase ${PROCEDURE[nextOp]} running`)
-      } else {
-        nextBatch.status = 'COMPLETE'
-        nextBatch.phase = phase
-        log(nextBatch, now, `Batch ${b.id} COMPLETE`)
-      }
+      nextBatch.status = 'COMPLETE'
+      nextBatch.phase = phase
+      log(nextBatch, now, `Batch ${b.id} COMPLETE`)
     }
   }
 

@@ -12,6 +12,7 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test:control": "node --test tests/control-strategy.test.cjs",
+    "test:sfc": "node --test tests/sfc-qualifiers.test.cjs",
     "dist": "electron-vite build && electron-builder",
     "dist:win": "electron-vite build && electron-builder --win",
     "icon": "node scripts/gen-icon.mjs",

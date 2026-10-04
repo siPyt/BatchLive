@@ -37,8 +37,8 @@ import {
   analogBindingError, channelConfigurationError, discreteBindingError, findDst, makeTraditionalCard,
   type AnalogBindingPort, type TraditionalCardType
 } from './traditionalIo'
-import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
-import { advanceSfcs, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
+import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
+import { advanceSfcs, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { useSecurity } from './security'
 import { makeDefaultEquipment, makeBlankEquipment, type EquipmentModule } from './equipment'
 import {
@@ -233,8 +233,8 @@ export const useStore = create<StoreState>((set, get) => ({
     const s = get()
     if (!s.running) return
     // Advance the batch first so phase actions set modes/SPs/commands before physics.
-    const { modules: cmdModules, batch } = advanceBatch(s, dt, s.time + dt * 1000 * s.speed)
-    const { modules: sfcModules, sfcs } = advanceSfcs(s, cmdModules, dt)
+    const { modules: cmdModules, batch } = advanceBatch(s, dt * s.speed, s.time + dt * 1000 * s.speed)
+    const { modules: sfcModules, sfcs } = advanceSfcs(s, cmdModules, dt * s.speed)
     const next = stepPlant({ ...s, modules: sfcModules }, dt)
     // Sample trend data.
     const trend = s.trend
@@ -1009,12 +1009,29 @@ export const useStore = create<StoreState>((set, get) => ({
 
   batchCommand: (cmd) => {
     if (!useSecurity.getState().requireLock('BATCH_OPERATE', 'Batch command')) return
+    if (cmd === 'START' || cmd === 'RESTART') {
+      const state = get()
+      for (const name of PROCEDURE) {
+        const phase = state.phases[name]
+        const error = !phase || !phase.steps.length ? `Phase ${name} requires steps` : sfcStepsError(phase.steps, state.modules)
+        if (error) {
+          get().logEvent('DIAGNOSTIC', state.batch.id, `Batch command rejected: ${error}`); window.alert(error)
+          return
+        }
+      }
+    }
     set((s) => ({ batch: commandBatch(s.batch, cmd, s.time, s.phases), rev: s.rev + 1 }))
     get().logEvent('BATCH', get().batch.id, `Batch command: ${cmd}`)
   },
 
   setPhaseSteps: (phaseName, steps) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Edit Phase ${phaseName}`)) return
+    const state = get()
+    if (!state.phases[phaseName] || state.batch.status === 'RUNNING' || state.batch.status === 'HELD') {
+      const message = !state.phases[phaseName] ? `Phase ${phaseName} does not exist` : 'Reset or stop the batch before editing phase logic'
+      get().logEvent('DIAGNOSTIC', phaseName, message); window.alert(message)
+      return
+    }
     set((s) => {
       const def = s.phases[phaseName]
       if (!def) return {}
@@ -1667,12 +1684,18 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setSfcSteps: (name, steps) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Edit SFC ${name}`)) return
+    const current = get().sfcs[name]
+    if (!current || current.status === 'RUNNING' || current.status === 'HELD') {
+      const message = !current ? `SFC ${name} does not exist` : 'Reset the SFC before editing its steps'
+      get().logEvent('DIAGNOSTIC', name, message); window.alert(message)
+      return
+    }
     set((s) => {
       const sfc = s.sfcs[name]
       if (!sfc) return {}
       // Editing resets the run so the chart starts clean.
       return {
-        sfcs: { ...s.sfcs, [name]: { ...sfc, steps, status: 'READY', active: 0, elapsed: 0 } },
+        sfcs: { ...s.sfcs, [name]: { ...sfc, steps, status: 'READY', active: 0, elapsed: 0, actionStates: {} } },
         rev: s.rev + 1
       }
     })
@@ -1681,13 +1704,21 @@ export const useStore = create<StoreState>((set, get) => ({
 
   sfcCommand: (name, cmd) => {
     if (!useSecurity.getState().requireLock('BATCH_OPERATE', `SFC command ${name}`)) return
+    const current = get().sfcs[name]
+    const error = !current ? `SFC ${name} does not exist` : cmd === 'run' ?
+      current.steps.length === 0 ? 'SFC requires at least one step' : sfcStepsError(current.steps, get().modules) : null
+    if (error) {
+      get().logEvent('DIAGNOSTIC', name, `SFC command rejected: ${error}`); window.alert(error)
+      return
+    }
     set((s) => {
       const sfc = s.sfcs[name]
       if (!sfc) return {}
       let next = sfc
-      if (cmd === 'run') next = { ...sfc, status: 'RUNNING' }
+      if (cmd === 'run') next = sfc.status === 'COMPLETE' ?
+        { ...sfc, status: 'RUNNING', active: 0, elapsed: 0, actionStates: {} } : { ...sfc, status: 'RUNNING' }
       else if (cmd === 'hold') next = { ...sfc, status: sfc.status === 'RUNNING' ? 'HELD' : sfc.status }
-      else if (cmd === 'reset') next = { ...sfc, status: 'READY', active: 0, elapsed: 0 }
+      else if (cmd === 'reset') next = { ...sfc, status: 'READY', active: 0, elapsed: 0, actionStates: {} }
       return { sfcs: { ...s.sfcs, [name]: next }, rev: s.rev + 1 }
     })
     get().logEvent('BATCH', name, `SFC command: ${cmd}`)
