@@ -969,7 +969,15 @@ Evidence: Traditional AI channel has separate configured/deployed filter times.
   zero bypasses, Bad holds memory, simulation speed scales elapsed time,
   and AO tieback percent is filtered before receiver PV_SCALE conversion.
   Browser verified configure/deployed separation, Cancel and confirmed transfer.
-  Full card/controller lifecycle and Tune process-test/update remain missing.
+  PID Detail now launches simulator Test / Review / Update: MAN-only live
+  PV/applied-output capture, observable step/response validation, manual tuning
+  review, and guarded online Update. A filtered FY-2 -> FT-2 simulator tieback
+  regression and browser checks measure the output-driven response; stale
+  configuration/tuning invalidates review. Update does not save defaults and
+  rejects unavailable deployed controllers. Test does not invent automatic
+  tuning recommendations or change mode. Operator output writes remain after
+  cancellation/close and are explicitly labeled. Full card/controller lifecycle
+  and native DeltaV Tune identification/recommendation remain outside this subset.
 Acceptance: Model/test a filtered course input and explicit tuning experiment,
   review and application. Real DeltaV Tune is a vendor-software boundary.
 

@@ -2693,6 +2693,11 @@ button {
 .bld-entry-dialog input {
   max-width: 100%;
 }
+.pid-detail-dialog {
+  top: 10%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
 .module-download-dialog::backdrop,
 .sfc-properties-dialog::backdrop,
 .bld-entry-dialog::backdrop {

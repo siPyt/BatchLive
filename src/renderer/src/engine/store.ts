@@ -185,8 +185,8 @@ interface StoreState extends PlantState {
   setMode: (tag: string, mode: PidModule['mode']) => boolean
   setPidModeFields: (tag: string, patch: { normalMode?: PidModule['mode']; permittedModes?: PidModule['permittedModes'] }) => boolean
   setSetpoint: (tag: string, sp: number) => boolean
-  setOutput: (tag: string, out: number) => void
-  setTuning: (tag: string, t: { gain?: number; reset?: number; rate?: number }) => void
+  setOutput: (tag: string, out: number) => boolean
+  setTuning: (tag: string, t: { gain?: number; reset?: number; rate?: number }) => boolean
   /** Wire or clear a PID's cascade remote-SP source (CAS_SOURCE) — any tag, any PID, not just a hardcoded pair. */
   setCasSource: (tag: string, source: string | undefined) => void
   /** Configure feedforward (FF_ENABLE/FF_GAIN/FF_VAL source) on any PID. */
@@ -518,16 +518,16 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setOutput: (tag, out) => {
-    if (!requireUnlockedLock('CONTROL', `Set Output ${tag}`)) return
+    if (!requireUnlockedLock('CONTROL', `Set Output ${tag}`)) return false
     if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
       rejectPid(get, tag, 'Go Online before writing a managed PID output')
-      return
+      return false
     }
     const module = get().modules[tag]
     if (module?.type !== 'PID' || (module.mode !== 'MAN' && module.mode !== 'ROUT') ||
       module.actualMode === 'LO' || module.actualMode === 'OOS' || !Number.isFinite(out)) {
       rejectSfc(get, tag, 'PID output entry requires a finite value and MAN/ROUT target outside LO/OOS')
-      return
+      return false
     }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') {
@@ -536,19 +536,23 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     })
     get().logEvent('OPERATOR', tag, `OUT set to ${out}`)
+    return true
   },
 
   setTuning: (tag, t) => {
-    if (!requireUnlockedKey('TUNING', `Tune ${tag}`)) return
-    if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
-      rejectPid(get, tag, 'Go Online before tuning a managed PID')
-      return
+    if (!requireUnlockedKey('TUNING', `Tune ${tag}`)) return false
+    const record = get().pidLifecycle[tag]
+    if (record) {
+      const controller = record.deployed ? get().hardware.controllers[record.deployed.controllerTag] : undefined
+      if (!record.online || !controller || controllerIsDown(controller)) {
+        return rejectPid(get, tag, 'Tuning requires an Online PID and available deployed controller')
+      }
     }
     const module = get().modules[tag]
     if (module?.type !== 'PID' || Object.entries(t).some(([key, value]) =>
       !['gain', 'reset', 'rate'].includes(key) || !Number.isFinite(value) || value < 0)) {
       rejectPid(get, tag, 'Tuning requires a PID module and finite, non-negative GAIN/RESET/RATE values')
-      return
+      return false
     }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') {
@@ -559,6 +563,7 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     })
     get().logEvent('CONFIGURE', tag, `Tuning changed: ${JSON.stringify(t)}`)
+    return true
   },
 
   setCasSource: (tag, source) => {

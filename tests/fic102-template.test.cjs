@@ -17,6 +17,7 @@ const { usePictures } = require('../src/renderer/src/engine/pictureStore.ts')
 const { pictureAlarmSignal, pictureModeSignal, pictureSignal, parseSavedPicture } = require('../src/renderer/src/engine/pictureDynamics.ts')
 const { lifecyclePidModules, savedPidStorageKey } = require('../src/renderer/src/engine/pidLifecycle.ts')
 const { moduleTrendPens, availableTrendPens } = require('../src/renderer/src/engine/trendPens.ts')
+const { analyzePidTuneTest, pidTuneSample, pidTuneSignature } = require('../src/renderer/src/engine/pidTuneTest.ts')
 
 function fic() { return useStore.getState().modules['FIC-102'] }
 function fixture(run) {
@@ -303,6 +304,72 @@ test('p258 FIC-102 detail tuning and PV/SP/OUT trends work for created course mo
   assert.equal(useUi.getState().openModuleDisplay('FIC-102', 'detail'), true)
   assert.equal(useUi.getState().builderPicture, 'CUSTOM_DETAIL', 'explicit custom detail assignment retains precedence')
 }))
+
+test('p265 process Test measures filtered PV and applied output before reviewed online tuning Update', () => fixture(store => {
+  assert.equal(store.bindAnalogDst('FIC-102', 'input', 'FT-2'), true)
+  assert.equal(store.bindAnalogDst('FIC-102', 'output', 'FY-2'), true)
+  assert.equal(store.configureInputFilter('CTRL1/C01', 2, 2.6), true)
+  assert.equal(store.downloadInputFilters('CTRL1/C01'), true)
+  assert.equal(store.enablePidLifecycle('FIC-102'), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  assert.equal(store.downloadPidModule('FIC-102'), true)
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), true)
+  assert.equal(store.setMode('FIC-102', 'MAN'), true)
+  store.setRunning(true)
+  store.tick(0.5)
+  assert.equal(store.setOutput('FIC-102', 30), true)
+  store.tick(0.5)
+  assert.equal(store.configureTraditionalChannel('CTRL1/C01', 2,
+    { dst: 'FT-2', enabled: true, tiebackDst: 'FY-2' }), true)
+  store.tick(0.5)
+  store.tick(0.5)
+  const samples = [pidTuneSample(fic(), useStore.getState().time)]
+  const signature = pidTuneSignature(fic())
+  assert.equal('error' in samples[0], false)
+  assert.equal(store.setOutput('FIC-102', 40), true)
+  for (let index = 0; index < 25; index++) {
+    store.tick(0.5)
+    const sample = pidTuneSample(fic(), useStore.getState().time)
+    assert.equal('error' in sample, false)
+    samples.push(sample)
+  }
+  const reviewed = analyzePidTuneTest(samples)
+  assert.equal('error' in reviewed, false)
+  assert.ok(reviewed.duration >= 10)
+  assert.equal(reviewed.outputChange, 10)
+  assert.ok(reviewed.pvSpan > 0)
+  assert.equal(pidTuneSignature(fic()), signature, 'process response does not alter the test configuration signature')
+  assert.equal(store.setTuning('FIC-102', { gain: 0.7, reset: 2.5, rate: 0 }), true)
+  assert.deepEqual([fic().gain, fic().reset, fic().rate], [0.7, 2.5, 0])
+  assert.notEqual(pidTuneSignature(fic()), signature, 'tuning updates invalidate prior capture provenance')
+  assert.deepEqual([useStore.getState().pidLifecycle['FIC-102'].saved.module.gain,
+    useStore.getState().pidLifecycle['FIC-102'].saved.module.reset], [0.5, 3],
+    'Update is online only, not an unrequested upload')
+  const before = fic()
+  const hardware = useStore.getState().hardware
+  const tag = useStore.getState().pidLifecycle['FIC-102'].deployed.controllerTag
+  useStore.setState({ hardware: { ...hardware, controllers: { ...hardware.controllers,
+    [tag]: { ...hardware.controllers[tag], primary: 'FAILED', secondary: 'FAILED' } } } })
+  assert.equal(store.setTuning('FIC-102', { gain: 1 }), false)
+  assert.equal(fic(), before, 'controller loss blocks Update even while Online remains requested')
+  assert.match(pidTuneSample({ ...fic(), pvBad: true }, 10).error, /good PV/)
+  assert.match(pidTuneSample({ ...fic(), mode: 'AUTO' }, 10).error, /MAN/)
+  assert.match(pidTuneSample({ ...fic(), io: { ...fic().io, ao: { ...fic().io.ao, mode: 'MAN' } } }, 10).error, /single AO/)
+}))
+
+test('process Test review rejects short, absent, non-finite and unresponsive captures', () => {
+  const sample = time => ({ time, pv: 50, requestedOut: 30, appliedOut: 30 })
+  assert.match(analyzePidTuneTest([]).error, /three/)
+  assert.match(analyzePidTuneTest([sample(0), sample(1000), sample(9000)]).error, /10 simulated/)
+  assert.match(analyzePidTuneTest([sample(0), sample(5000), sample(10_000)]).error, /output step/)
+  assert.match(analyzePidTuneTest([sample(0), sample(5000), { ...sample(10_000), appliedOut: 40 }]).error, /PV response/)
+  assert.match(analyzePidTuneTest([sample(0), sample(0), sample(10_000)]).error, /time-ordered/)
+  assert.match(analyzePidTuneTest([sample(0), sample(5000), { ...sample(10_000), pv: NaN }]).error, /finite/)
+  assert.equal('error' in analyzePidTuneTest([
+    { ...sample(0), appliedOut: 100 }, { ...sample(5000), appliedOut: 99.9, pv: 51 },
+    { ...sample(10_000), appliedOut: 99.9, pv: 52 }
+  ]), false, 'an exact 0.1% downward step must not fail because of floating-point subtraction')
+})
 
 test('p256 FIC-102 picture entry writes bounded SP and only permits configured PID target modes', () => fixture(store => {
   const pictures = usePictures.getState()

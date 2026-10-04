@@ -247,10 +247,22 @@ export const COURSE: WModule[] = [
         ]
       },
       {
+        id: 'dv09-process-tune',
+        title: 'FIC-102 Simulator Process Test and Update',
+        objective: 'Measure a filtered applied-output/PV response, review it and explicitly Update online tuning from Detail.',
+        note: 'This simulator records responses and accepts operator-entered tuning, not native DeltaV Tune identification or autotuning recommendations. Manual output commands remain after cancellation/close; return output/mode explicitly. Simulator review thresholds are not native Tune specifications.',
+        steps: [
+          { id: 'dv09-tune-filter', text: 'Configure FT-2 input filter 2.6s and explicitly download its filter-only card settings. Bind FIC-102 FT-2/FY-2 and complete saved PID_LOOP Download/Online. In Traditional I/O configure an explicit FT-2 input tieback to FY-2 to emulate a filtered process; an unchanged manual sensor cannot demonstrate output response.', goto: 'explorer' },
+          { id: 'dv09-tune-start', text: 'In the faceplate select MAN and wait for actual MAN with good PV/applied output. Open Detail -> Tune Process -> Test Process. Request a bounded changed Manual output and Apply Manual Output; observe the PV and AO1 output graphs for at least10 simulated seconds.', goto: 'trend' },
+          { id: 'dv09-tune-review', text: 'Review Test requires at least3 ordered samples, an applied-output change of at least0.1% and measured PV span of at least0.001 engineering units. Too-short, unchanged-output or flat-PV tests reject without offering Update. Bad/mode/controller/configuration changes invalidate the test; restart after correcting the source.' },
+          { id: 'dv09-tune-update', text: 'Review measured changes, enter Gain0.7/Reset2.5/Rate0 and Update Tuning. Verify runtime values changed while saved defaults did not. Upload selected parameters separately if you want persistence. Return output and mode explicitly; Cancel/Close must not silently change output or apply tuning.' }
+        ]
+      },
+      {
         id: 'dv09-shared-flow-color',
         title: 'Shared flow_color Picture Animation',
         objective: 'Configure the p266 two-color shared flow table and verify one edit recolors linked custom-picture pipes, pumps and valves.',
-        note: 'This is a simulator-native custom-picture workflow, not the native DeltaV System Tree or PipesAnim library. Existing plant graphics keep their approved geometry and colors. The p257 separate valve-body/actuator expressions remain incomplete.',
+        note: 'This is a simulator-native custom-picture workflow, not the native DeltaV System Tree or PipesAnim library. Independent p257 body/actuator bindings are supported; applied AO output is not measured physical travel. Existing plant graphics keep their approved geometry and colors.',
         steps: [
           { id: 'dv09-flow-1', text: 'Open Display Builder in Configure. Select User Flow Tables, name the table flow_color, select Product flow and No flow colors, Apply Table and Save Tables. The dialog initially offers the p257 yellow/green colors; p266 allows your chosen pair.', goto: 'builder' },
           { id: 'dv09-flow-2', text: 'Add Pipe, Pump and Valve objects to a custom picture. Bind the pump to MTR-102 and valve to FIC-102. Place straight horizontal/vertical pipe segments using X/Y and Width/Height; multiple segments can form an elbow. The pump and valve reuse the approved equipment silhouettes.', goto: 'builder' },

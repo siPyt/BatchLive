@@ -3,9 +3,10 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: independent custom valve
-body/actuator animation (Pass42, LOCAL; pushes paused by user).
-Previous milestone: da59138, PID Detail tuning and dynamic PV/SP/OUT (Pass41).
+DV-09 is NOT complete. Latest implemented milestone: simulator process
+Test / Review / Update tuning (Pass43, LOCAL; pushes paused by user).
+Previous milestone: 96e3cde, independent valve body/actuator animation (Pass42,
+LOCAL). Last published functional milestone: da59138, PID Detail/trends (Pass41).
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
   VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
@@ -17,10 +18,10 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:331 repository tests passed; focused picture/PID regressions,
+Last validation:333 repository tests passed; focused picture/PID regressions,
 typecheck, production build, editor diagnostics and audit validation passed.
-Browser verified independent body/actuator colors and Bad feedback, picture
-persistence, and restoration of original plant/UI/storage state.
+Browser verified filtered output-driven Test response, reviewed0.7/2.5/0 Update,
+stale-review rejection and recovery, and restored original96-module plant/UI.
 
 Most recent delivered functionality:
   - FIC-102 PID_LOOP template and isolated Save/Download/Online lifecycle.
@@ -29,12 +30,13 @@ Most recent delivered functionality:
   - Shared flow_color tables and opt-in custom-picture pipe/pump/valve links.
   - PID Detail online tuning, fractional RESET and dynamic PID PV/SP/OUT trends.
   - Independent valve body and actuator colors/quality in opt-in custom pictures.
+  - Measured simulator process Test, reviewed manual tuning Update and stale guards.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
   DV09-059 p258: native detail template/file parity; simulated workflow verified.
   DV09-060 pp259-264: upload is tuning-only; generic/native upload remains absent.
-  DV09-061 p265: Tune process-test/review/update workflow remains missing.
+  DV09-061 p265: native Tune algorithm and full card/controller lifecycle parity.
   DV09-062 pp266-267: native System Tree/full course dynamo parity remains partial.
 Broader open requirements include general controller/module download/restart
 lifecycles, remaining SFC/native mode behavior and image-only manual workflows.
@@ -1585,3 +1587,32 @@ Bad neutral, and Save/Load preserving the actuator link. Original browser
 plant/UI/security/pictures/tables restored; fixture storage removed.
 DV09-058 remains PARTIAL for OUT ramp and native PipesAnim.
 Pushes paused by user; this checkpoint is local until explicitly authorized.
+
+PASS 43: SIMULATOR PID PROCESS TEST / REVIEW / UPDATE (p265)
+----------------------------------------------------------
+PID Detail launches Tune Process. Test records real simulated PV and applied
+AO1 output in confirmed MAN with good feedback. A single connected AO stage
+in CAS is supported; split-range and output overrides are explicitly rejected.
+The simulator's review minimums are at least three ordered samples,10 simulated
+seconds,0.1% applied output change and0.001 engineering-unit PV span. These
+are declared simulator rules, NOT values or algorithms attributed to DeltaV Tune.
+Recording is limited to five simulated minutes. Controller/quality/mode failures
+invalidate capture; changed tuning, source bindings, deployed revision or input
+filter invalidate prior review. Response graphs distinguish PV from applied
+output; output is not measured physical travel.
+Review exposes measured changes and manually entered GAIN/RESET/RATE.
+Update validates nonnegative finite values and changes runtime only, guarded by
+TUNING permission, workstation unlock and deployed controller availability.
+Configured defaults remain unchanged until an explicit selected-parameter upload.
+No automatic recommendation or identification algorithm is implemented/claimed.
+Manual output entry uses existing CONTROL permission and MAN write rules.
+These are explicit operator commands, NOT temporary test overrides: output
+remains after Cancel/Close until the operator changes output/mode explicitly.
+Test never changes mode automatically. Cancel/Close does not apply tuning.
+Verification:333 full-suite tests; final focused course-filter/tieback regression;
+typecheck/build and diagnostics. Browser observed FY-2 -> FT-2 with a2.6s
+deployed filter and30->40% output producing PV change9.947GPM, reviewed new
+tuning0.7/2.5/0, rejected changed-tuning stale review, then retested/updated.
+Original96-module running plant/UI/security restored; no fixture persistence.
+DV09-061 remains PARTIAL for native algorithm and full card/controller parity.
+Local checkpoint only: no push without renewed user authorization.

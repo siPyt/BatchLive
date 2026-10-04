@@ -581,6 +581,24 @@ OUT uses 0-100%. PID output is not measured valve travel. The original six
 default PV pens remain available. This is simulator-native detail/trending, not
 the proprietary detail-picture template or historian.
 
+From PID **Detail**, **Tune Process** offers simulator **Test / Review / Update**.
+First select MAN and confirm good PV and applied-output feedback. Test records
+PV and AO1 applied output while you request bounded manual output commands.
+Use an explicitly configured process/tieback (for example FY-2 to FT-2 with the
+course's deployed 2.6-second filter); an unchanged manual sensor is not an
+output-driven process response. Review requires at least three ordered samples,
+10 simulated seconds, a 0.1% applied output step and 0.001 engineering-unit PV
+span. These are simulator validation thresholds, not native Tune specifications.
+Recording is limited to five simulated minutes and a single connected AO in CAS.
+Changed tuning/configuration/bindings/filter or Bad feedback invalidates the test.
+
+Review the measured response, enter your own new GAIN/RESET/RATE and **Update
+Tuning**. Update is online-only; save defaults through explicit parameter upload.
+No native autotuning recommendation/identification algorithm is implemented.
+Manual output writes are operator commands and remain after Cancel/Close;
+return output/mode explicitly through the faceplate. Test does not change mode
+automatically, and cancellation does not update tuning.
+
 Custom Builder valves also offer an independent **Actuator Color Animation**.
 Use body AND conditions for confirmed pump running plus sampled valve-open
 feedback; use `FIC-102 / AO1/OUT > 0` for applied-output actuator indication.
