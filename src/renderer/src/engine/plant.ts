@@ -256,6 +256,8 @@ function fb(p: Partial<FunctionBlockModule> & Pick<FunctionBlockModule, 'tag' | 
   }
 }
 
+export { fb as makeFunctionBlock }
+
 /**
  * The simulated plant: Feed system -> Reactor -> Product.
  * Classic cascade: LIC-101 (reactor-feed-tank level) sets the remote SP of

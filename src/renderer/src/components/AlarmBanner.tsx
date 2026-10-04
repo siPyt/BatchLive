@@ -1,4 +1,5 @@
 import { useStore } from '../engine/store'
+import { isSfcAlarm } from '../engine/sfcBlocks'
 import { useUi } from '../ui/uiStore'
 import { compareAlarmRank } from '../utils/format'
 
@@ -10,6 +11,7 @@ export function AlarmBanner(): JSX.Element {
   const silenceHorn = useStore((s) => s.silenceHorn)
   const navigate = useUi((s) => s.navigate)
   const openFaceplate = useUi((s) => s.openFaceplate)
+  const openSfc = useUi(s => s.openSfc)
 
   const shelvedCount = alarms.filter((a) => a.shelvedUntil !== undefined).length
   const visible = alarms.filter((a) => a.shelvedUntil === undefined)
@@ -52,8 +54,8 @@ export function AlarmBanner(): JSX.Element {
             className={
               'alarm-tile ' + a.priority.toLowerCase() + (a.acknowledged ? '' : ' unack')
             }
-            title={`${a.moduleTag}: ${a.moduleDesc} · ${a.label}${!a.active ? ' (RTN)' : ''} — Click to open faceplate · double-click to acknowledge`}
-            onClick={() => openFaceplate(a.moduleTag)}
+            title={`${a.moduleTag}: ${a.moduleDesc} · ${a.label}${!a.active ? ' (RTN)' : ''} — Click to open ${isSfcAlarm(a) ? 'SFC' : 'faceplate'} · double-click to acknowledge`}
+            onClick={() => isSfcAlarm(a) ? openSfc(a.moduleTag) : openFaceplate(a.moduleTag)}
             onDoubleClick={() => ackAlarm(a.id)}
           >
             <span className="tag">{a.moduleTag}</span>

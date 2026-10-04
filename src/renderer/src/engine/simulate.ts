@@ -180,6 +180,8 @@ function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, d
   m.out = computePid(m, dt, ffVal, bkcalLimited)
 }
 
+const reconcile = reconcileAlarm
+
 /** Evaluate analog alarm limits and reconcile with the active alarm list. */
 function evalAnalogAlarms(
   tag: string,
@@ -199,17 +201,18 @@ function evalAnalogAlarms(
   }
 }
 
-function reconcile(
+export function reconcileAlarm(
   list: ActiveAlarm[],
   tag: string,
   desc: string,
-  lim: AlarmLimit,
+  lim: Omit<AlarmLimit, 'type'> & { type: ActiveAlarm['type'] },
   tripped: boolean,
   value: number,
   unit: string,
-  now: number
+  now: number,
+  id = `${tag}.${lim.type}`,
+  customType?: string
 ): void {
-  const id = `${tag}.${lim.type}`
   const idx = list.findIndex((a) => a.id === id)
   if (tripped) {
     if (idx === -1) {
@@ -218,6 +221,7 @@ function reconcile(
         moduleTag: tag,
         moduleDesc: desc,
         type: lim.type,
+        ...(customType ? { customType } : {}),
         label: lim.label,
         priority: lim.priority,
         value,
@@ -227,8 +231,18 @@ function reconcile(
         time: now
       })
     } else {
+      if (!list[idx].active) {
+        list[idx].time = now
+        list[idx].acknowledged = false
+      }
       list[idx].active = true
       list[idx].value = value
+      if (customType) {
+        list[idx].customType = customType
+        list[idx].moduleDesc = desc
+        list[idx].label = lim.label
+        list[idx].priority = lim.priority
+      }
     }
   } else if (idx !== -1) {
     // Return-to-normal: if already acknowledged, clear it; otherwise keep it
@@ -416,7 +430,7 @@ function evalExpr(expr: string, in1: number, in2: number): number {
 /** Executes one DeltaV Math/Logic/Timer/Counter/simple-Analog-Control block
  * per scan, resolving its wired inputs against the current module set. Codes
  * are the exact DeltaV Function Block Reference abbreviations. */
-function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string, AnyModule>, dt: number): void {
+export function stepFunctionBlock(m: FunctionBlockModule, modules: Record<string, AnyModule>, dt: number): void {
   const input1 = resolveFbInput(modules, m.in1)
   const input2 = resolveFbInput(modules, m.in2)
   if (m.fbType === 'SPLTR') {

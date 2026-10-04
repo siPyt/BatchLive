@@ -1068,6 +1068,28 @@ Regression:189 coupled tests, typecheck/build/diagnostics/audit, exact chart
 selection, shared names and locked/denied/invalid creation rejection.
 
 ===============================================================================
+35. SFC NON-BOOLEAN ALARM BLOCKS - REAL OPERATOR ALARM FEEDBACK
+===============================================================================
+
+Preserve approved equipment icons, colors, piping, FBD and SFC geometry.
+Owned blocks/custom types/alarms use separate wrapping rows and existing
+isolated Properties dialogs. Online rows show actual block activation and
+OUT, not configured defaults or a synthetic timeout badge. Action Properties'
+single Type picker distinguishes Assignment, Boolean and supported local
+Non-Boolean ALARM blocks; Browser addresses the owning SFC.
+The existing shared Alarm List/banner presents actual custom type/priority/
+elapsed seconds, follows shared ACK/silence/shelve/RTN and journals edges.
+An SFC alarm's link opens its exact chart, not a control faceplate; retain
+ordinary module-alarm faceplate links. No plant state coloring is changed.
+Strict >30s must stay normal at30s, trip at30.1s and freeze under HOLD/
+controller outage. Stored monitor continues across step exit; reset/
+termination deactivate it and next plant scan reconciles its alarm.
+Live saved/downloaded configuration, real ALARM record, operator shelving/
+ACK/link/STOP/RTN verified; original plant/UI/security/pictures/storage and
+viewport restored. Global alarm-type setup/general blocks/native parity
+remain unsupported and explicitly labeled.
+
+===============================================================================
 34. SFC BOOLEAN ACTION FEEDBACK - ACTIVATION IS NOT AN ASSIGNMENT
 ===============================================================================
 

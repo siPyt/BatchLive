@@ -1,5 +1,6 @@
 import { isValidDeltaVTag } from './naming'
 import { namedSetError, namedSetTargetKey, type NamedSetDefinition, type NamedSetState } from './namedSets'
+import type { SfcFunctionBlock } from './sfcBlocks'
 
 export interface SfcNamedParameter {
   type: 'NAMED_SET'
@@ -16,6 +17,7 @@ export interface SfcExpressionContext {
   name: string
   parameters: SfcParameters
   sets: Record<string, NamedSetDefinition>
+  blocks?: Record<string, SfcFunctionBlock>
 }
 
 export function cloneSfcParameters(parameters?: SfcParameters): SfcParameters | undefined {

@@ -75,7 +75,7 @@ state for N/R/L/D/P/S/SD/DS/SL. Named reset targets stop stored execution; they 
 not invert earlier assignments or fabricate actual device feedback. Timed pulse,
 stored delay across step exit, delay cancellation and stored limits are supported,
 including the existing structured condition subset. Full native action-property/
-expression features, universal expressions, non-Boolean block activation
+expression features, universal expressions, general non-Boolean block activation
 and native graph editing/nested parallel graphs remain gaps.
 
 Managed SFC **Add Parameter... / Parameter Properties** now supports **Boolean**
@@ -92,7 +92,26 @@ and clock. Reset clears action-driven flags but retains unreferenced parameter
 values. Draft/default/saved/deployed/runtime values remain isolated; Named Set
 operator-entry controls cannot write Boolean parameters. This implements the
 course's Boolean action class in the simulator, not every native action/property
-or function-block activation workflow.
+or general function-block activation workflow.
+
+For the optional timed-SFC-alarm exercise, add a local custom **Alarm Type**
+(description/priority), an **ALARM Function Block** monitoring action time
+**> 30 seconds**, and an **SFC Alarm** referencing that type and block.
+Add an initial **Non-Boolean function block** action referencing `'TIMECHK'`
+(or the configured block name), with qualifier S and a unique action name.
+It runs the shared ALARM block engine and continues its one clock across step
+exit until R/reset/completion. Save, Download and Online remain required.
+An unstarted block or disabled alarm cannot fabricate a timeout. At exactly
+30 seconds there is no alarm; the next positive scan above 30 triggers it.
+HOLD/controller loss freezes the monitor. The real Alarm List/banner uses
+the SFC tag, configured priority and elapsed seconds; its module link opens
+that exact chart, not an invalid faceplate. Shared ACK, silence, shelving,
+return-to-normal and Event Journal behavior apply. Reset clears monitor
+state, and the next plant scan reconciles the alarm. Re-triggering an
+unacknowledged returned alarm refreshes its activation time and re-sounds
+the horn. Types here are SFC-local saved/deployed configuration; global
+Alarm Type/Changed Setup Data workflows, general block palettes/wiring,
+arbitrary non-Boolean algorithms and full course parity remain incomplete.
 
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are

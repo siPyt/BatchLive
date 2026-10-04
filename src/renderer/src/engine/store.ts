@@ -39,6 +39,7 @@ import {
 } from './traditionalIo'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
+import { cloneSfcBlocks, reconcileSfcAlarms, sfcBlockConfigurationError, type SfcBlockConfiguration } from './sfcBlocks'
 import { useSecurity } from './security'
 import {
   cloneSfcParameters, controllerNamedSets, sfcParameterError, type SfcExpressionContext, type SfcParameter
@@ -87,7 +88,8 @@ function rejectSfc(get: () => StoreState, name: string, message: string): false 
 
 export function sfcExpressionContext(state: StoreState, name: string, online = false): SfcExpressionContext {
   const configuration = online ? state.sfcLifecycle[name]?.deployed : state.sfcLifecycle[name]?.draft
-  return { name, parameters: (online ? state.sfcs[name]?.parameters : configuration?.parameters) ?? {},
+  return { name, parameters: (online ? state.sfcs[name]?.parameters : (configuration ?? state.sfcs[name])?.parameters) ?? {},
+    blocks: online ? state.sfcs[name]?.blocks : (configuration ?? state.sfcs[name])?.blocks,
     sets: online ? controllerNamedSets(state.namedSets, configuration?.controllerTag ?? '') : state.namedSets.configured }
 }
 
@@ -118,6 +120,7 @@ interface StoreState extends PlantState {
   downloadSavedSfc: (name: string, expected?: SfcConfiguration) => boolean
   setSfcOnline: (name: string, online: boolean) => boolean
   configureSfcParameter: (name: string, parameter: string, binding: SfcParameter, expected: SfcConfiguration) => boolean
+  configureSfcBlocks: (name: string, configuration: SfcBlockConfiguration, expected: SfcConfiguration) => boolean
   writeSfcNamedValue: (name: string, parameter: string, value: number) => boolean
   createNamedSet: (name: string) => boolean
   applyNamedSetProperties: (expected: NamedSetDefinition, draft: NamedSetDefinition) => boolean
@@ -293,7 +296,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const controller = lifecycle.deployed ? s.hardware.controllers[lifecycle.deployed.controllerTag] : undefined
       if (!controller || controllerIsDown(controller)) return false
       const context = sfcExpressionContext(s, name, true)
-      const error = sfcParameterError(runtime.parameters, context.sets) ??
+      const error = sfcBlockConfigurationError(runtime) ?? sfcParameterError(runtime.parameters, context.sets) ??
         sfcStepsError(runtime.steps, s.modules, { ...context, parameters: runtime.parameters ?? {} })
       if (error && runtime.status === 'RUNNING') {
         paused[name] = { ...runtime, status: 'HELD' }
@@ -307,6 +310,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const { modules: sfcModules, sfcs: executedSfcs } = advanceSfcs({ ...s, sfcs: runnable }, cmdModules, dt * s.speed, setsBySfc)
     const sfcs = { ...s.sfcs, ...executedSfcs, ...paused }
     const next = stepPlant({ ...s, modules: sfcModules }, dt)
+    reconcileSfcAlarms(next.alarms, sfcs, next.time)
     // Sample trend data.
     const trend = s.trend
     const last = trend[trend.length - 1]
@@ -330,10 +334,9 @@ export const useStore = create<StoreState>((set, get) => ({
       newTrend = [...trend, point].filter((p) => p.t >= cutoff)
     }
     // A brand-new active alarm re-sounds the horn even if it was silenced.
-    const priorIds = new Set(s.alarms.map((a) => a.id))
-    const hasNewAlarm = next.alarms.some((a) => a.active && !priorIds.has(a.id))
-    // Journal every alarm transition: newly active alarms and returns-to-normal.
     const priorById = new Map(s.alarms.map((a) => [a.id, a]))
+    const hasNewAlarm = next.alarms.some((a) => a.active && !priorById.get(a.id)?.active)
+    // Journal every alarm transition: newly active alarms and returns-to-normal.
     const nextById = new Map(next.alarms.map((a) => [a.id, a]))
     const newEntries: EventLogEntry[] = [...sfcDiagnostics]
     for (const [tag, module] of Object.entries(next.modules)) {
@@ -1846,7 +1849,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!sfc || state.sfcLifecycle[name] || sfc.status === 'RUNNING' || sfc.status === 'HELD') {
       return rejectSfc(get, name, 'Reset an unmanaged SFC before enabling Save/Download lifecycle')
     }
-    const draft = cloneSfcConfiguration({ name, area: sfc.area, controllerTag: '', steps: sfc.steps,
+    const draft = cloneSfcConfiguration({ name, area: sfc.area, controllerTag: '', steps: sfc.steps, ...cloneSfcBlocks(sfc),
       ...(sfc.parameters ? { parameters: sfc.parameters } : {}) })
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { draft, online: false } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', name, 'Saved SFC lifecycle enabled; Save and Download required before execution')
@@ -1928,9 +1931,10 @@ export const useStore = create<StoreState>((set, get) => ({
     const deployed = cloneSfcConfiguration(saved)
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { ...lifecycle, deployed } },
       sfcs: { ...s.sfcs, [name]: { name, area: deployed.area, steps: cloneSfcConfiguration(deployed).steps,
+        ...cloneSfcBlocks(deployed), blockStates: {},
         status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined,
         parameters: cloneSfcParameters(deployed.parameters) } }, rev: s.rev + 1 }))
-    get().logEvent('CONFIGURE', name, `Saved linear SFC downloaded to ${saved.controllerTag}; READY, no actions executed`)
+    get().logEvent('CONFIGURE', name, `Saved SFC downloaded to ${saved.controllerTag}; READY, no actions executed`)
     return true
   },
 
@@ -1950,6 +1954,25 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  configureSfcBlocks: (name, configuration, expected) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure SFC blocks/alarms ${name}`)) return false
+    const state = get()
+    const lifecycle = state.sfcLifecycle[name]
+    const runtime = state.sfcs[name]
+    if (!runtime || !lifecycle || lifecycle.draft !== expected || lifecycle.online ||
+      runtime.status === 'RUNNING' || runtime.status === 'HELD') {
+      return rejectSfc(get, name, 'Reset and go Offline; reopen stale block/alarm Properties before editing')
+    }
+    const draft = { ...lifecycle.draft, blocks: undefined, alarmTypes: undefined, alarms: undefined,
+      ...cloneSfcBlocks(configuration) }
+    const error = sfcBlockConfigurationError(draft) ?? sfcStepsError(draft.steps, state.modules,
+      { ...sfcExpressionContext(state, name), blocks: draft.blocks })
+    if (error) return rejectSfc(get, name, error)
+    set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { ...lifecycle, draft } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', name, 'SFC function blocks/custom alarm types/alarms configured; Save/Download required')
+    return true
+  },
+
   configureSfcParameter: (name, parameter, binding, expected) => {
     if (!requireUnlockedLock('CAN_CONFIGURE', `Configure SFC parameter ${name}/${parameter}`)) return false
     const state = get()
@@ -1961,7 +1984,7 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     const parameters = { ...lifecycle.draft.parameters, [parameter]: { ...binding } }
     const error = sfcParameterError(parameters, state.namedSets.configured) ??
-      sfcStepsError(lifecycle.draft.steps, state.modules, { name, parameters, sets: state.namedSets.configured })
+      sfcStepsError(lifecycle.draft.steps, state.modules, { name, parameters, sets: state.namedSets.configured, blocks: lifecycle.draft.blocks })
     if (error) return rejectSfc(get, name, error)
     const draft = { ...lifecycle.draft, parameters }
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { ...lifecycle, draft } }, rev: s.rev + 1 }))
@@ -1997,12 +2020,12 @@ export const useStore = create<StoreState>((set, get) => ({
     const runtime = get().sfcs[name]
     const sfc = runtime ? sfcEditorDefinition(runtime, get().sfcLifecycle[name]) : undefined
     const error = !sfc ? `SFC ${name} does not exist` : !sfc.steps.length ?
-      'SFC requires at least one step' : sfcParameterError(sfc.parameters,
+      'SFC requires at least one step' : sfcBlockConfigurationError(sfc) ?? sfcParameterError(sfc.parameters,
         sfcExpressionContext(get(), name, !!get().sfcLifecycle[name]?.online).sets) ??
         sfcStepsError(sfc.steps, get().modules, { ...sfcExpressionContext(get(), name, !!get().sfcLifecycle[name]?.online),
           parameters: sfc.parameters ?? {} })
     get().logEvent(error ? 'DIAGNOSTIC' : 'CONFIGURE', name,
-      error ? `SFC Check failed: ${error}` : 'SFC Check passed for supported linear actions/conditions')
+      error ? `SFC Check failed: ${error}` : 'SFC Check passed for supported actions/conditions, block/alarm references and routes')
     return error
   },
 
@@ -2039,7 +2062,8 @@ export const useStore = create<StoreState>((set, get) => ({
       return true
     }
     set(s => ({ sfcs: { ...s.sfcs, [name]: { ...sfc, steps, active: 0, elapsed: 0,
-      status: 'READY', actionStates: {}, activeSteps: undefined, joinArrivals: undefined } }, rev: s.rev + 1 }))
+      parameters: resetSfcBooleanActions(sfc),
+      status: 'READY', actionStates: {}, activeSteps: undefined, joinArrivals: undefined, blockStates: {} } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', name, `SFC step ${candidate.name} Properties applied`)
     return true
   },
@@ -2065,7 +2089,7 @@ export const useStore = create<StoreState>((set, get) => ({
       // Editing resets the run so the chart starts clean.
       return {
         sfcs: { ...s.sfcs, [name]: { ...sfc, steps, parameters: resetSfcBooleanActions(sfc), status: 'READY', active: 0, elapsed: 0, actionStates: {},
-          activeSteps: undefined, joinArrivals: undefined } },
+          activeSteps: undefined, joinArrivals: undefined, blockStates: {} } },
         rev: s.rev + 1
       }
     })
@@ -2081,7 +2105,7 @@ export const useStore = create<StoreState>((set, get) => ({
       lifecycle && (!lifecycle.online || !controller || controllerIsDown(controller)) ?
         'Managed SFC commands require Online and an available downloaded controller' : cmd === 'run' ?
       current.steps.length === 0 ? 'SFC requires at least one step' :
-        sfcParameterError(current.parameters, sfcExpressionContext(get(), name, true).sets) ??
+        sfcBlockConfigurationError(current) ?? sfcParameterError(current.parameters, sfcExpressionContext(get(), name, true).sets) ??
         sfcStepsError(current.steps, get().modules, { ...sfcExpressionContext(get(), name, true), parameters: current.parameters ?? {} }) : null
     if (error) {
       get().logEvent('DIAGNOSTIC', name, `SFC command rejected: ${error}`); window.alert(error)
@@ -2092,9 +2116,9 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!sfc) return {}
       let next = sfc
       if (cmd === 'run') next = sfc.status === 'COMPLETE' ?
-        { ...sfc, parameters: resetSfcBooleanActions(sfc), status: 'RUNNING', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined } : { ...sfc, status: 'RUNNING' }
+        { ...sfc, parameters: resetSfcBooleanActions(sfc), status: 'RUNNING', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined, blockStates: {} } : { ...sfc, status: 'RUNNING' }
       else if (cmd === 'hold') next = { ...sfc, status: sfc.status === 'RUNNING' ? 'HELD' : sfc.status }
-      else if (cmd === 'reset') next = { ...sfc, parameters: resetSfcBooleanActions(sfc), status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined }
+      else if (cmd === 'reset') next = { ...sfc, parameters: resetSfcBooleanActions(sfc), status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined, blockStates: {} }
       return { sfcs: { ...s.sfcs, [name]: next }, rev: s.rev + 1 }
     })
     get().logEvent('BATCH', name, `SFC command: ${cmd}`)

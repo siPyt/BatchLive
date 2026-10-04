@@ -822,8 +822,10 @@ Evidence: SFC has structured assignments/conditions and COMPLETE state.
   Properties/Browser and saved/deployed schema. Ten regressions cover all
   qualifiers and parallel lifetimes; live Cancel/OK/Check/controller/Save/
   Download/Online/RUN/HOLD/RESTART/STOP verified runtime/default isolation.
-  Original p274 image reviewed. Universal expressions and non-Boolean
-  function-block activation remain missing; this entry stays PARTIAL.
+  Original p274 image reviewed. Pass23 adds Non-Boolean local ALARM-block
+  references with qualified execution and real custom timed alarms.
+  Universal expressions and general block palettes/activation remain missing;
+  this entry stays PARTIAL rather than certifying every native block.
 Acceptance: Verify all three action classes and termination independently;
   command assignment alone is not every type of SFC action.
 
@@ -844,7 +846,7 @@ Evidence: Original p276 timing-chart image reviewed locally. Separate named
   reference actions: expiry/reset/deactivation clear their flags rather than
   treating them like latched assignment results. Independent flags, stored
   resets, pulse/delay deadlines and completion are tested. Full native
-  property/expression features, non-Boolean block activation and graph editing still
+  property/expression features, general non-Boolean block activation and graph editing still
   prevent exact completion of the course procedures.
 Acceptance: Build action lifecycle state separate from output assignments.
   Test activation and step exit before/at/after delay, delayed pulse once,
@@ -889,8 +891,10 @@ Evidence: Original pp281-283 screenshots reviewed locally. Select step and
   discard drafts; nested Browser Escape restores parent-dialog focus.
   Configured Named Set MESSAGE assignment/condition expressions and Browser
   paths now resolve to actual runtime parameters. Full expression language, native
-  Confirm tab and non-Boolean action types remain missing. Boolean parameter
-  Type/reference and its Browser now have real lifecycle behavior. Opt-in
+  Confirm tab and general non-Boolean action types remain missing. Boolean parameter
+  Type/reference and its Browser now have real lifecycle behavior. Pass23 adds
+  local ALARM-block Non-Boolean Type/reference and Browser; its stored action
+  executes the shared block engine, not an alarm-only proxy. Opt-in
   linear SFC configuration now has real controller assignment, browser Save,
   explicit Download and independent Offline/Online algorithms. Explorer New
   Control Module now selects FBD/SFC, creates an empty managed Offline chart
@@ -1002,9 +1006,22 @@ Status: PARTIAL
 Required: Operator waiting messages, startup checks for sufficient level and
   lock reset, and an SFC alarm when execution exceeds 30 seconds using a
   non-Boolean function-block action.
-Evidence: Named Set MESSAGE and generic steps/conditions/timers exist, but
-  exact waiting-status/check/reset exercises, custom alarm and action-driven
-  block lifecycle remain absent.
+Evidence: Named Set MESSAGE and generic steps/conditions/timers exist.
+  Original p297 image inspected. Pass23 adds saved/deployed local custom alarm
+  types, owned ALARM blocks and SFC alarm bindings. A distinct Non-Boolean
+  action executes the shared ALARM-block engine from its qualified action
+  time; stored activation follows steps and resets/terminates independently.
+  The shared operator list/banner, ACK/silence/shelving/RTN and journal are
+  used, not a timer badge. >30s does not trip at30s, including300 fractional
+  scans; an unstarted block/disabled alarm cannot trip. HOLD/outage freeze
+  monitor time; reset/repeated runs have real ALARM/RTN/re-trigger edges.
+  Ten regressions and live Type/Block/Alarm/Non-Boolean Browser/Check/
+  controller/Save/Download/Online/RUN/HOLD/RESTART/Alarm List/Shelve/Unshelve/
+  ACK/chart-link/STOP verify the dependency chain and subsequent RTN.
+  Exact waiting-status/sufficient-level/lock-reset exercises remain incomplete.
+  Custom types are SFC-local; native global Alarm Type/Changed Setup Data
+  workflows and arbitrary function-block palettes remain gaps. Status stays
+  PARTIAL; this scoped timer alarm does not complete the optional exercises.
 Acceptance: Test low-level refusal, required reset, every wait message,
   timeout boundary and alarm clear/reset on subsequent execution.
 

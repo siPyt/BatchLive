@@ -3,6 +3,7 @@ import { SfcPropertiesDialog, type SfcPropertiesTarget } from '../components/Sfc
 import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
 import { sfcEditorDefinition } from '../engine/sfcLifecycle'
 import { SfcParameterControls } from '../components/SfcParameterControls'
+import { SfcBlockAlarmControls } from '../components/SfcBlockAlarmControls'
 import { sfcExpressionContext, useStore } from '../engine/store'
 import {
   describeAction,
@@ -160,9 +161,11 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
       </div>
       <SfcLifecycleControls name={sfc.name} />
       <SfcParameterControls name={sfc.name} />
+      <SfcBlockAlarmControls name={sfc.name} />
       {check && check.steps === sfc.steps && <div role={check.error ? 'alert' : 'status'} className="traditional-note">
         {check.error ? `Check failed: ${check.error}` : 'Check passed for supported actions, conditions, routes and synchronized parallel legs.'}
-        {' '}        This validates configured Named Set/Boolean references, route targets and joins, not arbitrary expressions, nested parallel graphs or controller downloads.
+        {' '}This validates configured Named Set/Boolean and supported block/alarm references, route targets and joins,
+        not arbitrary expressions, nested parallel graphs or controller downloads.
       </div>}
 
       <div className="sfc-canvas-wrap">
@@ -506,7 +509,7 @@ export function ActionEditor({
     else onChange({ ...timing, kind: 'do', tag, on: true })
   }
 
-  if (action.kind === 'namedSet' || action.kind === 'boolean') return <div className="sfc-edit-row">
+  if (action.kind === 'namedSet' || action.kind === 'boolean' || action.kind === 'block') return <div className="sfc-edit-row">
     <span>{describeAction(action)} [{action.qualifier ?? 'N'}]</span>
     <button className="sfc-x" onClick={onRemove}>Remove</button>
   </div>

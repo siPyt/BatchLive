@@ -937,6 +937,49 @@ Non-Boolean function-block activation, native Confirm/full expressions and
 the full DV-09 course remain incomplete; group statuses are not upgraded.
 Validation:209 coupled tests, typecheck/build/diagnostics, audit and diff check.
 
+PASS 23: NON-BOOLEAN ALARM-BLOCK EXECUTION / REAL SFC TIMEOUT ALARMS
+-----------------------------------------------------------------------
+Scope: action-driven timeout subset of DV09-064/065/067/072. Original p297
+image inspected locally. ALARM block, custom type and alarm binding are
+configured local SFC records, isolated/deep-cloned through draft/Save/
+Download/Online and saved schema. Properties validates names, finite time
+threshold, priority and exact existing type/block references atomically.
+Non-Boolean action Type/Browser references a local block, not ':=' assignment.
+Qualified execution uses the existing ALARM comparator in the shared
+function-block engine with the owning action's elapsed time. S monitors
+continue once per scan across steps/parallel paths until R or completion.
+Each block has one owning non-reset action; ambiguous owners reject.
+No action activation and disabled alarms cannot generate a timeout.
+Strict >30s stays false at30s (including300x0.1s accumulated scans) and
+trips at30.1s; explicit >= remains inclusive. HOLD/controller loss freeze
+clock/output. Reset/download/edit/completion clear block runtime/activation.
+Shared alarm reconciliation supplies custom type/priority/tag/seconds to
+the real operator list/banner, horn, ACK, shelving and journal. RTN retains
+unacknowledged records and clears acknowledged ones. Re-triggering an
+unacknowledged RTN record updates its activation time and re-sounds horn;
+ALARM/RTN journals are edge-based, not repeated every scan. Alarm list/
+banner links open the exact SFC rather than a nonexistent control faceplate.
+Retained alarms from a deleted SFC preserve their origin and report missing
+chart explicitly without opening a different module or changing navigation.
+Ten independent regressions cover class/parser/schema, dependencies and
+disabled alarms, strict/inclusive boundaries, N/S/R lifecycle/termination,
+parallel one-clock execution, HOLD/outage, metadata/deployment isolation,
+stale/locked/running/invalid edits, shared alarm operations and record removal.
+Integration: all219 repository tests pass, typecheck/build/editor diagnostics,
+audit validator (12157 records/128 groups, zero unmapped) and diff checks pass.
+Live custom-Type Cancel changed nothing; actual Type/Block/Alarm Properties
+and Non-Boolean S/Browser acceptance configured TIME_MONITOR -> TIMECHK.
+Check/controller/Save/confirmed Download/Online/RUN executed the dependency
+chain. Across START_MONITOR -> WAIT_PROCESS,30s stayed OUT0/no alarm.
+HOLD plus10s stayed30s/no alarm; RESTART plus0.1s produced OUT1/TIME_ALM/
+TIMEOUT/30.1s in the real banner/list with one ALARM journal. Actual
+Shelve/Unshelve/ACK/chart-link/STOP followed; next scan cleared the acknowledged
+alarm and journaled RTN. Original96-module/eight-SFC plant/UI/security/
+pictures/browser storage and720x576 viewport restored; fixture/globals removed.
+Types are intentionally SFC-local rather than native global setup transfer.
+Arbitrary blocks/wiring, full expression language, exact level/lock/wait
+optional exercises and complete DV-09 parity remain incomplete.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

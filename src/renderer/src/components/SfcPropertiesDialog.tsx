@@ -4,7 +4,7 @@ import { sfcExpressionContext, useStore } from '../engine/store'
 import { sfcEditorDefinition } from '../engine/sfcLifecycle'
 import type { SfcExpressionContext } from '../engine/sfcParameters'
 import { TIMED_QUALIFIERS, sfcJoinPredecessors, sfcParallelJoin, type ActionQualifier, type SfcAction, type SfcStep } from '../engine/sfc'
-import { assignmentExpression, conditionExpression, parseSfcAssignment, parseSfcBooleanAction, parseSfcCondition } from '../engine/sfcExpressions'
+import { assignmentExpression, conditionExpression, parseSfcAssignment, parseSfcBlockAction, parseSfcBooleanAction, parseSfcCondition } from '../engine/sfcExpressions'
 import type { AnyModule } from '../engine/types'
 
 export type SfcPropertiesTarget = { step: SfcStep; kind: 'transition' } |
@@ -27,7 +27,8 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
     target.step.transitionDescription ?? '' : initial.description ?? '')
   const [actionName, setActionName] = useState(initial.name ?? '')
   const [qualifier, setQualifier] = useState<ActionQualifier>(initial.qualifier ?? 'N')
-  const [actionType, setActionType] = useState<'ASSIGNMENT' | 'BOOLEAN'>(initial.kind === 'boolean' ? 'BOOLEAN' : 'ASSIGNMENT')
+  const [actionType, setActionType] = useState<'ASSIGNMENT' | 'BOOLEAN' | 'BLOCK'>(
+    initial.kind === 'boolean' ? 'BOOLEAN' : initial.kind === 'block' ? 'BLOCK' : 'ASSIGNMENT')
   const [seconds, setSeconds] = useState(String(initial.seconds ?? 0))
   const [delayExpression, setDelayExpression] = useState(initial.timingCondition ?
     conditionExpression(initial.timingCondition, 'tag' in initial.timingCondition ? modules[initial.timingCondition.tag] : undefined) : 'TRUE')
@@ -82,14 +83,15 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
       let action: SfcAction
       if (qualifier === 'R') {
         if (!actionName.trim()) { fail('Enter the name of the stored action to reset'); return }
-        const result = actionType === 'BOOLEAN' ? parseSfcBooleanAction(expression, sfcExpressionContext(useStore.getState(), name)) :
-          { value: initial }
+        const context = sfcExpressionContext(useStore.getState(), name)
+        const result = actionType === 'BOOLEAN' ? parseSfcBooleanAction(expression, context) :
+          actionType === 'BLOCK' ? parseSfcBlockAction(expression, context) : { value: initial }
         if (result.error !== undefined) { fail(result.error); return }
         action = { ...result.value, qualifier, name: actionName.trim(), description, seconds: undefined, timingCondition: undefined }
       } else {
         const context = sfcExpressionContext(useStore.getState(), name)
         const result = actionType === 'BOOLEAN' ? parseSfcBooleanAction(expression, context) :
-          parseSfcAssignment(expression, useStore.getState().modules, context)
+          actionType === 'BLOCK' ? parseSfcBlockAction(expression, context) : parseSfcAssignment(expression, useStore.getState().modules, context)
         if (result.error !== undefined) { fail(result.error); return }
         action = { ...result.value, qualifier, name: actionName.trim() || undefined, description }
         if (TIMED_QUALIFIERS.includes(qualifier)) {
@@ -125,12 +127,14 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
         <label>{qualifier === 'R' ? 'Reset target' : 'Action name'}<input aria-label="Action name"
           value={actionName} onChange={e => setActionName(e.target.value)} /></label>
         <label>Type<select aria-label="Action type" value={actionType} onChange={e => {
-          const type = e.target.value === 'BOOLEAN' ? 'BOOLEAN' : 'ASSIGNMENT'
+          const type = e.target.value === 'BOOLEAN' ? 'BOOLEAN' : e.target.value === 'BLOCK' ? 'BLOCK' : 'ASSIGNMENT'
           setActionType(type)
           const parameter = Object.entries(context.parameters).find(([, binding]) => binding.type === 'BOOLEAN')?.[0] ?? 'ACTIVE'
           const fallback = defaultAction(modules)
-          setExpression(type === 'BOOLEAN' ? `'${parameter}.CV'` : assignmentExpression(fallback, modules[fallback.tag]))
-        }}><option value="ASSIGNMENT">Assignment</option><option value="BOOLEAN">Boolean parameter</option></select></label>
+          setExpression(type === 'BOOLEAN' ? `'${parameter}.CV'` : type === 'BLOCK' ? `'${Object.keys(context.blocks ?? {})[0] ?? 'TIMECHK'}'` :
+            assignmentExpression(fallback, modules[fallback.tag]))
+        }}><option value="ASSIGNMENT">Assignment</option><option value="BOOLEAN">Boolean parameter</option>
+          <option value="BLOCK">Non-Boolean function block</option></select></label>
         <label>Qualifier<select aria-label="Action qualifier" value={qualifier}
           onChange={e => setQualifier(e.target.value as ActionQualifier)}>
           {QUALIFIERS.map(item => <option key={item}>{item}</option>)}
@@ -188,7 +192,8 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
     </fieldset>}
     <p className="traditional-note">
       Supported module paths, Named Set expressions and Boolean module parameters only. Boolean actions reference a local
-      parameter instead of assigning a literal. Arbitrary expression functions and non-Boolean function-block action types are not yet implemented.
+      parameter instead of assigning a literal. Non-Boolean actions reference a configured local ALARM action-time monitor.
+      Arbitrary expressions and other function-block activation types remain unsupported.
       Properties edits do not Save or Download the SFC.
     </p>
     {error && <p role="alert">{error}</p>}
@@ -198,6 +203,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
     </div>
     {browser && <SfcExpressionBrowser modules={modules} context={context} assignment={browser === 'action'}
       booleanAction={browser === 'action' && actionType === 'BOOLEAN'}
+      blockAction={browser === 'action' && actionType === 'BLOCK'}
       onClose={() => setBrowser(null)} onInsert={text => {
         if (browser === 'delay') setDelayExpression(text)
         else setExpression(text)
@@ -206,9 +212,9 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   </SimulatorDialog>
 }
 
-function SfcExpressionBrowser({ modules, context, assignment, booleanAction, onInsert, onClose }: {
+function SfcExpressionBrowser({ modules, context, assignment, booleanAction, blockAction, onInsert, onClose }: {
   modules: Record<string, AnyModule>; context: SfcExpressionContext
-  assignment: boolean; booleanAction: boolean; onInsert: (text: string) => void; onClose: () => void
+  assignment: boolean; booleanAction: boolean; blockAction: boolean; onInsert: (text: string) => void; onClose: () => void
 }): JSX.Element {
   const [tag, setTag] = useState(Object.keys(modules)[0] ?? '')
   const module = modules[tag]
@@ -237,13 +243,15 @@ function SfcExpressionBrowser({ modules, context, assignment, booleanAction, onI
   }
   return <SimulatorDialog className="sfc-properties-dialog" label="Expression Browser" onClose={onClose}>
     <h3>Expression Browser</h3>
-    {booleanAction ? <p>Module: {context.name} — local Boolean parameters</p> :
+    {booleanAction || blockAction ? <p>Module: {context.name} — local {blockAction ? 'function blocks' : 'Boolean parameters'}</p> :
     <label>Module<select aria-label="Expression module" value={tag} onChange={e => setTag(e.target.value)}>
       {Object.keys(modules).map(item => <option key={item}>{item}</option>)}
     </select></label>}
     <p>Choose a supported path; edit the inserted literal before accepting Properties.</p>
-    {!booleanAction && candidates.map(text => <button className="ctx-item" key={text} onClick={() => onInsert(text)}>{text}</button>)}
-    {Object.entries(context.parameters).flatMap(([parameter, binding]) =>
+    {!booleanAction && !blockAction && candidates.map(text => <button className="ctx-item" key={text} onClick={() => onInsert(text)}>{text}</button>)}
+    {blockAction && Object.keys(context.blocks ?? {}).map(block => <button className="ctx-item" key={block}
+      onClick={() => onInsert(`'${block}'`)}>{`'${block}'`}</button>)}
+    {!blockAction && Object.entries(context.parameters).flatMap(([parameter, binding]) =>
       binding.type === 'BOOLEAN' ? (booleanAction ? [`'${parameter}.CV'`] : assignment ? [] :
         [`'${parameter}.CV' = TRUE`, `'${parameter}.CV' = FALSE`]).map(text =>
         <button className="ctx-item" key={text} onClick={() => onInsert(text)}>{text}</button>) :
@@ -253,7 +261,8 @@ function SfcExpressionBrowser({ modules, context, assignment, booleanAction, onI
       }))}
     {booleanAction && !Object.values(context.parameters).some(binding => binding.type === 'BOOLEAN') &&
       <p>Create a Boolean module parameter before adding a Boolean action.</p>}
-    {!booleanAction && !candidates.length && <p>No supported {assignment ? 'assignment' : 'condition'} paths for this module.</p>}
+    {blockAction && !Object.keys(context.blocks ?? {}).length && <p>Add a local ALARM function block before adding a Non-Boolean action.</p>}
+    {!booleanAction && !blockAction && !candidates.length && <p>No supported {assignment ? 'assignment' : 'condition'} paths for this module.</p>}
     {!assignment && <button className="ctx-item" onClick={() => onInsert('T_ACTIVE >= 0')}>T_ACTIVE timer</button>}
     <button className="tbtn sm" onClick={onClose}>Cancel</button>
   </SimulatorDialog>

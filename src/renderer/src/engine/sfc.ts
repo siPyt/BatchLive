@@ -1,6 +1,7 @@
 import type { PlantState, AnyModule, PidModule, ControlMode } from './types'
 import { booleanParameterReferenceError, cloneSfcParameters, namedParameterReferenceError, type SfcExpressionContext, type SfcParameters } from './sfcParameters'
 import type { NamedSetDefinition } from './namedSets'
+import { executeSfcBlock, syncSfcBlockActivation, type SfcBlockConfiguration, type SfcBlockState } from './sfcBlocks'
 
 // ---------------------------------------------------------------------------
 // Sequential Function Chart (SFC) engine — mirrors DeltaV Control Studio SFCs.
@@ -32,6 +33,7 @@ export type SfcAction = ActionBase &
     | { kind: 'do'; tag: string; on: boolean }
     | { kind: 'namedSet'; tag: string; parameter: string; namedSet: string; entry: string }
     | { kind: 'boolean'; tag: string; parameter: string }
+    | { kind: 'block'; tag: string; block: string }
   )
 
 export type SfcCondition =
@@ -60,7 +62,7 @@ export interface SfcStep {
 
 export type SfcStatus = 'READY' | 'RUNNING' | 'HELD' | 'COMPLETE'
 
-export interface SfcDef {
+export interface SfcDef extends SfcBlockConfiguration {
   name: string
   area: string
   steps: SfcStep[]
@@ -71,6 +73,7 @@ export interface SfcDef {
   parameters?: SfcParameters
   activeSteps?: Record<string, number>
   joinArrivals?: Record<string, string[]>
+  blockStates?: Record<string, SfcBlockState>
 }
 
 export interface SfcActionState {
@@ -88,7 +91,7 @@ export function actionIdentity(action: SfcAction): string {
 }
 
 function actionOutput(action: SfcAction): string {
-  return `${action.tag}/${action.kind === 'namedSet' || action.kind === 'boolean' ? action.parameter : action.kind}`
+  return `${action.tag}/${action.kind === 'namedSet' || action.kind === 'boolean' ? action.parameter : action.kind === 'block' ? action.block : action.kind}`
 }
 
 export function syncSfcBooleanActions(sfc: SfcDef): void {
@@ -260,6 +263,8 @@ export function describeAction(a: SfcAction, module?: AnyModule): string {
       return `${q}'${a.parameter}' := '${a.namedSet}:${a.entry}'`
     case 'boolean':
       return `${q}Boolean '${a.parameter}.CV'`
+    case 'block':
+      return `${q}Function Block '${a.block}'`
   }
 }
 
@@ -615,6 +620,8 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
   if (graphError) return graphError
   const ids = new Set<string>()
   const stored = new Set(steps.flatMap(step => step.actions.filter(isStored).map(actionIdentity)))
+  const blocks = steps.flatMap(step => step.actions.filter(action => action.kind === 'block' && action.qualifier !== 'R').map(actionOutput))
+  if (new Set(blocks).size !== blocks.length) return 'Each SFC function block requires one owning non-reset action'
   for (const step of steps) {
     if (!step.id || ids.has(step.id)) return 'SFC step IDs must be nonempty and unique'
     ids.add(step.id)
@@ -654,8 +661,11 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
         const error = booleanParameterReferenceError(action.parameter, context)
         if (error) return error
       }
+      if (action.kind === 'block' && (action.tag !== context?.name || !Object.hasOwn(context.blocks ?? {}, action.block))) {
+        return 'Function-block actions require an existing block in their owning SFC'
+      }
       const module = modules[action.tag]
-      if (action.kind !== 'namedSet' && action.kind !== 'boolean') {
+      if (action.kind !== 'namedSet' && action.kind !== 'boolean' && action.kind !== 'block') {
         if (!module) return `Missing action module ${action.tag}`
         const required = action.kind === 'motor' ? 'MOTOR' : action.kind === 'valve' ? 'VALVE' : action.kind === 'do' ? 'DO' : null
         if (required ? module.type !== required : module.type !== 'PID' && module.type !== 'AO') return 'Action/module type mismatch'
@@ -718,7 +728,7 @@ function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>,
 }
 
 function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
-  actionStates: Record<string, SfcActionState>, execute: (action: SfcAction) => void,
+  actionStates: Record<string, SfcActionState>, execute: (action: SfcAction, elapsed: number) => void,
   context: SfcExpressionContext): SfcDef {
   const active = { ...(sfc.activeSteps ?? { [sfc.steps[sfc.active].id]: sfc.elapsed }) }
   const arrivals = Object.fromEntries(Object.entries(sfc.joinArrivals ?? {}).map(([id, sources]) => [id, [...sources]]))
@@ -735,7 +745,7 @@ function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
     const updated = updateActionState({ ...runtime, elapsed: runtime.elapsed + dt }, state,
       original.includes(runtime.stepId), context)
     actionStates[key] = updated
-    if (updated.active) execute(updated.action)
+    if (updated.active) execute(updated.action, updated.elapsed)
   }
   syncSfcBooleanActions(sfc)
   const entering = new Set<string>()
@@ -775,7 +785,7 @@ function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
       const key = sfcActionStateKey(step, action, true)
       const updated = updateActionState(actionStates[key], state, true, context)
       actionStates[key] = updated
-      if (updated.active) execute(updated.action)
+      if (updated.active) execute(updated.action, updated.elapsed)
     }
   }
   const complete = !Object.keys(active).length && !Object.keys(arrivals).length
@@ -784,6 +794,7 @@ function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
   }
   const first = sfc.steps.findIndex(step => Object.hasOwn(active, step.id))
   syncSfcBooleanActions(sfc)
+  syncSfcBlockActivation(sfc)
   return { ...sfc, status: complete ? 'COMPLETE' : 'RUNNING', actionStates,
     activeSteps: active, joinArrivals: arrivals, active: first < 0 ? sfc.active : first,
     elapsed: first < 0 ? 0 : active[sfc.steps[first].id] }
@@ -807,9 +818,10 @@ export function advanceSfcs(
     if (sfc.status !== 'RUNNING' || sfc.steps.length === 0) continue
     const actionStates: Record<string, SfcActionState> = Object.fromEntries(
       Object.entries(sfc.actionStates ?? {}).map(([key, action]) => [key, { ...action }]))
-    const next: SfcDef = { ...sfc, actionStates, ...(sfc.parameters ? { parameters: cloneSfcParameters(sfc.parameters) } : {}) }
-    const context: SfcExpressionContext = { name, parameters: next.parameters ?? {}, sets: namedSetsBySfc[name] ?? {} }
-    const execute = (action: SfcAction): void => {
+    const next: SfcDef = { ...sfc, actionStates, blockStates: { ...sfc.blockStates },
+      ...(sfc.parameters ? { parameters: cloneSfcParameters(sfc.parameters) } : {}) }
+    const context: SfcExpressionContext = { name, parameters: next.parameters ?? {}, sets: namedSetsBySfc[name] ?? {}, blocks: next.blocks }
+    const execute = (action: SfcAction, elapsed: number): void => {
       if (action.kind === 'namedSet') {
         if (namedParameterReferenceError(action.parameter, action.namedSet, action.entry, context)) return
         const entry = context.sets[action.namedSet].entries.find(item => item.name === action.entry)
@@ -818,6 +830,8 @@ export function advanceSfcs(
       } else if (action.kind === 'boolean') {
         const binding = context.parameters[action.parameter]
         if (binding?.type === 'BOOLEAN') binding.value = true
+      } else if (action.kind === 'block') {
+        executeSfcBlock(next, action.block, elapsed, state.modules)
       } else {
         const module = modules[action.tag]
         if (module) applyAction(module, action)
@@ -837,7 +851,7 @@ export function advanceSfcs(
       // Stored timers continue across steps; HOLD pauses this simulated routine.
       const updated = updateActionState({ ...runtime, elapsed: runtime.elapsed + dt }, state, stepActive, context)
       actionStates[identity] = updated
-      if (updated.active) execute(updated.action)
+      if (updated.active) execute(updated.action, updated.elapsed)
     }
     syncSfcBooleanActions(next)
     const primary = evalCondition(step.transition, state, next.elapsed, context)
@@ -864,13 +878,14 @@ export function advanceSfcs(
           const identity = actionIdentity(action)
           const updated = updateActionState(actionStates[identity], state, true, context)
           actionStates[identity] = updated
-          if (updated.active) execute(action)
+          if (updated.active) execute(action, updated.elapsed)
         }
       } else {
         next.status = 'COMPLETE'
       }
     }
     syncSfcBooleanActions(next)
+    syncSfcBlockActivation(next)
     sfcs[name] = next
   }
   return { modules, sfcs }

@@ -120,7 +120,16 @@ export function parseSfcBooleanAction(text: string, context?: SfcExpressionConte
     { value: { kind: 'boolean', tag: context.name, parameter } }
 }
 
+export function parseSfcBlockAction(text: string, context?: SfcExpressionContext): ExpressionResult<SfcAction> {
+  const match = text.trim().match(/^'([A-Za-z0-9_$-]+)'$/)
+  const block = match?.[1].toUpperCase()
+  return block && context && Object.hasOwn(context.blocks ?? {}, block) ?
+    { value: { kind: 'block', tag: context.name, block } } :
+    { error: "Non-Boolean action requires an existing local function block reference, for example 'TIMECHK'" }
+}
+
 export function assignmentExpression(action: SfcAction, module?: AnyModule): string {
+  if (action.kind === 'block') return `'${action.block}'`
   if (action.kind === 'boolean') return `'${action.parameter}.CV'`
   if (action.kind === 'namedSet') return `'${action.parameter}' := '${action.namedSet}:${action.entry}'`
   const block = module?.type === 'AO' ? 'AO1' : 'PID1'

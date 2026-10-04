@@ -379,7 +379,19 @@ export const COURSE: WModule[] = [
           { id: 'boolean-action', text: 'Select ACTIVE_TEST -> + action -> Type Boolean parameter -> name RUNFLAG -> qualifier N. Expression Assistant lists the local ACTIVE.CV reference, not a module output assignment. Cancel changes nothing; OK stores the Boolean reference. Transition Properties may compare ACTIVE.CV = TRUE or FALSE (quoted local path).' },
           { id: 'boolean-online', text: 'Check, assign controller, Save, Download -> confirm, Online, RUN. ACTIVE must remain FALSE until the action executes, then become TRUE during ACTIVE_TEST and FALSE when that step leaves. HOLD freezes the flag and timer; RESTART continues. STOP clears action activation without changing the saved default or unrelated parameters.' },
           { id: 'boolean-qualifiers', text: 'Reset/Offline and use Properties to compare P/D/L/S/SD/DS/SL. P drives one scan after its delay, D waits while its step is active, L expires, stored actions survive departure, pending DS cancels but SD continues and SL expires after departure. Add an R action named RUNFLAG to reset a stored activation. Do not substitute a TRUE assignment that stays latched after expiry.' },
-          { id: 'boolean-boundary', text: 'Boolean defaults and references are saved/deployed independently of Named Sets. Named Set operator entry cannot write them. Native Confirm/full expression language and non-Boolean function-block activation remain unsupported; this is not completion of the whole course.' }
+          { id: 'boolean-boundary', text: 'Boolean defaults and references are saved/deployed independently of Named Sets. Named Set operator entry cannot write them. Native Confirm/full expression language and general non-Boolean function-block activation remain unsupported; local ALARM-block monitors are covered by the timeout workshop. This is not completion of the whole course.' }
+        ]
+      },
+      {
+        id: 'sfc-timed-alarm',
+        title: 'Non-Boolean block / shared timeout alarm subset',
+        objective: 'Configure and execute the block/type/alarm dependency chain; verify a real operator alarm strictly above30 seconds.',
+        steps: [
+          { id: 'sfc-alarm-config', text: 'In a managed Offline SFC, add custom Alarm Type TIMEOUT with a description/priority. Add Function Block TIMECHK (ALARM, action time >30 seconds), then SFC Alarm TIME_ALM -> TIMEOUT -> TIMECHK, Enabled. Cancel changes nothing. These types are local saved/deployed SFC configuration, not native global Alarm Type setup.', goto: 'sfc' },
+          { id: 'sfc-alarm-action', text: 'Initial step -> Add Action -> Type Non-Boolean function block -> name TIME_MONITOR -> qualifier S -> Expression Assistant -> local TIMECHK reference. OK must store a block reference, not an output assignment. S continues one clock across later steps until an R action named TIME_MONITOR, reset or termination. Each block requires one owning non-reset action.' },
+          { id: 'sfc-alarm-boundary', text: 'Check, assign controller, Save, Download -> confirm, Online, RUN. With the routine still waiting, TIMECHK OUT must remain0 at30 seconds and become1 only above30 (next0.1s scan). No block action or disabled alarm must never fabricate a timeout. HOLD/controller loss freezes monitor clock/output; RESTART resumes.' },
+          { id: 'sfc-alarm-operator', text: 'Open real Alarm List: TIME_ALM shows TIMEOUT, configured priority and elapsed seconds. Shelve/Unshelve/ACK use the shared alarm lifecycle/journal. Click the module link to open this exact SFC. STOP/reset clears the block; next scan returns the alarm to normal, retaining it if unacknowledged and clearing it after ACK. Repeat execution; the alarm must re-trigger, journal a new edge and re-sound the horn.' },
+          { id: 'sfc-alarm-boundary-note', text: 'This closes the functional local timeout dependency subset. Global Alarm Type/Changed Setup Data, arbitrary block palettes/wiring, full expression language and exact level/lock/wait optional exercises remain incomplete; do not mark the course finished.' }
         ]
       },
       {

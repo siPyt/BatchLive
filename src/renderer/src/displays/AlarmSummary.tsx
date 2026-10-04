@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
+import { isSfcAlarm } from '../engine/sfcBlocks'
 import { useUi } from '../ui/uiStore'
 import { compareAlarmRank, clockString } from '../utils/format'
 import type { ActiveAlarm, AlarmPriority } from '../engine/types'
@@ -13,6 +14,7 @@ export function AlarmSummary(): JSX.Element {
   const shelveAlarm = useStore((s) => s.shelveAlarm)
   const unshelveAlarm = useStore((s) => s.unshelveAlarm)
   const openFaceplate = useUi((s) => s.openFaceplate)
+  const openSfc = useUi(s => s.openSfc)
   const [filter, setFilter] = useState<Filter>('ALL')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
 
@@ -88,7 +90,7 @@ export function AlarmSummary(): JSX.Element {
                 key={a.id}
                 a={a}
                 onAck={() => ackAlarm(a.id)}
-                onOpen={() => openFaceplate(a.moduleTag)}
+                onOpen={() => isSfcAlarm(a) ? openSfc(a.moduleTag) : openFaceplate(a.moduleTag)}
                 onShelve={() => shelveAlarm(a.id, 60)}
                 onUnshelve={() => unshelveAlarm(a.id)}
               />
@@ -129,7 +131,7 @@ function AlarmRow({
       </td>
       <td>{a.moduleDesc}</td>
       <td style={{ fontWeight: 700 }}>
-        {a.label}
+        {a.label}{a.customType ? ` (${a.customType})` : ''}
         {!a.active ? ' (RTN)' : ''}
       </td>
       <td>{a.unit ? `${a.value.toFixed(1)} ${a.unit}` : '—'}</td>

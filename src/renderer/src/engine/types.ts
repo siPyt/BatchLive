@@ -37,7 +37,8 @@ export interface ActiveAlarm {
   id: string
   moduleTag: string
   moduleDesc: string
-  type: AlarmType
+  type: AlarmType | 'CUSTOM'
+  customType?: string
   label: string
   priority: AlarmPriority
   value: number

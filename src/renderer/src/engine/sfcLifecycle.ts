@@ -3,8 +3,9 @@ import { sfcStepsError, type SfcAction, type SfcCondition, type SfcDef, type Sfc
 import type { AnyModule } from './types'
 import { cloneSfcParameters, sfcParameterError, type SfcParameters } from './sfcParameters'
 import type { NamedSetDefinition } from './namedSets'
+import { cloneSfcBlocks, parseSfcBlocks, sfcBlockConfigurationError, type SfcBlockConfiguration } from './sfcBlocks'
 
-export interface SfcConfiguration {
+export interface SfcConfiguration extends SfcBlockConfiguration {
   name: string
   area: string
   controllerTag: string
@@ -20,7 +21,7 @@ export interface SfcLifecycle {
 }
 
 export function cloneSfcConfiguration(configuration: SfcConfiguration): SfcConfiguration {
-  return { ...configuration, ...(configuration.parameters ? { parameters: cloneSfcParameters(configuration.parameters) } : {}),
+  return { ...configuration, ...cloneSfcBlocks(configuration), ...(configuration.parameters ? { parameters: cloneSfcParameters(configuration.parameters) } : {}),
     steps: configuration.steps.map(step => ({
     ...step, ...(step.alternatives ? { alternatives: step.alternatives.map(route => ({ ...route, condition: { ...route.condition } })) } : {}),
     ...(step.parallelNextSteps ? { parallelNextSteps: [...step.parallelNextSteps] } : {}),
@@ -34,9 +35,10 @@ export function cloneSfcConfiguration(configuration: SfcConfiguration): SfcConfi
 export function sfcConfigurationError(configuration: SfcConfiguration, modules: Record<string, AnyModule>,
   sets: Record<string, NamedSetDefinition> = {}): string | null {
   return moduleNameError(configuration.name) ??
+    sfcBlockConfigurationError(configuration) ??
     sfcParameterError(configuration.parameters, sets) ??
     (!configuration.steps.length ? 'SFC requires at least one step' : sfcStepsError(configuration.steps, modules,
-      { name: configuration.name, parameters: configuration.parameters ?? {}, sets }))
+      { name: configuration.name, parameters: configuration.parameters ?? {}, sets, blocks: configuration.blocks }))
 }
 
 export function sfcDraftDirty(lifecycle: SfcLifecycle): boolean {
@@ -49,9 +51,10 @@ export function sfcNeedsDownload(lifecycle: SfcLifecycle): boolean {
 
 export function sfcEditorDefinition(runtime: SfcDef, lifecycle?: SfcLifecycle): SfcDef {
   return !lifecycle || lifecycle.online ? runtime : { ...runtime,
+    ...cloneSfcBlocks(lifecycle.draft), blocks: lifecycle.draft.blocks, alarmTypes: lifecycle.draft.alarmTypes, alarms: lifecycle.draft.alarms,
     area: lifecycle.draft.area, steps: lifecycle.draft.steps,
     parameters: lifecycle.draft.parameters,
-    status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined }
+    status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined, blockStates: {} }
 }
 
 export const savedSfcKey = (name: string): string => `batchlive.sfc.v1:${name}`
@@ -87,6 +90,7 @@ function action(value: unknown): value is SfcAction {
   if (value.kind === 'sp' || value.kind === 'out') return typeof value.value === 'number'
   if (value.kind === 'namedSet') return ['parameter', 'namedSet', 'entry'].every(key => typeof value[key] === 'string')
   if (value.kind === 'boolean') return typeof value.parameter === 'string'
+  if (value.kind === 'block') return typeof value.block === 'string'
   if (value.kind === 'mode') return ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN'].includes(String(value.mode))
   if (value.kind === 'motor') return typeof value.run === 'boolean'
   if (value.kind === 'valve') return typeof value.open === 'boolean'
@@ -116,6 +120,9 @@ export function parseSavedSfc(text: string, modules: Record<string, AnyModule>, 
   const configuration: SfcConfiguration = {
     name: value.name, area: value.area, controllerTag: value.controllerTag, steps: value.steps
   }
+  const blocks = parseSfcBlocks(value)
+  if (!blocks) return { error: 'Malformed saved SFC function blocks, alarm types or alarms' }
+  Object.assign(configuration, blocks)
   if (value.parameters !== undefined) {
     if (!record(value.parameters)) return { error: 'Malformed saved SFC parameters' }
     const entries: [string, SfcParameters[string]][] = []
