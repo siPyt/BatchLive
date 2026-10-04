@@ -925,7 +925,7 @@ export function stepPlant(
     modules,
     alarms,
     process: proc,
-    hardware: { ...advanceTraditionalIo(prev.hardware, modules),
+    hardware: { ...advanceTraditionalIo(prev.hardware, modules, dt),
       controllers: advanceControllers(prev.hardware.controllers, dt) }
   }
 }

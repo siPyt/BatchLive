@@ -31,7 +31,7 @@ const { nextAreaName } = require('../src/renderer/src/engine/areas.ts')
 const { usePictures, resolvePictureTarget } = require('../src/renderer/src/engine/pictureStore.ts')
 const { moduleNameError, isValidDeltaVTag } = require('../src/renderer/src/engine/naming.ts')
 const { compareAlarmRank } = require('../src/renderer/src/utils/format.ts')
-const { findDst, channelConfigurationError } = require('../src/renderer/src/engine/traditionalIo.ts')
+const { findDst, channelConfigurationError, advanceTraditionalIo, sampleAnalogInputs } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 
 function plant(splitRange = false) {
@@ -1073,6 +1073,157 @@ function standaloneAoCourseProject(store) {
   assert.equal(store.connectAoParameter('LEVEL-101', 'CAS_SP'), true)
   store.tick(0.1)
 }
+
+test('DV09 p265: configured 2.6s filter stays offline until atomic filter-only card transfer', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setTraditionalInput('LT-1', 0)
+    store.setTraditionalInput('FT-2', 0)
+    store.tick(0.1)
+    assert.equal(store.configureInputFilter('CTRL1/C01', 2, 2.6), true)
+    assert.equal(findDst(useStore.getState().hardware, 'FT-2').channel.filterSeconds, undefined)
+    store.setTraditionalInput('FT-2', 1000)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LOOP-101'].pv, 1000)
+    store.setTraditionalInput('FT-2', 0)
+    store.tick(0.1)
+    assert.equal(store.downloadInputFilters('CTRL1/C01'), true)
+    const before = useStore.getState().hardware
+    store.setTraditionalInput('FT-2', 1000)
+    store.tick(2.6)
+    const next = useStore.getState()
+    const signal = findDst(next.hardware, 'FT-2').channel.filteredValue
+    assert.ok(Math.abs(signal - 1000 * (1 - Math.exp(-1))) < 1e-9)
+    assert.equal(findDst(before, 'FT-2').channel.filteredValue, 0)
+    assert.equal(next.modules['LOOP-101'].pv, 0, 'module samples preceding scan readback')
+    store.tick(0.1)
+    assert.ok(Math.abs(useStore.getState().modules['LOOP-101'].pv - signal) < 1e-9)
+    assert.equal(findDst(useStore.getState().hardware, 'LT-1').channel.filterSeconds, 0)
+    assert.equal(store.configureInputFilter('CTRL1/C01', 2, 0), true)
+    assert.equal(findDst(useStore.getState().hardware, 'FT-2').channel.filterSeconds, 2.6)
+    assert.equal(store.downloadInputFilters('CTRL1/C01'), true)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LOOP-101'].pv, 1000)
+  })
+})
+
+test('input filter is scan-partition invariant, speed-scaled and holds finite bad-channel memory', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setTraditionalInput('FT-2', 0)
+    store.tick(0.1)
+    store.configureInputFilter('CTRL1/C01', 2, 2.6)
+    store.downloadInputFilters('CTRL1/C01')
+    store.setTraditionalInput('FT-2', 1000)
+    const state = useStore.getState()
+    const one = advanceTraditionalIo(state.hardware, state.modules, 2.6)
+    let split = state.hardware
+    for (let i = 0; i < 26; i++) split = advanceTraditionalIo(split, state.modules, 0.1)
+    const value = findDst(one, 'FT-2').channel.filteredValue
+    assert.ok(Math.abs(findDst(split, 'FT-2').channel.filteredValue - value) < 1e-9)
+    useStore.setState({ speed: 2 })
+    store.tick(1.3)
+    assert.ok(Math.abs(findDst(useStore.getState().hardware, 'FT-2').channel.filteredValue - value) < 1e-9)
+    const card = one.traditionalCards['CTRL1/C01']
+    const bad = { ...one, traditionalCards: { ...one.traditionalCards,
+      [card.id]: { ...card, channels: card.channels.map(c => c.channel === 2 ? { ...c, value: NaN } : c) } } }
+    const held = advanceTraditionalIo(bad, state.modules, 10)
+    assert.equal(findDst(held, 'FT-2').channel.bad, true)
+    assert.equal(findDst(held, 'FT-2').channel.filteredValue, value)
+    const modules = { ...state.modules, 'LOOP-101': { ...state.modules['LOOP-101'] } }
+    sampleAnalogInputs(held, modules)
+    assert.equal(modules['LOOP-101'].pvBad, true)
+    const repaired = { ...held, traditionalCards: { ...held.traditionalCards,
+      [card.id]: { ...held.traditionalCards[card.id], channels: held.traditionalCards[card.id].channels.map(c =>
+        c.channel === 2 ? { ...c, value: 0 } : c) } } }
+    const recovered = advanceTraditionalIo(repaired, modules, 2.6)
+    assert.equal(findDst(recovered, 'FT-2').channel.bad, false)
+    assert.ok(Math.abs(findDst(recovered, 'FT-2').channel.filteredValue - value / Math.E) < 1e-9)
+    assert.equal(findDst(advanceTraditionalIo(one, modules, 0), 'FT-2').channel.filteredValue, value)
+    for (const dt of [-1, NaN, Infinity]) {
+      assert.equal(findDst(advanceTraditionalIo(one, modules, dt), 'FT-2').channel.filteredValue, value)
+    }
+  })
+})
+
+test('input filter rejects invalid configuration, denied keys and unavailable controller atomically', () => {
+  withAreaProject((store, alerts) => {
+    analogCourseProject(store)
+    const before = useStore.getState().hardware
+    for (const seconds of [-1, NaN, Infinity]) assert.equal(store.configureInputFilter('CTRL1/C01', 2, seconds), false)
+    assert.equal(store.configureInputFilter('CTRL1/C02', 1, 2.6), false)
+    assert.equal(store.configureInputFilter('CTRL1/C01', 9, 2.6), false)
+    assert.equal(store.downloadInputFilters('MISSING'), false)
+    assert.equal(useStore.getState().hardware, before)
+    assert.equal(alerts.length, 6)
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    assert.equal(store.configureInputFilter('CTRL1/C01', 2, 2.6), false)
+    assert.equal(store.downloadInputFilters('CTRL1/C01'), false)
+    assert.equal(useStore.getState().hardware, before)
+    useSecurity.setState({ currentUser: 'admin' })
+    store.configureInputFilter('CTRL1/C01', 2, 2.6)
+    const configured = useStore.getState().hardware
+    const card = configured.traditionalCards['CTRL1/C01']
+    const corrupt = { ...configured, traditionalCards: { ...configured.traditionalCards,
+      [card.id]: { ...card, channels: card.channels.map(c => c.channel === 1 ?
+        { ...c, configuredFilterSeconds: NaN } : c) } } }
+    useStore.setState({ hardware: corrupt })
+    assert.equal(store.downloadInputFilters(card.id), false)
+    assert.equal(useStore.getState().hardware, corrupt, 'invalid other channel cannot partially apply CH2')
+    assert.match(alerts.at(-1), /invalid time or readback/)
+    useStore.setState({ hardware: configured })
+    store.simulateControllerPowerLoss('CTRL1')
+    const down = useStore.getState().hardware
+    assert.equal(store.downloadInputFilters('CTRL1/C01'), false)
+    assert.equal(useStore.getState().hardware, down)
+    assert.match(alerts.at(-1), /available commissioned controller/)
+  })
+
+})
+
+test('AI filter holds on disabled/controller-down signals and handles extreme finite values without overflow', () => {
+  withAreaProject(store => {
+    analogCourseProject(store)
+    store.setTraditionalInput('FT-2', -1e308)
+    store.tick(0.1)
+    store.configureInputFilter('CTRL1/C01', 2, 2.6)
+    store.downloadInputFilters('CTRL1/C01')
+    store.setTraditionalInput('FT-2', 1e308)
+    store.tick(2.6)
+    const value = findDst(useStore.getState().hardware, 'FT-2').channel.filteredValue
+    assert.ok(Number.isFinite(value))
+    assert.ok(Math.abs(value / 1e308 - (1 - 2 / Math.E)) < 1e-12)
+    store.configureTraditionalChannel('CTRL1/C01', 2, { dst: 'FT-2', enabled: false })
+    store.tick(5)
+    assert.equal(findDst(useStore.getState().hardware, 'FT-2').channel.filteredValue, value)
+    assert.equal(useStore.getState().modules['LOOP-101'].pvBad, true)
+    store.configureTraditionalChannel('CTRL1/C01', 2, { dst: 'FT-2', enabled: true })
+    store.simulateControllerPowerLoss('CTRL1')
+    store.tick(5)
+    assert.equal(findDst(useStore.getState().hardware, 'FT-2').channel.filteredValue, value)
+    store.restoreControllerPower('CTRL1')
+    store.commissionController('CTRL1')
+    store.tick(0.1)
+    assert.equal(findDst(useStore.getState().hardware, 'FT-2').channel.bad, false)
+  })
+})
+
+test('AI filter uses percent tieback before receiving scale and reseeds on raw-domain changes', () => {
+  withAreaProject(store => {
+    standaloneAoCourseProject(store)
+    store.setTraditionalInput('LT-1', 900)
+    store.tick(0.1)
+    store.configureInputFilter('CTRL1/C01', 1, 2.6)
+    store.downloadInputFilters('CTRL1/C01')
+    store.configureTraditionalChannel('CTRL1/C01', 1, { dst: 'LT-1', enabled: true, tiebackDst: 'LY-1' })
+    const state = useStore.getState()
+    const output = findDst(state.hardware, 'LY-1').channel.value
+    assert.equal(findDst(state.hardware, 'LT-1').channel.filteredValue, output)
+    store.tick(0.1)
+    store.tick(0.1)
+    assert.ok(Math.abs(useStore.getState().modules['LI-101'].pv - output * 10) < 1e-9)
+  })
+})
 
 test('LEVEL-101 is a standalone AO with an actual Floating Point CAS_SP wire and engineering scale', () => {
   withAreaProject(store => {

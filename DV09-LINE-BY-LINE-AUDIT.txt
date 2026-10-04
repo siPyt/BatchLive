@@ -775,10 +775,16 @@ Acceptance: Configured0.5/3/0 versus online0.7/2.5/0 must remain distinguishable
 
 [DV09-061]
 Pages: 265-265
-Status: MISSING
+Status: PARTIAL
 Required: Apply a 2.6-second input channel filter, download the card and use
   DeltaV Tune's process-test/update workflow.
-Evidence: FB FLTR is not the channel filter/Tune process or card download.
+Evidence: Traditional AI channel has separate configured/deployed filter times.
+  Explicit CAN_DOWNLOAD filter-only card transfer validates all channels and
+  controller availability atomically. 2.6s first-order response is measured;
+  zero bypasses, Bad holds memory, simulation speed scales elapsed time,
+  and AO tieback percent is filtered before receiver PV_SCALE conversion.
+  Browser verified configure/deployed separation, Cancel and confirmed transfer.
+  Full card/controller lifecycle and Tune process-test/update remain missing.
 Acceptance: Model/test a filtered course input and explicit tuning experiment,
   review and application. Real DeltaV Tune is a vendor-software boundary.
 

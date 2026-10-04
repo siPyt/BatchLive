@@ -1033,6 +1033,24 @@ The course/image-only/native-dialog parity is not yet complete.
 Local commit only; no push until explicit authorization.
 
 ===============================================================================
+23. AI CHANNEL FILTER - PRESERVE PHYSICAL NETWORK AND SIGNAL FEEDBACK
+===============================================================================
+AI channels add configured filter seconds, deployed seconds and actual sampled
+signal inside the existing wrapping channel form. Input filter transfer uses
+the existing button style and a cancelable confirmation; do not imply full
+card/controller download or vendor Tune support. Settings are session-local.
+Raw engineering signal and filtered sampled signal remain distinct.
+Tieback percent is filtered before receiving scale; failed input holds filter
+memory and Bad quality, not a fabricated Good or command-as-feedback signal.
+No plant equipment, piping, palette, ribbons, FBD nodes or faceplates changed.
+Regression: exact2.6s response, scan partition/speed equivalence, zero bypass,
+configured/deployed separation, cancellation, permission/controller rejection,
+atomic invalid-channel rejection, faults/recovery and raw-domain changes.
+Restore original running96-module plant after browser acceptance fixtures.
+Full optional Tune workflow and image-only parity remain incomplete.
+Local commits only; do not push without authorization.
+
+===============================================================================
 22. PRIMARY / DETAIL DISPLAY REFERENCES - NAVIGATION, NOT A FACEPLATE REDESIGN
 ===============================================================================
 Explorer module properties now accept independent Primary Control and Detail

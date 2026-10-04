@@ -264,7 +264,8 @@ export const COURSE: WModule[] = [
           { id: 'dv09-ai-5', text: 'For a separate PID path fixture, create PID LOOP-101 with range 0-1000 gal. In Studio bind IO_IN FT-2 and IO_OUT LY-1. Set FT-2 engineering signal to 432.1 and verify AI1/PV reads 432.1.', goto: 'studio' },
           { id: 'dv09-ai-6', text: 'Switch LOOP-101 to MAN, allow a scan, and set OUT.CV 63. Verify C02 CH1 signal 63% and AO1 applied output 63%. Disable CH1, command 80%, and confirm physical/AO output holds 63% with Bad rather than following the command.' },
           { id: 'dv09-ai-7', text: 'Enable CH1 to recover. Select the split strategy and bind AO2.IO_OUT FY-2; verify separate channel signals and independent quality. Disconnect AO2.IO_OUT before returning to the simple strategy. Recovery retains the existing splitter balancing time, not an instant jump.' },
-          { id: 'dv09-ai-8', text: 'Disable an input to verify held last-good PV and PV BAD alarm. AI1 MAN can substitute its manual value while FIELD_VAL remains Bad. Restore the channel and AUTO to resume physical sampling. Do not treat this as downloaded persistent configuration.' }
+          { id: 'dv09-ai-8', text: 'Disable an input to verify held last-good PV and PV BAD alarm. AI1 MAN can substitute its manual value while FIELD_VAL remains Bad. Restore the channel and AUTO to resume physical sampling. Do not treat this as downloaded persistent configuration.' },
+          { id: 'dv09-ai-9', text: 'For the p265 filter subset, start FT-2 at 0. Configure C01 CH2 input filter 2.6 seconds; deployed remains 0 until Download Input Filters is confirmed. Step FT-2 to 1000: after 2.6 simulated seconds the filtered channel reaches about632.12, sampled by the module next scan. Configure and transfer 0 to bypass. This session-local filter-only transfer is not a full card download or DeltaV Tune process-test/update.', goto: 'hardware' }
         ]
       },
       {

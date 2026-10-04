@@ -497,6 +497,34 @@ Full DV-09 operating parity and original-PDF image-only review remain incomplete
 Validation:121 control and five audit regressions, typecheck/build/diagnostics
 and zero-unmapped audit checks. Commit locally; no push is authorized.
 
+PASS 11: TRADITIONAL AI CHANNEL FILTER / FILTER-ONLY CARD TRANSFER
+----------------------------------------------------------------
+Scope: DV09-061 p265 channel-filter subset, not full optional Tune exercise.
+Physical Network exposes configured/deployed AI filter seconds separately.
+Configure validates finite nonnegative time with CAN_CONFIGURE; Download Input
+Filters uses CAN_DOWNLOAD and an explicit cancelable confirmation.
+Transfer validates the commissioned available controller and every channel
+before atomically applying filter times; invalid/denied/down leaves runtime
+unchanged with existing diagnostics/notifications.
+The first-order exponential filter runs on actual simulation elapsed time.
+At tau2.6s a 0->1000 step reaches632.1205588 after2.6 simulated seconds,
+independent of scan partition; speed2 reaches it after1.3 real seconds.
+Modules sample preceding hardware readback, preserving existing scan order.
+Manual inputs retain engineering-unit convention. Simulated tieback filters
+percent before receiver PV_SCALE. Changing raw source reseeds the filter in
+the new domain rather than treating a previous engineering value as percent.
+Zero bypasses after transfer. Bad/nonfinite/disabled/down channels hold finite
+filter memory and actual input quality; valid recovery resumes. Stable weighted
+interpolation avoids subtraction overflow with extreme finite input signals.
+Live UI: configured2.6 left deployed0; Cancel retained0; confirmation deployed
+2.6; UI step1000 and actual2.6s scan produced632.1205588285577 readback.
+Original96-module running plant/security/UI restored after isolated fixture.
+Remaining: session persistence, full card/controller download lifecycle,
+electrical conversion and actual process-test/review/tuning update procedure.
+DV09-061 remains PARTIAL, not completed. Preserve approved graphics.
+Validation:130 control plus five audit regressions pass; typecheck, production
+build, editor diagnostics and zero-unmapped575-page audit pass. Local commit only.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

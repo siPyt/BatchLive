@@ -6,6 +6,7 @@ import { channelBad, traditionalChannels, type TraditionalCard, type Traditional
 export function TraditionalIoPanel({ controllerTag }: { controllerTag: string }): JSX.Element {
   const hardware = useStore(s => s.hardware)
   const addCard = useStore(s => s.addTraditionalCard)
+  const downloadFilters = useStore(s => s.downloadInputFilters)
   const [slot, setSlot] = useState(1)
   const [type, setType] = useState<TraditionalCardType>('AI')
   const cards = Object.values(hardware.traditionalCards ?? {}).filter(card => card.controllerTag === controllerTag)
@@ -18,8 +19,9 @@ export function TraditionalIoPanel({ controllerTag }: { controllerTag: string })
         DI/DO, standalone AI/AO and PID AI1/AO1/AO2 bindings execute on scans.
         Manual AI signals are engineering values; AO signals are percent output.
         Simulated AO-to-AI tiebacks use percent, converted through the receiving module's PV_SCALE.
-        Electrical scaling and controller downloads are not implemented here;
-        these settings are session-local and immediately live.
+        Electrical scaling and full controller downloads are not implemented here.
+        AI filter settings have a separate simulated filter-only card transfer;
+        other channel settings remain session-local and immediately live.
       </p>
       <div className="traditional-toolbar">
         <label>Slot <input aria-label={`${controllerTag} new card slot`} type="number" min={1} max={8}
@@ -32,6 +34,9 @@ export function TraditionalIoPanel({ controllerTag }: { controllerTag: string })
       </div>
       {cards.map(card => <div className="traditional-card" key={card.id}>
         <div className="exp-newmod-title">{card.id} — {card.type}</div>
+        {card.type === 'AI' && <button className="tbtn sm" onClick={() => {
+          if (window.confirm(`Transfer configured input filters for all eight channels of ${card.id}? This simulated filter-only transfer does not download other card properties.`)) downloadFilters(card.id)
+        }}>Download Input Filters</button>}
         {card.channels.map(channel => <TraditionalChannelEditor key={channel.channel}
           card={card} channel={channel} />)}
       </div>)}
@@ -45,6 +50,8 @@ function TraditionalChannelEditor({ card, channel }: {
   const hardware = useStore(s => s.hardware)
   const configure = useStore(s => s.configureTraditionalChannel)
   const simulateInput = useStore(s => s.setTraditionalInput)
+  const configureFilter = useStore(s => s.configureInputFilter)
+  const [filter, setFilter] = useState(String(channel.configuredFilterSeconds ?? 0))
   const [dst, setDst] = useState(channel.dst)
   const [enabled, setEnabled] = useState(channel.enabled)
   const [tieback, setTieback] = useState(channel.tiebackDst ?? '')
@@ -52,6 +59,7 @@ function TraditionalChannelEditor({ card, channel }: {
   useEffect(() => {
     setDst(channel.dst); setEnabled(channel.enabled); setTieback(channel.tiebackDst ?? '')
   }, [channel.dst, channel.enabled, channel.tiebackDst])
+  useEffect(() => setFilter(String(channel.configuredFilterSeconds ?? 0)), [channel.configuredFilterSeconds])
   const label = `${card.id} CH${channel.channel}`
   const bad = channelBad(hardware, card, channel) || channel.bad
   const bindings = Object.entries(hardware.discreteBindings ?? {}).filter(([, bound]) => bound === channel.dst)
@@ -91,6 +99,15 @@ function TraditionalChannelEditor({ card, channel }: {
             value={value} onChange={e => setValue(Number(e.target.value))} /></label>
           <button className="tbtn sm" disabled={!channel.dst || !!channel.tiebackDst}
             onClick={() => simulateInput(channel.dst, value)}>Set Simulated Input</button>
+        </div>}
+        {card.type === 'AI' && <div className="traditional-toolbar">
+          <label>Configured input filter (s)<input aria-label={`${label} input filter seconds`} type="number"
+            step="any" min={0} value={filter} onChange={e => setFilter(e.target.value)} /></label>
+          <button className="tbtn sm" onClick={() => configureFilter(card.id, channel.channel,
+            filter.trim() ? Number(filter) : NaN)}>Configure Input Filter</button>
+          <span>Deployed: {channel.filterSeconds ?? 0}s; sampled signal: {channel.filteredValue ?? channel.value}
+            {channel.configuredFilterSeconds !== undefined && channel.configuredFilterSeconds !== (channel.filterSeconds ?? 0) ?
+              ' — transfer required' : ''}</span>
         </div>}
       </div>
     </details>

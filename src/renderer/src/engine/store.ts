@@ -89,6 +89,8 @@ interface StoreState extends PlantState {
   configureTraditionalChannel: (cardId: string, channel: number,
     patch: { dst: string; enabled: boolean; tiebackDst?: string }) => boolean
   setTraditionalInput: (dst: string, value: number) => boolean
+  configureInputFilter: (cardId: string, channel: number, seconds: number) => boolean
+  downloadInputFilters: (cardId: string) => boolean
   bindDiscreteDst: (tag: string, dst: string) => boolean
   bindAnalogDst: (tag: string, port: AnalogBindingPort, dst: string) => boolean
   configureStandaloneAo: (tag: string, patch: AnalogOutputPatch) => boolean
@@ -1116,8 +1118,54 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     set(s => ({ hardware: { ...s.hardware, traditionalCards: { ...s.hardware.traditionalCards,
       [cardId]: { ...card, channels: card.channels.map(channel => channel.channel === channelNumber
-        ? { ...channel, ...normalized, bad: true } : channel) } } }, rev: s.rev + 1 }))
+        ? { ...channel, ...normalized, bad: true,
+          // Tieback changes the raw domain from engineering units to percent.
+          filteredValue: card.type === 'AI' && normalized.tiebackDst !== channel.tiebackDst ?
+            (normalized.tiebackDst ? findDst(s.hardware, normalized.tiebackDst)?.channel.value ?? channel.value :
+              channel.value) : channel.filteredValue } : channel) } } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', cardId, `Channel ${channelNumber}: DST ${normalized.dst || '(none)'}, enabled ${normalized.enabled}, simulated tieback ${normalized.tiebackDst ?? '(none)'}`)
+    return true
+  },
+
+  configureInputFilter: (cardId, channelNumber, seconds) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure AI channel filter ${cardId}`)) return false
+    const card = get().hardware.traditionalCards?.[cardId]
+    const channel = card?.channels.find(c => c.channel === channelNumber)
+    const error = !card || card.type !== 'AI' || !channel ? 'Select a traditional AI card/channel' :
+      !Number.isFinite(seconds) || seconds < 0 ? 'Input filter time must be finite and nonnegative' : null
+    if (error || !card) {
+      const message = error ?? 'Traditional AI card does not exist'
+      get().logEvent('DIAGNOSTIC', cardId, message); window.alert(message)
+      return false
+    }
+    set(s => ({ hardware: { ...s.hardware, traditionalCards: { ...s.hardware.traditionalCards,
+      [cardId]: { ...card, channels: card.channels.map(c => c.channel === channelNumber ?
+        { ...c, configuredFilterSeconds: seconds } : c) } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', cardId, `CH${channelNumber} configured filter ${seconds}s; transfer required`)
+    return true
+  },
+
+  downloadInputFilters: (cardId) => {
+    if (!useSecurity.getState().requireLock('CAN_DOWNLOAD', `Download input filters ${cardId}`)) return false
+    const state = get()
+    const card = state.hardware.traditionalCards?.[cardId]
+    const controller = card ? state.hardware.controllers[card.controllerTag] : undefined
+    const error = !card || card.type !== 'AI' ? 'Select a traditional AI card' :
+      !controller || controllerIsDown(controller) ? 'Input filter transfer requires an available commissioned controller' :
+      card.channels.some(c => !Number.isFinite(c.configuredFilterSeconds ?? 0) || (c.configuredFilterSeconds ?? 0) < 0 ||
+        ((c.configuredFilterSeconds ?? 0) > 0 && !Number.isFinite(c.filteredValue ?? c.value))) ?
+        'Input filter transfer rejected invalid time or readback; runtime retained' : null
+    if (error || !card) {
+      const message = error ?? 'Traditional AI card does not exist'
+      get().logEvent('DIAGNOSTIC', cardId, message); window.alert(message)
+      return false
+    }
+    set(s => ({ hardware: { ...s.hardware, traditionalCards: { ...s.hardware.traditionalCards,
+      [cardId]: { ...card, channels: card.channels.map(c => ({ ...c,
+        filterSeconds: c.configuredFilterSeconds ?? 0,
+        filteredValue: (c.configuredFilterSeconds ?? 0) > 0 ? c.filteredValue ?? c.value : c.value })) } } },
+      rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', cardId, 'Simulated AI filter-only card transfer committed atomically; not a full card/controller download')
     return true
   },
 

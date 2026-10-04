@@ -97,6 +97,15 @@ alarm ON VALUE 0 or 1. Explicit simulated DO-to-DI tiebacks update after output
 execution; DI reads that signal on the following scan. Faults hold the last
 signal with Bad quality rather than reporting the command as confirmed feedback.
 
+Traditional AI cards support the DV-09 2.6-second input-filter subset.
+Configure a nonnegative filter time per channel, then use **Download Input Filters**
+and confirm the simulated filter-only card transfer. Configured and deployed times
+remain distinct; cancelling, denied permissions, invalid settings or an unavailable
+controller retain running settings. The first-order channel filter uses simulation
+time, holds during Bad input, and filters AO tieback percent before receiving
+PV_SCALE conversion. Zero bypasses it after transfer. This is session-local;
+it is not a full card/controller download or the vendor DeltaV Tune workflow.
+
 The course DST exercise uses a separate blank training session so the existing
 pharma `XV-101` valve is not overwritten. Creating a blank project discards that
 session's current project after confirmation. Standalone AI and PID AI1/AO1/AO2

@@ -16,6 +16,9 @@ export interface TraditionalChannel {
   value: number
   bad: boolean
   tiebackDst?: string
+  configuredFilterSeconds?: number
+  filterSeconds?: number
+  filteredValue?: number
 }
 
 export interface TraditionalCard {
@@ -91,7 +94,9 @@ export function discreteBindingError(hw: HardwareState, module: AnyModule | unde
 export function channelBad(hw: HardwareState, card: TraditionalCard, channel: TraditionalChannel): boolean {
   const controller = hw.controllers[card.controllerTag]
   return !controller || controllerIsDown(controller) || !channel.enabled || !channel.dst ||
-    !Number.isFinite(channel.value)
+    !Number.isFinite(channel.value) || (card.type === 'AI' &&
+      (!Number.isFinite(channel.filterSeconds ?? 0) || (channel.filterSeconds ?? 0) < 0 ||
+        ((channel.filterSeconds ?? 0) > 0 && !Number.isFinite(channel.filteredValue))))
 }
 
 export function analogBindingError(
@@ -127,7 +132,7 @@ export function sampleAnalogInputs(hw: HardwareState, modules: Record<string, An
     if (!bindings.input || !module || (module.type !== 'AI' && module.type !== 'PID')) continue
     const target = findDst(hw, bindings.input)
     const bad = analogChannelBad(hw, bindings.input, 'AI')
-    const signal = target?.channel.value
+    const signal = (target?.channel.filterSeconds ?? 0) > 0 ? target?.channel.filteredValue : target?.channel.value
     const raw = signal !== undefined && target?.channel.tiebackDst
       ? module.pvMin + signal / 100 * (module.pvMax - module.pvMin) : signal
     if (module.type === 'PID') samplePidInput(module, raw ?? pidIo(module).ai.raw, bad)
@@ -178,7 +183,7 @@ export function sampleDiscreteInputs(hw: HardwareState, modules: Record<string, 
   }
 }
 
-export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, AnyModule>): HardwareState {
+export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, AnyModule>, dt = 0): HardwareState {
   if (!hw.traditionalCards) return hw
   const cards = Object.fromEntries(Object.entries(hw.traditionalCards).map(([id, card]) => [id, {
     ...card, channels: card.channels.map(channel => ({ ...channel, bad: channelBad(hw, card, channel) }))
@@ -242,6 +247,18 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
       const source = findDst(next, channel.tiebackDst)
       channel.bad ||= !source || source.card.type !== (card.type === 'DI' ? 'DO' : 'AO') || source.channel.bad
       if (!channel.bad && source) channel.value = source.channel.value
+    }
+  }
+  for (const card of Object.values(cards)) {
+    if (card.type !== 'AI') continue
+    for (const channel of card.channels) {
+      if (channel.bad) continue
+      const tau = channel.filterSeconds ?? 0
+      if (tau === 0) channel.filteredValue = channel.value
+      else if (Number.isFinite(dt) && dt > 0 && channel.filteredValue !== undefined) {
+        const alpha = -Math.expm1(-dt / tau)
+        channel.filteredValue = channel.filteredValue * (1 - alpha) + channel.value * alpha
+      }
     }
   }
   return next
