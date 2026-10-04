@@ -13,6 +13,8 @@ const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const { findDst } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { dstUsage } = require('../src/renderer/src/engine/dstUsage.ts')
 const { applyAction } = require('../src/renderer/src/engine/sfc.ts')
+const { usePictures } = require('../src/renderer/src/engine/pictureStore.ts')
+const { pictureModeSignal, pictureSignal, parseSavedPicture } = require('../src/renderer/src/engine/pictureDynamics.ts')
 const { lifecyclePidModules, savedPidStorageKey } = require('../src/renderer/src/engine/pidLifecycle.ts')
 
 function fic() { return useStore.getState().modules['FIC-102'] }
@@ -197,4 +199,49 @@ test('p254 PID_LOOP Save, Full Download, controller binding and Online are isola
   store.setSetpoint('FIC-102', 25)
   assert.equal(fic().sp, priorSp, 'operator write cannot modify offline runtime')
   assert.ok(global.window.alerts.some(message => message.includes('Go Online')))
+}))
+
+test('p256 FIC-102 picture entry writes bounded SP and only permits configured PID target modes', () => fixture(store => {
+  const pictures = usePictures.getState()
+  const spId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 220,
+    tag: 'FIC-102', path: 'PID1/SP', entry: { method: 'NUMERIC', fetchLimits: true, low: 0, high: 100 } })
+  const modeId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 250,
+    tag: 'FIC-102', path: 'PID1/MODE.A_TARGET', entry: { method: 'PID_MODE' } })
+  assert.ok(spId, global.window.alerts.at(-1))
+  assert.ok(modeId, global.window.alerts.at(-1))
+  assert.deepEqual(pictureSignal(usePictures.getState().pictures.TANK101.elements.find(el => el.id === spId),
+    useStore.getState().modules), { value: fic().sp, unit: 'GPM', bad: false, low: 0, high: 100, parameter: 'PID1/SP' })
+  assert.deepEqual(pictureModeSignal({ tag: 'FIC-102', path: 'PID1/MODE.A_TARGET' },
+    useStore.getState().modules), { current: 'AUTO', choices: fic().permittedModes })
+  assert.deepEqual(pictureModeSignal({ tag: 'FIC-102', path: 'PID1/MODE.A_ACTUAL' },
+    useStore.getState().modules), { current: 'AUTO' })
+
+  assert.equal(pictures.writeNumericValue('TANK101', spId, 75), true)
+  assert.equal(fic().sp, 75)
+  assert.equal(pictures.writeNumericValue('TANK101', spId, 101), false)
+  assert.equal(fic().sp, 75, 'out-of-range SP is rejected without changing the target')
+  assert.equal(pictures.writeModeValue('TANK101', modeId, 'MAN'), true)
+  assert.equal(fic().mode, 'MAN')
+  assert.equal(store.setPidModeFields('FIC-102', { permittedModes: ['MAN', 'AUTO'] }), true)
+  assert.deepEqual(pictureModeSignal({ tag: 'FIC-102', path: 'MODE.A_TARGET' },
+    useStore.getState().modules), { current: 'MAN', choices: ['MAN', 'AUTO'] })
+  assert.equal(pictures.writeModeValue('TANK101', modeId, 'CAS'), false)
+  assert.equal(pictures.writeModeValue('TANK101', modeId, 'LO'), false)
+  assert.equal(fic().mode, 'MAN', 'excluded and actual-only modes never change the target')
+
+  assert.equal(pictures.savePicture('TANK101'), true)
+  const saved = global.window.localStorage.getItem('batchlive.picture.v1.TANK101')
+  const parsed = parseSavedPicture(saved, 'TANK101', useStore.getState().modules, useStore.getState())
+  assert.deepEqual(parsed.elements.find(el => el.id === modeId).entry, { method: 'PID_MODE' })
+  assert.equal(pictures.configureDynamics('TANK101', modeId, { entry: undefined }), true)
+  assert.equal(pictures.loadPicture('TANK101'), true)
+  assert.deepEqual(usePictures.getState().pictures.TANK101.elements.find(el => el.id === modeId).entry,
+    { method: 'PID_MODE' })
+  assert.equal(store.bindAnalogDst('FIC-102', 'input', 'FT-2'), true)
+  assert.equal(store.bindAnalogDst('FIC-102', 'output', 'FY-2'), true)
+  assert.equal(store.enablePidLifecycle('FIC-102'), true)
+  const offlineSetpoint = fic().sp
+  assert.equal(pictures.writeNumericValue('TANK101', spId, 60), false)
+  assert.equal(pictures.writeModeValue('TANK101', modeId, 'AUTO'), false)
+  assert.equal(fic().sp, offlineSetpoint, 'picture writes cannot bypass the Offline lifecycle inhibit')
 }))

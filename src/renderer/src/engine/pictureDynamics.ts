@@ -1,5 +1,5 @@
-import { pidExecutionBad } from './pidModes'
-import type { AnyModule } from './types'
+import { pidExecutionBad, pidModeFieldsError, pidPermittedModes } from './pidModes'
+import type { AnyModule, PidTargetMode } from './types'
 import type { PicElement, Picture } from './pictureStore'
 import { pictureNamedSignal, type PictureNamedContext } from './pictureNamedSets'
 
@@ -12,16 +12,47 @@ export interface PictureSignal {
   parameter?: string
 }
 export type PictureSignalResult = PictureSignal | { error: string }
+export interface PictureModeSignal {
+  current: string
+  choices?: PidTargetMode[]
+}
+export type PictureModeSignalResult = PictureModeSignal | { error: string }
 export type PictureDynamicPatch = Pick<Partial<PicElement>,
   'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag'>
+
+function pictureModePath(path: string): 'target' | 'actual' | null {
+  const normalized = path.trim().toUpperCase().replace(/^PID1\//, '').replace(/\.CV$/, '')
+  if (normalized === 'MODE.A_TARGET') return 'target'
+  if (normalized === 'MODE.A_ACTUAL') return 'actual'
+  return null
+}
+
+export function pictureModeSignal(el: Pick<PicElement, 'tag' | 'path'>,
+  modules: Record<string, AnyModule>): PictureModeSignalResult {
+  const tag = el.tag ?? ''
+  const module = modules[tag]
+  const modePath = pictureModePath(el.path ?? '')
+  if (!module || module.type !== 'PID' || !modePath) {
+    return { error: `Unsupported mode source ${tag || '(unassigned)'}/${el.path ?? ''}` }
+  }
+  const error = pidModeFieldsError(module)
+  if (error) return { error: `${tag}: ${error}` }
+  return modePath === 'target'
+    ? { current: module.mode, choices: pidPermittedModes(module) }
+    : { current: module.actualMode }
+}
 
 export function pictureSignal(el: PicElement, modules: Record<string, AnyModule>): PictureSignalResult {
   const m = el.tag ? modules[el.tag] : undefined
   if (!m) return { error: `Module ${el.tag || '(unassigned)'} does not exist` }
   const path = (el.path ?? el.param ?? 'PV').trim().toUpperCase()
-  const parameter = path.replace(/\.(F_)?CV$/, '')
+  let parameter = path.replace(/\.(F_)?CV$/, '')
   let result: PictureSignal
-  if (parameter === 'AI1/PV' && m.type === 'PID') {
+  if (m.type === 'PID' && /^(?:PID1\/)?SP(?:\.(?:F_)?CV)?$/.test(path)) {
+    parameter = 'PID1/SP'
+    result = { value: m.sp, unit: m.unit, low: m.pvMin, high: m.pvMax,
+      bad: m.pvBad || pidExecutionBad(m), parameter }
+  } else if (parameter === 'AI1/PV' && m.type === 'PID') {
     result = { value: m.io?.ai.out ?? m.pv, unit: m.unit, low: m.pvMin, high: m.pvMax,
       bad: m.io?.ai.bad ?? m.pvBad }
   } else if ((parameter === 'PV' || parameter === 'AI1/PV' && m.type !== 'AO') &&
@@ -65,13 +96,31 @@ export function pictureElementError(el: PicElement, modules: Record<string, AnyM
     const source = pictureNamedSignal(el, context, true)
     return 'error' in source ? source.error : null
   }
+  if (el.entry?.method === 'PID_MODE') {
+    const source = pictureModeSignal(el, modules)
+    if ('error' in source) return source.error
+    return source.choices ? null : 'Only MODE.A_TARGET supports Multiple-Item Select entry'
+  }
   if (el.entry && el.entry.method !== 'NUMERIC') return 'Unsupported Data Entry method'
   if (el.fill && el.type !== 'rectangle') return 'Fill animation requires a rectangle'
   if (el.fill && typeof el.fill.vertical !== 'boolean') return 'Fill direction must be vertical or horizontal'
+  if (el.path !== undefined && pictureModePath(el.path)) {
+    const source = pictureModeSignal(el, modules)
+    if ('error' in source) return source.error
+    if (el.entry) return 'Mode targets require Multiple-Item Select entry'
+    if (el.fill) return 'Mode paths do not support numeric fill animations'
+    return null
+  }
   if (!el.entry && !el.fill && el.path === undefined) return null
   const source = pictureSignal(el, modules)
   if ('error' in source) return source.error
-  if (el.entry && !source.parameter) return 'Numeric entry currently requires a standalone AO Floating Point parameter'
+  if (el.entry && !source.parameter) return 'Numeric entry requires PID1/SP or a standalone AO Floating Point parameter'
+  const module = el.tag ? modules[el.tag] : undefined
+  if (el.entry && source.parameter !== 'PID1/SP') {
+    if (!source.parameter || module?.type !== 'AO' || !module.parameters[source.parameter]) {
+      return 'Numeric entry supports PID1/SP or a standalone AO Floating Point parameter'
+    }
+  }
   for (const settings of [el.entry, el.fill]) {
     if (!settings) continue
     if (typeof settings.fetchLimits !== 'boolean') return 'Fetch Limits must be a Boolean'
@@ -106,7 +155,8 @@ function element(v: unknown): v is PicElement {
     ['label', 'bold'].every(k => v[k] === undefined || typeof v[k] === 'boolean') &&
     (v.param === undefined || typeof v.param === 'string' && ['PV', 'SP', 'OUT', 'MODE', 'STATE'].includes(v.param)) &&
     (v.entry === undefined || object(v.entry) &&
-      (v.entry.method === 'NAMED_SET' || v.entry.method === 'NUMERIC' && limits(v.entry))) &&
+      (v.entry.method === 'NAMED_SET' || v.entry.method === 'PID_MODE' ||
+        v.entry.method === 'NUMERIC' && limits(v.entry))) &&
     (v.fill === undefined || object(v.fill) && typeof v.fill.vertical === 'boolean' && limits(v.fill))
 }
 export function parseSavedPicture(text: string, name: string, modules: Record<string, AnyModule>, context?: PictureNamedContext): Picture {

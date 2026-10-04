@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { useSecurity } from './security'
 import { useStore } from './store'
-import { parseSavedPicture, pictureElementError, pictureLimits, pictureSignal, type PictureDynamicPatch } from './pictureDynamics'
+import { parseSavedPicture, pictureElementError, pictureLimits, pictureModeSignal, pictureSignal,
+  type PictureDynamicPatch } from './pictureDynamics'
 import { pictureNamedSignal } from './pictureNamedSets'
 
 // Operator-display builder model (DV-09 "Creating a New Picture / Datalink / Dynamo / Text").
@@ -23,7 +24,8 @@ export interface PicElement {
   param?: PicParam
   label?: boolean
   path?: string
-  entry?: { method: 'NUMERIC'; fetchLimits: boolean; low: number; high: number } | { method: 'NAMED_SET' }
+  entry?: { method: 'NUMERIC'; fetchLimits: boolean; low: number; high: number } |
+    { method: 'NAMED_SET' } | { method: 'PID_MODE' }
   fill?: { vertical: boolean; fetchLimits: boolean; low: number; high: number }
   width?: number
   height?: number
@@ -59,6 +61,7 @@ interface PictureState {
   configureDynamics: (pic: string, id: string, patch: PictureDynamicPatch) => boolean
   writeNumericValue: (pic: string, id: string, value: number) => boolean
   writeNamedValue: (pic: string, id: string, value: number, expected?: PicElement) => boolean
+  writeModeValue: (pic: string, id: string, value: string, expected?: PicElement) => boolean
   savePicture: (pic: string) => boolean
   loadPicture: (pic: string) => boolean
   assignModuleDisplays: (tag: string, primary: string, detail: string) => boolean
@@ -175,6 +178,7 @@ export const usePictures = create<PictureState>((set, get) => ({
     if (!Number.isFinite(value) || value < limits.low || value > limits.high) {
       return rejectPicture(pic, `Numeric entry requires a finite value from ${limits.low} to ${limits.high}`)
     }
+    if (source.parameter === 'PID1/SP') return useStore.getState().setSetpoint(element.tag, value)
     return useStore.getState().setAoParameter(element.tag, source.parameter, value)
   },
 
@@ -185,6 +189,19 @@ export const usePictures = create<PictureState>((set, get) => ({
     const source = pictureNamedSignal(element, useStore.getState())
     if ('error' in source) return rejectPicture(pic, source.error)
     return useStore.getState().writeSfcNamedValue(element.tag ?? '', source.parameter, value)
+  },
+
+  writeModeValue: (pic, id, value, expected) => {
+    const element = get().pictures[pic]?.elements.find(item => item.id === id)
+    if (!element || element.entry?.method !== 'PID_MODE') {
+      return rejectPicture(pic, 'Datalink has no Multiple-Item Select mode entry')
+    }
+    if (expected && element !== expected) return rejectPicture(pic, 'Datalink changed while entry was open; reopen data entry')
+    const source = pictureModeSignal(element, useStore.getState().modules)
+    if ('error' in source) return rejectPicture(pic, source.error)
+    const target = source.choices?.find(choice => choice === value)
+    if (!target) return rejectPicture(pic, `Mode ${value} is not an allowed target choice`)
+    return useStore.getState().setMode(element.tag ?? '', target)
   },
 
   savePicture: (pic) => {

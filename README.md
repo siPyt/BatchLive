@@ -583,6 +583,13 @@ controller-mismatched record cannot be downloaded; the runtime remains OOS
 until a current saved revision has been downloaded and placed Online. Physical
 DeltaV controller communication and native project databases are not modeled.
 
+In the Display Builder, a FIC-102 `PID1/SP` datalink can use numeric entry
+bounded by its engineering range. `PID1/MODE.A_TARGET` supports a multiple-item
+selector constrained by `MODE.PERMITTED`; `MODE.A_ACTUAL` can be displayed
+read-only. Writes use the same operator permission and PID lifecycle checks
+as the faceplate. The course's OUT ramp entry, alarm-only visibility, animated
+valve/actuator dynamos and PipesAnim connections remain incomplete.
+
 PID1's Studio target selector exposes supported target modes; LO is actual-only.
 OOS stops PID calculations and holds its requested output with Bad block
 quality. AI1 keeps its own input quality. A normally cascaded AO holds Bad,

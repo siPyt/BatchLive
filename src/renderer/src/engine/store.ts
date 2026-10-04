@@ -180,9 +180,9 @@ interface StoreState extends PlantState {
   setDiscreteMode: (tag: string, mode: 'AUTO' | 'OOS') => boolean
   configureDiscreteAlarm: (tag: string, onValue: boolean, enabled: boolean) => boolean
   // operator actions
-  setMode: (tag: string, mode: PidModule['mode']) => void
+  setMode: (tag: string, mode: PidModule['mode']) => boolean
   setPidModeFields: (tag: string, patch: { normalMode?: PidModule['mode']; permittedModes?: PidModule['permittedModes'] }) => boolean
-  setSetpoint: (tag: string, sp: number) => void
+  setSetpoint: (tag: string, sp: number) => boolean
   setOutput: (tag: string, out: number) => void
   setTuning: (tag: string, t: { gain?: number; reset?: number; rate?: number }) => void
   /** Wire or clear a PID's cascade remote-SP source (CAS_SOURCE) — any tag, any PID, not just a hardcoded pair. */
@@ -441,19 +441,19 @@ export const useStore = create<StoreState>((set, get) => ({
   silenceHorn: () => set({ hornSilenced: true }),
 
   setMode: (tag, mode) => {
-    if (!requireUnlockedLock('CONTROL', `Set Mode ${tag}`)) return
+    if (!requireUnlockedLock('CONTROL', `Set Mode ${tag}`)) return false
     if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
       rejectPid(get, tag, 'Go Online before writing a managed PID target mode')
-      return
+      return false
     }
     const module = get().modules[tag]
     if (module?.type !== 'PID' || !isPidTargetMode(mode)) {
       rejectSfc(get, tag, 'PID target requires a supported mode; LO is an actual tracking mode, not a target')
-      return
+      return false
     }
     if (!pidTargetAllowed(module, mode)) {
       rejectSfc(get, tag, `PID target mode ${mode} is not in MODE.PERMITTED`)
-      return
+      return false
     }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') {
@@ -463,6 +463,7 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     })
     get().logEvent('OPERATOR', tag, `Mode set to ${mode}`)
+    return true
   },
 
   setPidModeFields: (tag, patch) => {
@@ -495,10 +496,14 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setSetpoint: (tag, sp) => {
-    if (!useSecurity.getState().requireLock('CONTROL', `Set Setpoint ${tag}`)) return
+    if (!useSecurity.getState().requireLock('CONTROL', `Set Setpoint ${tag}`)) return false
     if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
       rejectPid(get, tag, 'Go Online before writing a managed PID setpoint')
-      return
+      return false
+    }
+    if (get().modules[tag]?.type !== 'PID' || !Number.isFinite(sp)) {
+      rejectSfc(get, tag, 'PID setpoint entry requires a finite value and a PID module')
+      return false
     }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') {
@@ -507,6 +512,7 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     })
     get().logEvent('OPERATOR', tag, `SP set to ${sp}`)
+    return true
   },
 
   setOutput: (tag, out) => {

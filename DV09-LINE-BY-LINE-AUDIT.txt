@@ -902,11 +902,16 @@ Pages: 256-257
 Status: PARTIAL
 Required: PID SP numeric/OUT ramp/mode multi-item data entry, actual mode and
   active alarm visibility; valve/actuator animation and PipesAnim connections.
-Evidence: Related faceplate controls and protected pipes exist. Builder lacks
-  these data-entry/animation/dynamo capabilities.
+Evidence: Builder now supports bounded numeric PID1/SP entry, PID
+  MODE.A_TARGET Multiple-Item Select limited to MODE.PERMITTED, and read-only
+  MODE.A_ACTUAL datalinks. Existing faceplate controls and protected pipes
+  remain. OUT ramp entry, active-alarm visibility, valve/actuator state
+  animation, and PipesAnim connections are not implemented.
 Acceptance: Configure the specified picture expressions and verify resulting
-  writes/feedback. Course yellow/green custom animation must be isolated;
-  do not globally change approved plant colors or pipe geometry.
+  writes/feedback. Numeric SP bounds and permitted target selection reject
+  invalid commands. Complete the remaining entry/animation features only from
+  source-verified behavior. Course yellow/green custom animation must be
+  isolated; do not globally change approved plant colors or pipe geometry.
 
 [DV09-059]
 Pages: 258-258

@@ -5,7 +5,7 @@ import { resolvePictureTarget, usePictures, type PicElement, type PicParam } fro
 import { fmt } from '../utils/format'
 import type { AnyModule } from '../engine/types'
 import { ClassicTank, PALE_BORDER, PALE_TEXT } from '../components/ClassicGraphics'
-import { pictureFill, pictureLimits, pictureSignal } from '../engine/pictureDynamics'
+import { pictureFill, pictureLimits, pictureModeSignal, pictureSignal } from '../engine/pictureDynamics'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 import { pictureNamedSignal } from '../engine/pictureNamedSets'
 
@@ -309,10 +309,13 @@ function Canvas({
         }
         const named = el.entry?.method === 'NAMED_SET' || namedContext.sfcLifecycle[el.tag ?? ''] && el.path !== undefined ?
           pictureNamedSignal(el, namedContext, edit) : null
-        const signal = !named && (el.path || el.entry) ? pictureSignal(el, modules) : null
+        const isModePath = !!el.path && /^(?:PID1\/)?MODE\.A_(?:TARGET|ACTUAL)(?:\.CV)?$/i.test(el.path.trim())
+        const mode = !named && isModePath ? pictureModeSignal(el, modules) : null
+        const signal = !named && !mode && (el.path || el.entry) ? pictureSignal(el, modules) : null
         const value = named ? 'error' in named ? named.error : `${named.text}${named.bad ? ' (Bad)' : ''}` :
-          signal ? 'error' in signal ? signal.error : `${fmt(signal.value, 2)} ${signal.unit}${signal.bad ? ' (Bad)' : ''}` :
-          paramValue(m, el.param ?? 'PV')
+          mode ? 'error' in mode ? mode.error : mode.current :
+            signal ? 'error' in signal ? signal.error : `${fmt(signal.value, 2)} ${signal.unit}${signal.bad ? ' (Bad)' : ''}` :
+              paramValue(m, el.param ?? 'PV')
         return (
           <div
             key={el.id}
@@ -334,7 +337,9 @@ function Canvas({
       {els.length === 0 && <div className="exp-empty">Empty picture. Add datalinks, text, or dynamos.</div>}
       {!edit && entryId && (els.find(el => el.id === entryId)?.entry?.method === 'NAMED_SET' ?
         <NamedSetEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} /> :
-        <NumericEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} />)}
+        els.find(el => el.id === entryId)?.entry?.method === 'PID_MODE' ?
+          <ModeEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} /> :
+          <NumericEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} />)}
     </div>
   )
 }
@@ -432,9 +437,10 @@ function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Eleme
 
 function DynamicsExpert({ picture, element: el }: { picture: string; element: PicElement }): JSX.Element {
   const configure = usePictures(s => s.configureDynamics)
+  const modules = useStore(s => s.modules)
   const [path, setPath] = useState(el.path ?? el.param ?? 'PV')
   const [enabled, setEnabled] = useState(!!(el.entry || el.fill))
-  const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET'>(el.entry?.method ?? 'NUMERIC')
+  const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET' | 'PID_MODE'>(el.entry?.method ?? 'NUMERIC')
   const settings = el.entry?.method === 'NUMERIC' ? el.entry : el.fill
   const [fetchLimits, setFetchLimits] = useState(settings?.fetchLimits ?? el.type === 'rectangle')
   const [low, setLow] = useState(String(settings?.low ?? 0))
@@ -454,8 +460,15 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
     <label className="bld-f bld-f-row"><input type="checkbox" checked={enabled}
       onChange={e => setEnabled(e.target.checked)} />{rectangle ? 'Fill Percentage' : 'Data Entry'}</label>
     {!rectangle && <label className="bld-f">Entry Method<select aria-label="Picture entry method" value={method}
-      onChange={e => setMethod(e.target.value as 'NUMERIC' | 'NAMED_SET')}>
+      onChange={e => {
+        const next = e.target.value as 'NUMERIC' | 'NAMED_SET' | 'PID_MODE'
+        setMethod(next)
+        if (next === 'PID_MODE') setPath('PID1/MODE.A_TARGET')
+        else if (method === 'PID_MODE') setPath('PID1/SP')
+      }}>
       <option value="NUMERIC">Numeric Entry</option><option value="NAMED_SET">Named Set</option>
+      {(modules[el.tag ?? '']?.type === 'PID' || method === 'PID_MODE') &&
+        <option value="PID_MODE">Multiple-Item Select (PID Target)</option>}
     </select></label>}
     {rectangle && <label className="bld-f bld-f-row"><input type="checkbox" checked={vertical}
       onChange={e => setVertical(e.target.checked)} />Vertical Direction</label>}
@@ -476,9 +489,10 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
       configure(picture, el.id, { path, color, ...(rectangle ? {
         width: numeric(width), height: numeric(height), backgroundColor: background,
         fill: enabled ? { ...limits, vertical } : undefined
-      } : { entry: enabled ? method === 'NAMED_SET' ? { method: 'NAMED_SET' } : { ...limits, method: 'NUMERIC' } : undefined }) })
+      } : { entry: enabled ? method === 'NAMED_SET' ? { method: 'NAMED_SET' } :
+        method === 'PID_MODE' ? { method: 'PID_MODE' } : { ...limits, method: 'NUMERIC' } : undefined }) })
     }}>Apply Expert</button>
-    <p>AO Floating Point entry supports explicit bounds. AI/PID/AO PV fills use the current engineering scale when limits are fetched.</p>
+    <p>Numeric entry supports PID1/SP and standalone AO Floating Point parameters. PID target selection uses MODE.A_TARGET and its configured permitted modes.</p>
     {!rectangle && <p>Named Set entry uses a saved-lifecycle SFC parameter such as MESSAGE.CV.
       Run reads deployed values; selectable states require Changed Setup Data on both controller and workstation.</p>}
   </>
@@ -507,6 +521,38 @@ function NumericEntryDialog({ picture, id, onClose }: { picture: string; id: str
         <button className="tbtn sm" type="button" onClick={onClose}>Cancel Entry</button>
       </div>
     </form>
+  </SimulatorDialog>
+}
+
+function ModeEntryDialog({ picture, id, onClose }: { picture: string; id: string; onClose: () => void }): JSX.Element {
+  const el = usePictures(s => s.pictures[picture]?.elements.find(item => item.id === id))
+  const [expected] = useState(el)
+  const modules = useStore(s => s.modules)
+  const write = usePictures(s => s.writeModeValue)
+  const source = el ? pictureModeSignal(el, modules) : { error: 'Datalink removed' }
+  const currentChoice = !('error' in source) && source.choices?.some(mode => mode === source.current)
+    ? source.current : ''
+  const [value, setValue] = useState(currentChoice)
+  const [error, setError] = useState('')
+  return <SimulatorDialog className="bld-entry-dialog" label="Multiple-Item Select" onClose={onClose}>
+    <h3>{el?.tag}/{el?.path}</h3>
+    {'error' in source ? <p role="alert">{source.error}</p> : <>
+      <p>Current target: {source.current}</p>
+      <label>Select target mode<select aria-label="PID target mode" value={value} onChange={e => setValue(e.target.value)}>
+        <option value="">Select a target mode</option>
+        {(source.choices ?? []).map(mode => <option key={mode} value={mode}>{mode}</option>)}
+      </select></label>
+      <p>Only modes in MODE.PERMITTED are selectable. LO is an actual mode, not a target.</p>
+    </>}
+    {error && <p role="alert">{error}</p>}
+    <div className="sfc-edit-row">
+      <button className="tbtn sm" disabled={!value || 'error' in source}
+        onClick={() => {
+          if (usePictures.getState().writeModeValue(picture, id, value, expected)) onClose()
+          else setError('Mode was not applied; see the reported permission, lifecycle or permitted-mode error.')
+        }}>Apply Mode</button>
+      <button className="tbtn sm" onClick={onClose}>Cancel Entry</button>
+    </div>
   </SimulatorDialog>
 }
 

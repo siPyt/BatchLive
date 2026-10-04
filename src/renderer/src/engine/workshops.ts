@@ -223,10 +223,22 @@ export const COURSE: WModule[] = [
         ]
       },
       {
+        id: 'dv09-fic102-picture-entry',
+        title: 'FIC-102 Picture Setpoint and Mode Entry',
+        objective: 'Configure bounded PID1/SP numeric entry and a permitted-mode selector from the p256 operator-picture exercise.',
+        note: 'The numeric setpoint and target-mode entry subset is executable. OUT ramp entry, active-alarm-only visibility, valve/actuator animation and PipesAnim connections are not yet implemented.',
+        steps: [
+          { id: 'dv09-fic-pic-1', text: 'In Display Builder, open TANK101 and add a datalink for FIC-102. In Data Entry Expert set Source Path PID1/SP, enable Data Entry, choose Numeric Entry and Fetch Limits from Data Source, then Apply Expert.', goto: 'builder' },
+          { id: 'dv09-fic-pic-2', text: 'Add another FIC-102 datalink. Enable Data Entry, choose Multiple-Item Select (PID Target), confirm Source Path PID1/MODE.A_TARGET, and Apply Expert. Add a separate read-only datalink at PID1/MODE.A_ACTUAL.', goto: 'builder' },
+          { id: 'dv09-fic-pic-3', text: 'Switch to Run. Enter a setpoint within the module engineering range and select a permitted target mode. Out-of-range values, modes outside MODE.PERMITTED, and writes while the managed PID is Offline must reject without changing runtime.', goto: 'builder' },
+          { id: 'dv09-fic-pic-4', text: 'Cancel an open entry and confirm no write occurs. The course OUT ramp, active alarm visibility, animated valve/actuator dynamos and PipesAnim paths remain uncovered.' }
+        ]
+      },
+      {
         id: 'dv09-standalone-ao',
         title: 'LEVEL-101 Standalone AO and CAS_SP',
         objective: 'Build the actual AO/CAS_SP path and verify applied channel output with a simulated LI-101 tieback.',
-        note: 'Use a separate blank training session. This is the executable AO/signal subset of pp164-168 and pp173-178, not the complete workshop. Standalone AO now offers the opt-in saved lifecycle in the next exercise. Native properties/templates, picture assignment and picture-level bounded data entry remain absent. Floating Point parameters allow finite values; the AO applies its SP limits. No electrical 4-20 mA conversion is claimed.',
+        note: 'Use a separate blank training session. This is the executable AO/signal subset of pp164-168 and pp173-178, not the complete workshop. Standalone AO now offers the opt-in saved lifecycle in the next exercise. Native properties/templates remain absent. Picture-level numeric entry and source-scaled fill are modeled but are not native graphics experts. Floating Point parameters allow finite values; the AO applies its SP limits. No electrical 4-20 mA conversion is claimed.',
         steps: [
           { id: 'dv09-ao-1', text: 'Create PLANT_AREA_A, commission CTRL1, add C01 AI and C02 AO, and name/enable LT-1 at C01 CH1 and LY-1 at C02 CH1.', goto: 'hardware' },
           { id: 'dv09-ao-2', text: 'Create AO LEVEL-101 in Explorer, range 0-1000 gal. Alternatively create AO from the Studio I/O palette and Apply AO Scale / Limits: Scale Low 0, High 1000, SP Low 0, SP High 1000, Unit gal.', goto: 'explorer' },
