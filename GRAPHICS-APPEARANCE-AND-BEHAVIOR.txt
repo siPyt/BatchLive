@@ -1026,6 +1026,27 @@ behavior was preserved. No plant layout, symbols, palette or CSS changed.
 local commit only, no push authorized.
 
 ===============================================================================
+33. PARALLEL SFC FEEDBACK - EVERY ACTIVE STEP AND REAL JOIN ARRIVALS
+===============================================================================
+
+Preserve approved sequential chart box/action styling, frame geometry and
+equipment artwork. Supplemental parallel connections and an arrival summary
+must not be described as native parallel palette/layout parity.
+Multiple actual active steps must highlight simultaneously; each timer uses
+its own token, not the compatibility active index/elapsed fields. Nonstored
+action labels use step-scoped runtime; stored labels use real shared lifetime.
+Completed legs waiting at a join are not active; never infer COMPLETE from
+array position or prematurely execute/display join actions. HOLD/outage freeze
+all tokens; Reset/completion/download clear runtime. Offline shows no activity.
+Fork/join Properties use existing contained dialogs and commit both changes
+atomically. Cancel/locked/stale/invalid drafts cannot partially install a fork.
+Live two active boxes/SP51/SP52, one arrived leg while the other waited, HOLD
+and all-arrivals SP53 were verified through real Save/Download/Online/RUN.
+Three repeated cycles passed; original plant/UI/storage/viewport restored.
+Regression:199 coupled tests, typecheck/build/diagnostics/audit. Nested/selective
+legs, native palette/layout and full course parity remain explicitly incomplete.
+
+===============================================================================
 32. NEW ALGORITHM CHOICE - PRESERVE EXPLORER AND CHART PRESENTATION
 ===============================================================================
 

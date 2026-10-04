@@ -230,7 +230,8 @@ interface StoreState extends PlantState {
   deleteSfc: (name: string) => void
   setSfcSteps: (name: string, steps: SfcStep[]) => void
   checkSfc: (name: string) => string | null
-  applySfcStepProperties: (name: string, expected: SfcStep, patch: Partial<SfcStep>) => boolean
+  applySfcStepProperties: (name: string, expected: SfcStep, patch: Partial<SfcStep>,
+    related?: { expected: SfcStep; patch: Partial<SfcStep> }[]) => boolean
   sfcCommand: (name: string, cmd: 'run' | 'hold' | 'reset') => void
   /** File > New: reload either the GMP Pharma Factory baseline or a blank project. */
   newProject: (kind: 'pharma' | 'blank') => void
@@ -1927,7 +1928,8 @@ export const useStore = create<StoreState>((set, get) => ({
     const deployed = cloneSfcConfiguration(saved)
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { ...lifecycle, deployed } },
       sfcs: { ...s.sfcs, [name]: { name, area: deployed.area, steps: cloneSfcConfiguration(deployed).steps,
-        status: 'READY', active: 0, elapsed: 0, actionStates: {}, parameters: cloneSfcParameters(deployed.parameters) } }, rev: s.rev + 1 }))
+        status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined,
+        parameters: cloneSfcParameters(deployed.parameters) } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', name, `Saved linear SFC downloaded to ${saved.controllerTag}; READY, no actions executed`)
     return true
   },
@@ -2004,7 +2006,7 @@ export const useStore = create<StoreState>((set, get) => ({
     return error
   },
 
-  applySfcStepProperties: (name, expected, patch) => {
+  applySfcStepProperties: (name, expected, patch, related = []) => {
     if (!requireUnlockedLock('CAN_CONFIGURE', `Apply SFC properties ${name}`)) return false
     const state = get()
     const lifecycle = state.sfcLifecycle[name]
@@ -2012,11 +2014,18 @@ export const useStore = create<StoreState>((set, get) => ({
     const sfc = runtime ? sfcEditorDefinition(runtime, lifecycle) : undefined
     const step = sfc?.steps.find(item => item.id === expected.id)
     const candidate = { ...expected, ...patch }
-    const steps = sfc?.steps.map(item => item.id === expected.id ? candidate : item) ?? []
+    const steps = sfc?.steps.map(item => {
+      const change = related.find(entry => entry.expected.id === item.id)
+      return item.id === expected.id ? candidate : change ? { ...item, ...change.patch } : item
+    }) ?? []
     const error = !sfc || !step ? 'SFC or selected step no longer exists' :
       lifecycle?.online ? 'Go Offline to edit SFC configuration' :
       runtime?.status !== 'READY' && runtime?.status !== 'COMPLETE' ? 'Reset the SFC before applying Properties' :
       step !== expected ? 'Step changed while Properties was open; cancel and reopen to avoid overwriting edits' :
+      related.some(entry => entry.expected.id === expected.id ||
+        sfc.steps.find(item => item.id === entry.expected.id) !== entry.expected) ||
+        new Set(related.map(entry => entry.expected.id)).size !== related.length ?
+        'Related join step changed while Properties was open; cancel and reopen' :
       sfcStepsError(steps, state.modules, sfcExpressionContext(state, name))
     if (error) {
       get().logEvent('DIAGNOSTIC', name, `SFC Properties rejected: ${error}`); window.alert(error)
@@ -2030,7 +2039,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return true
     }
     set(s => ({ sfcs: { ...s.sfcs, [name]: { ...sfc, steps, active: 0, elapsed: 0,
-      status: 'READY', actionStates: {} } }, rev: s.rev + 1 }))
+      status: 'READY', actionStates: {}, activeSteps: undefined, joinArrivals: undefined } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', name, `SFC step ${candidate.name} Properties applied`)
     return true
   },
@@ -2055,7 +2064,8 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!sfc) return {}
       // Editing resets the run so the chart starts clean.
       return {
-        sfcs: { ...s.sfcs, [name]: { ...sfc, steps, status: 'READY', active: 0, elapsed: 0, actionStates: {} } },
+        sfcs: { ...s.sfcs, [name]: { ...sfc, steps, status: 'READY', active: 0, elapsed: 0, actionStates: {},
+          activeSteps: undefined, joinArrivals: undefined } },
         rev: s.rev + 1
       }
     })
@@ -2082,9 +2092,9 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!sfc) return {}
       let next = sfc
       if (cmd === 'run') next = sfc.status === 'COMPLETE' ?
-        { ...sfc, status: 'RUNNING', active: 0, elapsed: 0, actionStates: {} } : { ...sfc, status: 'RUNNING' }
+        { ...sfc, status: 'RUNNING', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined } : { ...sfc, status: 'RUNNING' }
       else if (cmd === 'hold') next = { ...sfc, status: sfc.status === 'RUNNING' ? 'HELD' : sfc.status }
-      else if (cmd === 'reset') next = { ...sfc, status: 'READY', active: 0, elapsed: 0, actionStates: {} }
+      else if (cmd === 'reset') next = { ...sfc, status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined }
       return { sfcs: { ...s.sfcs, [name]: next }, rev: s.rev + 1 }
     })
     get().logEvent('BATCH', name, `SFC command: ${cmd}`)

@@ -42,8 +42,8 @@ export function SfcLifecycleControls({ name }: { name: string }): JSX.Element {
       {' '}Deployed status: {lifecycle.deployed ? runtimeStatus : '(not downloaded)'}.
       {' '}Offline edits and Save do not execute or replace the deployed algorithm. Reset before editing,
       loading or downloading; Online commands operate the deployed version only.</p>
-    <p>This is the simulated single-active-step SFC/browser-save subset, including explicit return and selective routes.
-      Explorer New Control Module supports FBD/SFC algorithm selection; native dialog/template and parallel graph workflows,
+    <p>This is the simulated SFC/browser-save subset, including return/selective routes and independent parallel legs with all-predecessor joins.
+      Explorer New Control Module supports FBD/SFC algorithm selection; native dialog/template, graph palette/layout and nested/selective parallel legs,
       arbitrary parameter types and controller restart/nonvolatile restoration remain unsupported.
       Downloaded copies are session-local; loading a saved draft does not deploy it.</p>
     {properties && <SfcModuleProperties configuration={properties} onClose={() => setProperties(null)} />}

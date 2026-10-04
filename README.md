@@ -181,7 +181,23 @@ Different branch-ending steps may share a destination to converge, then return
 to the initial prompt. Conditions/bindings/targets are validated by Check and
 saved/deployed independently. The route summary and connection titles show
 the actual configuration without claiming the native branch palette/layout.
-Parallel paths and synchronization joins remain unavailable.
+For parallel divergence, first create independent branch steps and a shared
+join step; route each branch's ending transition to that join. On the fork's
+Transition Properties enable **Activate parallel paths**, select at least two
+branch starts and choose **Synchronization join**. OK validates and applies
+the fork and all-predecessor join atomically; Cancel changes neither.
+Each branch has an independent active token, elapsed timer and nonstored action
+runtime. A completed branch waits at the join without keeping its nonstored
+actions active. The join enters only after every listed predecessor passes.
+HOLD/controller outage freeze all tokens; Reset, completion and Download clear
+their runtime state. Return after the join re-arms the next cycle.
+Check/Save/Download reject missing/duplicate targets, orphan joins, bypass routes,
+overlapping/cyclic legs and conflicting branch writes. Stored outputs have one
+owning step in parallel charts. The current supported graph consists of disjoint
+acyclic legs between a fork and join; nested/selective legs are rejected, not
+silently flattened. Live chart activity/timers and the join-arrival summary
+show all active paths. The existing supplemental connections do not reproduce
+the native parallel graph palette/layout.
 
 Properties/Browser and inline transitions support separate DI feedback
 (`'^/XVSTAT-101/DI1/PV_D.CV' = 1`) and confirmed analog modes
@@ -198,7 +214,7 @@ text-order difference remains recorded rather than silently certified.
 
 This implements MESSAGE, feedback and selective/return-routing prerequisites,
 not the complete pp291-294 procedure. Native motor/DC templates with external
-XI-2 feedback, branch editing/layout and parallel joins remain outstanding.
+XI-2 feedback, native branch editing/layout and nested parallel graphs remain outstanding.
 Native parameter category/restart/instance/Browse workflows, general parameter
 types and nonvolatile behavior are not claimed.
 

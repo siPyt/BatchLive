@@ -861,6 +861,48 @@ the functional algorithm-choice subset, not completion of pp286-292.
 Validation:189 coupled tests, typecheck/build/diagnostics and audit.
 Commit locally only; no push authorized.
 
+PASS 21: CONCURRENT PARALLEL STEPS / ALL-PREDECESSOR SYNCHRONIZATION
+-----------------------------------------------------------------------
+Scope: functional fork/join subset of DV09-066. Optional parallelNextSteps on
+a fork and joinFrom on its shared target represent disjoint acyclic paths.
+Active steps have independent timers; completed predecessors become join
+arrival tokens. Join actions cannot execute until all listed predecessors
+have transitioned. A frame crosses at most one transition per pre-existing
+token; new entry actions run but new transitions wait for the next scan.
+Legacy single-active linear/selective behavior remains on its existing path.
+Nonstored action runtime is scoped by step; stored lifetimes keep one clock
+per scan even after branch exit. Reset/HOLD/controller-outage/download and
+completion operate on all active/arrival/action state, not merely one index.
+Parallel Properties selects branch starts and join; both patches validate/
+commit atomically, with stale references and permission/FlexLock gates.
+Cancel changes neither. Check/Save/Download reject missing/duplicate targets,
+orphan/mismatched joins, bypasses, overlapping/cyclic/nested/selective legs
+and conflicting branch writes/action-reset identities. Stored outputs in
+parallel charts require one owning step. Saved lists are independently cloned;
+runtime active/arrival tokens are never stored as configuration.
+Chart highlights/timers/action feedback use each actual active step. Join
+summary displays predecessors and arrived paths without fabricated COMPLETE
+history. Supplemental route lines preserve the approved sequential geometry;
+native palette/connector/layout reproduction is still not claimed.
+Ten independent regressions cover simultaneous fork/unequal waits, same-scan
+all-arrivals, repeated loops/pulses, physical-condition refusal, HOLD/reset,
+stored SD timing across branch exit, three multi-step legs, controller outage,
+saved schema/deep cloning, malformed graph/ambiguous write rejection,
+atomic lifecycle Properties and stale related-join rejection.
+Live Properties Cancel retained no fork/join metadata; OK stored both lists.
+Actual Check/controller Properties/Save/confirmed Download/Online/RUN entered
+LEG_A and LEG_B together, with two active boxes and real SP51/SP52 while
+JOIN stayedSP50. At0.2s only LEG_B remained, LEG_A was arrived, JOIN stayed50.
+HOLD plus2s scan retained LEG_B0.2 and the arrival. RESTART plus0.3s entered
+JOIN once, cleared arrivals and assignedSP53. Three subsequent cycles each
+entered both, waited for LEG_B, then activated JOIN. Original96-module/eight-
+SFC running plant/UI/security/pictures/browser record and viewport restored.
+Nested/selective parallel graphs and native editing/layout remain unsupported;
+the course and DV09-066 are not marked complete from this bounded subset.
+Validation:199 coupled tests, typecheck/build/diagnostics/audit.
+Earlier verified commits pushed with explicit authorization. This milestone
+is committed locally while further DV-09 work continues.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

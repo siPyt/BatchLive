@@ -8,6 +8,9 @@ import {
   describeAction,
   describeCondition,
   actionIdentity,
+  hasParallelSteps,
+  sfcActionStateKey,
+  sfcStepElapsed,
   TIMED_QUALIFIERS,
   evalCondition,
   newStep,
@@ -158,8 +161,8 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
       <SfcLifecycleControls name={sfc.name} />
       <SfcParameterControls name={sfc.name} />
       {check && check.steps === sfc.steps && <div role={check.error ? 'alert' : 'status'} className="traditional-note">
-        {check.error ? `Check failed: ${check.error}` : 'Check passed for supported actions, conditions and single-active-step routes.'}
-        {' '}This validates configured Named Set references and route targets, not arbitrary expressions, parallel joins or controller downloads.
+        {check.error ? `Check failed: ${check.error}` : 'Check passed for supported actions, conditions, routes and synchronized parallel legs.'}
+        {' '}This validates configured Named Set references, route targets and joins, not arbitrary expressions, nested parallel graphs or controller downloads.
       </div>}
 
       <div className="sfc-canvas-wrap">
@@ -185,7 +188,21 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
           <div>{step.name}: {describeCondition(step.transition, 'tag' in step.transition ? modules[step.transition.tag] : undefined)} → {sfc.steps.find(item => item.id === step.nextStep)?.name ?? 'Complete'}</div>
           {step.alternatives?.map((route, index) => <div key={index}>Route {index + 1}: {describeCondition(route.condition, 'tag' in route.condition ? modules[route.condition.tag] : undefined)} → {sfc.steps.find(item => item.id === route.nextStep)?.name ?? '(missing target)'}</div>)}
         </div>)}
-        <p>Single-active-step selective convergence uses shared destination IDs. This is not parallel execution or the native graph palette/layout.</p>
+        <p>Selective convergence uses shared destination IDs. Parallel joins have explicit predecessor lists. This is not the native graph palette/layout.</p>
+      </div>}
+      {hasParallelSteps(sfc.steps) && <div className="traditional-note" role="status" aria-label="Parallel SFC execution">
+        <strong>Parallel steps and synchronization joins</strong>
+        {sfc.steps.filter(step => step.parallelNextSteps?.length).map(step => <div key={step.id}>
+          {step.name} → {step.parallelNextSteps?.map(id => sfc.steps.find(item => item.id === id)?.name ?? '(missing)').join(' + ')}
+        </div>)}
+        {sfc.steps.filter(step => step.joinFrom?.length).map(step => <div key={step.id}>
+          {step.name}: waiting for {step.joinFrom?.map(id => sfc.steps.find(item => item.id === id)?.name ?? '(missing)').join(' + ')}
+          {' '}· arrived {sfc.joinArrivals?.[step.id]?.map(id => sfc.steps.find(item => item.id === id)?.name).join(', ') || 'none'}
+        </div>)}
+        <div>Active: {sfc.status === 'RUNNING' || sfc.status === 'HELD' ?
+          sfc.steps.filter((_, index) => sfcStepElapsed(sfc, index) !== undefined).map(step => step.name).join(', ') || 'waiting for join' : 'none'}</div>
+        <p>Independent acyclic legs execute concurrently and wait for all predecessors. Nested/selective legs and conflicting writes are rejected.
+          Native graph palette/layout remains unsupported.</p>
       </div>}
 
       {editable && selected !== null && sfc.steps[selected] && (
@@ -234,23 +251,25 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
   const CENTER_X = 170
   const rowY = (i: number): number => 30 + i * (STEP_H + GAP)
   const height = 30 + sfc.steps.length * (STEP_H + GAP) + 40
-  const routed = sfc.steps.some(step => step.nextStep !== undefined)
+  const parallel = hasParallelSteps(sfc.steps)
+  const routed = parallel || sfc.steps.some(step => step.nextStep !== undefined)
 
   return (
     <svg width="100%" height={height} viewBox={`0 0 760 ${height}`} className="sfc-svg">
       {sfc.steps.map((step, i) => {
         const y = rowY(i)
-        const isActive = sfc.status === 'RUNNING' && sfc.active === i
+        const elapsed = sfcStepElapsed(sfc, i)
+        const isActive = sfc.status === 'RUNNING' && elapsed !== undefined
         const isPast = !routed && (sfc.active > i || sfc.status === 'COMPLETE')
         const transY = y + STEP_H + GAP / 2
-        const transTrue = isPast || (isActive && evalCondition(step.transition, state, sfc.elapsed, context))
+        const transTrue = isPast || (isActive && evalCondition(step.transition, state, elapsed ?? 0, context))
         const isLast = i === sfc.steps.length - 1
         const destination = step.nextStep === null ? -1 : step.nextStep !== undefined ?
           sfc.steps.findIndex(candidate => candidate.id === step.nextStep) : isLast ? -1 : i + 1
         return (
           <g key={step.id}>
             {/* flow line: step bottom -> transition -> next step top */}
-            {!isLast && step.nextStep === undefined && (
+            {!isLast && step.nextStep === undefined && !step.parallelNextSteps?.length && (
               <line
                 x1={CENTER_X}
                 y1={y + STEP_H}
@@ -259,6 +278,15 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
                 className={isPast ? 'sfc-line-active' : 'sfc-line'}
               />
             )}
+            {step.parallelNextSteps?.map((id, index) => {
+              const destination = sfc.steps.findIndex(item => item.id === id)
+              if (destination === -1) return null
+              return <path key={`parallel:${id}`}
+                d={`M ${CENTER_X} ${transY} H ${32 + index * 12} V ${rowY(destination) - 12} H ${CENTER_X} V ${rowY(destination)}`}
+                fill="none" className={transTrue ? 'sfc-line-active' : 'sfc-line'}>
+                <title>Parallel path to {sfc.steps[destination].name}</title>
+              </path>
+            })}
             {step.nextStep !== undefined && destination >= 0 && <path
               d={`M ${CENTER_X} ${y + STEP_H} V ${transY + 12} H ${60 + i * 4} V ${rowY(destination) - 16} H ${CENTER_X} V ${rowY(destination)}`}
               fill="none" className={transTrue ? 'sfc-line-active' : 'sfc-line'}>
@@ -268,8 +296,8 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
               const target = sfc.steps.findIndex(candidate => candidate.id === route.nextStep)
               if (target === -1) return null
               const trueRoute = isActive && !transTrue &&
-                !step.alternatives?.slice(0, index).some(item => evalCondition(item.condition, state, sfc.elapsed, context)) &&
-                evalCondition(route.condition, state, sfc.elapsed, context)
+                !step.alternatives?.slice(0, index).some(item => evalCondition(item.condition, state, elapsed ?? 0, context)) &&
+                evalCondition(route.condition, state, elapsed ?? 0, context)
               return <path key={index}
                 d={`M ${CENTER_X} ${transY} H ${40 + index * 8} V ${rowY(target) - 12} H ${CENTER_X} V ${rowY(target)}`}
                 fill="none" className={trueRoute ? 'sfc-line-active' : 'sfc-line'}>
@@ -296,7 +324,7 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
                 {step.name}
               </text>
               <text x={CENTER_X} y={y + 36} className="step-timer" fill={isActive ? '#0088cc' : undefined} fontWeight={isActive ? 700 : 400}>
-                T: {isActive ? durationHHMMSS(sfc.elapsed) : isPast ? 'COMPLETE' : '--:--:--'}
+                T: {isActive ? durationHHMMSS(elapsed ?? 0) : isPast ? 'COMPLETE' : '--:--:--'}
               </text>
             </g>
 
@@ -306,9 +334,9 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
                 <line x1={0} y1={step.actions.length === 1 ? 17 : 21} x2={14} y2={step.actions.length === 1 ? 17 : 21} className={isActive ? 'sfc-line-active' : 'sfc-line'} />
                 {step.actions.map((a, ai) => {
                   const [param, value] = splitAction(a, modules[a.tag])
-                  const runtime = sfc.actionStates?.[actionIdentity(a)]
+                  const runtime = sfc.actionStates?.[sfcActionStateKey(step, a, parallel)]
                   const actionActive = a.qualifier === 'R' ?
-                    sfc.status === 'RUNNING' && sfc.active === i && sfc.elapsed === 0 && runtime?.resetStep === step.id :
+                    isActive && elapsed === 0 && runtime?.resetStep === step.id :
                     runtime?.stepId === step.id && runtime.active
                   return (
                     <g key={ai} transform={`translate(14, ${ai * 22})`}
@@ -337,7 +365,7 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
             )}
 
             {/* transition cross-bar + live boolean condition text */}
-            {(!isLast || step.nextStep !== undefined) && (
+            {(!isLast || step.nextStep !== undefined || step.parallelNextSteps?.length) && (
               <g transform={`translate(${CENTER_X}, ${transY})`} onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
                 onDoubleClick={() => onProperties({ kind: 'transition', step })}
                 onContextMenu={e => { e.preventDefault(); onContext({ kind: 'transition', step }, e.clientX, e.clientY) }}>

@@ -3,7 +3,7 @@ import { SimulatorDialog } from './SimulatorDialog'
 import { sfcExpressionContext, useStore } from '../engine/store'
 import { sfcEditorDefinition } from '../engine/sfcLifecycle'
 import type { SfcExpressionContext } from '../engine/sfcParameters'
-import { TIMED_QUALIFIERS, type ActionQualifier, type SfcAction, type SfcStep } from '../engine/sfc'
+import { TIMED_QUALIFIERS, sfcJoinPredecessors, sfcParallelJoin, type ActionQualifier, type SfcAction, type SfcStep } from '../engine/sfc'
 import { assignmentExpression, conditionExpression, parseSfcAssignment, parseSfcCondition } from '../engine/sfcExpressions'
 import type { AnyModule } from '../engine/types'
 
@@ -45,6 +45,10 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const runtime = useStore(s => s.sfcs[name])
   const lifecycle = useStore(s => s.sfcLifecycle[name])
   const steps = runtime ? sfcEditorDefinition(runtime, lifecycle).steps : []
+  const oldJoin = sfcParallelJoin(steps, target.step)
+  const [parallel, setParallel] = useState(!!target.step.parallelNextSteps?.length)
+  const [parallelTargets, setParallelTargets] = useState(target.step.parallelNextSteps ?? [])
+  const [parallelJoin, setParallelJoin] = useState(oldJoin?.id ?? '')
   const title = target.kind === 'transition' ? 'Transition Properties' :
     target.index === null ? 'Add Action' : 'Action Properties'
   const fail = (message: string): void => {
@@ -53,6 +57,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   }
   const apply = (): void => {
     let patch: Partial<SfcStep>
+    const related: { expected: SfcStep; patch: Partial<SfcStep> }[] = []
     if (target.kind === 'transition') {
       const result = parseSfcCondition(expression, useStore.getState().modules, sfcExpressionContext(useStore.getState(), name))
       if (result.error !== undefined) { fail(result.error); return }
@@ -63,8 +68,15 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
         parsed.push({ condition: condition.value, nextStep: item.nextStep, description: item.description })
       }
       patch = { transition: result.value, transitionDescription: description,
-        nextStep: route === 'sequential' ? undefined : route === 'complete' ? null : route.slice(5),
-        alternatives: parsed.length ? parsed : undefined }
+        nextStep: parallel ? undefined : route === 'sequential' ? undefined : route === 'complete' ? null : route.slice(5),
+        alternatives: parallel ? undefined : parsed.length ? parsed : undefined,
+        parallelNextSteps: parallel ? parallelTargets : undefined }
+      if (oldJoin && (!parallel || oldJoin.id !== parallelJoin)) related.push({ expected: oldJoin, patch: { joinFrom: undefined } })
+      if (parallel) {
+        const join = steps.find(step => step.id === parallelJoin)
+        if (!join) { fail('Choose an existing synchronization join step'); return }
+        related.push({ expected: join, patch: { joinFrom: sfcJoinPredecessors(steps, join.id) } })
+      }
     } else {
       let action: SfcAction
       if (qualifier === 'R') {
@@ -89,13 +101,13 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
       patch = { actions: target.index === null ? [...target.step.actions, action] :
         target.step.actions.map((item, index) => index === target.index ? action : item) }
     }
-    if (useStore.getState().applySfcStepProperties(name, target.step, patch)) onClose()
+    if (useStore.getState().applySfcStepProperties(name, target.step, patch, related)) onClose()
     else setError('Properties were not applied. See the reported validation or permission error.')
   }
   return <SimulatorDialog className="sfc-properties-dialog" label={title} onClose={onClose}>
     <h3>{title} — {target.step.name}</h3>
     <label>Description<input aria-label="Description" value={description} onChange={e => setDescription(e.target.value)} /></label>
-    {target.kind === 'transition' && <label>When true, go to
+    {target.kind === 'transition' && !parallel && <label>When true, go to
       <select aria-label="Transition destination" value={route} onChange={e => setRoute(e.target.value)}>
         <option value="sequential">Next sequential step (last step completes)</option>
         <option value="complete">Complete routine</option>
@@ -129,9 +141,27 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
       </label>
       <button className="tbtn sm" onClick={() => setBrowser(target.kind)}>Expression Assistant</button>
     </>}
-    {target.kind === 'transition' && <fieldset><legend>Selective alternate routes</legend>
+    {target.kind === 'transition' && <fieldset><legend>Parallel divergence and synchronization</legend>
+      <label><input type="checkbox" aria-label="Activate parallel paths" checked={parallel}
+        onChange={e => setParallel(e.target.checked)} />Activate parallel paths when true</label>
+      {parallel && <>
+        <p className="traditional-note">Select at least two independent branch starts. Configure each leg to reach the same join step before adding this fork.
+          All leg-ending transitions must pass before the join activates. Nested/selective legs, cycles before the join and conflicting branch writes are rejected.
+          Fork and join are applied atomically; this is not the native graph palette.</p>
+        {steps.filter(step => step.id !== target.step.id).map(step => <label key={step.id}>
+          <input type="checkbox" aria-label={`Parallel destination ${step.name}`} checked={parallelTargets.includes(step.id)}
+            onChange={e => setParallelTargets(items => e.target.checked ? [...items, step.id] : items.filter(id => id !== step.id))} />
+          {step.name}
+        </label>)}
+        <label>Synchronization join<select aria-label="Parallel synchronization join" value={parallelJoin} onChange={e => setParallelJoin(e.target.value)}>
+          <option value="">Choose a step</option>
+          {steps.filter(step => step.id !== target.step.id).map(step => <option key={step.id} value={step.id}>{step.name}</option>)}
+        </select></label>
+      </>}
+    </fieldset>}
+    {target.kind === 'transition' && !parallel && <fieldset><legend>Selective alternate routes</legend>
       <p className="traditional-note">Primary transition is evaluated first, then these routes in order. Only one path activates.
-        Choose an explicit primary destination when adding routes. Parallel execution and native palette editing are not implemented.</p>
+        Choose an explicit primary destination when adding routes. Use parallel divergence above for concurrent independent paths; native palette editing is not implemented.</p>
       {alternatives.map((item, index) => <div key={index}>
         <label>Condition {index + 1}<textarea aria-label={`Alternate condition ${index + 1}`} value={item.expression}
           onChange={e => setAlternatives(items => items.map((value, i) => i === index ? { ...value, expression: e.target.value } : value))} /></label>

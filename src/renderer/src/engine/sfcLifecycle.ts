@@ -23,6 +23,8 @@ export function cloneSfcConfiguration(configuration: SfcConfiguration): SfcConfi
   return { ...configuration, ...(configuration.parameters ? { parameters: cloneSfcParameters(configuration.parameters) } : {}),
     steps: configuration.steps.map(step => ({
     ...step, ...(step.alternatives ? { alternatives: step.alternatives.map(route => ({ ...route, condition: { ...route.condition } })) } : {}),
+    ...(step.parallelNextSteps ? { parallelNextSteps: [...step.parallelNextSteps] } : {}),
+    ...(step.joinFrom ? { joinFrom: [...step.joinFrom] } : {}),
     transition: { ...step.transition }, actions: step.actions.map(action => ({
       ...action, timingCondition: action.timingCondition ? { ...action.timingCondition } : undefined
     }))
@@ -49,7 +51,7 @@ export function sfcEditorDefinition(runtime: SfcDef, lifecycle?: SfcLifecycle): 
   return !lifecycle || lifecycle.online ? runtime : { ...runtime,
     area: lifecycle.draft.area, steps: lifecycle.draft.steps,
     parameters: lifecycle.draft.parameters,
-    status: 'READY', active: 0, elapsed: 0, actionStates: {} }
+    status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined }
 }
 
 export const savedSfcKey = (name: string): string => `batchlive.sfc.v1:${name}`
@@ -91,6 +93,8 @@ function action(value: unknown): value is SfcAction {
 
 function step(value: unknown): value is SfcStep {
   return record(value) && typeof value.id === 'string' && typeof value.name === 'string' &&
+    (value.parallelNextSteps === undefined || Array.isArray(value.parallelNextSteps) && value.parallelNextSteps.every(id => typeof id === 'string')) &&
+    (value.joinFrom === undefined || Array.isArray(value.joinFrom) && value.joinFrom.every(id => typeof id === 'string')) &&
     (value.nextStep === undefined || value.nextStep === null || typeof value.nextStep === 'string') &&
     (value.alternatives === undefined || Array.isArray(value.alternatives) && value.alternatives.every(route =>
       record(route) && typeof route.nextStep === 'string' && condition(route.condition) &&

@@ -52,6 +52,8 @@ export interface SfcStep {
   transitionDescription?: string
   nextStep?: string | null
   alternatives?: { condition: SfcCondition; nextStep: string; description?: string }[]
+  parallelNextSteps?: string[]
+  joinFrom?: string[]
 }
 
 export type SfcStatus = 'READY' | 'RUNNING' | 'HELD' | 'COMPLETE'
@@ -65,6 +67,8 @@ export interface SfcDef {
   elapsed: number
   actionStates?: Record<string, SfcActionState>
   parameters?: SfcParameters
+  activeSteps?: Record<string, number>
+  joinArrivals?: Record<string, string[]>
 }
 
 export interface SfcActionState {
@@ -79,6 +83,119 @@ export interface SfcActionState {
 
 export function actionIdentity(action: SfcAction): string {
   return action.name?.trim() || `${action.tag}/${action.kind === 'namedSet' ? action.parameter : action.kind}`
+}
+
+export function sfcActionStateKey(step: SfcStep, action: SfcAction, parallel: boolean): string {
+  return parallel && !isStored(action) && action.qualifier !== 'R' ?
+    `${step.id}:${actionIdentity(action)}` : actionIdentity(action)
+}
+
+export function hasParallelSteps(steps: SfcStep[]): boolean {
+  return steps.some(step => !!step.parallelNextSteps?.length)
+}
+
+export function sfcStepElapsed(sfc: SfcDef, index: number): number | undefined {
+  return sfc.activeSteps ? sfc.activeSteps[sfc.steps[index].id] :
+    sfc.active === index ? sfc.elapsed : undefined
+}
+
+function sequentialTarget(steps: SfcStep[], index: number): string | null {
+  return steps[index].nextStep === undefined ? steps[index + 1]?.id ?? null : steps[index].nextStep ?? null
+}
+
+export function sfcJoinPredecessors(steps: SfcStep[], join: string): string[] {
+  return steps.filter((_, index) => sequentialTarget(steps, index) === join).map(step => step.id)
+}
+
+export function sfcParallelJoin(steps: SfcStep[], fork: SfcStep): SfcStep | undefined {
+  let id = fork.parallelNextSteps?.[0]
+  const visited = new Set<string>()
+  while (id && !visited.has(id)) {
+    visited.add(id)
+    const index = steps.findIndex(step => step.id === id)
+    if (index === -1) return undefined
+    if (steps[index].joinFrom?.length) return steps[index]
+    id = sequentialTarget(steps, index) ?? undefined
+  }
+  return undefined
+}
+
+function parallelGraphError(steps: SfcStep[]): string | null {
+  if (steps.some(step => step.parallelNextSteps !== undefined && step.parallelNextSteps.length < 2 ||
+    step.joinFrom !== undefined && step.joinFrom.length < 2)) return 'Parallel destinations and join predecessors require at least two steps'
+  const joins = new Set<string>()
+  for (const fork of steps.filter(step => step.parallelNextSteps?.length)) {
+    const targets = fork.parallelNextSteps ?? []
+    if (targets.length < 2 || new Set(targets).size !== targets.length ||
+      targets.some(id => !steps.some(step => step.id === id))) return 'Parallel fork requires at least two distinct existing destinations'
+    if (fork.nextStep !== undefined || fork.alternatives?.length) return 'Parallel fork cannot also have sequential/selective destinations'
+    const visited = new Set<string>([fork.id])
+    const writers = new Map<string, number>()
+    const identities = new Map<string, number>()
+    const tails: string[] = []
+    let join: string | undefined
+    for (const [leg, target] of targets.entries()) {
+      let id: string | null = target
+      let previous = fork.id
+      while (id) {
+        const index = steps.findIndex(step => step.id === id)
+        if (index < 0) return 'Parallel leg references a missing destination'
+        const step = steps[index]
+        if (step.joinFrom?.length) {
+          if (!join) join = id
+          if (join !== id || previous === fork.id) return 'Parallel legs must converge through the same join after independent steps'
+          tails.push(previous)
+          break
+        }
+        if (visited.has(id)) return 'Parallel legs must be disjoint and acyclic before their join'
+        visited.add(id)
+        if (step.parallelNextSteps?.length || step.alternatives?.length) return 'Nested/selective parallel legs are not supported'
+        for (const action of step.actions) {
+          const identity = actionIdentity(action)
+          if (identities.has(identity) && identities.get(identity) !== leg) return 'Parallel legs cannot share action/reset identities'
+          identities.set(identity, leg)
+          if (action.qualifier === 'R') continue
+          const output = `${action.tag}/${action.kind === 'namedSet' ? action.parameter : action.kind}`
+          if (writers.has(output) && writers.get(output) !== leg) return 'Parallel legs cannot write the same output'
+          writers.set(output, leg)
+        }
+        previous = id
+        id = sequentialTarget(steps, index)
+      }
+      if (!id) return 'Every parallel leg must reach its synchronization join'
+    }
+    const joinStep = steps.find(step => step.id === join)
+    if (!joinStep || !joinStep.joinFrom || joinStep.joinFrom.length !== tails.length ||
+      tails.some(id => !joinStep.joinFrom?.includes(id)) || joins.has(joinStep.id)) return 'Join must list exactly the independent leg-ending steps of one fork'
+    joins.add(joinStep.id)
+    if (visited.has(steps[0].id) && steps[0].id !== fork.id) return 'Initial step cannot be inside a parallel leg'
+    for (const [index, source] of steps.entries()) {
+      if ((sequentialTarget(steps, index) === joinStep.id ||
+        source.alternatives?.some(route => route.nextStep === joinStep.id)) && !tails.includes(source.id)) {
+        return 'Synchronization join cannot have additional incoming routes'
+      }
+      const destinations = source.parallelNextSteps ?? [sequentialTarget(steps, index),
+        ...(source.alternatives ?? []).map(route => route.nextStep)]
+      if (!visited.has(source.id) && destinations.some(id => id && id !== fork.id && visited.has(id))) {
+        return 'Parallel legs cannot have incoming routes that bypass their fork'
+      }
+    }
+  }
+  if (steps.some((step, index) => step.joinFrom?.length &&
+    (index === 0 || !joins.has(step.id) || new Set(step.joinFrom).size !== step.joinFrom.length))) {
+    return 'Join requires a matching parallel fork and distinct predecessor steps; initial step cannot be a join'
+  }
+  if (joins.size) {
+    const storedOutputs = steps.flatMap(step => step.actions.filter(isStored).map(action => ({
+      step: step.id, output: `${action.tag}/${action.kind === 'namedSet' ? action.parameter : action.kind}`
+    })))
+    if (steps.some(step => step.actions.some(action => action.qualifier !== 'R' &&
+      storedOutputs.some(stored => stored.step !== step.id &&
+        stored.output === `${action.tag}/${action.kind === 'namedSet' ? action.parameter : action.kind}`)))) {
+      return 'Stored outputs in parallel charts must have one owning step'
+    }
+  }
+  return null
 }
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
@@ -464,6 +581,8 @@ function conditionError(condition: SfcCondition, modules: Record<string, AnyModu
 }
 
 export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModule>, context?: SfcExpressionContext): string | null {
+  const graphError = parallelGraphError(steps)
+  if (graphError) return graphError
   const ids = new Set<string>()
   const stored = new Set(steps.flatMap(step => step.actions.filter(isStored).map(actionIdentity)))
   for (const step of steps) {
@@ -548,9 +667,9 @@ function updateActionState(runtime: SfcActionState, state: PlantState, stepActiv
   return next
 }
 
-function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>, elapsed: number, entering = false): void {
+function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>, elapsed: number, entering = false, parallel = false): void {
   for (const action of step.actions) {
-    const identity = actionIdentity(action)
+    const identity = sfcActionStateKey(step, action, parallel)
     if (action.qualifier === 'R') {
       if (elapsed === 0 && states[identity] && (entering || states[identity].resetStep !== step.id)) {
         states[identity] = { ...states[identity], active: false, pending: false, fired: true, resetStep: step.id }
@@ -561,6 +680,76 @@ function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>,
         elapsed, active: false, pending: true, fired: false }
     }
   }
+}
+
+function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
+  actionStates: Record<string, SfcActionState>, execute: (action: SfcAction) => void,
+  context: SfcExpressionContext): SfcDef {
+  const active = { ...(sfc.activeSteps ?? { [sfc.steps[sfc.active].id]: sfc.elapsed }) }
+  const arrivals = Object.fromEntries(Object.entries(sfc.joinArrivals ?? {}).map(([id, sources]) => [id, [...sources]]))
+  const original = Object.keys(active)
+  for (const id of original) {
+    const step = sfc.steps.find(item => item.id === id)!
+    beginStepActions(step, actionStates, active[id], false, true)
+    active[id] += dt
+  }
+  const reset = new Set(original.flatMap(id => sfc.steps.find(step => step.id === id)!.actions
+    .filter(action => action.qualifier === 'R').map(actionIdentity)))
+  for (const [key, runtime] of Object.entries(actionStates)) {
+    if (reset.has(key)) continue
+    const updated = updateActionState({ ...runtime, elapsed: runtime.elapsed + dt }, state,
+      original.includes(runtime.stepId), context)
+    actionStates[key] = updated
+    if (updated.active) execute(updated.action)
+  }
+  const entering = new Set<string>()
+  const arrive = (id: string, source: string): void => {
+    const target = sfc.steps.find(step => step.id === id)!
+    if (target.joinFrom?.length) {
+      const pending = arrivals[id] ?? []
+      if (!pending.includes(source)) pending.push(source)
+      arrivals[id] = pending
+      if (!target.joinFrom.every(predecessor => pending.includes(predecessor))) return
+      delete arrivals[id]
+    }
+    entering.add(id)
+  }
+  for (const id of original) {
+    const index = sfc.steps.findIndex(step => step.id === id)
+    const step = sfc.steps[index]
+    const primary = evalCondition(step.transition, state, active[id], context)
+    const alternate = !primary ? step.alternatives?.find(route => evalCondition(route.condition, state, active[id], context)) : undefined
+    if (!primary && !alternate) continue
+    delete active[id]
+    for (const [key, runtime] of Object.entries(actionStates)) {
+      if (runtime.stepId !== id) continue
+      if (!isStored(runtime.action)) actionStates[key] = { ...runtime, active: false, pending: false }
+      else if (runtime.action.qualifier === 'DS' && !runtime.active) actionStates[key] = { ...runtime, pending: false }
+    }
+    const destinations = primary && step.parallelNextSteps?.length ? step.parallelNextSteps :
+      [alternate ? alternate.nextStep : sequentialTarget(sfc.steps, index)]
+    for (const destination of destinations) if (destination) arrive(destination, id)
+  }
+  for (const id of entering) {
+    active[id] = 0
+    const step = sfc.steps.find(item => item.id === id)!
+    beginStepActions(step, actionStates, 0, true, true)
+    for (const action of step.actions) {
+      if (action.qualifier === 'R') continue
+      const key = sfcActionStateKey(step, action, true)
+      const updated = updateActionState(actionStates[key], state, true, context)
+      actionStates[key] = updated
+      if (updated.active) execute(updated.action)
+    }
+  }
+  const complete = !Object.keys(active).length && !Object.keys(arrivals).length
+  if (complete) for (const [key, runtime] of Object.entries(actionStates)) {
+    actionStates[key] = { ...runtime, active: false, pending: false }
+  }
+  const first = sfc.steps.findIndex(step => Object.hasOwn(active, step.id))
+  return { ...sfc, status: complete ? 'COMPLETE' : 'RUNNING', actionStates,
+    activeSteps: active, joinArrivals: arrivals, active: first < 0 ? sfc.active : first,
+    elapsed: first < 0 ? 0 : active[sfc.steps[first].id] }
 }
 
 export function advanceSfcs(
@@ -592,6 +781,10 @@ export function advanceSfcs(
         const module = modules[action.tag]
         if (module) applyAction(module, action)
       }
+    }
+    if (hasParallelSteps(sfc.steps)) {
+      sfcs[name] = advanceParallelSfc(next, state, dt, actionStates, execute, context)
+      continue
     }
     const step = sfc.steps[Math.min(sfc.active, sfc.steps.length - 1)]
     next.elapsed = sfc.elapsed + dt
