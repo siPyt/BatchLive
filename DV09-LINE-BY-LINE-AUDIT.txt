@@ -833,9 +833,10 @@ Evidence: Original p276 timing-chart image reviewed locally. Separate named
   Reset/expiry stop action execution, not invent inverse output assignments.
   Termination clears activations; DO actions preserve actual hardware readback.
   Batch phase routines reuse the same execution engine.
-  Native action-property dialogs, arbitrary expression text, module Boolean
-  parameters, non-Boolean block activation, graph editing and downloaded
-  SFC configuration still prevent exact completion of the course procedures.
+  Supported Properties drafts and opt-in linear-SFC Save/Download/Online now
+  exist. Full native property/expression features, module Boolean parameters,
+  non-Boolean block activation, graph editing and MESSAGE integration still
+  prevent exact completion of the course procedures.
 Acceptance: Build action lifecycle state separate from output assignments.
   Test activation and step exit before/at/after delay, delayed pulse once,
   stored action continuing after exit, explicit reset and limited expiry.
@@ -865,8 +866,11 @@ Evidence: Original pp281-283 screenshots reviewed locally. Select step and
   unauthorized property commits reject atomically. Escape/Cancel/FlexLock
   discard drafts; nested Browser Escape restores parent-dialog focus.
   Full Expression Assistant language, MESSAGE/Named Set expressions, native
-  Confirm tab, Boolean/non-Boolean action types and course SFC lifecycle are
-  still missing. The course screenshot's MESSAGE example is not executable
+  Confirm tab and Boolean/non-Boolean action types remain missing. Opt-in
+  linear SFC configuration now has real controller assignment, browser Save,
+  explicit Download and independent Offline/Online algorithms, but native New,
+  MESSAGE/graph and restart boundaries remain missing.
+  The course screenshot's MESSAGE example is not executable
   yet, so these pages and the exact workshop remain PARTIAL.
 Acceptance: Configure resolvable parameter expressions and explicit validation
   failures using the same path model as operator/configuration tools.
@@ -903,8 +907,14 @@ Status: PARTIAL
 Required: Build startup SFC, set prompt, wait for STARTUP, open XV-101,
   confirm XVSTAT, set 50 GPM, wait output>30%, start/confirm MTR-102,
   assign/save/download/check and operate MESSAGE datalink.
-Evidence: Generic structured motor/valve/SP/out transitions exist; course
-  parameter, graph, binding, algorithm validation and download missing.
+Evidence: Generic structured motor/valve/SP/out transitions and supported
+  algorithm Check exist. Opt-in saved linear-SFC lifecycle separates offline
+  drafts, persistent saved configuration and target-deployed algorithms.
+  Module Properties assigns controller; validated confirmed Download leaves
+  READY without executing actions; Online runs only the deployed chart.
+  Live draft60/deployed50 remained actual50 until Save/Download made actual60.
+  Course MESSAGE parameter/datalink, graph routing, exact device bindings,
+  native New workflow and restart/nonvolatile restoration remain missing.
 Acceptance: Execute each state in the exact dependency order with real
   feedback; failed confirmation must hold the appropriate transition.
 

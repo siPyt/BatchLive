@@ -634,6 +634,48 @@ Validation:156 tests (130 control, nine qualifiers, five Properties, seven
 Named Sets, five audit), typecheck/build/editor diagnostics pass.
 Local milestone only; no push authorized.
 
+PASS 15: SAVED LINEAR SFC LIFECYCLE / CONTROLLER ASSIGNMENT
+---------------------------------------------------------
+Scope: configuration/transfer prerequisite for DV09-070, not startup exercise
+certification. Existing sample charts retain their unmanaged session behavior.
+After Reset, Use Save/Download lifecycle opts a chart into isolated configured
+draft, saved browser configuration, deployed algorithm and Online/Offline view.
+Module Properties controller assignment is a cancellable draft. Offline chart
+and Properties edits change only configured steps, not saved/deployed/runtime.
+Offline draft charts show no fabricated running action highlighting/timers;
+deployed status is labelled separately. Active deployed routines must be
+reset before edits, loading or replacement. Managed commands require Online.
+Save validates supported algorithms and persists a versioned browser record.
+Failed storage/schema/reference/permission checks leave prior records intact.
+Load Saved changes configuration only, preserves deployed algorithms and
+current project area membership, and does not recreate controller downloads.
+Download confirms an immutable saved snapshot, checks current saved identity,
+dirty state, supported algorithms, area, target availability and permissions.
+Successful transfer replaces only this chart, clears timers/action state and
+leaves READY; no module commands or fictitious device feedback are executed.
+Online displays and executes deployed steps even when offline edits differ.
+Managed execution/timers pause while the assigned controller is unavailable.
+This is a session simulator pause, not vendor restart/nonvolatile behavior.
+Area rename carries draft/saved/deployed metadata consistently; saved browser
+records cannot revive stale project areas when explicitly loaded.
+New Project clears the session registry. Saved browser data remains available
+for explicit load after recreating/attaching the SFC; fresh transfer is required.
+Live: controller assignment Cancel retained unassigned; Save did not alter
+actual SP52.4852042; Download Cancel did not deploy; confirmed transfer stayed
+READY without changing SP. Online RUN/HOLD applied saved50. Offline Action
+Properties changed draft60, retaining saved/deployed50 and actual50. Returning
+Online ran actual50. Only Save and confirmed Download made actual60.
+Dialogs and controls fit without horizontal overflow. Original96-module/
+eight-SFC running plant/UI and previous browser record restored afterward.
+Boundary: native New algorithm selection, MESSAGE/Named Set parameters and
+datalinks, graph/parallel joins, broader transfer dialogs, cross-module target
+dependency transfer and restart/nonvolatile restoration remain missing.
+STOP/ABORT retain existing reset-equivalent semantics; not a full native phase
+state machine. This prerequisite does not complete the exact course exercise.
+Validation:164 tests (130 control, nine qualifier, five Properties, eight
+lifecycle, seven Named Set and five audit); typecheck/build/diagnostics.
+Local verified milestone only; no push authorized.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

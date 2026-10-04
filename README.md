@@ -74,9 +74,9 @@ DV-09 timing-chart image. SFCs and batch phases share independent action lifetim
 state for N/R/L/D/P/S/SD/DS/SL. Named reset targets stop stored execution; they do
 not invert earlier assignments or fabricate actual device feedback. Timed pulse,
 stored delay across step exit, delay cancellation and stored limits are supported,
-including the existing structured condition subset. Native action-property/
-expression dialogs, universal expressions, Boolean parameter/block activation,
-graph divergence/convergence and downloaded SFC configuration remain gaps.
+including the existing structured condition subset. Full native action-property/
+expression features, universal expressions, Boolean parameter/block activation
+and graph divergence/convergence remain gaps.
 
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are
@@ -87,6 +87,25 @@ Check reports supported algorithm errors without executing it. Stale,
 unauthorized or running-chart commits reject atomically. This does not yet
 accept the course's Named Set MESSAGE expressions or implement native Confirm
 and arbitrary expression features; the exact workshop remains incomplete.
+
+Reset an SFC and choose **Use Save/Download lifecycle** to opt it into isolated
+configured, saved and deployed linear algorithms. **Module Properties**
+assigns its configured controller; **Save** validates/persists browser
+configuration without changing execution. **Download...** confirms transfer
+to an available commissioned target and leaves the SFC READY without executing
+actions. **Go Online** displays/operates the deployed chart; **Go Offline**
+shows its separate draft, not live activity. Reset the deployed routine before
+editing or replacing it. Draft edits and saved snapshots never silently change
+the running algorithm. Check validates whichever configuration is displayed.
+Controller unavailability pauses managed chart execution/timers; this is not
+native controller restart behavior or nonvolatile restoration. Saved drafts
+can be explicitly loaded after recreating/attaching the SFC; fresh Download
+is required after reload. Current project area membership is preserved.
+
+This lifecycle is opt-in to preserve existing session-local sample behavior.
+`npm run test:sfc` covers qualifier, Properties/parser and lifecycle
+regressions. Native New algorithm selection, MESSAGE/Named Set parameters,
+graph routing, broader download dialogs and restart restoration remain gaps.
 
 Explorer **Setup > Named Sets** provides case-sensitive custom-set creation
 and draft **Properties > Add/Modify > State Properties**, including separate

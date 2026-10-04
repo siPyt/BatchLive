@@ -943,6 +943,34 @@ Validation:156 coupled tests, typecheck/build/diagnostics; original running
 Record local verified milestones only; do not push without authorization.
 
 ===============================================================================
+27. DV-09 LINEAR SFC LIFECYCLE - DRAFT VERSUS ACTUAL ONLINE ACTIVITY
+===============================================================================
+
+Preserve approved SFC geometry, action frames, qualifier feedback, Studio
+ribbons/icons, equipment symbols and state colors. Add lifecycle controls in
+a separate wrapping row below the existing SFC toolbar, not inside its ribbon.
+Enabling lifecycle is explicit and requires Reset; existing sample workflows
+remain unchanged until the learner opts in.
+Module Properties controller selection and Download confirmation use shared
+bounded native SimulatorDialog conventions. Cancel/Escape/FlexLock discard
+pending operations. Save persists configuration but never runs module actions.
+Configured, saved and deployed linear algorithms are separate snapshots.
+Offline chart artwork represents the draft and must not show fabricated
+running highlights/timers. The actual deployed status is labelled separately.
+Online chart actions and qualifiers use the real deployed algorithm/runtime.
+Live draft60/deployed50 remained actual50; Save/Download was required before
+Online RUN applied60. Initial Download left READY and did not change SP.
+Do not copy offline changes into live output just to make editing appear live.
+Unavailable-controller execution pauses are session simulation only, not
+claims of native cold restart, nonvolatile retention or branch/phase parity.
+Native New, MESSAGE/datalinks, graph joins and full transfer/restart surfaces
+remain gaps. Preserve this explicit scope until each procedure is executable.
+Regression:164 coupled tests, typecheck/build/diagnostics, atomic failure/
+staleness/storage/permission gates, actual Online/offline readback and modal/
+panel containment. Original running96-module/eight-SFC plant restored.
+Commit local milestones; push remains unauthorized.
+
+===============================================================================
 20. DV-09 OPT-IN AO SAVED LIFECYCLE - DO NOT REDESIGN THE APPROVED PLANT
 ===============================================================================
 

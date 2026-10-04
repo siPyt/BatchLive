@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { SfcPropertiesDialog, type SfcPropertiesTarget } from '../components/SfcPropertiesDialog'
+import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
+import { sfcEditorDefinition } from '../engine/sfcLifecycle'
 import { useStore } from '../engine/store'
 import {
   describeAction,
@@ -26,6 +28,7 @@ const STATUS_COLOR: Record<SfcDef['status'], string> = {
 
 export function SfcDisplay(): JSX.Element {
   const sfcs = useStore((s) => s.sfcs)
+  const lifecycles = useStore(s => s.sfcLifecycle)
   const createSfc = useStore((s) => s.createSfc)
   const areas = useStore((s) => s.areas)
   const names = Object.keys(sfcs)
@@ -33,7 +36,8 @@ export function SfcDisplay(): JSX.Element {
   const [newName, setNewName] = useState('')
   const [newArea, setNewArea] = useState('FEED')
 
-  const sfc = sfcs[selected]
+  const runtime = sfcs[selected]
+  const sfc = runtime ? sfcEditorDefinition(runtime, lifecycles[selected]) : undefined
 
   return (
     <div className="display sfc">
@@ -83,11 +87,13 @@ export function SfcDisplay(): JSX.Element {
 }
 
 function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
+  const lifecycle = useStore(s => s.sfcLifecycle[sfc.name])
+  const runtimeStatus = useStore(s => s.sfcs[sfc.name]?.status)
   const modules = useStore((s) => s.modules)
   const setSfcSteps = useStore((s) => s.setSfcSteps)
   const sfcCommand = useStore((s) => s.sfcCommand)
   const deleteSfc = useStore((s) => s.deleteSfc)
-  const editable = sfc.status === 'READY' || sfc.status === 'COMPLETE'
+  const editable = !lifecycle?.online && (runtimeStatus === 'READY' || runtimeStatus === 'COMPLETE')
   const [selected, setSelected] = useState<number | null>(null)
   const [properties, setProperties] = useState<SfcPropertiesTarget | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; target: SfcPropertiesTarget } | null>(null)
@@ -126,19 +132,19 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
          * re-runs from the current state, STOP/ABORT reset (the engine does not
          * yet distinguish a controlled stop from an abort). */}
         <div className="sfc-phase-tabs">
-          <button className="sfc-tab" disabled={sfc.status === 'RUNNING' || sfc.steps.length === 0} onClick={() => sfcCommand(sfc.name, 'run')}>
+          <button className="sfc-tab" disabled={!!lifecycle && !lifecycle.online || sfc.status === 'RUNNING' || sfc.steps.length === 0} onClick={() => sfcCommand(sfc.name, 'run')}>
             RUN
           </button>
-          <button className="sfc-tab" disabled={sfc.status !== 'RUNNING'} onClick={() => sfcCommand(sfc.name, 'hold')}>
+          <button className="sfc-tab" disabled={!!lifecycle && !lifecycle.online || sfc.status !== 'RUNNING'} onClick={() => sfcCommand(sfc.name, 'hold')}>
             HOLD
           </button>
-          <button className="sfc-tab" disabled={sfc.status !== 'HELD'} onClick={() => sfcCommand(sfc.name, 'run')}>
+          <button className="sfc-tab" disabled={!!lifecycle && !lifecycle.online || sfc.status !== 'HELD'} onClick={() => sfcCommand(sfc.name, 'run')}>
             RESTART
           </button>
-          <button className="sfc-tab" disabled={sfc.status === 'READY'} onClick={() => sfcCommand(sfc.name, 'reset')}>
+          <button className="sfc-tab" disabled={!!lifecycle && !lifecycle.online || sfc.status === 'READY'} onClick={() => sfcCommand(sfc.name, 'reset')}>
             STOP
           </button>
-          <button className="sfc-tab danger" disabled={sfc.status === 'READY'} onClick={() => sfcCommand(sfc.name, 'reset')}>
+          <button className="sfc-tab danger" disabled={!!lifecycle && !lifecycle.online || sfc.status === 'READY'} onClick={() => sfcCommand(sfc.name, 'reset')}>
             ABORT
           </button>
         </div>
@@ -146,6 +152,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
           Delete
         </button>
       </div>
+      <SfcLifecycleControls name={sfc.name} />
       {check && check.steps === sfc.steps && <div role={check.error ? 'alert' : 'status'} className="traditional-note">
         {check.error ? `Check failed: ${check.error}` : 'Check passed for supported linear actions and conditions.'}
         {' '}This does not validate unsupported Named Sets, expressions, graph paths or controller downloads.
