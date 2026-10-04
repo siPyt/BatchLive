@@ -565,6 +565,22 @@ Workshop checkmarks are a manual exercise checklist, **not verified coverage**.
 
 ## PID OOS and tracking LO
 
+## DV-09 PID_LOOP / FIC-102 template
+
+Explorer's New Control Module form offers the course `PID_LOOP` template for
+PID modules. It creates the FIC-102 configuration: 0-100 GPM, gain 0.5,
+3-second/repeat reset, rate 0, reverse acting, increase-to-open IO option,
+enabled LO10/HI90 alarms, AUTO normal mode and TANK101 primary display.
+Control Studio binds its AI1 input to FT-2 and AO1 output to FY-2; manual
+simulated FT-2 input is sampled as measured flow and the applied output is
+written to the bound AO channel. Licensing Properties counts those physical
+channels once each.
+
+This implements the template and live channel behavior, not the p254 PID
+controller assignment or PID Save/Download/Online lifecycle. The course
+workshop marks that boundary explicitly; do not treat this as full FIC-102
+deployment parity.
+
 PID1's Studio target selector exposes supported target modes; LO is actual-only.
 OOS stops PID calculations and holds its requested output with Bad block
 quality. AI1 keeps its own input quality. A normally cascaded AO holds Bad,

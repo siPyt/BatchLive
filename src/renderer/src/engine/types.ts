@@ -91,6 +91,8 @@ export interface ModuleDisplayProperties {
 }
 
 export interface PidModule extends ModuleDisplayProperties {
+  templateId?: 'PID_LOOP'
+  outputAction?: 'INCREASE_TO_OPEN' | 'DECREASE_TO_OPEN'
   tag: string
   type: 'PID'
   description: string

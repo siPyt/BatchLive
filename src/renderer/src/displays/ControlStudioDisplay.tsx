@@ -171,6 +171,7 @@ function ParameterView({ module: m, selectedBlock }: {
       { key: 'MODE.TARGET', value: m.mode },
       { key: 'MODE.ACTUAL', value: m.actualMode },
       { key: 'PV.CV', value: `${fmt(m.pv, m.decimals)} ${m.unit}` },
+      ...(m.templateId === 'PID_LOOP' ? [{ key: 'IO_OPTS', value: m.outputAction ?? 'Unset' }] : []),
       {
         key: 'SP.CV',
         value: `${fmt(m.sp, m.decimals)} ${m.unit}`,

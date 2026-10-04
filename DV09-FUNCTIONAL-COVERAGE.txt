@@ -1404,3 +1404,21 @@ course operations and original-PDF image-only review. No full-parity claim.
 Validation: 94 control regressions and five audit-validator regressions
 passed, along with typecheck, production build and editor diagnostics.
 Commit permitted; no push without explicit authorization.
+
+PASS 36: DV-09 PID_LOOP / FIC-102 TEMPLATE AND PHYSICAL CHANNEL PATH
+-------------------------------------------------------------------
+Scope: pp250-255 template/configuration and before/after physical DST subset.
+Explorer creates an explicit PID_LOOP module with FIC-102's GPM scale0-100,
+gain0.5, reset3s/repeat, rate0, reverse-acting control, increase-to-open
+IO_OPTS, enabled LO10/HI90 alarms, AUTO normal mode and TANK101 primary
+picture assignment. Control Studio exposes IO_OPTS; actual AI1/AO1 bind to
+traditional FT-2/FY-2. Tests verify measured FT-2 sampling, bounded reverse-
+acting command, applied output on FY-2, both alarm thresholds and exact
+one-AI/one-AO DST deltas without duplicate bindings. Primary navigation opens
+the actual TANK101 picture. Standard PID defaults remain unchanged.
+Workshop and README disclose that controller/module assignment plus PID
+Save/Download/Online/restart lifecycle remain unimplemented; DV09-056 stays
+PARTIAL. No process dynamics, field valve position or physical download is
+fabricated. Protected graphics, PID/FBD geometry and palette are unchanged.
+Validation: three focused template/channel regressions, full repository tests,
+typecheck, production build, audit validator and editor diagnostics.

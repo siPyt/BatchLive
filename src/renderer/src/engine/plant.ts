@@ -1273,6 +1273,7 @@ export interface NewModuleSpec {
   unit?: string
   pvMin?: number
   pvMax?: number
+  templateId?: 'PID_LOOP'
   /** Required when type === 'FB': which Math/Logic/Timer/Counter block to build. */
   fbType?: FbBlockType
 }
@@ -1284,26 +1285,37 @@ export function makeModule(s: NewModuleSpec): AnyModule {
   const pvMax = s.pvMax ?? 100
   const mid = (pvMin + pvMax) / 2
   switch (s.type) {
-    case 'PID':
+    case 'PID': {
+      const pidLoop = s.templateId === 'PID_LOOP'
       return pid({
         tag: s.tag,
         description: s.description,
         area: s.area,
         equipmentModule: s.equipmentModule,
-        unit,
-        pvMin,
-        pvMax,
-        sp: mid,
+        templateId: pidLoop ? 'PID_LOOP' : undefined,
+        primaryDisplay: pidLoop ? 'TANK101' : undefined,
+        outputAction: pidLoop ? 'INCREASE_TO_OPEN' : undefined,
+        unit: pidLoop ? 'GPM' : unit,
+        pvMin: pidLoop ? 0 : pvMin,
+        pvMax: pidLoop ? 100 : pvMax,
+        sp: pidLoop ? 50 : mid,
         out: 50,
         mode: 'AUTO',
-        gain: 1,
-        reset: 20,
+        normalMode: pidLoop ? 'AUTO' : undefined,
+        permittedModes: pidLoop ? ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN', 'OOS'] : undefined,
+        gain: pidLoop ? 0.5 : 1,
+        reset: pidLoop ? 3 : 20,
+        rate: pidLoop ? 0 : undefined,
         direct: false,
-        alarms: [
+        alarms: pidLoop ? [
+          { type: 'HI', label: 'HI', priority: 'WARNING', limit: 90, enabled: true },
+          { type: 'LO', label: 'LO', priority: 'WARNING', limit: 10, enabled: true }
+        ] : [
           { type: 'HI', label: 'HI', priority: 'WARNING', limit: pvMin + (pvMax - pvMin) * 0.9, enabled: true },
           { type: 'LO', label: 'LO', priority: 'WARNING', limit: pvMin + (pvMax - pvMin) * 0.1, enabled: true }
         ]
       })
+    }
     case 'AI':
       return ai({
         tag: s.tag,

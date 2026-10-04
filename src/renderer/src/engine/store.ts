@@ -1366,7 +1366,8 @@ export const useStore = create<StoreState>((set, get) => ({
     const tag = spec.tag.trim().toUpperCase()
     const state = get()
     const error = moduleNameError(tag) ?? (state.modules[tag] || state.sfcs[tag] ? `Module ${tag} already exists` :
-      !state.areas.includes(spec.area) ? `Area ${spec.area} does not exist` : null)
+      !state.areas.includes(spec.area) ? `Area ${spec.area} does not exist` :
+      spec.templateId && spec.type !== 'PID' ? 'PID_LOOP template can only create a PID module' : null)
     if (error) {
       get().logEvent('DIAGNOSTIC', tag, `Module creation rejected: ${error}`)
       window.alert(error)

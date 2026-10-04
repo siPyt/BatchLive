@@ -663,6 +663,7 @@ function NewModuleForm({
   const [unit, setUnit] = useState('%')
   const [pvMin, setPvMin] = useState(0)
   const [pvMax, setPvMax] = useState(100)
+  const [pidTemplate, setPidTemplate] = useState<'CUSTOM' | 'PID_LOOP'>('CUSTOM')
   const [motorTemplate, setMotorTemplate] = useState(false)
 
   const analog = algorithm === 'FBD' && (type === 'PID' || type === 'AI' || type === 'AO')
@@ -690,7 +691,8 @@ function NewModuleForm({
       equipmentModule: em || undefined,
       unit: analog ? unit : undefined,
       pvMin: analog ? pvMin : undefined,
-      pvMax: analog ? pvMax : undefined
+      pvMax: analog ? pvMax : undefined,
+      templateId: type === 'PID' && pidTemplate === 'PID_LOOP' ? 'PID_LOOP' : undefined
     }
     if (type === 'MOTOR' && motorTemplate) {
       if (!useStore.getState().createMotorTemplate(normTag, area, spec.description)) return
@@ -736,6 +738,12 @@ function NewModuleForm({
         <select aria-label="Motor module template" value={motorTemplate ? 'MTR-11_ILOCK' : 'LIVE'} onChange={e => setMotorTemplate(e.target.value === 'MTR-11_ILOCK')}>
           <option value="LIVE">Live standalone motor (existing behavior)</option>
           <option value="MTR-11_ILOCK">Library / Motors-2State / MTR-11_ILOCK - owned two-condition strategy</option>
+        </select>
+      </label>}
+      {algorithm === 'FBD' && type === 'PID' && <label>Module template
+        <select aria-label="PID module template" value={pidTemplate} onChange={e => setPidTemplate(e.target.value === 'PID_LOOP' ? 'PID_LOOP' : 'CUSTOM')}>
+          <option value="CUSTOM">Standard PID</option>
+          <option value="PID_LOOP">Library / Regulatory Control / PID_LOOP (DV-09)</option>
         </select>
       </label>}
       {algorithm === 'FBD' && type === 'FB' && (
@@ -840,15 +848,15 @@ function NewModuleForm({
         <div className="exp-newmod-range">
           <label>
             Unit
-            <input value={unit} onChange={(e) => setUnit(e.target.value)} />
+            <input value={pidTemplate === 'PID_LOOP' ? 'GPM' : unit} disabled={pidTemplate === 'PID_LOOP'} onChange={(e) => setUnit(e.target.value)} />
           </label>
           <label>
             Min
-            <input type="number" value={pvMin} onChange={(e) => setPvMin(Number(e.target.value))} />
+            <input type="number" value={pidTemplate === 'PID_LOOP' ? 0 : pvMin} disabled={pidTemplate === 'PID_LOOP'} onChange={(e) => setPvMin(Number(e.target.value))} />
           </label>
           <label>
             Max
-            <input type="number" value={pvMax} onChange={(e) => setPvMax(Number(e.target.value))} />
+            <input type="number" value={pidTemplate === 'PID_LOOP' ? 100 : pvMax} disabled={pidTemplate === 'PID_LOOP'} onChange={(e) => setPvMax(Number(e.target.value))} />
           </label>
         </div>
       )}

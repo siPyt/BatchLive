@@ -868,10 +868,15 @@ Status: PARTIAL
 Required: PID_LOOP FIC-102: FT-2 in, FY-2 out, gain0.5, reset3s/repeat,
   rate0, range0-100 GPM, increase-to-open, reverse-acting, LO10/HI90;
   assign/controller/Tank101/save/download.
-Evidence: ANALOG/SIM/STUDIO execute generic AI/PID/AO/tuning/limits/acting;
-  exact template, tags, traditional DSTs and lifecycle are missing.
-Acceptance: Trace these exact values to their actual block and channels in
-  isolated course scenario; verify control direction and bounded response.
+Evidence: Explorer creates an explicit PID_LOOP template with FIC-102's
+  0-100 GPM scale, 0.5 gain, 3s/repeat reset, zero rate, reverse action,
+  increase-to-open IO_OPTS, LO10/HI90 alarms, AUTO normal mode and TANK101
+  primary display. FT-2/FY-2 bind to actual traditional AI/AO channels;
+  measured-flow control direction, applied output and exact DST deltas are
+  tested. The faceplate resolves the existing TANK101 picture.
+  Controller assignment and PID Save/Download/Online lifecycle remain absent.
+Acceptance: Implement and verify the course controller/module assignment,
+  then real PID configuration Save/Download/Online and restart behavior.
 
 [DV09-057]
 Pages: 255-255
