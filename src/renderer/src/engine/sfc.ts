@@ -2,6 +2,7 @@ import type { PlantState, AnyModule, PidModule, ControlMode } from './types'
 import { booleanParameterReferenceError, cloneSfcParameters, namedParameterReferenceError, type SfcExpressionContext, type SfcParameters } from './sfcParameters'
 import type { NamedSetDefinition } from './namedSets'
 import { executeSfcBlock, syncSfcBlockActivation, type SfcBlockConfiguration, type SfcBlockState } from './sfcBlocks'
+import { resetDeviceLock } from './simulate'
 
 // ---------------------------------------------------------------------------
 // Sequential Function Chart (SFC) engine — mirrors DeltaV Control Studio SFCs.
@@ -29,6 +30,7 @@ export type SfcAction = ActionBase &
     | { kind: 'sp'; tag: string; value: number }
     | { kind: 'out'; tag: string; value: number }
     | { kind: 'motor'; tag: string; run: boolean }
+    | { kind: 'deviceReset'; tag: string; reset: boolean }
     | { kind: 'valve'; tag: string; open: boolean }
     | { kind: 'do'; tag: string; on: boolean }
     | { kind: 'namedSet'; tag: string; parameter: string; namedSet: string; entry: string }
@@ -255,6 +257,8 @@ export function describeAction(a: SfcAction, module?: AnyModule): string {
       return `${q}^/${a.tag}/${block}/OUT.CV := ${a.value}`
     case 'motor':
       return `${q}^/${a.tag}/DC1/OUT_D.CV := ${a.run ? 1 : 0} (${a.run ? 'START' : 'STOP'})`
+    case 'deviceReset':
+      return `${q}^/${a.tag}/DC1/RESET_D.CV := ${Number(a.reset)}`
     case 'valve':
       return `${q}^/${a.tag}/DC1/OUT_D.CV := ${a.open ? 1 : 0} (${a.open ? 'OPEN' : 'CLOSE'})`
     case 'do':
@@ -308,7 +312,9 @@ export function evalCondition(c: SfcCondition, state: PlantState, elapsed: numbe
     case 'boolean':
       return !booleanParameterReferenceError(c.parameter, context) && context?.parameters[c.parameter].value === c.value
     case 'pv':
-      return m && 'pv' in m ? cmp(m.pv, c.op, c.value) : false
+      if (!m || !('pv' in m) || !Number.isFinite(m.pv)) return false
+      if (m.type === 'AI' || m.type === 'PID') return !m.pvBad && cmp(m.pv, c.op, c.value)
+      return m.type === 'AO' && !m.bad && m.actualMode !== 'OOS' && cmp(m.pv, c.op, c.value)
     case 'out':
       return m && (m.type === 'PID' || m.type === 'AO') ? cmp(m.out, c.op, c.value) : false
     case 'motorRunning':
@@ -342,6 +348,8 @@ export function applyAction(m: AnyModule, a: SfcAction): void {
     } else if (a.kind === 'out') {
       if (p.mode === 'MAN' || p.mode === 'ROUT') p.out = clamp(a.value, 0, 100)
     }
+  } else if (a.kind === 'deviceReset' && (m.type === 'MOTOR' || m.type === 'VALVE')) {
+    if (a.reset) resetDeviceLock(m)
   } else if (a.kind === 'motor' && m.type === 'MOTOR') {
     m.commanded = a.run
   } else if (a.kind === 'valve' && m.type === 'VALVE') {
@@ -667,8 +675,14 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
       const module = modules[action.tag]
       if (action.kind !== 'namedSet' && action.kind !== 'boolean' && action.kind !== 'block') {
         if (!module) return `Missing action module ${action.tag}`
-        const required = action.kind === 'motor' ? 'MOTOR' : action.kind === 'valve' ? 'VALVE' : action.kind === 'do' ? 'DO' : null
-        if (required ? module.type !== required : module.type !== 'PID' && module.type !== 'AO') return 'Action/module type mismatch'
+        if (action.kind === 'deviceReset') {
+          if (module.type !== 'MOTOR' && module.type !== 'VALVE' || typeof action.reset !== 'boolean') {
+            return 'Device reset requires a motor/valve and Boolean reset request'
+          }
+        } else {
+          const required = action.kind === 'motor' ? 'MOTOR' : action.kind === 'valve' ? 'VALVE' : action.kind === 'do' ? 'DO' : null
+          if (required ? module.type !== required : module.type !== 'PID' && module.type !== 'AO') return 'Action/module type mismatch'
+        }
         if ((action.kind === 'sp' || action.kind === 'out') && !Number.isFinite(action.value)) return 'Action value must be finite'
         if (action.kind === 'mode' && (module.type === 'AO' ?
           !['MAN', 'AUTO', 'CAS'].includes(action.mode) :

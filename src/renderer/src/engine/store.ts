@@ -22,7 +22,7 @@ import type {
   AnalogOutputPatch
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
-import { stepPlant } from './simulate'
+import { resetDeviceLock, stepPlant } from './simulate'
 import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
 import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
 import {
@@ -641,7 +641,7 @@ export const useStore = create<StoreState>((set, get) => ({
   resetDevice: (tag) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Reset ${tag}`)) return
     mutateModule(set, get, tag, (m) => {
-      if (m.type === 'MOTOR' || m.type === 'VALVE') (m as MotorModule | ValveModule).locked = false
+      if (m.type === 'MOTOR' || m.type === 'VALVE') resetDeviceLock(m)
     })
     get().logEvent('OPERATOR', tag, 'Device reset (RESET_D)')
   },

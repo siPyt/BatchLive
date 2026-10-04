@@ -56,6 +56,9 @@ export function parseSfcAssignment(text: string, modules: Record<string, AnyModu
   }
   if (value !== '0' && value !== '1') return { error: 'Discrete assignment requires 0 or 1' }
   const on = value === '1'
+  if ((module.type === 'MOTOR' || module.type === 'VALVE') && parameter === 'DC1/RESET_D.CV') {
+    return { value: { kind: 'deviceReset', tag, reset: on } }
+  }
   if (module.type === 'MOTOR' && parameter === 'DC1/OUT_D.CV') return { value: { kind: 'motor', tag, run: on } }
   if (module.type === 'VALVE' && parameter === 'DC1/OUT_D.CV') return { value: { kind: 'valve', tag, open: on } }
   if (module.type === 'DO' && parameter === 'DO1/SP_D.CV') return { value: { kind: 'do', tag, on } }
@@ -136,6 +139,7 @@ export function assignmentExpression(action: SfcAction, module?: AnyModule): str
   if (action.kind === 'mode') return `'^/${action.tag}/${block}/MODE.TARGET' := ${action.mode}`
   if (action.kind === 'sp' || action.kind === 'out') return `'^/${action.tag}/${block}/${action.kind.toUpperCase()}.CV' := ${action.value}`
   if (action.kind === 'do') return `'^/${action.tag}/DO1/SP_D.CV' := ${Number(action.on)}`
+  if (action.kind === 'deviceReset') return `'^/${action.tag}/DC1/RESET_D.CV' := ${Number(action.reset)}`
   return `'^/${action.tag}/DC1/OUT_D.CV' := ${Number(action.kind === 'motor' ? action.run : action.open)}`
 }
 

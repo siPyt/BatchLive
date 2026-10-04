@@ -236,6 +236,7 @@ function SfcExpressionBrowser({ modules, context, assignment, booleanAction, blo
     const action: SfcAction = module.type === 'MOTOR' ? { kind: 'motor', tag, run: true } : { kind: 'valve', tag, open: true }
     candidates.push(assignment ? assignmentExpression(action, module) :
       conditionExpression(module.type === 'MOTOR' ? { kind: 'motorRunning', tag, running: true } : { kind: 'valveOpen', tag, open: true }, module))
+    if (assignment) candidates.push(assignmentExpression({ kind: 'deviceReset', tag, reset: true }, module))
   } else if (module?.type === 'DO' && assignment) {
     candidates.push(assignmentExpression({ kind: 'do', tag, on: true }, module))
   } else if (module?.type === 'DI' && !assignment) {

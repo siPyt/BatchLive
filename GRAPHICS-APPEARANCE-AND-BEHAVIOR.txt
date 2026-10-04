@@ -1068,6 +1068,24 @@ Regression:189 coupled tests, typecheck/build/diagnostics/audit, exact chart
 selection, shared names and locked/denied/invalid creation rejection.
 
 ===============================================================================
+36. SFC STARTUP LEVEL / DEVICE RESET / OPERATOR WAITING MESSAGES
+===============================================================================
+
+Preserve equipment icons, plant state colors/piping and chart geometry.
+Display qualified RESET_D assignments as real action references. Properties
+Browser and inline Action Editor expose the same typed reset operation.
+Reset is not START and must not show an inactive motor green or manufacture
+confirmation. Bad/nonfinite level feedback cannot satisfy a PV transition.
+Existing operator-picture MESSAGE entry and Named Set labels carry actual
+waiting-state assignments; never offer nonselectable waiting states as
+commands. WAIT LEVEL/WAIT MOTOR are examples authored in the local Named Set,
+not hardcoded UI badges. Real level100 waiting, HOLD/Bad150 waiting, good150
+reset (no command), subsequent command/confirmation and READY/SELECT feedback
+verified through saved/downloaded Online execution and a real operator
+picture. Original plant/UI/security/pictures/storage and viewport restored.
+Native motor template/external XI-2/ZX-2 and global setup parity remain gaps.
+
+===============================================================================
 35. SFC NON-BOOLEAN ALARM BLOCKS - REAL OPERATOR ALARM FEEDBACK
 ===============================================================================
 

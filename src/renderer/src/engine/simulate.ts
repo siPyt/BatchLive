@@ -276,6 +276,10 @@ interface DcIo {
   dcState: DcState
 }
 
+export function resetDeviceLock(module: MotorModule | ValveModule): void {
+  module.locked = false
+}
+
 function stepDeviceControl(io: DcIo, dt: number): void {
   // SHUTDOWN_D / tripped INTERLOCK_D forces and holds the Passive state.
   if (io.interlock) {

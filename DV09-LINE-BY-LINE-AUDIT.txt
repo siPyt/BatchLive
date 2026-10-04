@@ -1018,7 +1018,22 @@ Evidence: Named Set MESSAGE and generic steps/conditions/timers exist.
   Ten regressions and live Type/Block/Alarm/Non-Boolean Browser/Check/
   controller/Save/Download/Online/RUN/HOLD/RESTART/Alarm List/Shelve/Unshelve/
   ACK/chart-link/STOP verify the dependency chain and subsequent RTN.
-  Exact waiting-status/sufficient-level/lock-reset exercises remain incomplete.
+  Pass24 adds the functional waiting-status and startup-level/reset chain.
+  Original p295/296 reviewed, with RESET_D verified against the local
+  function-block reference. Author visible nonselectable wait MESSAGE states,
+  qualified step assignments, a chosen LI-101 level threshold and a separate
+  DC1/RESET_D assignment before motor command/real confirmation.
+  Reset changes only the real lock latch, shared with operator Reset; it
+  cannot clear interlocks/faults/permissives or manufacture Running feedback.
+  Bad/nonfinite level never releases the transition. Example >100 threshold
+  stays waiting at100 and resets at150;100 is a configured example, not a
+  prescribed optional-exercise value. Ten regressions plus live Cancel/
+  Properties/Browser/Save/confirmed Download/Online/RUN/operator picture
+  STARTUP/HOLD/RESTART/high held Bad input/recovery/reset/confirmation and
+  visible WAIT LEVEL -> WAIT MOTOR -> READY -> SELECT feedback verify the
+  dependency chain. Source p229/230 native MTR-11_ILOCK template, external
+  XI-2/ZX-2 I/O, native interlock/permissive block wiring and exact dialogs
+  remain incomplete; modeled MOTOR confirmation is explicitly a subset.
   Custom types are SFC-local; native global Alarm Type/Changed Setup Data
   workflows and arbitrary function-block palettes remain gaps. Status stays
   PARTIAL; this scoped timer alarm does not complete the optional exercises.

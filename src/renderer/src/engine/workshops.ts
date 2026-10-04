@@ -391,7 +391,19 @@ export const COURSE: WModule[] = [
           { id: 'sfc-alarm-action', text: 'Initial step -> Add Action -> Type Non-Boolean function block -> name TIME_MONITOR -> qualifier S -> Expression Assistant -> local TIMECHK reference. OK must store a block reference, not an output assignment. S continues one clock across later steps until an R action named TIME_MONITOR, reset or termination. Each block requires one owning non-reset action.' },
           { id: 'sfc-alarm-boundary', text: 'Check, assign controller, Save, Download -> confirm, Online, RUN. With the routine still waiting, TIMECHK OUT must remain0 at30 seconds and become1 only above30 (next0.1s scan). No block action or disabled alarm must never fabricate a timeout. HOLD/controller loss freezes monitor clock/output; RESTART resumes.' },
           { id: 'sfc-alarm-operator', text: 'Open real Alarm List: TIME_ALM shows TIMEOUT, configured priority and elapsed seconds. Shelve/Unshelve/ACK use the shared alarm lifecycle/journal. Click the module link to open this exact SFC. STOP/reset clears the block; next scan returns the alarm to normal, retaining it if unacknowledged and clearing it after ACK. Repeat execution; the alarm must re-trigger, journal a new edge and re-sound the horn.' },
-          { id: 'sfc-alarm-boundary-note', text: 'This closes the functional local timeout dependency subset. Global Alarm Type/Changed Setup Data, arbitrary block palettes/wiring, full expression language and exact level/lock/wait optional exercises remain incomplete; do not mark the course finished.' }
+          { id: 'sfc-alarm-boundary-note', text: 'This closes the functional local timeout dependency subset. Global Alarm Type/Changed Setup Data, arbitrary block palettes/wiring, full expression language and native motor template/I/O parity remain incomplete; the level/reset workshop covers its modeled functional chain. Do not mark the course finished.' }
+        ]
+      },
+      {
+        id: 'sfc-level-reset',
+        title: 'Startup level / device reset / waiting messages',
+        objective: 'Wait for a valid sufficient level, reset only the device latch and wait for real running confirmation while publishing MESSAGE status.',
+        steps: [
+          { id: 'sfc-wait-status', text: 'Extend the MESSAGE Named Set with visible but nonselectable waiting states, for example WAIT LEVEL/WAIT MOTOR. Add pulse MESSAGE assignments in the corresponding waiting steps. Transfer changed Named Sets to controller/workstation; these states must display but never be offered as operator commands.', goto: 'sfc' },
+          { id: 'sfc-level-gate', text: 'Before motor start, author a LI-101/AI1/PV.CV transition with a chosen sufficient threshold, for example >100. 100 is an example, not a prescribed optional-exercise value. Good100 must keep the sequence waiting; Bad150 must not release it. Correct sampled150 must release it.' },
+          { id: 'sfc-reset-action', text: "Next step -> Add Action -> Assignment -> P ->0s -> Expression Assistant -> MTR-102 -> '^/MTR-102/DC1/RESET_D.CV' := 1. Cancel changes nothing; OK, Save, Download -> confirm, Online. The device lock stays intact until qualified execution. RESET_D clears only the lock, not command, fault, interlock or permissive. :=0 does not reset; expiry does not write an inverse." },
+          { id: 'sfc-confirm-running', text: 'Separate command/confirmation step: command MTR-102 ON and wait for its actual running feedback. A remaining interlock, false permissive or failed confirmation must keep WAIT MOTOR. HOLD/controller loss freezes the chain. Observe WAIT LEVEL -> WAIT MOTOR -> READY -> SELECT SEQUENCE on the real operator-picture MESSAGE datalink after STARTUP entry.' },
+          { id: 'sfc-level-reset-boundary', text: 'This verifies the modeled functional optional chain. The native MTR-11_ILOCK template, external XI-2/ZX-2 I/O, interlock/permissive block wiring and exact native dialogs are still incomplete; do not claim native motor or full DV-09 certification.' }
         ]
       },
       {

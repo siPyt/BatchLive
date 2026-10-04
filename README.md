@@ -113,6 +113,25 @@ the horn. Types here are SFC-local saved/deployed configuration; global
 Alarm Type/Changed Setup Data workflows, general block palettes/wiring,
 arbitrary non-Boolean algorithms and full course parity remain incomplete.
 
+For the optional startup-level/reset exercise, add visible but nonselectable
+waiting states to the MESSAGE Named Set and pulse the appropriate MESSAGE
+assignment in each waiting step. Before starting the motor, add a level
+transition such as `'^/LI-101/AI1/PV.CV' > 100` (100 is an example chosen
+threshold, not a mandatory course value), then a pulse assignment
+`'^/MTR-102/DC1/RESET_D.CV' := 1`. Expression Browser exposes RESET_D for
+motors/valves; inline Action Editor also supports deviceReset. Save/Download/
+Online apply. RESET_D clears only the actual lock latch, using the same
+operation as operator Reset; it does not START, clear an interlock/fault,
+make a permissive true or fabricate confirmation. `:= 0` does not reset,
+and qualifier expiry never writes an inverse. Bad/nonfinite level values
+cannot release the transition; AO PV comparisons also reject OOS.
+The next command step must still wait for actual motor-running feedback.
+HOLD/controller loss freezes the sequence while physical I/O can continue
+changing. A real operator-picture MESSAGE entry and wait labels are verified.
+The modeled MOTOR confirmation is still not the native MTR-11_ILOCK template
+or external XI-2/ZX-2 DC binding; native motor template/I/O/interlock
+configuration and full DV-09 parity remain incomplete.
+
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are
 isolated drafts: OK validates and applies, while Cancel/Escape retain the

@@ -980,6 +980,44 @@ Types are intentionally SFC-local rather than native global setup transfer.
 Arbitrary blocks/wiring, full expression language, exact level/lock/wait
 optional exercises and complete DV-09 parity remain incomplete.
 
+PASS 24: STARTUP LEVEL / QUALIFIED DEVICE RESET / WAITING MESSAGE FEEDBACK
+-----------------------------------------------------------------------
+Scope: functional optional-exercise subset of DV09-072, original p295/296.
+RESET_D parameter/lock behavior verified against the local function-block
+reference. Native DC1/RESET_D.CV assignment parser/formatter/schema, Properties
+Browser and inline Action Editor wired for modeled MOTOR/VALVE modules.
+RESET_D true invokes the same lock-latch operation as operator Reset.
+Zero does not reset; qualified execution respects delay/HOLD, expiry does
+not fabricate an inverse, Save/Download/Online do not execute the action.
+It cannot START, clear an interlock/fault, invent a permissive or manufacture
+Running feedback. Active interlock re-latches in the real device scan; false
+permissive/failed field confirmation still holds the motor-wait transition.
+Analog PV conditions reject Bad/nonfinite held values; AO also rejects OOS.
+Ten regressions cover parser/format/schema/type/value validation, isolated
+cloning, zero/idempotent/safety-state preservation, shared operator reset,
+actual level/motor sequence, disabled high held source/recovery, interlock/
+permissive/fault negatives, pulse delay/HOLD, controller loss and deployment.
+Configured >100 is an example chosen threshold, not a course-prescribed value.
+MESSAGE uses visible nonselectable waiting states and pulse assignments in
+the appropriate waiting steps, retaining selectable STARTUP alone.
+Live Add Action/Cancel left the step unchanged. Properties Assignment/P/
+Expression Browser MTR-102 -> RESET_D/OK, Save, confirmed Download and Online
+preserved a Locked, noncommanded motor until execution. A saved real picture
+MESSAGE datalink offered STARTUP alone; actual Entry/Apply released the
+selection transition and displayed WAIT LEVEL. At good100 the motor remained
+Locked/noncommanded. HOLD froze chart time while physical input reached150;
+disabling the input produced Bad150. RESTART plus10 scans could not release
+startup. Re-enabling/sampling yielded good150 and RESET LOCK, clearing only
+the latch with no motor command. The next step commanded and displayed WAIT
+MOTOR until the real one-second confirmation; READY then SELECT SEQUENCE
+followed. Saved/default MESSAGE stayed255. Original96 modules/eight SFCs,
+running plant/UI/security/pictures/storage and720x576 viewport restored;
+acceptance chart/picture and globals removed.
+All229 repository regressions and build pass; targeted10/typecheck pass.
+The native MTR-11_ILOCK template, external XI-2/ZX-2 confirmation/output,
+native interlock/permissive blocks/dialogs and global alarm setup still
+prevent full exercise/course certification. DV09-072 remains PARTIAL.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

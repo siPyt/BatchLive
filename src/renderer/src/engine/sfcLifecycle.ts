@@ -93,6 +93,7 @@ function action(value: unknown): value is SfcAction {
   if (value.kind === 'block') return typeof value.block === 'string'
   if (value.kind === 'mode') return ['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN'].includes(String(value.mode))
   if (value.kind === 'motor') return typeof value.run === 'boolean'
+  if (value.kind === 'deviceReset') return typeof value.reset === 'boolean'
   if (value.kind === 'valve') return typeof value.open === 'boolean'
   return value.kind === 'do' && typeof value.on === 'boolean'
 }

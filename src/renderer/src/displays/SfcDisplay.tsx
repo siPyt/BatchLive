@@ -479,7 +479,7 @@ export function firstTag(modules: Record<string, AnyModule>, type: AnyModule['ty
   return tagsOf(modules, type)[0] ?? ''
 }
 
-const ACTION_KINDS: SfcAction['kind'][] = ['mode', 'sp', 'out', 'motor', 'valve', 'do']
+const ACTION_KINDS: SfcAction['kind'][] = ['mode', 'sp', 'out', 'motor', 'valve', 'do', 'deviceReset']
 const QUALIFIERS: ActionQualifier[] = ['N', 'R', 'L', 'D', 'P', 'S', 'SD', 'DS', 'SL']
 
 export function ActionEditor({
@@ -494,18 +494,21 @@ export function ActionEditor({
   onRemove: () => void
 }): JSX.Element {
   const typeFor = (k: SfcAction['kind']): AnyModule['type'] =>
-    k === 'motor' ? 'MOTOR' : k === 'valve' ? 'VALVE' : k === 'do' ? 'DO' : 'PID'
+    k === 'motor' || k === 'deviceReset' ? 'MOTOR' : k === 'valve' ? 'VALVE' : k === 'do' ? 'DO' : 'PID'
   const tags = [...tagsOf(modules, typeFor(action.kind)),
-    ...(['mode', 'sp', 'out'].includes(action.kind) ? tagsOf(modules, 'AO') : [])]
+    ...(['mode', 'sp', 'out'].includes(action.kind) ? tagsOf(modules, 'AO') :
+      action.kind === 'deviceReset' ? tagsOf(modules, 'VALVE') : [])]
 
   const changeKind = (k: SfcAction['kind']): void => {
-    const tag = firstTag(modules, typeFor(k)) || (['mode', 'sp', 'out'].includes(k) ? firstTag(modules, 'AO') : '')
+    const tag = firstTag(modules, typeFor(k)) || (['mode', 'sp', 'out'].includes(k) ? firstTag(modules, 'AO') :
+      k === 'deviceReset' ? firstTag(modules, 'VALVE') : '')
     const timing = { name: action.name, qualifier: action.qualifier, seconds: action.seconds, timingCondition: action.timingCondition }
     if (k === 'mode') onChange({ ...timing, kind: 'mode', tag, mode: 'AUTO' })
     else if (k === 'sp') onChange({ ...timing, kind: 'sp', tag, value: 50 })
     else if (k === 'out') onChange({ ...timing, kind: 'out', tag, value: 0 })
     else if (k === 'motor') onChange({ ...timing, kind: 'motor', tag, run: true })
     else if (k === 'valve') onChange({ ...timing, kind: 'valve', tag, open: true })
+    else if (k === 'deviceReset') onChange({ ...timing, kind: 'deviceReset', tag, reset: true })
     else onChange({ ...timing, kind: 'do', tag, on: true })
   }
 
@@ -547,6 +550,13 @@ export function ActionEditor({
         <select className="exp-alm-select" value={action.run ? '1' : '0'} onChange={(e) => onChange({ ...action, run: e.target.value === '1' })}>
           <option value="1">START</option>
           <option value="0">STOP</option>
+        </select>
+      )}
+      {action.kind === 'deviceReset' && (
+        <select className="exp-alm-select" value={Number(action.reset)}
+          onChange={e => onChange({ ...action, reset: e.target.value === '1' })}>
+          <option value="1">RESET_D = 1</option>
+          <option value="0">RESET_D = 0 (no reset)</option>
         </select>
       )}
       {action.kind === 'valve' && (
