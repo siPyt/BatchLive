@@ -13,7 +13,6 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const setMode = useStore((s) => s.setMode)
   const setSetpoint = useStore((s) => s.setSetpoint)
   const setOutput = useStore((s) => s.setOutput)
-  const setTuning = useStore((s) => s.setTuning)
   const setCasHealthy = useStore((s) => s.setCasHealthy)
   const [tab, setTab] = useState<Tab>('operate')
 
@@ -129,9 +128,7 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
 
       {tab === 'tune' && (
         <>
-          <TuneRow label="Gain (Kp)" value={m.gain} step={0.1} decimals={2} onChange={(v) => setTuning(tag, { gain: v })} />
-          <TuneRow label="Reset (s/rpt)" value={m.reset} step={1} decimals={0} onChange={(v) => setTuning(tag, { reset: v })} />
-          <TuneRow label="Rate (s)" value={m.rate} step={0.5} decimals={1} onChange={(v) => setTuning(tag, { rate: v })} />
+          <PidTuningControls tag={tag} />
           <div className="fp-row">
             <span className="fp-label">Acting</span>
             <span style={{ color: 'var(--dv-text-dim)' }}>{m.direct ? 'Direct' : 'Reverse'}</span>
@@ -270,12 +267,14 @@ function Stepper({
   decimals,
   step,
   disabled,
+  label = 'Parameter value',
   onChange
 }: {
   value: number
   decimals: number
   step: number
   disabled?: boolean
+  label?: string
   onChange: (v: number) => void
 }): JSX.Element {
   return (
@@ -286,6 +285,8 @@ function Stepper({
       <input
         className="fp-numinput"
         type="number"
+        aria-label={label}
+        step={step}
         disabled={disabled}
         value={Number(value.toFixed(decimals))}
         onChange={(e) => onChange(Number(e.target.value))}
@@ -295,6 +296,20 @@ function Stepper({
       </button>
     </div>
   )
+}
+
+export function PidTuningControls({ tag }: { tag: string }): JSX.Element | null {
+  const module = useStore(state => state.modules[tag])
+  const setTuning = useStore(state => state.setTuning)
+  if (module?.type !== 'PID') return null
+  return <>
+    <TuneRow label="Gain (Kp)" value={module.gain} step={0.1} decimals={2}
+      onChange={value => setTuning(tag, { gain: value })} />
+    <TuneRow label="Reset (s/rpt)" value={module.reset} step={0.1} decimals={2}
+      onChange={value => setTuning(tag, { reset: value })} />
+    <TuneRow label="Rate (s)" value={module.rate} step={0.1} decimals={2}
+      onChange={value => setTuning(tag, { rate: value })} />
+  </>
 }
 
 function TuneRow({
@@ -313,7 +328,7 @@ function TuneRow({
   return (
     <div className="fp-row">
       <span className="fp-label">{label}</span>
-      <Stepper value={value} decimals={decimals} step={step} onChange={onChange} />
+      <Stepper value={value} decimals={decimals} step={step} label={label} onChange={onChange} />
     </div>
   )
 }

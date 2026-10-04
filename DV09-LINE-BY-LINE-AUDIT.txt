@@ -924,9 +924,17 @@ Pages: 258-258
 Status: PARTIAL
 Required: Manipulate SP, tune in the detail picture and open real-time trend
   from the loop faceplate.
-Evidence: PID faceplate/SP/tuning/trends exist for generic loops.
-Acceptance: Verify exact FIC-102 course configuration and picture assignments;
-  generic PID operation is a subset, not completion of prerequisite downloads.
+Evidence: FIC-102 PID_LOOP regression verifies online 0.7/2.5/0 tuning,
+  permission/lock/invalid-value rejection, detail routing and synchronized
+  historian PV/SP/OUT samples. PID faceplates provide a simulator-native Detail
+  tuning dialog when no custom detail is assigned; explicit assignments retain
+  precedence. Trend links and module selection support all PID/AI/AO modules,
+  including created course loops. Browser verification confirms fractional
+  RESET display and advancing FIC-102 PV/SP/OUT curves. SP entry and deployment
+  prerequisites are covered by the adjacent PID_LOOP tests.
+Acceptance: Simulator detail/tuning/trend subset is verified. Native detail
+  template layout/file assignment and full prerequisite course parity are not
+  certified; custom detail pictures remain learner-configured.
 
 [DV09-060]
 Pages: 259-264

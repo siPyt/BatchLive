@@ -38,6 +38,8 @@ interface UiState {
   builderPicture: string | null
   builderRun: boolean
   faceplates: OpenFaceplate[]
+  pidDetailTag: string | null
+  closePidDetail: () => void
   selectedTag: string | null
   studioTag: string | null
   sfcName: string | null
@@ -81,6 +83,8 @@ export const useUi = create<UiState>((set, get) => ({
   builderPicture: null,
   builderRun: false,
   faceplates: [],
+  pidDetailTag: null,
+  closePidDetail: () => set({ pidDetailTag: null }),
   selectedTag: null,
   studioTag: null,
   sfcName: null,
@@ -166,6 +170,7 @@ export const useUi = create<UiState>((set, get) => ({
   resetToOverview: () =>
     set({
       faceplates: [],
+      pidDetailTag: null,
       selectedTag: null,
       studioTag: null,
       sfcName: null,
@@ -215,6 +220,10 @@ export const useUi = create<UiState>((set, get) => ({
   openModuleDisplay: (tag, kind) => {
     const m = useStore.getState().modules[tag]
     const name = kind === 'primary' ? m?.primaryDisplay : m?.detailDisplay
+    if (kind === 'detail' && m?.type === 'PID' && !name) {
+      set({ pidDetailTag: tag })
+      return true
+    }
     if (!m || !name) {
       const message = !m ? `Module ${tag} does not exist` : `${tag} has no assigned ${kind} display`
       useStore.getState().logEvent('DIAGNOSTIC', tag, message)

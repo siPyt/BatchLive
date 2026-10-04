@@ -565,6 +565,22 @@ Workshop checkmarks are a manual exercise checklist, **not verified coverage**.
 
 ## PID OOS and tracking LO
 
+## DV-09 PID detail tuning and real-time trends
+
+PID faceplates offer **Detail** online tuning when no custom detail picture is
+assigned. Explicit custom detail assignments retain precedence. Shared Tune
+controls preserve fractional RESET values (including the course's 2.5 seconds).
+Tuning requires an unlocked workstation, the TUNING key, an executable PID and
+finite nonnegative values. It changes runtime only; upload selected parameters
+to save configured defaults.
+
+Faceplate **Trend** opens PV/SP/requested OUT for any PID, including newly
+created FIC-102. The historian samples all three together; the module selector
+also supports AI PV and AO PV/SP/OUT. PV/SP use module engineering ranges, while
+OUT uses 0-100%. PID output is not measured valve travel. The original six
+default PV pens remain available. This is simulator-native detail/trending, not
+the proprietary detail-picture template or historian.
+
 ## DV-09 PID_LOOP / FIC-102 template
 
 Explorer's New Control Module form offers the course `PID_LOOP` template for

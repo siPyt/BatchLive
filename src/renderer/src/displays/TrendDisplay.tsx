@@ -1,28 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import type { TrendPoint } from '../engine/types'
-
-interface Pen {
-  key: string
-  label: string
-  color: string
-  min: number
-  max: number
-  unit: string
-}
-
-const PENS: Pen[] = [
-  { key: 'FIC-101.PV', label: 'FIC-101 Feed Flow', color: '#4fd1a0', min: 0, max: 120, unit: 'm3/h' },
-  { key: 'LIC-101.PV', label: 'LIC-101 Feed Level', color: '#6ec1ff', min: 0, max: 100, unit: '%' },
-  { key: 'LIC-201.PV', label: 'LIC-201 Reactor Level', color: '#c792ea', min: 0, max: 100, unit: '%' },
-  { key: 'TIC-201.PV', label: 'TIC-201 Reactor Temp', color: '#ff9e64', min: 0, max: 200, unit: 'degC' },
-  { key: 'PIC-301.PV', label: 'PIC-301 Header Press', color: '#f7768e', min: 0, max: 500, unit: 'kPa' },
-  { key: 'AT-301.PV', label: 'AT-301 Concentration', color: '#e0d040', min: 0, max: 100, unit: '%' }
-]
-
-/** Tags with a configured historian pen — faceplates only show a Trend link for these. */
-export const PEN_TAGS = new Set(PENS.map((p) => p.key.split('.')[0]))
+import { availableTrendPens, DEFAULT_TREND_TAGS, type TrendPen } from '../engine/trendPens'
 
 const W = 1000
 const H = 460
@@ -33,21 +13,26 @@ const PAD_B = 28
 
 export function TrendDisplay(): JSX.Element {
   const trend = useStore((s) => s.trend)
+  const modules = useStore(s => s.modules)
+  const pens = useMemo(() => availableTrendPens(modules), [modules])
   const [enabled, setEnabled] = useState<Record<string, boolean>>(
-    Object.fromEntries(PENS.map((p) => [p.key, true]))
+    Object.fromEntries(DEFAULT_TREND_TAGS.map(tag => [`${tag}.PV`, true]))
   )
+  const [selectedTag, setSelectedTag] = useState('')
   const [windowSec, setWindowSec] = useState(300)
 
   const trendFocusTag = useUi((s) => s.trendFocusTag)
   const clearTrendFocus = useUi((s) => s.clearTrendFocus)
   useEffect(() => {
     if (!trendFocusTag) return
-    const key = `${trendFocusTag}.PV`
-    if (PENS.some((p) => p.key === key)) {
-      setEnabled(Object.fromEntries(PENS.map((p) => [p.key, p.key === key])))
+    if (pens.some(pen => pen.tag === trendFocusTag)) {
+      setSelectedTag(trendFocusTag)
+      setEnabled(Object.fromEntries(pens.map(pen => [pen.key, pen.tag === trendFocusTag])))
     }
     clearTrendFocus()
-  }, [trendFocusTag, clearTrendFocus])
+  }, [trendFocusTag, clearTrendFocus, pens])
+  const shownPens = pens.filter(pen => pen.tag === selectedTag || enabled[pen.key] ||
+    !selectedTag && DEFAULT_TREND_TAGS.includes(pen.tag) && pen.key.endsWith('.PV'))
 
   const now = trend.length ? trend[trend.length - 1].t : Date.now()
   const from = now - windowSec * 1000
@@ -57,7 +42,7 @@ export function TrendDisplay(): JSX.Element {
   const plotH = H - PAD_T - PAD_B
 
   const xFor = (t: number): number => PAD_L + ((t - from) / (windowSec * 1000)) * plotW
-  const yFor = (v: number, pen: Pen): number => {
+  const yFor = (v: number, pen: TrendPen): number => {
     const frac = (v - pen.min) / (pen.max - pen.min || 1)
     return PAD_T + (1 - Math.max(0, Math.min(1, frac))) * plotH
   }
@@ -72,10 +57,20 @@ export function TrendDisplay(): JSX.Element {
           <option value={300}>5 min</option>
           <option value={600}>10 min</option>
         </select>
+        <label>Module <select aria-label="Trend module" className="select-dark" value={selectedTag}
+          onChange={event => {
+            const tag = event.target.value
+            setSelectedTag(tag)
+            setEnabled(tag ? Object.fromEntries(pens.map(pen => [pen.key, pen.tag === tag])) :
+              Object.fromEntries(DEFAULT_TREND_TAGS.map(name => [`${name}.PV`, true])))
+          }}>
+          <option value="">Default pens</option>
+          {[...new Set(pens.map(pen => pen.tag))].map(tag => <option key={tag}>{tag}</option>)}
+        </select></label>
       </div>
 
       <div className="trend-legend">
-        {PENS.map((p) => (
+        {shownPens.map((p) => (
           <div
             key={p.key}
             className={'legend-item' + (enabled[p.key] ? '' : ' off')}
@@ -116,7 +111,7 @@ export function TrendDisplay(): JSX.Element {
             )
           })}
 
-          {PENS.filter((p) => enabled[p.key]).map((p) => {
+          {pens.filter((p) => enabled[p.key]).map((p) => {
             const pts = visible
               .map((pt) => {
                 const v = pt.values[p.key]
@@ -125,7 +120,7 @@ export function TrendDisplay(): JSX.Element {
               })
               .filter(Boolean)
               .join(' ')
-            return <polyline key={p.key} points={pts} fill="none" stroke={p.color} strokeWidth={1.6} />
+            return <polyline key={p.key} data-trend-pen={p.key} points={pts} fill="none" stroke={p.color} strokeWidth={1.6} />
           })}
 
           {visible.length === 0 && (

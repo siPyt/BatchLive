@@ -16,6 +16,7 @@ const { applyAction } = require('../src/renderer/src/engine/sfc.ts')
 const { usePictures } = require('../src/renderer/src/engine/pictureStore.ts')
 const { pictureAlarmSignal, pictureModeSignal, pictureSignal, parseSavedPicture } = require('../src/renderer/src/engine/pictureDynamics.ts')
 const { lifecyclePidModules, savedPidStorageKey } = require('../src/renderer/src/engine/pidLifecycle.ts')
+const { moduleTrendPens, availableTrendPens } = require('../src/renderer/src/engine/trendPens.ts')
 
 function fic() { return useStore.getState().modules['FIC-102'] }
 function fixture(run) {
@@ -263,6 +264,44 @@ test('p259-264 PID_LOOP tuning uploads selected values and preserves configured 
   assert.deepEqual([state.pidLifecycle['FIC-102'].deployed.module.gain,
     state.pidLifecycle['FIC-102'].deployed.module.reset, state.pidLifecycle['FIC-102'].deployed.module.rate],
   [1.1, 2.5, 0], 'successful transfer deploys the resulting saved configuration')
+}))
+
+test('p258 FIC-102 detail tuning and PV/SP/OUT trends work for created course modules', () => fixture(store => {
+  assert.equal(useUi.getState().openModuleDisplay('FIC-102', 'detail'), true)
+  assert.equal(useUi.getState().pidDetailTag, 'FIC-102')
+  store.setTuning('FIC-102', { gain: 0.7, reset: 2.5, rate: 0.2 })
+  assert.deepEqual([fic().gain, fic().reset, fic().rate], [0.7, 2.5, 0.2])
+  const before = fic()
+  for (const invalid of [{ gain: NaN }, { rate: Infinity }, { reset: -1 }]) {
+    store.setTuning('FIC-102', invalid)
+    assert.equal(fic(), before, 'invalid tuning is rejected atomically')
+  }
+  useSecurity.setState({ locked: true })
+  store.setTuning('FIC-102', { gain: 2 })
+  assert.equal(fic(), before, 'workstation lock blocks tuning')
+  useSecurity.setState({ locked: false, currentUser: 'OperatorA' })
+  store.setTuning('FIC-102', { reset: 4 })
+  assert.equal(fic(), before, 'Tuning key is required')
+  useSecurity.setState({ currentUser: 'admin' })
+  const pens = moduleTrendPens(fic())
+  assert.deepEqual(pens.map(pen => [pen.key, pen.min, pen.max, pen.unit]), [
+    ['FIC-102.PV', 0, 100, 'GPM'], ['FIC-102.SP', 0, 100, 'GPM'], ['FIC-102.OUT', 0, 100, '%']
+  ])
+  assert.equal(availableTrendPens(useStore.getState().modules).length, 3)
+  store.setRunning(true)
+  store.tick(1)
+  const last = useStore.getState().trend.at(-1)
+  assert.deepEqual(pens.map(pen => last.values[pen.key]), [fic().pv, fic().sp, fic().out],
+    'all three plotted values come from the same real simulator sample')
+  useUi.getState().closePidDetail()
+  useUi.getState().focusTrend('FIC-102')
+  assert.equal(useUi.getState().display, 'trend')
+  assert.equal(useUi.getState().trendFocusTag, 'FIC-102')
+  assert.equal(useUi.getState().pidDetailTag, null)
+  usePictures.getState().createPicture('CUSTOM_DETAIL')
+  assert.equal(usePictures.getState().assignModuleDisplays('FIC-102', 'TANK101', 'CUSTOM_DETAIL'), true)
+  assert.equal(useUi.getState().openModuleDisplay('FIC-102', 'detail'), true)
+  assert.equal(useUi.getState().builderPicture, 'CUSTOM_DETAIL', 'explicit custom detail assignment retains precedence')
 }))
 
 test('p256 FIC-102 picture entry writes bounded SP and only permits configured PID target modes', () => fixture(store => {

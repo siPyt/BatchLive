@@ -53,7 +53,7 @@ import {
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { cloneSfcBlocks, reconcileSfcAlarms, sfcBlockConfigurationError, type SfcBlockConfiguration } from './sfcBlocks'
-import { useSecurity } from './security'
+import { requireUnlockedKey, useSecurity } from './security'
 import {
   cloneSfcParameters, controllerNamedSets, sfcParameterError, type SfcExpressionContext, type SfcParameter
 } from './sfcParameters'
@@ -360,7 +360,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (gm.type === 'PID' || gm.type === 'AO') {
           values[`${t}.PV`] = gm.pv
           values[`${t}.SP`] = gm.sp
-          if (gm.type === 'AO') values[`${t}.OUT`] = gm.out
+          values[`${t}.OUT`] = gm.out
         } else if (gm.type === 'AI') {
           values[`${t}.PV`] = gm.pv
         }
@@ -539,9 +539,15 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setTuning: (tag, t) => {
-    if (!useSecurity.getState().requireLock('TUNING', `Tune ${tag}`)) return
+    if (!requireUnlockedKey('TUNING', `Tune ${tag}`)) return
     if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
       rejectPid(get, tag, 'Go Online before tuning a managed PID')
+      return
+    }
+    const module = get().modules[tag]
+    if (module?.type !== 'PID' || Object.entries(t).some(([key, value]) =>
+      !['gain', 'reset', 'rate'].includes(key) || !Number.isFinite(value) || value < 0)) {
+      rejectPid(get, tag, 'Tuning requires a PID module and finite, non-negative GAIN/RESET/RATE values')
       return
     }
     mutateModule(set, get, tag, (m) => {

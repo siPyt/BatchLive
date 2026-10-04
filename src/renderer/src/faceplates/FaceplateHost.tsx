@@ -7,16 +7,20 @@ import { ValveFaceplate } from './ValveFaceplate'
 import { AiFaceplate } from './AiFaceplate'
 import { DiscreteFaceplate } from './DiscreteFaceplate'
 import { AoFaceplate } from './AoFaceplate'
-import { PEN_TAGS } from '../displays/TrendDisplay'
+import { moduleTrendPens } from '../engine/trendPens'
+import { PidDetailDialog } from './PidDetailDialog'
 
 /** Renders every open faceplate window. */
 export function FaceplateHost(): JSX.Element {
   const faceplates = useUi((s) => s.faceplates)
+  const detailTag = useUi(state => state.pidDetailTag)
+  const closeDetail = useUi(state => state.closePidDetail)
   return (
     <>
       {faceplates.map((f) => (
         <FaceplateWindow key={f.tag} tag={f.tag} x={f.x} y={f.y} />
       ))}
+      {detailTag && <PidDetailDialog tag={detailTag} onClose={closeDetail} />}
     </>
   )
 }
@@ -89,11 +93,11 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
         </button>
       </div>
       {body}
-      {(m.primaryDisplay || m.detailDisplay) && <div className="fp-links">
+      {(m.primaryDisplay || m.detailDisplay || m.type === 'PID') && <div className="fp-links">
         {m.primaryDisplay && <button className="fp-link-btn" onClick={() => openModuleDisplay(tag, 'primary')}
           title={`Primary control display: ${m.primaryDisplay}`}>Primary</button>}
-        {m.detailDisplay && <button className="fp-link-btn" onClick={() => openModuleDisplay(tag, 'detail')}
-          title={`Detail display: ${m.detailDisplay}`}>Detail</button>}
+        {(m.detailDisplay || m.type === 'PID') && <button className="fp-link-btn" onClick={() => openModuleDisplay(tag, 'detail')}
+          title={m.detailDisplay ? `Detail display: ${m.detailDisplay}` : 'Simulator PID detail tuning'}>Detail</button>}
       </div>}
       <div className="fp-links">
         <button className="fp-link-btn" onClick={() => openStudio(tag)} title="Open with Control Studio">
@@ -102,7 +106,7 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
         <button className="fp-link-btn" onClick={() => focusExplorer(tag)} title="Locate in DeltaV Explorer">
           ▦ Explorer
         </button>
-        {PEN_TAGS.has(tag) && (
+        {moduleTrendPens(m).length > 0 && (
           <button className="fp-link-btn" onClick={() => focusTrend(tag)} title="Open Historian Trend">
             📈 Trend
           </button>
