@@ -402,6 +402,19 @@ export const COURSE: WModule[] = [
           { id: 'motor-course-low', text: 'While the valve is open and motor confirmed Running, enter CAS_SP10 on actual LEVEL-101 Parameter View. Verify LY-1 output1% and sampled LI-10110gal. CND2 remains0 through3.9 uninterrupted good seconds and becomes1 at4.0; FIRST_OUT2 and actual motor output shutdown follow. Raise CAS_SP500: condition clears but history and motor lock remain until their separate resets.' },
           { id: 'motor-course-boundaries', text: 'CAS_SP50 means5%/50gal and must not trip low level. Disable LT-1 or lose its controller: held10/500 is Bad, not a valid permission; the motor trips fail-safe. Restore Good while low: timing starts fresh and must run another continuous four seconds. Never bypass Bad to manufacture permission.' }
         ]
+      },
+      {
+        id: 'valve-course-descriptors',
+        title: 'XV-OPTION: Flush/Hold and separately sampled Flushing/Holding',
+        objective: 'Execute p235 with four deployed Named Set descriptors and actual card3channel4/card4channel4 device I/O.',
+        note: 'Explicit command/feedback descriptor mappings, not native state-mask or template-dialog parity. Raw SP_D/PV_D stay0/1; Named Set entry numbers are descriptor identities.',
+        steps: [
+          { id: 'valve-descriptor-setup', text: 'Explorer Setup > Named Sets: create NS-XV with four visible entries: Hold0 selectable, Flush1 selectable, Holding2 nonselectable, Flushing3 nonselectable. Save Properties. Transfer Changed Setup Data independently to CTLR and the workstation; configured definitions alone never become online labels.', goto: 'explorer' },
+          { id: 'valve-descriptor-io', text: 'Configure commissioned CTLR DI card3channel4 XI-4 and DO card4channel4 ZX-4, enabled. Create XV-OPTION VALVE; its Control Studio DC block uses separate confirmation and command. Use manual XI-4 input0 initially or an explicitly labeled simulated tieback to ZX-4.', goto: 'hardware' },
+          { id: 'valve-descriptor-configure', text: 'Open XV-OPTION Studio, enable saved device lifecycle while physically passive, assign CTLR/XI-4/ZX-4. In the offline descriptor draft select NS-XV; map passiveCommand0, activeCommand1, passiveFeedback2, activeFeedback3. Apply Device Descriptors applies only the complete draft; uncommitted dropdown edits do nothing. Save Device and Full Download while both channels scanned Good/passive.', goto: 'studio' },
+          { id: 'valve-descriptor-operate', text: 'Open the actual valve faceplate: buttons Flush/Hold, Command Hold and Feedback Holding. Flush writes actual SP_D1 and ZX-4 output1, but feedback stays Holding until good XI-4 input1 is sampled. Hold writes SP_D0/output0 while feedback remains Flushing until separate input0 confirms. Do not replace feedback with the requested command.' },
+          { id: 'valve-descriptor-recovery', text: 'Missing/untransferred descriptor setup is explicitly Bad and active operator entry is denied; safe passive entry remains available with Control permission. Bad physical feedback holds its actual value/descriptor with separate Bad quality, never fictitious success. Workstation lock denies both command directions. Offline mappings remain isolated; persistent Load restores saved draft and Download applies changes. Clearing mappings returns normal default labels only after Save/Full deployment. Existing equipment shapes/colors remain unchanged.' }
+        ]
       }
     ]
   },

@@ -911,6 +911,21 @@ assignment and Save/Download/Online remain incomplete. Do not mark the
 complete manual implemented or redesign approved graphics to hide these gaps.
 Commit permitted; push remains unauthorized.
 
+DV-09 OPTIONAL DEVICE DESCRIPTORS: KEEP COMMAND AND FEEDBACK SEPARATE
+--------------------------------------------------------------------
+Original p235 image reviewed. Opt-in saved MOTOR/VALVE Named Set mappings
+change only explicit command/feedback text: Flush/Hold versus Flushing/Holding.
+Raw SP_D/PV_D are still actual0/1. Commanded Flush must not show Flushing
+before separate good DI confirms; commanded Hold must not erase held Flushing.
+Physical Bad quality stays visible next to its held descriptor. Missing
+workstation/controller setup is explicit metadata Bad, never an offline-name
+fallback. Default devices retain their original labels and equipment artwork.
+Preserve blue frames, green actual active/black actual passive mechanical
+symbols, piping, canvas geometry and palette. No native yellow/white course
+faceplate styling was applied to the protected plant visuals.
+Actual Apply/Save/Full Download/console transfer/Flush/Hold/independent
+feedback/offline Load verified; original96-module plant and720x576 restored.
+
 ===============================================================================
 26. DV-09 NAMED SET ADMINISTRATION - REFERENCE-BASED DRAFT WORKFLOW
 ===============================================================================

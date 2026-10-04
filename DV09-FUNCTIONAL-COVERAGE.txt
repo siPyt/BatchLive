@@ -1144,6 +1144,35 @@ native8/16-condition/template/property or whole-course certification.
 Workshop instructions now wire all exact prerequisites, not just generic
 level comparisons.295 tests/typecheck/build validation.
 
+PASS 32: DEPLOYED DEVICE COMMAND/FEEDBACK DESCRIPTORS
+---------------------------------------------------
+Scope: optional XV-OPTION p235, original image reviewed; DV09-053 PARTIAL.
+MOTOR/VALVE saved configuration supports four explicit Named Set mappings.
+Descriptor identities are separate from actual raw SP_D/PV_D0/1.
+NS-XV contains Hold0/Flush1 selectable and Holding2/Flushing3 nonselectable,
+all visible. Changed Setup Data transfers independently to controller and
+workstation. A configured definition is not deployed controller/console data.
+Offline dropdown candidates require Apply, Save and Full Download; source
+names/mappings deep-clone across draft/saved/deployed/runtime. Persistent
+Load validates the typed schema; errors preserve existing state.
+Missing controller setup rejects Download atomically. Missing workstation
+setup displays metadata Bad and denies active operator entry, not numeric
+success or a silent default. Safe passive entry still uses normal permission.
+Actual card3ch4 XI-4/card4ch4 ZX-4, command1/output1/held feedback0 -> Flush/
+Holding, sampled good feedback1 -> Flushing, Hold/output0 retains Flushing
+until separate feedback0. Physical quality remains separately Bad when held.
+Faceplates, Studio values/entry and command journal use the deployed labels.
+Unmapped modules keep their established labels/graphics. Locked workstation
+now blocks both directions in the shared operator device-command guard.
+Seven regressions cover atomic deployment/persistence/load, mapping failures,
+offline isolation/default restoration, separate target transfer, quality and
+locked/normal command behavior. Actual browser Apply/Save/Confirm Download,
+workstation denial/transfer, Flush/Hold/independent feedback, offline clear
+and persistent Load passed.302 total tests/typecheck/build validation.
+Original96-module running plant/UI/security/browser keys/720x576 restored.
+Native DC state-mask properties/full valve-template dialogs remain gaps.
+No native mask/layout/full-course claim and no protected equipment redesign.
+
 PASS 27: SUSTAINED CND COMPARISONS / FAIL-SAFE INTERLOCK QUALITY
 -------------------------------------------------------
 Scope: p230 / DV09-050 condition dependency subset. CND now parses actual

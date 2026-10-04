@@ -3,6 +3,8 @@
 // Mirrors DeltaV control-module concepts: modules, parameters, modes, alarms.
 // ---------------------------------------------------------------------------
 
+import type { DeviceStateDescriptors } from './deviceDescriptors'
+
 export type ModuleType = 'PID' | 'AI' | 'AO' | 'DI' | 'DO' | 'MOTOR' | 'VALVE' | 'FB'
 
 /** DeltaV control modes for a function block. IMAN (Initialization Manual) is
@@ -320,6 +322,7 @@ export type DcState =
   | 'LOCKED'
 
 export interface MotorModule extends ModuleDisplayProperties {
+  descriptors?: DeviceStateDescriptors
   templateId?: 'MTR-11_ILOCK'
   ownedBlocks?: Record<string, FunctionBlockModule>
   downloaded?: boolean
@@ -365,6 +368,7 @@ export interface MotorModule extends ModuleDisplayProperties {
 }
 
 export interface ValveModule extends ModuleDisplayProperties {
+  descriptors?: DeviceStateDescriptors
   downloaded?: boolean
   controllerTag?: string
   interlockInverted?: boolean

@@ -2,6 +2,7 @@ import { useStore } from '../engine/store'
 import type { MotorModule } from '../engine/types'
 import { dcStateInfo, fmt } from '../utils/format'
 import { MotorInterlockRows } from './MotorInterlockRows'
+import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
 
 export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as MotorModule | undefined
@@ -14,11 +15,16 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const setDeviceOptions = useStore((s) => s.setDeviceOptions)
   const binding = useStore((s) => s.hardware.deviceBindings?.[tag])
   const managed = useStore(s => !!s.deviceLifecycle[tag])
+  const namedSets = useStore(s => s.namedSets)
   if (!m) return null
 
   const { label: stateLabel, color: stateColor } = dcStateInfo(m.dcState)
   const transiting = m.dcState === 'GOING_ACTIVE' || m.dcState === 'GOING_PASSIVE'
-  const startDisabled = m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.running)
+  const descriptorError = deviceDescriptorCommandError(m, namedSets)
+  const activeLabel = deviceDescriptorLabel(m, namedSets, 'command', true).label
+  const passiveLabel = deviceDescriptorLabel(m, namedSets, 'command', false).label
+  const feedbackLabel = deviceDescriptorLabel(m, namedSets, 'feedback', m.running).label
+  const startDisabled = !!descriptorError || m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.running)
 
   return (
     <div className="fp-body">
@@ -39,22 +45,23 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
 
       <div className="fp-row">
         <button className={'fp-btn run' + (m.commanded ? ' active' : '')} disabled={startDisabled} onClick={() => startMotor(tag)}>
-          START
+          {activeLabel}
         </button>
         <button className={'fp-btn stop' + (!m.commanded ? ' active' : '')} onClick={() => stopMotor(tag)}>
-          STOP
+          {passiveLabel}
         </button>
       </div>
 
       <div className="fp-row">
         <span className="fp-label">Command (SP_D)</span>
-        <span style={{ color: 'var(--dv-text-dim)' }}>{m.commanded ? 'ACTIVE' : 'PASSIVE'}</span>
+        <span style={{ color: 'var(--dv-text-dim)' }}>{m.descriptors ? m.commanded ? activeLabel : passiveLabel : m.commanded ? 'ACTIVE' : 'PASSIVE'}</span>
       </div>
+      {descriptorError && <div className="fp-row" style={{ color: 'var(--dv-critical)', overflowWrap: 'anywhere' }}>Descriptor setup Bad: {descriptorError}</div>}
       {binding && <>
         <div className="fp-row"><span className="fp-label">Resolved / applied output</span>
           <span>{Number(!!m.outputCommand)} / {Number(!!m.appliedCommand)} / {m.ioOutputBad ? 'Bad (held)' : 'Good'}</span></div>
         <div className="fp-row"><span className="fp-label">Feedback / quality</span>
-          <span>{m.running ? 'Running' : 'Stopped'} / {m.ioInputBad ? 'Bad (held)' : 'Good'}</span></div>
+          <span>{feedbackLabel} / {m.ioInputBad ? 'Bad (held)' : 'Good'}</span></div>
       </>}
       <div className="fp-row">
         <span className="fp-label">Interlock</span>

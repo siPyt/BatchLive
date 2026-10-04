@@ -3,6 +3,8 @@ import type { HardwareState } from './hardware'
 import { controllerIsDown } from './hardware'
 import { deviceBindingError, deviceChannelSignal, findDst } from './traditionalIo'
 import { deviceSourceError } from './fb'
+import { descriptorDefinitionError, descriptorMappingError, parseDeviceDescriptors, type DeviceStateDescriptors } from './deviceDescriptors'
+import type { NamedSetDefinition, NamedSetState } from './namedSets'
 import { captureMotorStrategy, cloneMotorStrategy, materializeMotorStrategy, motorStrategyError, parseMotorStrategy,
   strategyModules, type MotorStrategyConfiguration } from './motorStrategy'
 
@@ -20,6 +22,7 @@ export interface DeviceConfiguration {
   commandSource?: string
   interlockInverted?: boolean
   strategy?: MotorStrategyConfiguration
+  descriptors?: DeviceStateDescriptors
 }
 export interface DeviceLifecycle {
   draft: DeviceConfiguration
@@ -31,7 +34,8 @@ export interface DeviceLifecycle {
 }
 export type DeviceDraftPatch = Partial<Omit<DeviceConfiguration, 'tag' | 'type'>>
 export function cloneDeviceConfiguration(c: DeviceConfiguration): DeviceConfiguration {
-  return { ...c, strategy: c.strategy ? cloneMotorStrategy(c.strategy) : undefined }
+  return { ...c, descriptors: c.descriptors ? { ...c.descriptors } : undefined,
+    strategy: c.strategy ? cloneMotorStrategy(c.strategy) : undefined }
 }
 export function deviceEditorModules(modules: Record<string, AnyModule>, records: Record<string, DeviceLifecycle>): Record<string, AnyModule> {
   const view = { ...modules }
@@ -55,9 +59,11 @@ export function captureDevice(m: MotorModule | ValveModule, hw: HardwareState): 
   inputDst: binding?.input ?? '', outputDst: binding?.output ?? '',
   permissiveRequired: m.permissiveRequired, resetRequired: m.resetRequired,
   confirmTimeSec: m.confirmTimeSec, interlockInverted: m.interlockInverted, strategy: m.type === 'MOTOR' ? captureMotorStrategy(m) : undefined, interlockSource: m.interlockSource,
-  permissiveSource: m.permissiveSource, commandSource: m.commandSource }
+  permissiveSource: m.permissiveSource, commandSource: m.commandSource,
+  descriptors: m.descriptors ? { ...m.descriptors } : undefined }
 }
-export function deviceConfigurationError(c: DeviceConfiguration, modules: Record<string, AnyModule>): string | null {
+export function deviceConfigurationError(c: DeviceConfiguration, modules: Record<string, AnyModule>,
+  namedSets?: Record<string, NamedSetDefinition>): string | null {
   const m = modules[c.tag]
   const view = c.strategy && m?.type === 'MOTOR' ? strategyModules({ ...modules, [c.tag]: { ...m,
     ownedBlocks: materializeMotorStrategy(c.tag, m.area, c.strategy) } }) : strategyModules(modules)
@@ -65,18 +71,23 @@ export function deviceConfigurationError(c: DeviceConfiguration, modules: Record
     !Number.isFinite(c.confirmTimeSec) || c.confirmTimeSec < 0 ? 'Confirmation time must be finite and nonnegative' :
     typeof c.permissiveRequired !== 'boolean' || typeof c.resetRequired !== 'boolean' ? 'Device options must be Boolean' :
     c.interlockInverted !== undefined && typeof c.interlockInverted !== 'boolean' ? 'Interlock polarity must be Boolean' :
+    (c.descriptors ? descriptorMappingError(c.descriptors) ??
+      (namedSets ? descriptorDefinitionError(c.descriptors, namedSets[c.descriptors.namedSet]) : null) : null) ??
     (c.strategy ? c.type !== 'MOTOR' ? 'Only motor modules can own this strategy' :
       motorStrategyError(c.tag, m.area, c.strategy, modules) : null) ??
     deviceSourceError(view, c.tag, c.interlockSource, 'Interlock') ??
     deviceSourceError(view, c.tag, c.permissiveSource, 'Permissive') ??
     deviceSourceError(view, c.tag, c.commandSource, 'Command')
 }
-export function deviceDownloadError(c: DeviceConfiguration, modules: Record<string, AnyModule>, hw: HardwareState): string | null {
+export function deviceDownloadError(c: DeviceConfiguration, modules: Record<string, AnyModule>, hw: HardwareState,
+  namedSets?: NamedSetState): string | null {
   const controller = hw.controllers[c.controllerTag]
   const m = modules[c.tag]
   const input = findDst(hw, c.inputDst)
   const output = findDst(hw, c.outputDst)
   return deviceConfigurationError(c, modules) ??
+    (c.descriptors ? descriptorDefinitionError(c.descriptors,
+      namedSets?.deployed[`CONTROLLER:${c.controllerTag}`]?.[c.descriptors.namedSet]) : null) ??
     (!controller || !controller.commissioned || controllerIsDown(controller) ? 'Assign a commissioned, available controller' :
       !c.inputDst || !c.outputDst ? 'Select both DI confirmation and DO command DSTs' :
       input?.card.controllerTag !== c.controllerTag || output?.card.controllerTag !== c.controllerTag ? 'Both DSTs must belong to the assigned controller' :
@@ -112,5 +123,6 @@ export function parseDevice(text: string, tag: string): DeviceConfiguration {
     permissiveSource: 'permissiveSource' in c && typeof c.permissiveSource === 'string' ? c.permissiveSource : undefined,
     commandSource: 'commandSource' in c && typeof c.commandSource === 'string' ? c.commandSource : undefined,
     interlockInverted: 'interlockInverted' in c && typeof c.interlockInverted === 'boolean' ? c.interlockInverted : undefined,
+    descriptors: 'descriptors' in c ? parseDeviceDescriptors(c.descriptors) : undefined,
     strategy: 'strategy' in c ? parseMotorStrategy(c.strategy) : undefined }
 }

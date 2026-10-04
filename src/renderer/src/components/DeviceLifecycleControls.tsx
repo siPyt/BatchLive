@@ -5,6 +5,7 @@ import { traditionalChannels } from '../engine/traditionalIo'
 import { SimulatorDialog } from './SimulatorDialog'
 import { useUi } from '../ui/uiStore'
 import { deviceEditorModules } from '../engine/deviceLifecycle'
+import { descriptorRoles, type DeviceStateDescriptors } from '../engine/deviceDescriptors'
 
 export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const record = useStore(s => s.deviceLifecycle[tag])
@@ -47,6 +48,7 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
     <tr><td>DEPLOYED INTERLOCK POLARITY</td><td>{record.deployed?.interlockInverted ? 'Healthy when source1; trips at0' : 'Trips when source1'}</td>
       <td>Bad always trips; manual interlock remains active-trip</td></tr>
     {!record.online && <>
+      <DeviceDescriptorDraftRows key={`${tag}:${JSON.stringify(c.descriptors)}`} tag={tag} descriptors={c.descriptors} />
       <tr><td>DRAFT CONTROLLER</td><td><select aria-label={`${tag} device controller`} value={c.controllerTag}
         onChange={e => edit(tag, { controllerTag: e.target.value })}>
         <option value="">(unassigned)</option>
@@ -75,6 +77,33 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
           {tags.map(t => <option key={t}>{t}</option>)}
         </select></td><td>Saved connection; Download required</td></tr>)}
     </>}
+  </>
+}
+
+function DeviceDescriptorDraftRows({ tag, descriptors }: { tag: string; descriptors?: DeviceStateDescriptors }): JSX.Element {
+  const configured = useStore(s => s.namedSets.configured)
+  const edit = useStore(s => s.editDeviceDraft)
+  const [draft, setDraft] = useState<DeviceStateDescriptors>(descriptors ?? {
+    namedSet: '', passiveCommand: 0, activeCommand: 1, passiveFeedback: 2, activeFeedback: 3
+  })
+  const definition = configured[draft.namedSet]
+  return <>
+    <tr><td>DRAFT DEVICE DESCRIPTORS</td><td><select aria-label={`${tag} descriptor Named Set`}
+      value={draft.namedSet} onChange={e => setDraft({ ...draft, namedSet: e.target.value })}>
+      <option value="">(default device labels)</option>
+      {draft.namedSet && !definition && <option value={draft.namedSet}>{draft.namedSet} (missing)</option>}
+      {Object.keys(configured).map(name => <option key={name}>{name}</option>)}
+    </select></td><td>Four explicit command/feedback mappings; Apply, Save and Download required</td></tr>
+    {draft.namedSet && descriptorRoles.map(role => <tr key={role}><td>DRAFT {role}</td><td>
+      <select aria-label={`${tag} descriptor ${role}`} value={draft[role]}
+        onChange={e => setDraft({ ...draft, [role]: Number(e.target.value) })}>
+        {!definition?.entries.some(entry => entry.value === draft[role]) &&
+          <option value={draft[role]}>{draft[role]} (missing entry)</option>}
+        {definition?.entries.map(entry => <option key={entry.value} value={entry.value}>{entry.name} ({entry.value})</option>)}
+      </select></td><td>Mapping only; SP_D/PV_D remain actual0/1</td></tr>)}
+    <tr><td>APPLY DESCRIPTOR DRAFT</td><td><button className="tbtn sm"
+      onClick={() => edit(tag, { descriptors: draft.namedSet ? draft : undefined })}>Apply Device Descriptors</button>
+    </td><td>Unapplied selections do not change configuration or runtime</td></tr>
   </>
 }
 

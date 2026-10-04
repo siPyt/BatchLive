@@ -37,6 +37,7 @@ import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
 import { conditionSourceError } from './fbCondition'
+import { deviceDescriptorCommandError, deviceDescriptorLabel } from './deviceDescriptors'
 import { deviceSourceError, resetConditionTiming } from './fb'
 import {
   analogBindingError, channelConfigurationError, deviceBindingError, discreteBindingError, findDst, makeTraditionalCard,
@@ -663,45 +664,51 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   startMotor: (tag) => {
-    if (!useSecurity.getState().requireLock('CONTROL', `Start ${tag}`)) return
+    if (!requireUnlockedLock('CONTROL', `Start ${tag}`)) return
     const module = get().modules[tag]
     if (module?.type === 'MOTOR') {
-      const error = deviceOperatorError(module, get().hardware)
+      const error = deviceOperatorError(module, get().hardware) ?? deviceDescriptorCommandError(module, get().namedSets)
       if (error) { rejectSfc(get, tag, error); return }
     }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'MOTOR') (m as MotorModule).commanded = true
     })
-    get().logEvent('OPERATOR', tag, 'Start command issued')
+    get().logEvent('OPERATOR', tag, module?.type === 'MOTOR' && module.descriptors ?
+      `${deviceDescriptorLabel(module, get().namedSets, 'command', true).label} command issued (SP_D1)` : 'Start command issued')
   },
 
   stopMotor: (tag) => {
-    if (!useSecurity.getState().requireLock('CONTROL', `Stop ${tag}`)) return
+    if (!requireUnlockedLock('CONTROL', `Stop ${tag}`)) return
+    const module = get().modules[tag]
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'MOTOR') (m as MotorModule).commanded = false
     })
-    get().logEvent('OPERATOR', tag, 'Stop command issued')
+    get().logEvent('OPERATOR', tag, module?.type === 'MOTOR' && module.descriptors ?
+      `${deviceDescriptorLabel(module, get().namedSets, 'command', false).label} command issued (SP_D0)` : 'Stop command issued')
   },
 
   openValve: (tag) => {
-    if (!useSecurity.getState().requireLock('CONTROL', `Open ${tag}`)) return
+    if (!requireUnlockedLock('CONTROL', `Open ${tag}`)) return
     const module = get().modules[tag]
     if (module?.type === 'VALVE') {
-      const error = deviceOperatorError(module, get().hardware)
+      const error = deviceOperatorError(module, get().hardware) ?? deviceDescriptorCommandError(module, get().namedSets)
       if (error) { rejectSfc(get, tag, error); return }
     }
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'VALVE') (m as ValveModule).commandedOpen = true
     })
-    get().logEvent('OPERATOR', tag, 'Open command issued')
+    get().logEvent('OPERATOR', tag, module?.type === 'VALVE' && module.descriptors ?
+      `${deviceDescriptorLabel(module, get().namedSets, 'command', true).label} command issued (SP_D1)` : 'Open command issued')
   },
 
   closeValve: (tag) => {
-    if (!useSecurity.getState().requireLock('CONTROL', `Close ${tag}`)) return
+    if (!requireUnlockedLock('CONTROL', `Close ${tag}`)) return
+    const module = get().modules[tag]
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'VALVE') (m as ValveModule).commandedOpen = false
     })
-    get().logEvent('OPERATOR', tag, 'Close command issued')
+    get().logEvent('OPERATOR', tag, module?.type === 'VALVE' && module.descriptors ?
+      `${deviceDescriptorLabel(module, get().namedSets, 'command', false).label} command issued (SP_D0)` : 'Close command issued')
   },
 
   toggleDO: (tag) => {
@@ -1500,7 +1507,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const draft = cloneDeviceConfiguration({ ...record.draft, ...patch })
     draft.inputDst = draft.inputDst.trim().toUpperCase()
     draft.outputDst = draft.outputDst.trim().toUpperCase()
-    const error = deviceConfigurationError(draft, state.modules) ??
+    const error = deviceConfigurationError(draft, state.modules, state.namedSets.configured) ??
       (patch.controllerTag !== undefined && draft.controllerTag && !state.hardware.controllers[draft.controllerTag] ? 'Assigned controller does not exist' : null)
     if (error) return rejectSfc(get, tag, error)
     set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, draft } }, rev: s.rev + 1 }))
@@ -1513,7 +1520,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const state = get()
     const record = state.deviceLifecycle[tag]
     if (!record || record.online) return rejectSfc(get, tag, 'Go Offline to save device configuration')
-    const error = deviceConfigurationError(record.draft, state.modules)
+    const error = deviceConfigurationError(record.draft, state.modules, state.namedSets.configured)
     if (error) return rejectSfc(get, tag, error)
     try { window.localStorage.setItem(savedDeviceKey(tag), serializeDevice(record.draft)) }
     catch (error) { return rejectSfc(get, tag, `Device save failed; database unchanged: ${error instanceof Error ? error.message : String(error)}`) }
@@ -1534,7 +1541,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (text === null) return rejectSfc(get, tag, 'No saved device exists for this tag in this browser profile')
       saved = parseDevice(text, tag)
     } catch (error) { return rejectSfc(get, tag, `Device load failed; draft/runtime unchanged: ${error instanceof Error ? error.message : String(error)}`) }
-    const error = deviceConfigurationError(saved, state.modules)
+    const error = deviceConfigurationError(saved, state.modules, state.namedSets.configured)
     if (error) return rejectSfc(get, tag, error)
     set(s => ({ deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, draft: cloneDeviceConfiguration(saved),
       saved, savedRevision: record.savedRevision + 1 } }, rev: s.rev + 1 }))
@@ -1551,11 +1558,12 @@ export const useStore = create<StoreState>((set, get) => ({
       return rejectSfc(get, tag, 'Save the current device draft before downloading')
     }
     if (deviceActive(m)) return rejectSfc(get, tag, 'Stop/close and confirm the device before downloading')
-    const error = deviceDownloadError(record.saved, state.modules, state.hardware)
+    const error = deviceDownloadError(record.saved, state.modules, state.hardware, state.namedSets)
     if (error) return rejectSfc(get, tag, `Device download failed; last-good runtime retained: ${error}`)
     const c = record.saved
     const deployedModule = { ...m, permissiveRequired: c.permissiveRequired,
       interlockInverted: c.interlockInverted,
+      descriptors: c.descriptors ? { ...c.descriptors } : undefined,
       resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec, interlockSource: c.interlockSource,
       permissiveSource: c.permissiveSource, commandSource: c.commandSource, controllerTag: c.controllerTag,
       downloaded: true, ioInputBad: true, ioOutputBad: true, outputCommand: false, travelTimer: 0,

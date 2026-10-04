@@ -15,6 +15,7 @@ import { traditionalChannels, type AnalogBindingPort } from '../engine/tradition
 import { appliedPidOutput, pidIo, readAnalogSignal, signalError } from '../engine/analogStrategy'
 import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
 import { deviceInterlockSignal, devicePermissiveSignal } from '../engine/simulate'
+import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
 import type {
   AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
   PidBlockName, PidIoPatch, SplitterPatch, SplitterState, FbInputRef,
@@ -120,6 +121,7 @@ function HierarchyView({ module: m, selectedBlock, onSelect }: {
 }
 
 interface ParamRow {
+  error?: string | null
   key: string
   value: string
   edit?: { kind: 'num'; step: number; decimals: number; raw: number; onChange: (v: number) => void }
@@ -152,6 +154,7 @@ function ParameterView({ module: m, selectedBlock }: {
   const setPidIo = useStore((s) => s.setPidIo)
   const setSplitterConfig = useStore((s) => s.setSplitterConfig)
   const deviceLifecycle = useStore(s => s.deviceLifecycle[m.tag])
+  const namedSets = useStore(s => s.namedSets)
   const selectedSplitter = m.type === 'PID' ? pidIo(m).splitter : undefined
   const ioBlock = m.type === 'PID' && selectedBlock !== 'PID1'
   const bad = m.type === 'PID' ? m.pvBad : m.type === 'AI' ? m.pvBad :
@@ -187,18 +190,24 @@ function ParameterView({ module: m, selectedBlock }: {
     )
   } else if (m.type === 'AI') {
     rows.push({ key: 'PV.CV', value: `${fmt(m.pv, m.decimals)} ${m.unit}` }, { key: 'PV_FTIME', value: '2 s' })
-  } else if (m.type === 'MOTOR') {
+  } else if (m.type === 'MOTOR' || m.type === 'VALVE') {
+    const commanded = m.type === 'MOTOR' ? m.commanded : m.commandedOpen
+    const feedback = m.type === 'MOTOR' ? m.running : m.open
+    const commandLabel = deviceDescriptorLabel(m, namedSets, 'command', commanded)
+    const feedbackLabel = deviceDescriptorLabel(m, namedSets, 'feedback', feedback)
+    const descriptorError = deviceDescriptorCommandError(m, namedSets)
     rows.push(
-      { key: 'SP_D.CV', value: m.commanded ? '1 (START)' : '0 (STOP)', toggle: { onClick: () => (m.commanded ? stopMotor(m.tag) : startMotor(m.tag)), label: m.commanded ? 'Stop' : 'Start' } },
-      { key: 'PV_D.CV', value: m.running ? '1' : '0' },
+      { key: 'SP_D.CV', value: commandLabel.error ? commandLabel.label : `${Number(commanded)} (${commandLabel.label})`, error: descriptorError,
+        toggle: commanded || !descriptorError ? { onClick: () => m.type === 'MOTOR' ?
+          commanded ? stopMotor(m.tag) : startMotor(m.tag) : commanded ? closeValve(m.tag) : openValve(m.tag),
+        label: m.descriptors ? deviceDescriptorLabel(m, namedSets, 'command', !commanded).label :
+          m.type === 'MOTOR' ? commanded ? 'Stop' : 'Start' : commanded ? 'Close' : 'Open' } : undefined },
+      { key: 'PV_D.CV', value: feedbackLabel.error ? feedbackLabel.label :
+        m.descriptors ? `${Number(feedback)} (${feedbackLabel.label})` : `${Number(feedback)}`,
+        error: feedbackLabel.error },
       { key: 'INTERLOCK', value: m.interlock ? '1' : '0' }
     )
-  } else if (m.type === 'VALVE') {
-    rows.push(
-      { key: 'SP_D.CV', value: m.commandedOpen ? '1 (OPEN)' : '0 (CLOSE)', toggle: { onClick: () => (m.commandedOpen ? closeValve(m.tag) : openValve(m.tag)), label: m.commandedOpen ? 'Close' : 'Open' } },
-      { key: 'PV_D.CV', value: m.open ? '1' : '0' },
-      { key: 'INTERLOCK', value: m.interlock ? '1' : '0' }
-    )
+    if (m.descriptors) rows.push({ key: 'DESCRIPTOR SETUP', value: descriptorError ?? m.descriptors.namedSet, error: descriptorError })
   } else if (m.type === 'DO') {
     rows.push({ key: 'SP_D.CV', value: m.commanded ? '1' : '0',
       toggle: m.mode === 'OOS' ? undefined : { onClick: () => toggleDO(m.tag), label: 'Toggle' } },
@@ -256,7 +265,7 @@ function ParameterView({ module: m, selectedBlock }: {
                     r.value
                   )}
                 </td>
-                <td className={bad ? 'bad' : 'good'}>{bad ? 'Bad' : 'Good'}</td>
+                <td className={bad || r.error ? 'bad' : 'good'}>{bad || r.error ? 'Bad' : 'Good'}</td>
               </tr>
             ))
           )}

@@ -278,6 +278,24 @@ history. The 50 gal threshold and Bad-input recovery are regression tested.
 These are labeled simulator signal connections, not physical wiring or a
 fluid-dynamics claim; approved plant equipment and colors are unchanged.
 
+Saved MOTOR/VALVE configurations can also map four **Named Set device
+descriptors** independently: passive/active command and passive/active feedback.
+The XV-OPTION workshop uses visible Hold0/Flush1 command entries and
+Holding2/Flushing3 feedback entries. These numbers identify descriptor names;
+actual SP_D/PV_D remain 0/1. Transfer Changed Setup Data separately to the
+controller and workstation, select/map the entries in the offline device
+descriptor draft, **Apply Device Descriptors**, Save and Full Download.
+Faceplate buttons, command/feedback rows, Studio raw/named values and journal
+use deployed names. Flush does not manufacture Flushing: good independent
+DI confirmation is still required; Hold can coexist with held Flushing.
+Missing setup is explicitly Bad and active operator entry is denied, while
+authorized passive entry remains available. Physical Bad feedback retains
+its held value/name with separate quality. Workstation lock denies both
+operator command directions. Offline edits/Load remain isolated; clearing
+descriptors returns default labels only after Save/Full deployment.
+This is explicit role mapping, not native DC state-mask or full valve-template
+dialog parity; existing mechanical graphics and default labels are preserved.
+
 SFC charts now provide right-click **Add...** in a selected step's Action
 window and **Properties...** on existing actions/transitions. Properties are
 isolated drafts: OK validates and applies, while Cancel/Escape retain the

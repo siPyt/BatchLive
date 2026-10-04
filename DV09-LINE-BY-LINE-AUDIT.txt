@@ -791,10 +791,31 @@ Acceptance: Demonstrate each outcome on the actual course channels and motor,
 
 [DV09-053]
 Pages: 235-237
-Status: MISSING
+Status: PARTIAL
 Required: Optional XV-OPTION Flush/Hold commands and Flushing/Holding feedback,
   using additional card4ch4/card3ch4 assignments.
-Evidence: No named sets, course mask configuration or these traditional channels.
+Evidence: Pass32 original p235 image inspected. Saved/deployed MOTOR/VALVE
+  configuration now supports four explicit Named Set role mappings:
+  passive/active command and passive/active feedback. Raw SP_D/PV_D remain
+  actual0/1, not descriptor numbers. NS-XV Hold0/Flush1/Holding2/Flushing3
+  transfers independently as Changed Setup Data to controller/workstation.
+  Mapping draft uses Apply; Save/Load/Full Download preserve isolation.
+  Actual XV-OPTION binds DI card3ch4 XI-4 and DO card4ch4 ZX-4. Actual faceplate
+  Flush energizes output1 but retains Holding until sampled good DI1;
+  Hold de-energizes output0 but retains Flushing until sampled DI0.
+  Studio displays raw values plus separately named command/feedback.
+  Missing/untransferred/invisible/nonselectable/bad descriptor setup rejects
+  or displays explicit metadata Bad, never silently uses offline names.
+  Active entry is denied if setup is unavailable; permitted passive entry
+  remains safe. Physical Bad feedback keeps held value/name and separate
+  quality. Shared command guards deny both directions while workstation
+  locked. Seven regressions cover persistence, atomic failures, target
+  transfer, live quality, reset to defaults and unchanged unmanaged behavior.
+  Live actual descriptor Apply/Save/Confirm Download, missing workstation
+  denial, workstation transfer, Flush/Hold/independent feedback, offline
+  clear isolation and persistent Load verified.302 tests/typecheck/build.
+  Native state-mask properties and full valve-library template dialogs
+  remain missing; explicit mappings are not a native mask-decoding claim.
 Acceptance: Verify independent command/feedback descriptors and tieback, then
   recap only the operations actually supported.
 
