@@ -1433,13 +1433,16 @@ Display Builder numeric entry accepts the PID_LOOP PID1/SP datalink and
 fetches the module's engineering limits. Out-of-range values reject before
 changing the target. MODE.A_TARGET offers only the PID's configured
 MODE.PERMITTED target modes; LO and excluded modes reject. MODE.A_ACTUAL is
-displayed read-only. Entry calls the ordinary permission-checked store
-actions, so a managed PID in Offline cannot be changed through the picture.
-Saving and loading preserves the entry configuration. The FIC-102 focused
-suite now has five passing template, lifecycle and picture-entry tests;
-complete test/build/typecheck and audit validation run for this milestone.
+displayed read-only. `ALARMS[1].A_LAALM` appears in Run only while a
+simulator alarm for the module is active. Entry calls the ordinary
+permission-checked store actions, so a managed PID in Offline cannot be
+changed through the picture. Saving and loading preserves the entry
+configuration. The FIC-102 focused suite covers template, lifecycle, entry
+limits, mode selection, alarm transitions and persistence; the full repository
+suite has 323 passing tests.
 
-Still partial for DV09-058: OUT ramp data entry, alarm-active-only visibility,
-ValveHorizontalControlD1 state animation and PipesAnim connections. Their
-source-specific behavior must be verified before claiming them complete.
+Still partial for DV09-058: OUT ramp data entry,
+ValveHorizontalControlD1 state animation and PipesAnim connections. Native
+alarm-index semantics are not claimed. Remaining course animation behavior
+must be source-verified before claiming it complete.
 No protected plant symbol, color, pipe or FBD geometry changed.

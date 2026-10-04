@@ -5,7 +5,7 @@ import { resolvePictureTarget, usePictures, type PicElement, type PicParam } fro
 import { fmt } from '../utils/format'
 import type { AnyModule } from '../engine/types'
 import { ClassicTank, PALE_BORDER, PALE_TEXT } from '../components/ClassicGraphics'
-import { pictureFill, pictureLimits, pictureModeSignal, pictureSignal } from '../engine/pictureDynamics'
+import { pictureAlarmSignal, pictureFill, pictureLimits, pictureModeSignal, pictureSignal } from '../engine/pictureDynamics'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 import { pictureNamedSignal } from '../engine/pictureNamedSets'
 
@@ -218,6 +218,7 @@ function Canvas({
   const els = usePictures((s) => s.pictures[picture]?.elements ?? [])
   const updateElement = usePictures((s) => s.updateElement)
   const modules = useStore((s) => s.modules)
+  const alarms = useStore(s => s.alarms)
   const namedContext = useStore(s => s)
   const openFaceplate = useUi((s) => s.openFaceplate)
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null)
@@ -311,11 +312,15 @@ function Canvas({
           pictureNamedSignal(el, namedContext, edit) : null
         const isModePath = !!el.path && /^(?:PID1\/)?MODE\.A_(?:TARGET|ACTUAL)(?:\.CV)?$/i.test(el.path.trim())
         const mode = !named && isModePath ? pictureModeSignal(el, modules) : null
-        const signal = !named && !mode && (el.path || el.entry) ? pictureSignal(el, modules) : null
+        const isAlarmPath = !!el.path && /^ALARMS\[1\]\.A_LAALM$/i.test(el.path.trim())
+        const alarm = !named && isAlarmPath ? pictureAlarmSignal(el, modules, alarms) : null
+        if (!edit && alarm && !('error' in alarm) && !alarm.active) return null
+        const signal = !named && !mode && !alarm && (el.path || el.entry) ? pictureSignal(el, modules) : null
         const value = named ? 'error' in named ? named.error : `${named.text}${named.bad ? ' (Bad)' : ''}` :
           mode ? 'error' in mode ? mode.error : mode.current :
-            signal ? 'error' in signal ? signal.error : `${fmt(signal.value, 2)} ${signal.unit}${signal.bad ? ' (Bad)' : ''}` :
-              paramValue(m, el.param ?? 'PV')
+            alarm ? 'error' in alarm ? alarm.error : alarm.text :
+              signal ? 'error' in signal ? signal.error : `${fmt(signal.value, 2)} ${signal.unit}${signal.bad ? ' (Bad)' : ''}` :
+                paramValue(m, el.param ?? 'PV')
         return (
           <div
             key={el.id}

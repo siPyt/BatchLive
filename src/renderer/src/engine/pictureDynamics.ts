@@ -1,5 +1,5 @@
 import { pidExecutionBad, pidModeFieldsError, pidPermittedModes } from './pidModes'
-import type { AnyModule, PidTargetMode } from './types'
+import type { ActiveAlarm, AnyModule, PidTargetMode } from './types'
 import type { PicElement, Picture } from './pictureStore'
 import { pictureNamedSignal, type PictureNamedContext } from './pictureNamedSets'
 
@@ -17,6 +17,11 @@ export interface PictureModeSignal {
   choices?: PidTargetMode[]
 }
 export type PictureModeSignalResult = PictureModeSignal | { error: string }
+export interface PictureAlarmSignal {
+  active: boolean
+  text: string
+}
+export type PictureAlarmSignalResult = PictureAlarmSignal | { error: string }
 export type PictureDynamicPatch = Pick<Partial<PicElement>,
   'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag'>
 
@@ -40,6 +45,22 @@ export function pictureModeSignal(el: Pick<PicElement, 'tag' | 'path'>,
   return modePath === 'target'
     ? { current: module.mode, choices: pidPermittedModes(module) }
     : { current: module.actualMode }
+}
+
+function pictureAlarmPath(path: string): boolean {
+  return /^ALARMS\[1\]\.A_LAALM$/i.test(path.trim())
+}
+
+export function pictureAlarmSignal(el: Pick<PicElement, 'tag' | 'path'>,
+  modules: Record<string, AnyModule>, alarms: ActiveAlarm[]): PictureAlarmSignalResult {
+  const tag = el.tag ?? ''
+  const module = modules[tag]
+  if (!module || !pictureAlarmPath(el.path ?? '')) {
+    return { error: `Unsupported alarm source ${tag || '(unassigned)'}/${el.path ?? ''}` }
+  }
+  if (!module.alarms.length) return { error: `${tag} has no configured alarms` }
+  const active = alarms.some(alarm => alarm.moduleTag === tag && alarm.active)
+  return { active, text: active ? 'ALARM' : '' }
 }
 
 export function pictureSignal(el: PicElement, modules: Record<string, AnyModule>): PictureSignalResult {
@@ -100,6 +121,10 @@ export function pictureElementError(el: PicElement, modules: Record<string, AnyM
     const source = pictureModeSignal(el, modules)
     if ('error' in source) return source.error
     return source.choices ? null : 'Only MODE.A_TARGET supports Multiple-Item Select entry'
+  }
+  if (el.path !== undefined && pictureAlarmPath(el.path)) {
+    const source = pictureAlarmSignal(el, modules, [])
+    return 'error' in source ? source.error : null
   }
   if (el.entry && el.entry.method !== 'NUMERIC') return 'Unsupported Data Entry method'
   if (el.fill && el.type !== 'rectangle') return 'Fill animation requires a rectangle'

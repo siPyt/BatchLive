@@ -14,7 +14,7 @@ const { findDst } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { dstUsage } = require('../src/renderer/src/engine/dstUsage.ts')
 const { applyAction } = require('../src/renderer/src/engine/sfc.ts')
 const { usePictures } = require('../src/renderer/src/engine/pictureStore.ts')
-const { pictureModeSignal, pictureSignal, parseSavedPicture } = require('../src/renderer/src/engine/pictureDynamics.ts')
+const { pictureAlarmSignal, pictureModeSignal, pictureSignal, parseSavedPicture } = require('../src/renderer/src/engine/pictureDynamics.ts')
 const { lifecyclePidModules, savedPidStorageKey } = require('../src/renderer/src/engine/pidLifecycle.ts')
 
 function fic() { return useStore.getState().modules['FIC-102'] }
@@ -207,14 +207,19 @@ test('p256 FIC-102 picture entry writes bounded SP and only permits configured P
     tag: 'FIC-102', path: 'PID1/SP', entry: { method: 'NUMERIC', fetchLimits: true, low: 0, high: 100 } })
   const modeId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 250,
     tag: 'FIC-102', path: 'PID1/MODE.A_TARGET', entry: { method: 'PID_MODE' } })
+  const alarmId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 280,
+    tag: 'FIC-102', path: 'ALARMS[1].A_LAALM', label: true })
   assert.ok(spId, global.window.alerts.at(-1))
   assert.ok(modeId, global.window.alerts.at(-1))
+  assert.ok(alarmId, global.window.alerts.at(-1))
   assert.deepEqual(pictureSignal(usePictures.getState().pictures.TANK101.elements.find(el => el.id === spId),
     useStore.getState().modules), { value: fic().sp, unit: 'GPM', bad: false, low: 0, high: 100, parameter: 'PID1/SP' })
   assert.deepEqual(pictureModeSignal({ tag: 'FIC-102', path: 'PID1/MODE.A_TARGET' },
     useStore.getState().modules), { current: 'AUTO', choices: fic().permittedModes })
   assert.deepEqual(pictureModeSignal({ tag: 'FIC-102', path: 'PID1/MODE.A_ACTUAL' },
     useStore.getState().modules), { current: 'AUTO' })
+  assert.deepEqual(pictureAlarmSignal({ tag: 'FIC-102', path: 'ALARMS[1].A_LAALM' },
+    useStore.getState().modules, useStore.getState().alarms), { active: false, text: '' })
 
   assert.equal(pictures.writeNumericValue('TANK101', spId, 75), true)
   assert.equal(fic().sp, 75)
@@ -239,6 +244,17 @@ test('p256 FIC-102 picture entry writes bounded SP and only permits configured P
     { method: 'PID_MODE' })
   assert.equal(store.bindAnalogDst('FIC-102', 'input', 'FT-2'), true)
   assert.equal(store.bindAnalogDst('FIC-102', 'output', 'FY-2'), true)
+  store.setTraditionalInput('FT-2', 9)
+  store.setRunning(true)
+  store.tick(0.1)
+  store.tick(0.1)
+  assert.deepEqual(pictureAlarmSignal({ tag: 'FIC-102', path: 'ALARMS[1].A_LAALM' },
+    useStore.getState().modules, useStore.getState().alarms), { active: true, text: 'ALARM' })
+  store.setTraditionalInput('FT-2', 50)
+  store.tick(0.1)
+  store.tick(0.1)
+  assert.deepEqual(pictureAlarmSignal({ tag: 'FIC-102', path: 'ALARMS[1].A_LAALM' },
+    useStore.getState().modules, useStore.getState().alarms), { active: false, text: '' })
   assert.equal(store.enablePidLifecycle('FIC-102'), true)
   const offlineSetpoint = fic().sp
   assert.equal(pictures.writeNumericValue('TANK101', spId, 60), false)
