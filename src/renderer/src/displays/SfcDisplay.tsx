@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { SfcPropertiesDialog, type SfcPropertiesTarget } from '../components/SfcPropertiesDialog'
 import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
 import { sfcEditorDefinition } from '../engine/sfcLifecycle'
-import { useStore } from '../engine/store'
+import { SfcParameterControls } from '../components/SfcParameterControls'
+import { sfcExpressionContext, useStore } from '../engine/store'
 import {
   describeAction,
   describeCondition,
@@ -153,9 +154,10 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
         </button>
       </div>
       <SfcLifecycleControls name={sfc.name} />
+      <SfcParameterControls name={sfc.name} />
       {check && check.steps === sfc.steps && <div role={check.error ? 'alert' : 'status'} className="traditional-note">
         {check.error ? `Check failed: ${check.error}` : 'Check passed for supported linear actions and conditions.'}
-        {' '}This does not validate unsupported Named Sets, expressions, graph paths or controller downloads.
+        {' '}This validates configured Named Set references, not arbitrary expressions, graph paths or controller downloads.
       </div>}
 
       <div className="sfc-canvas-wrap">
@@ -214,6 +216,8 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
 }): JSX.Element {
   const modules = useStore((s) => s.modules)
   const state = { modules } as PlantState
+  const context = { ...sfcExpressionContext(useStore.getState(), sfc.name,
+    !!useStore.getState().sfcLifecycle[sfc.name]?.online), parameters: sfc.parameters ?? {} }
   const STEP_W = 120
   const STEP_H = 50
   const GAP = 70
@@ -228,7 +232,7 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
         const isActive = sfc.status === 'RUNNING' && sfc.active === i
         const isPast = sfc.active > i || sfc.status === 'COMPLETE'
         const transY = y + STEP_H + GAP / 2
-        const transTrue = isPast || (isActive && evalCondition(step.transition, state, sfc.elapsed))
+        const transTrue = isPast || (isActive && evalCondition(step.transition, state, sfc.elapsed, context))
         const isLast = i === sfc.steps.length - 1
         return (
           <g key={step.id}>
@@ -444,6 +448,11 @@ export function ActionEditor({
     else onChange({ ...timing, kind: 'do', tag, on: true })
   }
 
+  if (action.kind === 'namedSet') return <div className="sfc-edit-row">
+    <span>{describeAction(action)} [{action.qualifier ?? 'N'}]</span>
+    <button className="sfc-x" onClick={onRemove}>Remove</button>
+  </div>
+
   return (
     <>
     <div className="sfc-edit-row">
@@ -558,6 +567,7 @@ export function TransitionEditor({
   const tags = cond.kind === 'pv' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AI'), ...tagsOf(modules, 'AO')] :
     cond.kind === 'out' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AO')] : tagsOf(modules, tagType)
 
+  if (cond.kind === 'namedSet') return <div className="sfc-edit-row sfc-trans-edit">{describeCondition(cond)}</div>
   return (
     <div className="sfc-edit-row sfc-trans-edit">
       <span className="sfc-trans-arrow">⟶</span>

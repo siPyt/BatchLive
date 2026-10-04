@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SimulatorDialog } from './SimulatorDialog'
-import { useStore } from '../engine/store'
+import { sfcExpressionContext, useStore } from '../engine/store'
+import type { SfcExpressionContext } from '../engine/sfcParameters'
 import { TIMED_QUALIFIERS, type ActionQualifier, type SfcAction, type SfcStep } from '../engine/sfc'
 import { assignmentExpression, conditionExpression, parseSfcAssignment, parseSfcCondition } from '../engine/sfcExpressions'
 import type { AnyModule } from '../engine/types'
@@ -19,6 +20,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   name: string; target: SfcPropertiesTarget; onClose: () => void
 }): JSX.Element {
   const modules = useStore(s => s.modules)
+  const context = sfcExpressionContext(useStore.getState(), name)
   const initial = target.kind === 'action' && target.index !== null ? target.step.actions[target.index] : defaultAction(modules)
   const [description, setDescription] = useState(target.kind === 'transition' ?
     target.step.transitionDescription ?? '' : initial.description ?? '')
@@ -42,7 +44,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const apply = (): void => {
     let patch: Partial<SfcStep>
     if (target.kind === 'transition') {
-      const result = parseSfcCondition(expression, useStore.getState().modules)
+      const result = parseSfcCondition(expression, useStore.getState().modules, sfcExpressionContext(useStore.getState(), name))
       if (result.error !== undefined) { fail(result.error); return }
       patch = { transition: result.value, transitionDescription: description }
     } else {
@@ -51,12 +53,12 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
         if (!actionName.trim()) { fail('Enter the name of the stored action to reset'); return }
         action = { ...initial, qualifier, name: actionName.trim(), description, seconds: undefined, timingCondition: undefined }
       } else {
-        const result = parseSfcAssignment(expression, useStore.getState().modules)
+        const result = parseSfcAssignment(expression, useStore.getState().modules, sfcExpressionContext(useStore.getState(), name))
         if (result.error !== undefined) { fail(result.error); return }
         action = { ...result.value, qualifier, name: actionName.trim() || undefined, description }
         if (TIMED_QUALIFIERS.includes(qualifier)) {
           if (useExpression) {
-            const condition = parseSfcCondition(delayExpression, useStore.getState().modules)
+            const condition = parseSfcCondition(delayExpression, useStore.getState().modules, sfcExpressionContext(useStore.getState(), name))
             if (condition.error !== undefined) { fail(condition.error); return }
             action.timingCondition = condition.value
           } else {
@@ -103,7 +105,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
       <button className="tbtn sm" onClick={() => setBrowser(target.kind)}>Expression Assistant</button>
     </>}
     <p className="traditional-note">
-      Supported assignment/condition syntax only. Named Sets, arbitrary expression functions,
+      Supported module paths and configured Named Set parameter expressions only. Arbitrary expression functions,
       Boolean module-parameter and function-block action types are not yet implemented.
       Properties edits do not Save or Download the SFC.
     </p>
@@ -112,7 +114,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
       <button className="tbtn sm" onClick={apply}>OK</button>
       <button className="tbtn sm" onClick={onClose}>Cancel</button>
     </div>
-    {browser && <SfcExpressionBrowser modules={modules} assignment={browser === 'action'}
+    {browser && <SfcExpressionBrowser modules={modules} context={context} assignment={browser === 'action'}
       onClose={() => setBrowser(null)} onInsert={text => {
         if (browser === 'delay') setDelayExpression(text)
         else setExpression(text)
@@ -121,8 +123,9 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   </SimulatorDialog>
 }
 
-function SfcExpressionBrowser({ modules, assignment, onInsert, onClose }: {
-  modules: Record<string, AnyModule>; assignment: boolean; onInsert: (text: string) => void; onClose: () => void
+function SfcExpressionBrowser({ modules, context, assignment, onInsert, onClose }: {
+  modules: Record<string, AnyModule>; context: SfcExpressionContext
+  assignment: boolean; onInsert: (text: string) => void; onClose: () => void
 }): JSX.Element {
   const [tag, setTag] = useState(Object.keys(modules)[0] ?? '')
   const module = modules[tag]
@@ -153,6 +156,11 @@ function SfcExpressionBrowser({ modules, assignment, onInsert, onClose }: {
     </select></label>
     <p>Choose a supported path; edit the inserted literal before accepting Properties.</p>
     {candidates.map(text => <button className="ctx-item" key={text} onClick={() => onInsert(text)}>{text}</button>)}
+    {Object.entries(context.parameters).flatMap(([parameter, binding]) =>
+      (context.sets[binding.namedSet]?.entries ?? []).map(entry => {
+        const text = `'${parameter}' ${assignment ? ':=' : '='} '${binding.namedSet}:${entry.name}'`
+        return <button className="ctx-item" key={text} onClick={() => onInsert(text)}>{text}</button>
+      }))}
     {!candidates.length && <p>No supported {assignment ? 'assignment' : 'condition'} paths for this module.</p>}
     {!assignment && <button className="ctx-item" onClick={() => onInsert('T_ACTIVE >= 0')}>T_ACTIVE timer</button>}
     <button className="tbtn sm" onClick={onClose}>Cancel</button>

@@ -1,5 +1,6 @@
 import type { AnyModule } from './types'
 import type { PicElement, Picture } from './pictureStore'
+import { pictureNamedSignal, type PictureNamedContext } from './pictureNamedSets'
 
 export interface PictureSignal {
   value: number
@@ -46,14 +47,21 @@ export function pictureLimits(settings: { fetchLimits: boolean; low: number; hig
   return { low, high }
 }
 
-export function pictureElementError(el: PicElement, modules: Record<string, AnyModule>): string | null {
+export function pictureElementError(el: PicElement, modules: Record<string, AnyModule>, context?: PictureNamedContext): string | null {
   if (!Number.isFinite(el.x) || !Number.isFinite(el.y) || el.x < 0 || el.y < 0) return 'Element position must be finite and nonnegative'
   if (el.type === 'rectangle' && (![el.width ?? 64, el.height ?? 160].every(v => Number.isFinite(v) && v > 0))) {
     return 'Rectangle dimensions must be finite and positive'
   }
   if ([el.color, el.backgroundColor].some(v => v !== undefined && !/^#[0-9a-f]{6}$/i.test(v))) return 'Colors require six-digit hex values'
-  if (el.entry && el.type !== 'datalink') return 'Numeric entry requires a datalink'
-  if (el.entry && el.entry.method !== 'NUMERIC') return 'Only Numeric Entry is supported'
+  if (el.entry && el.type !== 'datalink') return 'Data Entry requires a datalink'
+  if (el.entry?.method === 'NAMED_SET' || el.type === 'datalink' && !!context?.sfcLifecycle[el.tag ?? ''] && el.path !== undefined) {
+    if (el.entry && el.entry.method !== 'NAMED_SET') return 'SFC Named Set sources require Named Set entry, not numeric entry'
+    if (el.fill) return 'Named Set sources do not support numeric fill animations'
+    if (!context) return 'Named Set datalinks require the SFC configuration context'
+    const source = pictureNamedSignal(el, context, true)
+    return 'error' in source ? source.error : null
+  }
+  if (el.entry && el.entry.method !== 'NUMERIC') return 'Unsupported Data Entry method'
   if (el.fill && el.type !== 'rectangle') return 'Fill animation requires a rectangle'
   if (el.fill && typeof el.fill.vertical !== 'boolean') return 'Fill direction must be vertical or horizontal'
   if (!el.entry && !el.fill && el.path === undefined) return null
@@ -93,10 +101,11 @@ function element(v: unknown): v is PicElement {
     ['fontSize', 'width', 'height'].every(k => v[k] === undefined || typeof v[k] === 'number' && Number.isFinite(v[k])) &&
     ['label', 'bold'].every(k => v[k] === undefined || typeof v[k] === 'boolean') &&
     (v.param === undefined || typeof v.param === 'string' && ['PV', 'SP', 'OUT', 'MODE', 'STATE'].includes(v.param)) &&
-    (v.entry === undefined || object(v.entry) && v.entry.method === 'NUMERIC' && limits(v.entry)) &&
+    (v.entry === undefined || object(v.entry) &&
+      (v.entry.method === 'NAMED_SET' || v.entry.method === 'NUMERIC' && limits(v.entry))) &&
     (v.fill === undefined || object(v.fill) && typeof v.fill.vertical === 'boolean' && limits(v.fill))
 }
-export function parseSavedPicture(text: string, name: string, modules: Record<string, AnyModule>): Picture {
+export function parseSavedPicture(text: string, name: string, modules: Record<string, AnyModule>, context?: PictureNamedContext): Picture {
   const data: unknown = JSON.parse(text)
   if (!object(data) || data.version !== 1 || !object(data.picture)) throw new Error('Unsupported saved picture format/version')
   const p = data.picture
@@ -106,7 +115,7 @@ export function parseSavedPicture(text: string, name: string, modules: Record<st
   }
   if (new Set(p.elements.map(e => e.id)).size !== p.elements.length) throw new Error('Saved picture has duplicate element IDs')
   for (const el of p.elements) {
-    const error = pictureElementError(el, modules)
+    const error = pictureElementError(el, modules, context)
     if (error) throw new Error(error)
   }
   return { name: p.name, elements: p.elements,

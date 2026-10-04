@@ -84,9 +84,9 @@ isolated drafts: OK validates and applies, while Cancel/Escape retain the
 original. Expression Assistant opens a supported-path Browser; assignments
 and conditions resolve into actual engine actions, not JavaScript evaluation.
 Check reports supported algorithm errors without executing it. Stale,
-unauthorized or running-chart commits reject atomically. This does not yet
-accept the course's Named Set MESSAGE expressions or implement native Confirm
-and arbitrary expression features; the exact workshop remains incomplete.
+unauthorized or running-chart commits reject atomically. Configured Named Set
+MESSAGE expressions are supported; native Confirm, arbitrary expression
+features and graph workflows remain incomplete.
 
 Reset an SFC and choose **Use Save/Download lifecycle** to opt it into isolated
 configured, saved and deployed linear algorithms. **Module Properties**
@@ -104,7 +104,7 @@ is required after reload. Current project area membership is preserved.
 
 This lifecycle is opt-in to preserve existing session-local sample behavior.
 `npm run test:sfc` covers qualifier, Properties/parser and lifecycle
-regressions. Native New algorithm selection, MESSAGE/Named Set parameters,
+regressions, including MESSAGE parameters and picture entry. Native New algorithm selection,
 graph routing, broader download dialogs and restart restoration remain gaps.
 
 Explorer **Setup > Named Sets** provides case-sensitive custom-set creation
@@ -121,11 +121,40 @@ their respective keys and an unlocked workstation.
 
 Run `npm run test:named-sets` for configuration, persistence, permissions and
 target-specific transfer regressions. This is not a complete native Setup
-Data download: other categories, protected vendor defaults, parameter
-references, SFC MESSAGE binding and operator Named Set datalinks remain gaps.
+Data download: other categories, protected vendor defaults and reference
+tracking remain gaps.
 Configured values use the simulator's safe-integer and existing 16-character
 tag syntax, not an assertion of vendor numeric/name limits. Deployed copies
 are session-local; loading browser configuration does not deploy it.
+
+For a lifecycle-managed SFC, **Add Parameter...** opens draft Parameter
+Properties. Name it MESSAGE, choose Named Set NS-T101 and default SELECT
+SEQUENCE (255). The configured value can be a nonselectable prompt. Save and
+Download preserve independent configured defaults and actual runtime values;
+parameter edits never immediately command the deployed routine.
+Action/Transition Properties and the Browser support exact named expressions:
+`'MESSAGE' := 'NS-T101:SELECT SEQUENCE'` and
+`'MESSAGE' = 'NS-T101:STARTUP'`. State names are case-sensitive, references
+must exist, and unsupported syntax is rejected rather than evaluated.
+Assignments use normal qualifier semantics: an N prompt repeatedly writes255;
+P fires once at its configured time/condition. Missing transferred references
+hold execution and produce an explicit journal diagnostic.
+
+In Display Builder, configure a datalink with the SFC tag and MESSAGE.CV,
+then choose **Named Set** in Data Entry Expert. **Run** displays the
+workstation's transferred state label and opens a command-selection dialog.
+Both controller and workstation setup must contain matching visible,
+user-selectable states; SELECT SEQUENCE is displayed but not offered as a
+command. Cancel/Escape/FlexLock do not write values. Apply writes the real
+deployed parameter with CONTROL permission, not its configured/saved default.
+Disabling entry retains a read-only Named Set datalink. Existing AO numeric
+entry/fill dynamics remain separate and cannot bypass these selection flags.
+
+This implements MESSAGE's binding/expression/operator prerequisite, not the
+complete pp291-294 procedure. The original startup loop, exact FIC-102/MTR-102
+bindings, selective shutdown branch and parallel joins are still outstanding.
+Native parameter category/restart/instance/Browse workflows, general parameter
+types and nonvolatile behavior are not claimed.
 
 ## DV-09 functional coverage
 

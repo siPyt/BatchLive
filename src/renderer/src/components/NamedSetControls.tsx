@@ -33,7 +33,8 @@ export function NamedSetControls({ selected, onSelect, createRequest, properties
     <p className="traditional-note">
       Custom Named Sets: names are case-sensitive. Visible and User Selectable are independent.
       Properties OK saves local configured setup; it does not transfer running setup.
-      This subset does not yet wire SFC MESSAGE or DC SP_D parameters, and contains no vendor default sets.
+      SFC Named Set parameters use these configured sets; controller/workstation setup transfers remain independent.
+      DC SP_D binding and vendor default sets are not implemented.
     </p>
     <div className="sfc-edit-row">
       <button className="tbtn sm" onClick={() => { setError(''); setCreating(true) }}>New Named Set...</button>
@@ -117,7 +118,7 @@ function NamedSetProperties({ expected, onClose }: { expected: NamedSetDefinitio
       <tbody>{draft.entries.map((entry, index) => <tr key={index}>
         <td><button className="fp-link-btn" aria-pressed={selected === index} onClick={() => setSelected(index)}
           onDoubleClick={() => { setSelected(index); setEditing({ index, entry }) }}>{entry.name}</button></td>
-        <td>{entry.value}</td><td>{entry.visible ? 'Yes' : 'No'}</td><td>No</td><td>{entry.userSelectable ? 'Yes' : 'No'}</td>
+        <td>{entry.value}</td><td>{entry.visible ? 'Yes' : 'No'}</td><td>Not tracked</td><td>{entry.userSelectable ? 'Yes' : 'No'}</td>
       </tr>)}</tbody>
     </table>
     <div className="sfc-edit-row">
@@ -175,7 +176,7 @@ function NamedStateProperties({ entry, renameOnly, onApply, onClose }: {
     <label>Name<input aria-label="State name" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></label>
     <label>Value<input aria-label="State value" type="number" step={1} disabled={renameOnly} value={value}
       onChange={e => setValue(e.target.value)} /></label>
-    <p>Referenced: No (module parameter bindings are not yet implemented)</p>
+    <p>Reference tracking is not yet implemented; SFC parameters are validated when configured/saved/downloaded.</p>
     <label><span><input type="checkbox" aria-label="Visible" disabled={renameOnly} checked={draft.visible}
       onChange={e => setDraft({ ...draft, visible: e.target.checked })} /> Visible</span></label>
     <label><span><input type="checkbox" aria-label="User selectable" disabled={renameOnly} checked={draft.userSelectable}

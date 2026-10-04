@@ -676,6 +676,52 @@ Validation:164 tests (130 control, nine qualifier, five Properties, eight
 lifecycle, seven Named Set and five audit); typecheck/build/diagnostics.
 Local verified milestone only; no push authorized.
 
+PASS 16: MESSAGE NAMED SET PARAMETER / EXPRESSIONS / OPERATOR PICTURE ENTRY
+-------------------------------------------------------------------------
+Scope: executable prerequisite for DV09-067/069/070, not exact startup/shutdown
+graph certification. Original PDF pp290/291/292 inspected locally.
+Add Parameter and Parameter Properties bind MESSAGE to NS-T101/default255.
+Properties Cancel/Escape/FlexLock discard drafts; stale/invalid/unauthorized/
+online/running edits reject atomically. Arbitrary parameter types and native
+category/restart/instance/Browse/context workflows remain unsupported.
+Save serializes validated bindings/defaults; Load changes configuration only.
+Download validates controller-transferred setup and independently clones
+deployed/default/runtime values. Missing setup cannot be a successful transfer.
+Exact assignment 'MESSAGE' := 'NS-T101:SELECT SEQUENCE' and comparison
+'MESSAGE' = 'NS-T101:STARTUP' resolve through configured/target Named Sets.
+Properties Browser offers real named paths; mismatched sets, unknown states,
+wrong case and unsupported functions/compound expressions reject explicitly.
+Runtime reads/writes real numeric parameter values; Named Set actions share
+N/P/stored/SD qualifier semantics. N repeatedly writes its assignment, rather
+than silently becoming a pulse. Online condition feedback reads actual runtime.
+Missing setup while running holds the routine without advancing actions/timers
+and journals one diagnostic; repair is required before resuming.
+Picture source MESSAGE.CV supports Named Set labels and optional Data Entry.
+Run resolves workstation labels against controller values and availability.
+Commands require matching name/value and Visible/User Selectable on BOTH
+transferred copies. Reserved prompt255, hidden states, unmatched copies,
+nonfinite values, unavailable targets and denied CONTROL/FlexLock cannot write.
+Operator entry changes only deployed runtime, never saved/configured defaults.
+Cancel/Escape or stale/removed elements preserve values. Read-only datalinks
+retain named readback; AO numeric entry/fill remain separate and unchanged.
+Live UI: MESSAGE/NS-T101/default255 configured through Parameter Properties;
+exact expressions set through Action/Transition Properties; controller assigned,
+Save/confirmed Download and Online RUN completed. Picture expert bound the
+SFC/MESSAGE.CV. Run showed SELECT SEQUENCE and offered STARTUP only. Cancel
+retained255; Apply1 advanced waiting step0 to1 and commanded XV-101. Draft,
+saved and deployed default values all stayed255 while runtime became1.
+At900x720 the440px entry dialog and every control fit; Escape and FlexLock
+closed without writes. Original96-module/eight-SFC running plant/UI/security/
+pictures/browser storage restored, fixture globals removed.
+Boundaries: original p291 return-to-prompt loop, exact FIC-102/MTR-102/
+XVSTAT-101 dependencies, native New, selective shutdown/parallel graph joins,
+broader expressions/parameters and restart/nonvolatile semantics remain missing.
+Do not call the linear validation fixture the complete course chart.
+Validation:172 coupled tests (130 control, nine qualifier, five Properties,
+eight lifecycle, seven Named Set, eight MESSAGE and five audit), typecheck,
+production build, editor diagnostics and zero-unmapped audit validation.
+Commit verified milestone locally only; no push authorized.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

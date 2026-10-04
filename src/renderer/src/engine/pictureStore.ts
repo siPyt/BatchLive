@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { useSecurity } from './security'
 import { useStore } from './store'
 import { parseSavedPicture, pictureElementError, pictureLimits, pictureSignal, type PictureDynamicPatch } from './pictureDynamics'
+import { pictureNamedSignal } from './pictureNamedSets'
 
 // Operator-display builder model (DV-09 "Creating a New Picture / Datalink / Dynamo / Text").
 
@@ -22,7 +23,7 @@ export interface PicElement {
   param?: PicParam
   label?: boolean
   path?: string
-  entry?: { method: 'NUMERIC'; fetchLimits: boolean; low: number; high: number }
+  entry?: { method: 'NUMERIC'; fetchLimits: boolean; low: number; high: number } | { method: 'NAMED_SET' }
   fill?: { vertical: boolean; fetchLimits: boolean; low: number; high: number }
   width?: number
   height?: number
@@ -57,6 +58,7 @@ interface PictureState {
   setPictureLinks: (pic: string, previous: string, next: string) => boolean
   configureDynamics: (pic: string, id: string, patch: PictureDynamicPatch) => boolean
   writeNumericValue: (pic: string, id: string, value: number) => boolean
+  writeNamedValue: (pic: string, id: string, value: number, expected?: PicElement) => boolean
   savePicture: (pic: string) => boolean
   loadPicture: (pic: string) => boolean
   assignModuleDisplays: (tag: string, primary: string, detail: string) => boolean
@@ -110,7 +112,7 @@ export const usePictures = create<PictureState>((set, get) => ({
     if (!get().pictures[pic]) { rejectPicture(pic, 'Picture does not exist'); return null }
     if (dynamicElement(el)) {
       if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create dynamic picture element ${pic}`)) return null
-      const error = pictureElementError({ ...el, id: '' }, useStore.getState().modules)
+      const error = pictureElementError({ ...el, id: '' }, useStore.getState().modules, useStore.getState())
       if (error) { rejectPicture(pic, error); return null }
     }
     const id = uid()
@@ -129,7 +131,7 @@ export const usePictures = create<PictureState>((set, get) => ({
     const candidate = { ...element, ...patch }
     if (dynamicElement(element) || dynamicElement(candidate)) {
       if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Edit dynamic picture element ${pic}`)) return false
-      const error = pictureElementError(candidate, useStore.getState().modules)
+      const error = pictureElementError(candidate, useStore.getState().modules, useStore.getState())
       if (error) return rejectPicture(pic, error)
     }
     set(s => ({ pictures: { ...s.pictures, [pic]: {
@@ -154,7 +156,7 @@ export const usePictures = create<PictureState>((set, get) => ({
     const element = get().pictures[pic]?.elements.find(e => e.id === id)
     if (!element) return rejectPicture(pic, 'Picture element does not exist')
     const candidate = { ...element, ...patch }
-    const error = pictureElementError(candidate, useStore.getState().modules)
+    const error = pictureElementError(candidate, useStore.getState().modules, useStore.getState())
     if (error) return rejectPicture(pic, error)
     if (!get().updateElement(pic, id, patch)) return false
     useStore.getState().logEvent('CONFIGURE', pic, `Dynamics configured for ${id}`)
@@ -164,7 +166,7 @@ export const usePictures = create<PictureState>((set, get) => ({
   writeNumericValue: (pic, id, value) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Picture numeric entry ${pic}`)) return false
     const element = get().pictures[pic]?.elements.find(e => e.id === id)
-    if (!element?.entry || element.type !== 'datalink') return rejectPicture(pic, 'Datalink has no numeric entry configuration')
+    if (element?.entry?.method !== 'NUMERIC' || element.type !== 'datalink') return rejectPicture(pic, 'Datalink has no numeric entry configuration')
     const source = pictureSignal(element, useStore.getState().modules)
     if ('error' in source) return rejectPicture(pic, source.error)
     if (!source.parameter || !element.tag) return rejectPicture(pic, 'This source is read-only')
@@ -176,13 +178,22 @@ export const usePictures = create<PictureState>((set, get) => ({
     return useStore.getState().setAoParameter(element.tag, source.parameter, value)
   },
 
+  writeNamedValue: (pic, id, value, expected) => {
+    const element = get().pictures[pic]?.elements.find(e => e.id === id)
+    if (!element || element.entry?.method !== 'NAMED_SET') return rejectPicture(pic, 'Datalink has no Named Set data entry configuration')
+    if (expected && element !== expected) return rejectPicture(pic, 'Datalink changed while entry was open; reopen data entry')
+    const source = pictureNamedSignal(element, useStore.getState())
+    if ('error' in source) return rejectPicture(pic, source.error)
+    return useStore.getState().writeSfcNamedValue(element.tag ?? '', source.parameter, value)
+  },
+
   savePicture: (pic) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Save picture ${pic}`)) return false
     const picture = get().pictures[pic]
     if (!picture) return rejectPicture(pic, 'Picture does not exist')
     try {
       const text = JSON.stringify({ version: 1, picture })
-      parseSavedPicture(text, pic, useStore.getState().modules)
+      parseSavedPicture(text, pic, useStore.getState().modules, useStore.getState())
       window.localStorage.setItem(pictureStorageKey(pic), text)
     } catch (error) {
       return rejectPicture(pic, `Picture Save failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -197,7 +208,7 @@ export const usePictures = create<PictureState>((set, get) => ({
     try {
       const text = window.localStorage.getItem(pictureStorageKey(pic))
       if (text === null) return rejectPicture(pic, 'No saved picture exists in this browser profile')
-      picture = parseSavedPicture(text, pic, useStore.getState().modules)
+      picture = parseSavedPicture(text, pic, useStore.getState().modules, useStore.getState())
     } catch (error) {
       return rejectPicture(pic, `Picture Load failed: ${error instanceof Error ? error.message : String(error)}`)
     }

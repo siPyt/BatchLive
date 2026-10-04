@@ -1,4 +1,6 @@
 import type { PlantState, AnyModule, PidModule, ControlMode } from './types'
+import { cloneSfcParameters, namedParameterReferenceError, type SfcExpressionContext, type SfcParameters } from './sfcParameters'
+import type { NamedSetDefinition } from './namedSets'
 
 // ---------------------------------------------------------------------------
 // Sequential Function Chart (SFC) engine — mirrors DeltaV Control Studio SFCs.
@@ -27,6 +29,7 @@ export type SfcAction = ActionBase &
     | { kind: 'motor'; tag: string; run: boolean }
     | { kind: 'valve'; tag: string; open: boolean }
     | { kind: 'do'; tag: string; on: boolean }
+    | { kind: 'namedSet'; tag: string; parameter: string; namedSet: string; entry: string }
   )
 
 export type SfcCondition =
@@ -36,6 +39,7 @@ export type SfcCondition =
   | { kind: 'out'; tag: string; op: CompareOp; value: number }
   | { kind: 'motorRunning'; tag: string; running: boolean }
   | { kind: 'valveOpen'; tag: string; open: boolean }
+  | { kind: 'namedSet'; parameter: string; namedSet: string; entry: string }
 
 export interface SfcStep {
   id: string
@@ -55,6 +59,7 @@ export interface SfcDef {
   active: number
   elapsed: number
   actionStates?: Record<string, SfcActionState>
+  parameters?: SfcParameters
 }
 
 export interface SfcActionState {
@@ -68,7 +73,7 @@ export interface SfcActionState {
 }
 
 export function actionIdentity(action: SfcAction): string {
-  return action.name?.trim() || `${action.tag}/${action.kind}`
+  return action.name?.trim() || `${action.tag}/${action.kind === 'namedSet' ? action.parameter : action.kind}`
 }
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
@@ -107,6 +112,8 @@ export function describeAction(a: SfcAction, module?: AnyModule): string {
       return `${q}^/${a.tag}/DC1/OUT_D.CV := ${a.open ? 1 : 0} (${a.open ? 'OPEN' : 'CLOSE'})`
     case 'do':
       return `${q}^/${a.tag}/DO1/OUT_D.CV := ${a.on ? 1 : 0} (${a.on ? 'ON' : 'OFF'})`
+    case 'namedSet':
+      return `${q}'${a.parameter}' := '${a.namedSet}:${a.entry}'`
   }
 }
 
@@ -124,16 +131,23 @@ export function describeCondition(c: SfcCondition): string {
       return `^/${c.tag}/DC1/PV_D.CV = ${c.running ? 1 : 0} (${c.running ? 'RUNNING' : 'STOPPED'})`
     case 'valveOpen':
       return `^/${c.tag}/DC1/PV_D.CV = ${c.open ? 1 : 0} (${c.open ? 'OPEN' : 'CLOSED'})`
+    case 'namedSet':
+      return `'${c.parameter}' = '${c.namedSet}:${c.entry}'`
   }
 }
 
-export function evalCondition(c: SfcCondition, state: PlantState, elapsed: number): boolean {
+export function evalCondition(c: SfcCondition, state: PlantState, elapsed: number, context?: SfcExpressionContext): boolean {
   const m = 'tag' in c ? (state.modules[c.tag] as AnyModule | undefined) : undefined
   switch (c.kind) {
     case 'always':
       return true
     case 'timer':
       return timeReached(elapsed, c.seconds)
+    case 'namedSet': {
+      if (namedParameterReferenceError(c.parameter, c.namedSet, c.entry, context)) return false
+      const entry = context?.sets[c.namedSet].entries.find(item => item.name === c.entry)
+      return !!entry && context?.parameters[c.parameter].value === entry.value
+    }
     case 'pv':
       return m && 'pv' in m ? cmp(m.pv, c.op, c.value) : false
     case 'out':
@@ -417,7 +431,8 @@ function isStored(action: SfcAction): boolean {
     action.qualifier === 'DS' || action.qualifier === 'SL'
 }
 
-function conditionError(condition: SfcCondition, modules: Record<string, AnyModule>): string | null {
+function conditionError(condition: SfcCondition, modules: Record<string, AnyModule>, context?: SfcExpressionContext): string | null {
+  if (condition.kind === 'namedSet') return namedParameterReferenceError(condition.parameter, condition.namedSet, condition.entry, context)
   if (condition.kind === 'timer') {
     return !Number.isFinite(condition.seconds) || condition.seconds < 0 ? 'Timer must be finite and nonnegative' : null
   }
@@ -431,13 +446,13 @@ function conditionError(condition: SfcCondition, modules: Record<string, AnyModu
   return !['PID', 'AO'].includes(module.type) ? 'OUT condition requires PID or AO' : null
 }
 
-export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModule>): string | null {
+export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModule>, context?: SfcExpressionContext): string | null {
   const ids = new Set<string>()
   const stored = new Set(steps.flatMap(step => step.actions.filter(isStored).map(actionIdentity)))
   for (const step of steps) {
     if (!step.id || ids.has(step.id)) return 'SFC step IDs must be nonempty and unique'
     ids.add(step.id)
-    const transitionError = conditionError(step.transition, modules)
+    const transitionError = conditionError(step.transition, modules, context)
     if (transitionError) return transitionError
     const names = new Set<string>()
     for (const action of step.actions) {
@@ -451,17 +466,24 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
         if (!stored.has(identity)) return `Reset target ${identity} has no stored action`
         continue
       }
+      if (action.kind === 'namedSet') {
+        if (action.tag !== context?.name) return 'Named Set assignments must address their owning SFC'
+        const error = namedParameterReferenceError(action.parameter, action.namedSet, action.entry, context)
+        if (error) return error
+      }
       const module = modules[action.tag]
-      if (!module) return `Missing action module ${action.tag}`
-      const required = action.kind === 'motor' ? 'MOTOR' : action.kind === 'valve' ? 'VALVE' : action.kind === 'do' ? 'DO' : null
-      if (required ? module.type !== required : module.type !== 'PID' && module.type !== 'AO') return 'Action/module type mismatch'
-      if ((action.kind === 'sp' || action.kind === 'out') && !Number.isFinite(action.value)) return 'Action value must be finite'
-      if (action.kind === 'mode' && (module.type === 'AO' ?
-        !['MAN', 'AUTO', 'CAS'].includes(action.mode) :
-        !['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN'].includes(action.mode))) return 'Invalid target mode'
+      if (action.kind !== 'namedSet') {
+        if (!module) return `Missing action module ${action.tag}`
+        const required = action.kind === 'motor' ? 'MOTOR' : action.kind === 'valve' ? 'VALVE' : action.kind === 'do' ? 'DO' : null
+        if (required ? module.type !== required : module.type !== 'PID' && module.type !== 'AO') return 'Action/module type mismatch'
+        if ((action.kind === 'sp' || action.kind === 'out') && !Number.isFinite(action.value)) return 'Action value must be finite'
+        if (action.kind === 'mode' && (module.type === 'AO' ?
+          !['MAN', 'AUTO', 'CAS'].includes(action.mode) :
+          !['MAN', 'AUTO', 'CAS', 'ROUT', 'RCAS', 'IMAN'].includes(action.mode))) return 'Invalid target mode'
+      }
       if (TIMED_QUALIFIERS.includes(action.qualifier ?? 'N')) {
         if (action.timingCondition) {
-          const error = conditionError(action.timingCondition, modules)
+          const error = conditionError(action.timingCondition, modules, context)
           if (error) return error
         } else if (!Number.isFinite(action.seconds ?? 0) || (action.seconds ?? 0) < 0) return 'Action time must be finite and nonnegative'
       }
@@ -470,10 +492,10 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
   return null
 }
 
-function updateActionState(runtime: SfcActionState, state: PlantState, stepActive: boolean): SfcActionState {
+function updateActionState(runtime: SfcActionState, state: PlantState, stepActive: boolean, context?: SfcExpressionContext): SfcActionState {
   const action = runtime.action
   const q = action.qualifier
-  const reached = action.timingCondition ? evalCondition(action.timingCondition, state, runtime.elapsed) :
+  const reached = action.timingCondition ? evalCondition(action.timingCondition, state, runtime.elapsed, context) :
     timeReached(runtime.elapsed, action.seconds ?? 0)
   const next = { ...runtime }
   if (!stepActive && !isStored(action)) {
@@ -514,7 +536,8 @@ function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>,
 export function advanceSfcs(
   state: PlantState & { sfcs: Record<string, SfcDef> },
   modulesIn: Record<string, AnyModule>,
-  dt: number
+  dt: number,
+  namedSetsBySfc: Record<string, Record<string, NamedSetDefinition>> = {}
 ): { modules: Record<string, AnyModule>; sfcs: Record<string, SfcDef> } {
   const running = Object.values(state.sfcs).some((s) => s.status === 'RUNNING')
   if (!running) return { modules: modulesIn, sfcs: state.sfcs }
@@ -528,7 +551,18 @@ export function advanceSfcs(
     if (sfc.status !== 'RUNNING' || sfc.steps.length === 0) continue
     const actionStates: Record<string, SfcActionState> = Object.fromEntries(
       Object.entries(sfc.actionStates ?? {}).map(([key, action]) => [key, { ...action }]))
-    const next: SfcDef = { ...sfc, actionStates }
+    const next: SfcDef = { ...sfc, actionStates, ...(sfc.parameters ? { parameters: cloneSfcParameters(sfc.parameters) } : {}) }
+    const context: SfcExpressionContext = { name, parameters: next.parameters ?? {}, sets: namedSetsBySfc[name] ?? {} }
+    const execute = (action: SfcAction): void => {
+      if (action.kind === 'namedSet') {
+        if (namedParameterReferenceError(action.parameter, action.namedSet, action.entry, context)) return
+        const entry = context.sets[action.namedSet].entries.find(item => item.name === action.entry)
+        if (entry) context.parameters[action.parameter].value = entry.value
+      } else {
+        const module = modules[action.tag]
+        if (module) applyAction(module, action)
+      }
+    }
     const step = sfc.steps[Math.min(sfc.active, sfc.steps.length - 1)]
     next.elapsed = sfc.elapsed + dt
     beginStepActions(step, actionStates, sfc.elapsed)
@@ -537,12 +571,11 @@ export function advanceSfcs(
       const reset = step.actions.some(action => action.qualifier === 'R' && actionIdentity(action) === identity)
       if (reset) continue
       // Stored timers continue across steps; HOLD pauses this simulated routine.
-      const updated = updateActionState({ ...runtime, elapsed: runtime.elapsed + dt }, state, stepActive)
+      const updated = updateActionState({ ...runtime, elapsed: runtime.elapsed + dt }, state, stepActive, context)
       actionStates[identity] = updated
-      const module = modules[updated.action.tag]
-      if (updated.active && module) applyAction(module, updated.action)
+      if (updated.active) execute(updated.action)
     }
-    if (evalCondition(step.transition, state, next.elapsed)) {
+    if (evalCondition(step.transition, state, next.elapsed, context)) {
       for (const [identity, runtime] of Object.entries(actionStates)) {
         if (!isStored(runtime.action) || sfc.active === sfc.steps.length - 1) {
           actionStates[identity] = { ...runtime, active: false, pending: false }
@@ -558,10 +591,9 @@ export function advanceSfcs(
         for (const action of entering.actions) {
           if (action.qualifier === 'R') continue
           const identity = actionIdentity(action)
-          const updated = updateActionState(actionStates[identity], state, true)
+          const updated = updateActionState(actionStates[identity], state, true, context)
           actionStates[identity] = updated
-          const module = modules[action.tag]
-          if (updated.active && module) applyAction(module, action)
+          if (updated.active) execute(action)
         }
       } else {
         next.status = 'COMPLETE'

@@ -971,6 +971,39 @@ panel containment. Original running96-module/eight-SFC plant restored.
 Commit local milestones; push remains unauthorized.
 
 ===============================================================================
+28. MESSAGE PARAMETER AND NAMED SET DATALINK - PRESERVE APPROVED CHART ARTWORK
+===============================================================================
+
+Original PDF pp290-292 reviewed locally. Keep SFC geometry, action frames,
+qualifier colors/activity, ribbons/icons, motors/pumps/valves and piping intact.
+Parameter controls are a separate wrapping row; they do not redesign Studio.
+Parameter Properties uses existing bounded SimulatorDialog conventions with
+Name, Type Named Set, binding and configured default. Cancel/Escape/FlexLock
+discard the draft; only OK changes configured values, never live runtime.
+Named expressions appear inside existing action/transition frames and in the
+Properties Browser. Do not replace real execution with decorative MESSAGE text.
+Offline shows configured defaults; Online transition feedback reads actual
+runtime parameters. Save/Download isolate those values from operator writes.
+Named Set picture datalinks display transferred workstation state names and
+the established Bad signal when mapping/target is invalid. An invisible state
+shows its numeric value; no invented label or selectable hidden command.
+Data Entry Expert chooses Named Set rather than numeric entry. Run opens the
+existing styled440px dialog, offering only matching controller/workstation
+visible/selectable states. SELECT SEQUENCE255 displays but is not a command.
+At900x720 the dialog and all controls were contained; Escape/FlexLock cancel.
+Apply writes actual runtime and releases the real condition, preserving
+configured/saved/deployed default255. Read-only named datalinks remain valid.
+AO numeric entry and source-scaled fill stay unchanged; numeric APIs cannot
+bypass Named Set selection flags. No equipment artwork/palette CSS changed.
+Live Cancel kept255; Apply STARTUP1 advanced the wait and commanded XV-101.
+This fixture is not the p291 looping course chart. Exact equipment bindings,
+loop/selective/parallel graph presentation and full native parameter properties
+remain unsupported; do not use a linear rendering to certify that workshop.
+Validation:172 coupled regressions, typecheck/build/diagnostics/audit. Original
+96-module/eight-SFC running plant, UI/security/pictures/storage restored.
+Commit local verified milestone only; push remains unauthorized.
+
+===============================================================================
 20. DV-09 OPT-IN AO SAVED LIFECYCLE - DO NOT REDESIGN THE APPROVED PLANT
 ===============================================================================
 

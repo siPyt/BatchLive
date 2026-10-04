@@ -43,7 +43,7 @@ export function SfcLifecycleControls({ name }: { name: string }): JSX.Element {
       {' '}Offline edits and Save do not execute or replace the deployed algorithm. Reset before editing,
       loading or downloading; Online commands operate the deployed version only.</p>
     <p>This is the simulated linear-SFC/browser-save subset. Native New algorithm dialog, graph branching,
-      MESSAGE parameters and controller restart/nonvolatile restoration remain unsupported.
+      arbitrary parameter types and controller restart/nonvolatile restoration remain unsupported.
       Downloaded copies are session-local; loading a saved draft does not deploy it.</p>
     {properties && <SfcModuleProperties configuration={properties} onClose={() => setProperties(null)} />}
     {download && <SimulatorDialog className="module-download-dialog" label={`Download SFC ${name}`} onClose={() => setDownload(null)}>

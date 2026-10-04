@@ -835,7 +835,7 @@ Evidence: Original p276 timing-chart image reviewed locally. Separate named
   Batch phase routines reuse the same execution engine.
   Supported Properties drafts and opt-in linear-SFC Save/Download/Online now
   exist. Full native property/expression features, module Boolean parameters,
-  non-Boolean block activation, graph editing and MESSAGE integration still
+  non-Boolean block activation and graph editing still
   prevent exact completion of the course procedures.
 Acceptance: Build action lifecycle state separate from output assignments.
   Test activation and step exit before/at/after delay, delayed pulse once,
@@ -865,13 +865,14 @@ Evidence: Original pp281-283 screenshots reviewed locally. Select step and
   Invalid syntax/path/values are explicitly rejected. Stale/deleted/running/
   unauthorized property commits reject atomically. Escape/Cancel/FlexLock
   discard drafts; nested Browser Escape restores parent-dialog focus.
-  Full Expression Assistant language, MESSAGE/Named Set expressions, native
+  Configured Named Set MESSAGE assignment/condition expressions and Browser
+  paths now resolve to actual runtime parameters. Full expression language, native
   Confirm tab and Boolean/non-Boolean action types remain missing. Opt-in
   linear SFC configuration now has real controller assignment, browser Save,
   explicit Download and independent Offline/Online algorithms, but native New,
-  MESSAGE/graph and restart boundaries remain missing.
-  The course screenshot's MESSAGE example is not executable
-  yet, so these pages and the exact workshop remain PARTIAL.
+  graph and restart boundaries remain missing. The screenshot's exact MESSAGE
+  expressions are executable; full native property workflows and the exact
+  graph-based workshop remain PARTIAL.
 Acceptance: Configure resolvable parameter expressions and explicit validation
   failures using the same path model as operator/configuration tools.
 
@@ -894,12 +895,18 @@ Evidence: Explorer Setup > Named Sets supports case-sensitive custom sets,
   User Selectable flags. Properties saves validated browser configuration;
   Changed Setup Data transfers only changed sets to independent simulated
   controller/workstation registries. Original pp223/287/288 images reviewed.
-  MESSAGE parameter administration/binding and operator data entry remain
-  missing; native defaults, references and global Setup Data are not claimed.
+  Add Parameter / Parameter Properties now bind MESSAGE to NS-T101 with
+  configured default255. Save/Download clone parameter configuration separately
+  from actual runtime. Named Set picture entry uses matching controller and
+  workstation setup, enforcing both Visible and User Selectable flags.
+  Original p290 parameter screenshot reviewed locally. Native category/restart/
+  instance/Browse/context operations, defaults, reference tracking and global
+  Setup Data parity are not claimed; this entry remains PARTIAL.
 Acceptance: Test exact names/values, visibility versus selection, numeric
   conversion and protection against selecting the reserved prompt.
-  Infrastructure validation: seven Named Set regressions and live nested
-  dialog/transfer acceptance. The complete exercise is not yet certified.
+  Validation: seven setup tests plus eight MESSAGE regressions, live parameter/
+  expression/picture entry, cancellation, prompt protection and default/runtime
+  isolation. The complete native exercise is not yet certified.
 
 [DV09-070]
 Pages: 291-292
@@ -913,7 +920,11 @@ Evidence: Generic structured motor/valve/SP/out transitions and supported
   Module Properties assigns controller; validated confirmed Download leaves
   READY without executing actions; Online runs only the deployed chart.
   Live draft60/deployed50 remained actual50 until Save/Download made actual60.
-  Course MESSAGE parameter/datalink, graph routing, exact device bindings,
+  MESSAGE parameter/datalink, prompt assignment and named STARTUP wait now
+  execute through real parameter entry. Live Cancel kept255; Apply1 released
+  the waiting step and commanded XV-101, leaving configured/saved/deployed
+  defaults255. Original p291 chart loops back to its prompt: that routing is
+  NOT implemented by the current linear subset. Graph routing, exact device bindings,
   native New workflow and restart/nonvolatile restoration remain missing.
 Acceptance: Execute each state in the exact dependency order with real
   feedback; failed confirmation must hold the appropriate transition.
@@ -923,7 +934,8 @@ Pages: 293-294
 Status: MISSING
 Required: Add shutdown command and divergent path; stop/confirm motor, set
   FIC MAN/OUT0, wait output<2%, close/confirm block valve, return to prompt.
-Evidence: No graph or named-set-driven operator branch.
+Evidence: Named Set commands exist, but no selective divergence/convergence
+  graph or repeat startup/shutdown loop exists.
 Acceptance: Verify repeated startup/shutdown cycles, correct waits, both
   command choices and mutually exclusive branches.
 
@@ -933,8 +945,9 @@ Status: PARTIAL
 Required: Operator waiting messages, startup checks for sufficient level and
   lock reset, and an SFC alarm when execution exceeds 30 seconds using a
   non-Boolean function-block action.
-Evidence: Generic steps/conditions/timers exist, but MESSAGE/custom alarm and
-  action-driven block lifecycle are absent.
+Evidence: Named Set MESSAGE and generic steps/conditions/timers exist, but
+  exact waiting-status/check/reset exercises, custom alarm and action-driven
+  block lifecycle remain absent.
 Acceptance: Test low-level refusal, required reset, every wait message,
   timeout boundary and alarm clear/reset on subsequent execution.
 
@@ -1064,7 +1077,8 @@ Pages: 362-363
 Status: MISSING
 Required: Signature policy on MESSAGE requiring confirmation/verification of
   startup/shutdown, with setup/area/module enable prerequisites.
-Evidence: Signature and MESSAGE models absent.
+Evidence: Named Set MESSAGE exists; native confirmation/verification signature
+  policy and dual-user command workflow remain absent.
 Acceptance: Test operator request, administrator approval, denied verification,
   cancellation and resulting SFC behavior without premature command writes.
 

@@ -1,5 +1,6 @@
 import type { AnyModule, ControlMode } from './types'
 import type { SfcAction, SfcCondition, CompareOp } from './sfc'
+import { namedParameterReferenceError, type SfcExpressionContext } from './sfcParameters'
 
 export type ExpressionResult<T> = { value: T; error?: never } | { error: string; value?: never }
 
@@ -16,7 +17,24 @@ function numericLiteral(text: string): number {
   return /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text) ? Number(text) : NaN
 }
 
-export function parseSfcAssignment(text: string, modules: Record<string, AnyModule>): ExpressionResult<SfcAction> {
+function namedExpression(text: string, operator: ':=' | '=', context?: SfcExpressionContext):
+  ExpressionResult<{ parameter: string; namedSet: string; entry: string }> | null {
+  const pattern = operator === ':=' ? /^'([A-Za-z0-9_$-]+)(?:\.CV)?'\s*:=\s*'([^':]+):([^']+)'$/ :
+    /^'([A-Za-z0-9_$-]+)(?:\.CV)?'\s*=\s*'([^':]+):([^']+)'$/
+  const match = text.trim().match(pattern)
+  if (!match) return null
+  const parameter = match[1].toUpperCase()
+  const error = namedParameterReferenceError(parameter, match[2], match[3], context)
+  return error ? { error } : { value: { parameter, namedSet: match[2], entry: match[3] } }
+}
+
+export function parseSfcAssignment(text: string, modules: Record<string, AnyModule>, context?: SfcExpressionContext): ExpressionResult<SfcAction> {
+  const named = namedExpression(text, ':=', context)
+  if (named) {
+    if (named.error !== undefined) return { error: named.error }
+    if (!context) return { error: 'Named Set assignments require an SFC parameter context' }
+    return { value: { kind: 'namedSet', tag: context.name, ...named.value } }
+  }
   const match = text.trim().match(/^(.+?)\s*:=\s*(.+)$/)
   const reference = match ? path(match[1]) : null
   if (!match || !reference) return { error: 'Use a supported quoted module/block/parameter path := value assignment' }
@@ -41,10 +59,12 @@ export function parseSfcAssignment(text: string, modules: Record<string, AnyModu
   if (module.type === 'MOTOR' && parameter === 'DC1/OUT_D.CV') return { value: { kind: 'motor', tag, run: on } }
   if (module.type === 'VALVE' && parameter === 'DC1/OUT_D.CV') return { value: { kind: 'valve', tag, open: on } }
   if (module.type === 'DO' && parameter === 'DO1/SP_D.CV') return { value: { kind: 'do', tag, on } }
-  return { error: `Unsupported assignment path ${tag}/${parameter}; Named Sets, module parameters and block activation are not implemented` }
+  return { error: `Unsupported assignment path ${tag}/${parameter}; use a supported module path or configured Named Set expression` }
 }
 
-export function parseSfcCondition(text: string, modules: Record<string, AnyModule>): ExpressionResult<SfcCondition> {
+export function parseSfcCondition(text: string, modules: Record<string, AnyModule>, context?: SfcExpressionContext): ExpressionResult<SfcCondition> {
+  const named = namedExpression(text, '=', context)
+  if (named) return named.error !== undefined ? { error: named.error } : { value: { kind: 'namedSet', ...named.value } }
   const trimmed = text.trim()
   if (/^TRUE$/i.test(trimmed)) return { value: { kind: 'always' } }
   const timer = trimmed.match(/^T_ACTIVE\s*>=\s*([+0-9.eE-]+)\s*s?$/i)
@@ -72,10 +92,11 @@ export function parseSfcCondition(text: string, modules: Record<string, AnyModul
     module.type === 'AO' && parameter === 'AO1/PV.CV') return { value: { kind: 'pv', tag, op, value: numeric } }
   if (module.type === 'PID' && parameter === 'PID1/OUT.CV' ||
     module.type === 'AO' && parameter === 'AO1/OUT.CV') return { value: { kind: 'out', tag, op, value: numeric } }
-  return { error: `Unsupported condition path ${tag}/${parameter}; arbitrary expressions and Named Sets are not implemented` }
+  return { error: `Unsupported condition path ${tag}/${parameter}; use a supported feedback path or configured Named Set expression` }
 }
 
 export function assignmentExpression(action: SfcAction, module?: AnyModule): string {
+  if (action.kind === 'namedSet') return `'${action.parameter}' := '${action.namedSet}:${action.entry}'`
   const block = module?.type === 'AO' ? 'AO1' : 'PID1'
   if (action.kind === 'mode') return `'^/${action.tag}/${block}/MODE.TARGET' := ${action.mode}`
   if (action.kind === 'sp' || action.kind === 'out') return `'^/${action.tag}/${block}/${action.kind.toUpperCase()}.CV' := ${action.value}`
@@ -84,6 +105,7 @@ export function assignmentExpression(action: SfcAction, module?: AnyModule): str
 }
 
 export function conditionExpression(condition: SfcCondition, module?: AnyModule): string {
+  if (condition.kind === 'namedSet') return `'${condition.parameter}' = '${condition.namedSet}:${condition.entry}'`
   if (condition.kind === 'always') return 'TRUE'
   if (condition.kind === 'timer') return `T_ACTIVE >= ${condition.seconds}`
   if (condition.kind === 'motorRunning' || condition.kind === 'valveOpen') {

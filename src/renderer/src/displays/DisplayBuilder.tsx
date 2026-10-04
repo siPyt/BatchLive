@@ -7,6 +7,7 @@ import type { AnyModule } from '../engine/types'
 import { ClassicTank, PALE_BORDER, PALE_TEXT } from '../components/ClassicGraphics'
 import { pictureFill, pictureLimits, pictureSignal } from '../engine/pictureDynamics'
 import { SimulatorDialog } from '../components/SimulatorDialog'
+import { pictureNamedSignal } from '../engine/pictureNamedSets'
 
 const PARAMS: PicParam[] = ['PV', 'SP', 'OUT', 'MODE', 'STATE']
 
@@ -217,6 +218,7 @@ function Canvas({
   const els = usePictures((s) => s.pictures[picture]?.elements ?? [])
   const updateElement = usePictures((s) => s.updateElement)
   const modules = useStore((s) => s.modules)
+  const namedContext = useStore(s => s)
   const openFaceplate = useUi((s) => s.openFaceplate)
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null)
   const [entryId, setEntryId] = useState<string | null>(null)
@@ -305,8 +307,11 @@ function Canvas({
             </div>
           )
         }
-        const signal = el.path || el.entry ? pictureSignal(el, modules) : null
-        const value = signal ? 'error' in signal ? signal.error : `${fmt(signal.value, 2)} ${signal.unit}${signal.bad ? ' (Bad)' : ''}` :
+        const named = el.entry?.method === 'NAMED_SET' || namedContext.sfcLifecycle[el.tag ?? ''] && el.path !== undefined ?
+          pictureNamedSignal(el, namedContext, edit) : null
+        const signal = !named && (el.path || el.entry) ? pictureSignal(el, modules) : null
+        const value = named ? 'error' in named ? named.error : `${named.text}${named.bad ? ' (Bad)' : ''}` :
+          signal ? 'error' in signal ? signal.error : `${fmt(signal.value, 2)} ${signal.unit}${signal.bad ? ' (Bad)' : ''}` :
           paramValue(m, el.param ?? 'PV')
         return (
           <div
@@ -327,7 +332,9 @@ function Canvas({
         )
       })}
       {els.length === 0 && <div className="exp-empty">Empty picture. Add datalinks, text, or dynamos.</div>}
-      {!edit && entryId && <NumericEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} />}
+      {!edit && entryId && (els.find(el => el.id === entryId)?.entry?.method === 'NAMED_SET' ?
+        <NamedSetEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} /> :
+        <NumericEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} />)}
     </div>
   )
 }
@@ -337,7 +344,8 @@ function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Eleme
   const updateElement = usePictures((s) => s.updateElement)
   const removeElement = usePictures((s) => s.removeElement)
   const modules = useStore((s) => s.modules)
-  const tags = Object.keys(modules)
+  const sfcLifecycle = useStore(s => s.sfcLifecycle)
+  const tags = [...Object.keys(modules), ...(el?.type === 'datalink' ? Object.keys(sfcLifecycle) : [])]
   if (!el) return null
 
   return (
@@ -375,7 +383,10 @@ function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Eleme
         <>
           <label className="bld-f">
             Module tag
-            <select value={el.tag} onChange={(e) => updateElement(picture, id, { tag: e.target.value })}>
+            <select aria-label="Picture module tag" value={el.tag} onChange={(e) => updateElement(picture, id, {
+              tag: e.target.value, ...(sfcLifecycle[e.target.value] ? { path: 'MESSAGE', entry: { method: 'NAMED_SET' } } :
+                el.entry?.method === 'NAMED_SET' ? { path: undefined, entry: undefined } : {})
+            })}>
               {tags.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -423,7 +434,8 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
   const configure = usePictures(s => s.configureDynamics)
   const [path, setPath] = useState(el.path ?? el.param ?? 'PV')
   const [enabled, setEnabled] = useState(!!(el.entry || el.fill))
-  const settings = el.entry ?? el.fill
+  const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET'>(el.entry?.method ?? 'NUMERIC')
+  const settings = el.entry?.method === 'NUMERIC' ? el.entry : el.fill
   const [fetchLimits, setFetchLimits] = useState(settings?.fetchLimits ?? el.type === 'rectangle')
   const [low, setLow] = useState(String(settings?.low ?? 0))
   const [high, setHigh] = useState(String(settings?.high ?? 1000))
@@ -440,15 +452,19 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
       <input aria-label="Picture source path" value={path} onChange={e => setPath(e.target.value)} />
     </label>
     <label className="bld-f bld-f-row"><input type="checkbox" checked={enabled}
-      onChange={e => setEnabled(e.target.checked)} />{rectangle ? 'Fill Percentage' : 'Numeric Entry'}</label>
+      onChange={e => setEnabled(e.target.checked)} />{rectangle ? 'Fill Percentage' : 'Data Entry'}</label>
+    {!rectangle && <label className="bld-f">Entry Method<select aria-label="Picture entry method" value={method}
+      onChange={e => setMethod(e.target.value as 'NUMERIC' | 'NAMED_SET')}>
+      <option value="NUMERIC">Numeric Entry</option><option value="NAMED_SET">Named Set</option>
+    </select></label>}
     {rectangle && <label className="bld-f bld-f-row"><input type="checkbox" checked={vertical}
       onChange={e => setVertical(e.target.checked)} />Vertical Direction</label>}
-    <label className="bld-f bld-f-row"><input type="checkbox" checked={fetchLimits}
+    {(rectangle || method === 'NUMERIC') && <><label className="bld-f bld-f-row"><input type="checkbox" checked={fetchLimits}
       onChange={e => setFetchLimits(e.target.checked)} />Fetch Limits from Data Source</label>
     <label className="bld-f">Low Limit<input type="number" step="any" disabled={fetchLimits}
       value={low} onChange={e => setLow(e.target.value)} /></label>
     <label className="bld-f">High Limit<input type="number" step="any" disabled={fetchLimits}
-      value={high} onChange={e => setHigh(e.target.value)} /></label>
+      value={high} onChange={e => setHigh(e.target.value)} /></label></>}
     {rectangle && <>
       <label className="bld-f">Width<input type="number" value={width} onChange={e => setWidth(e.target.value)} /></label>
       <label className="bld-f">Height<input type="number" value={height} onChange={e => setHeight(e.target.value)} /></label>
@@ -460,9 +476,11 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
       configure(picture, el.id, { path, color, ...(rectangle ? {
         width: numeric(width), height: numeric(height), backgroundColor: background,
         fill: enabled ? { ...limits, vertical } : undefined
-      } : { entry: enabled ? { ...limits, method: 'NUMERIC' } : undefined }) })
+      } : { entry: enabled ? method === 'NAMED_SET' ? { method: 'NAMED_SET' } : { ...limits, method: 'NUMERIC' } : undefined }) })
     }}>Apply Expert</button>
     <p>AO Floating Point entry supports explicit bounds. AI/PID/AO PV fills use the current engineering scale when limits are fetched.</p>
+    {!rectangle && <p>Named Set entry uses a saved-lifecycle SFC parameter such as MESSAGE.CV.
+      Run reads deployed values; selectable states require Changed Setup Data on both controller and workstation.</p>}
   </>
 }
 
@@ -471,7 +489,7 @@ function NumericEntryDialog({ picture, id, onClose }: { picture: string; id: str
   const modules = useStore(s => s.modules)
   const write = usePictures(s => s.writeNumericValue)
   const source = el ? pictureSignal(el, modules) : { error: 'Datalink removed' }
-  const limits = el?.entry && !('error' in source) ? pictureLimits(el.entry, source) : undefined
+  const limits = el?.entry?.method === 'NUMERIC' && !('error' in source) ? pictureLimits(el.entry, source) : undefined
   const [value, setValue] = useState('error' in source ? '' : String(source.value))
   return <SimulatorDialog className="bld-entry-dialog" label="Numeric Data Entry" onClose={onClose}>
     <form noValidate onSubmit={e => {
@@ -489,5 +507,33 @@ function NumericEntryDialog({ picture, id, onClose }: { picture: string; id: str
         <button className="tbtn sm" type="button" onClick={onClose}>Cancel Entry</button>
       </div>
     </form>
+  </SimulatorDialog>
+}
+
+function NamedSetEntryDialog({ picture, id, onClose }: { picture: string; id: string; onClose: () => void }): JSX.Element {
+  const el = usePictures(s => s.pictures[picture]?.elements.find(item => item.id === id))
+  const [expected] = useState(el)
+  const state = useStore(s => s)
+  const source = el ? pictureNamedSignal(el, state) : { error: 'Datalink removed' }
+  const [value, setValue] = useState('')
+  const [error, setError] = useState('')
+  return <SimulatorDialog className="bld-entry-dialog" label="Named Set Data Entry" onClose={onClose}>
+    <h3>{el?.tag}/{el?.path}</h3>
+    {'error' in source ? <p role="alert">{source.error}</p> : <>
+      <p>Current: {source.text} ({source.value}){source.bad ? ' — Bad/unavailable setup or controller' : ''}</p>
+      <label>Select state<select aria-label="Named Set value" value={value} onChange={e => setValue(e.target.value)}>
+        <option value="">Select a command</option>
+        {source.choices.map(entry => <option key={`${entry.name}:${entry.value}`} value={entry.value}>{entry.name}</option>)}
+      </select></label>
+      <p>Only visible, user-selectable states matching the workstation and controller setup are offered.</p>
+    </>}
+    {error && <p role="alert">{error}</p>}
+    <div className="sfc-edit-row">
+      <button className="tbtn sm" disabled={!value || 'error' in source || source.bad} onClick={() => {
+        if (usePictures.getState().writeNamedValue(picture, id, Number(value), expected)) onClose()
+        else setError('Value was not applied; see the reported permission, staleness or setup error.')
+      }}>Apply Value</button>
+      <button className="tbtn sm" onClick={onClose}>Cancel Entry</button>
+    </div>
   </SimulatorDialog>
 }
