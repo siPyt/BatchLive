@@ -47,6 +47,7 @@ export interface SfcStep {
   actions: SfcAction[]
   transition: SfcCondition
   transitionDescription?: string
+  nextStep?: string | null
 }
 
 export type SfcStatus = 'READY' | 'RUNNING' | 'HELD' | 'COMPLETE'
@@ -452,6 +453,10 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
   for (const step of steps) {
     if (!step.id || ids.has(step.id)) return 'SFC step IDs must be nonempty and unique'
     ids.add(step.id)
+    if (step.nextStep !== undefined && step.nextStep !== null &&
+      (typeof step.nextStep !== 'string' || !steps.some(candidate => candidate.id === step.nextStep))) {
+      return `Missing transition target for step ${step.name}`
+    }
     const transitionError = conditionError(step.transition, modules, context)
     if (transitionError) return transitionError
     const names = new Set<string>()
@@ -519,14 +524,14 @@ function updateActionState(runtime: SfcActionState, state: PlantState, stepActiv
   return next
 }
 
-function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>, elapsed: number): void {
+function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>, elapsed: number, entering = false): void {
   for (const action of step.actions) {
     const identity = actionIdentity(action)
     if (action.qualifier === 'R') {
-      if (elapsed === 0 && states[identity] && states[identity].resetStep !== step.id) {
+      if (elapsed === 0 && states[identity] && (entering || states[identity].resetStep !== step.id)) {
         states[identity] = { ...states[identity], active: false, pending: false, fired: true, resetStep: step.id }
       }
-    } else if (!states[identity] || states[identity].stepId !== step.id) {
+    } else if (entering || !states[identity] || states[identity].stepId !== step.id) {
       states[identity] = { action: { ...action }, stepId: step.id,
         elapsed, active: false, pending: true, fired: false }
     }
@@ -576,18 +581,21 @@ export function advanceSfcs(
       if (updated.active) execute(updated.action)
     }
     if (evalCondition(step.transition, state, next.elapsed, context)) {
+      const destination = step.nextStep === null ? -1 : step.nextStep !== undefined ?
+        sfc.steps.findIndex(candidate => candidate.id === step.nextStep) :
+        sfc.active + 1 < sfc.steps.length ? sfc.active + 1 : -1
       for (const [identity, runtime] of Object.entries(actionStates)) {
-        if (!isStored(runtime.action) || sfc.active === sfc.steps.length - 1) {
+        if (!isStored(runtime.action) || destination === -1) {
           actionStates[identity] = { ...runtime, active: false, pending: false }
         } else if (runtime.action.qualifier === 'DS' && !runtime.active) {
           actionStates[identity] = { ...runtime, pending: false }
         }
       }
-      if (sfc.active < sfc.steps.length - 1) {
-        next.active = sfc.active + 1
+      if (destination !== -1) {
+        next.active = destination
         next.elapsed = 0
         const entering = sfc.steps[next.active]
-        beginStepActions(entering, actionStates, 0)
+        beginStepActions(entering, actionStates, 0, true)
         for (const action of entering.actions) {
           if (action.qualifier === 'R') continue
           const identity = actionIdentity(action)

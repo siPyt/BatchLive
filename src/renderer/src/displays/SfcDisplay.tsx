@@ -224,20 +224,23 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
   const CENTER_X = 170
   const rowY = (i: number): number => 30 + i * (STEP_H + GAP)
   const height = 30 + sfc.steps.length * (STEP_H + GAP) + 40
+  const routed = sfc.steps.some(step => step.nextStep !== undefined)
 
   return (
     <svg width="100%" height={height} viewBox={`0 0 760 ${height}`} className="sfc-svg">
       {sfc.steps.map((step, i) => {
         const y = rowY(i)
         const isActive = sfc.status === 'RUNNING' && sfc.active === i
-        const isPast = sfc.active > i || sfc.status === 'COMPLETE'
+        const isPast = !routed && (sfc.active > i || sfc.status === 'COMPLETE')
         const transY = y + STEP_H + GAP / 2
         const transTrue = isPast || (isActive && evalCondition(step.transition, state, sfc.elapsed, context))
         const isLast = i === sfc.steps.length - 1
+        const destination = step.nextStep === null ? -1 : step.nextStep !== undefined ?
+          sfc.steps.findIndex(candidate => candidate.id === step.nextStep) : isLast ? -1 : i + 1
         return (
           <g key={step.id}>
             {/* flow line: step bottom -> transition -> next step top */}
-            {!isLast && (
+            {!isLast && step.nextStep === undefined && (
               <line
                 x1={CENTER_X}
                 y1={y + STEP_H}
@@ -246,6 +249,11 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
                 className={isPast ? 'sfc-line-active' : 'sfc-line'}
               />
             )}
+            {step.nextStep !== undefined && destination >= 0 && <path
+              d={`M ${CENTER_X} ${y + STEP_H} V ${transY + 12} H ${60 + i * 4} V ${rowY(destination) - 16} H ${CENTER_X} V ${rowY(destination)}`}
+              fill="none" className={transTrue ? 'sfc-line-active' : 'sfc-line'}>
+              <title>Transition returns to {sfc.steps[destination].name}</title>
+            </path>}
             {/* step box */}
             <g onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
               onContextMenu={e => { e.preventDefault(); onContext({ kind: 'action', step, index: null }, e.clientX, e.clientY) }}>
@@ -307,7 +315,7 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
             )}
 
             {/* transition cross-bar + live boolean condition text */}
-            {!isLast && (
+            {(!isLast || step.nextStep !== undefined) && (
               <g transform={`translate(${CENTER_X}, ${transY})`} onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
                 onDoubleClick={() => onProperties({ kind: 'transition', step })}
                 onContextMenu={e => { e.preventDefault(); onContext({ kind: 'transition', step }, e.clientX, e.clientY) }}>

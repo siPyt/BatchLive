@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SimulatorDialog } from './SimulatorDialog'
 import { sfcExpressionContext, useStore } from '../engine/store'
+import { sfcEditorDefinition } from '../engine/sfcLifecycle'
 import type { SfcExpressionContext } from '../engine/sfcParameters'
 import { TIMED_QUALIFIERS, type ActionQualifier, type SfcAction, type SfcStep } from '../engine/sfc'
 import { assignmentExpression, conditionExpression, parseSfcAssignment, parseSfcCondition } from '../engine/sfcExpressions'
@@ -35,6 +36,11 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
     assignmentExpression(initial, modules[initial.tag]))
   const [error, setError] = useState('')
   const [browser, setBrowser] = useState<'action' | 'transition' | 'delay' | null>(null)
+  const [route, setRoute] = useState(target.step.nextStep === undefined ? 'sequential' :
+    target.step.nextStep === null ? 'complete' : `step:${target.step.nextStep}`)
+  const runtime = useStore(s => s.sfcs[name])
+  const lifecycle = useStore(s => s.sfcLifecycle[name])
+  const steps = runtime ? sfcEditorDefinition(runtime, lifecycle).steps : []
   const title = target.kind === 'transition' ? 'Transition Properties' :
     target.index === null ? 'Add Action' : 'Action Properties'
   const fail = (message: string): void => {
@@ -46,7 +52,8 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
     if (target.kind === 'transition') {
       const result = parseSfcCondition(expression, useStore.getState().modules, sfcExpressionContext(useStore.getState(), name))
       if (result.error !== undefined) { fail(result.error); return }
-      patch = { transition: result.value, transitionDescription: description }
+      patch = { transition: result.value, transitionDescription: description,
+        nextStep: route === 'sequential' ? undefined : route === 'complete' ? null : route.slice(5) }
     } else {
       let action: SfcAction
       if (qualifier === 'R') {
@@ -77,6 +84,13 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   return <SimulatorDialog className="sfc-properties-dialog" label={title} onClose={onClose}>
     <h3>{title} — {target.step.name}</h3>
     <label>Description<input aria-label="Description" value={description} onChange={e => setDescription(e.target.value)} /></label>
+    {target.kind === 'transition' && <label>When true, go to
+      <select aria-label="Transition destination" value={route} onChange={e => setRoute(e.target.value)}>
+        <option value="sequential">Next sequential step (last step completes)</option>
+        <option value="complete">Complete routine</option>
+        {steps.map(step => <option key={step.id} value={`step:${step.id}`}>{step.name} ({step.id})</option>)}
+      </select>
+    </label>}
     {target.kind === 'action' && <>
       <div className="sfc-edit-row">
         <label>{qualifier === 'R' ? 'Reset target' : 'Action name'}<input aria-label="Action name"

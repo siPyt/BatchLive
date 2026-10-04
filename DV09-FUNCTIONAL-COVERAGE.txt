@@ -722,6 +722,34 @@ eight lifecycle, seven Named Set, eight MESSAGE and five audit), typecheck,
 production build, editor diagnostics and zero-unmapped audit validation.
 Commit verified milestone locally only; no push authorized.
 
+PASS 17: SINGLE-ACTIVE-STEP RETURN ROUTING / REPEATED SFC ACTIVATIONS
+------------------------------------------------------------------
+Original PDF pp279/280/291/294 routing figures reviewed locally. The p291
+startup routine returns to its initial prompt; termination is not equivalent.
+Transition Properties adds explicit destination: next sequential step, any
+step ID (forward/backward/self-loop), or complete. Cancel retains prior route;
+OK validates current step identity/reference/permissions atomically. Check/
+Save/Download reject deleted/invalid targets; saved schema roundtrips routes.
+Default sample charts retain sequential behavior and existing geometry.
+Explicit returns draw a connection outside the action frames and include the
+last transition. Routed diagrams no longer infer historical COMPLETE rows
+from array position, which is false during repeated cycles.
+Each scan crosses at most one transition and executes entered-step actions;
+TRUE cycles do not recursively hang. Pulse/timed actions re-arm on re-entry.
+HOLD pauses elapsed/action timing; Reset clears activation state. Stored action
+expiry/reset semantics and other-step stored timers remain unchanged.
+Live: selected final step -> Transition Properties -> HOLD_SFC destination.
+Cancel retained sequential route; OK applied it and Check passed. Controller
+assignment, Save, confirmed Download and Online RUN executed three cycles,
+alternating actual steps1/0 and AUTO SP50/10 without COMPLETE. CAS initially
+overrode SP as expected; explicit AUTO fixture setup was required, not a hack
+to bypass cascade behavior. Original running plant/UI/security/storage restored.
+This closes the return-routing primitive, not the exact course chart. Native
+palette/connector workflow, selective/parallel divergence/convergence and exact
+FIC-102/MTR-102/XVSTAT-101 equipment dependencies remain incomplete.
+Validation:177 coupled regressions, including five routing tests, plus
+typecheck/build/diagnostics/audit. Commit locally; do not push.
+
 PASS 10: INDEPENDENT PRIMARY / DETAIL DISPLAY NAVIGATION
 -------------------------------------------------------
 Scope: display-reference subset of DV09-021/024/025/034/036.

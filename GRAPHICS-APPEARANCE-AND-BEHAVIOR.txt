@@ -1004,6 +1004,28 @@ Validation:172 coupled regressions, typecheck/build/diagnostics/audit. Original
 Commit local verified milestone only; push remains unauthorized.
 
 ===============================================================================
+29. SFC RETURN ROUTES - DO NOT FABRICATE COMPLETION FOR LOOPING CHARTS
+===============================================================================
+
+Original pp279/280/291/294 diagrams reviewed locally. Preserve existing step/
+action frames, qualifier feedback, ribbon/palette and all plant artwork.
+Default sequential charts retain exact geometry. Explicit route connections
+use the existing line classes and a left-side lane outside step/action frames.
+Show the final transition when it returns to an earlier step, not a false
+termination. Include destination in the connection title; target edits belong
+in isolated Transition Properties, not on top of protected artwork.
+Routed charts cannot infer COMPLETE history from active array index. Only
+actual runtime activation drives active-step/action feedback and elapsed time.
+The destination selector is a supplemental simulator editing surface, not
+the native All SFC Items palette/connector workflow. Do not claim selective/
+parallel graph parity from this single-active-step routing primitive.
+Live Cancel preserved sequential routing; OK/Check/Save/Download/Online ran
+three return cycles with real AUTO SP50/10, retaining RUNNING. Existing CAS
+behavior was preserved. No plant layout, symbols, palette or CSS changed.
+177 coupled tests plus typecheck/build/diagnostics/audit. Fixtures restored;
+local commit only, no push authorized.
+
+===============================================================================
 20. DV-09 OPT-IN AO SAVED LIFECYCLE - DO NOT REDESIGN THE APPROVED PLANT
 ===============================================================================
 

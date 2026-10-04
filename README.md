@@ -150,8 +150,18 @@ deployed parameter with CONTROL permission, not its configured/saved default.
 Disabling entry retains a read-only Named Set datalink. Existing AO numeric
 entry/fill dynamics remain separate and cannot bypass these selection flags.
 
-This implements MESSAGE's binding/expression/operator prerequisite, not the
-complete pp291-294 procedure. The original startup loop, exact FIC-102/MTR-102
+Transition Properties also provides an explicit **When true, go to** destination:
+next sequential step, any named step (including a return/self-loop), or complete.
+Check/Save/Download reject missing targets. Each scan crosses at most one
+transition, so a TRUE loop cannot recursively hang the simulator. Pulse actions
+re-arm on step re-entry; timers reset while stored actions in other steps retain
+their existing lifetimes. Routed charts show return connections and do not
+mislabel earlier array rows COMPLETE merely because the active index is higher.
+This destination selector is a simulator editing surface, not the native SFC
+palette/connector workflow. Selective and parallel branching remain unavailable.
+
+This implements MESSAGE and return-routing prerequisites, not the
+complete pp291-294 procedure. Exact FIC-102/MTR-102
 bindings, selective shutdown branch and parallel joins are still outstanding.
 Native parameter category/restart/instance/Browse workflows, general parameter
 types and nonvolatile behavior are not claimed.

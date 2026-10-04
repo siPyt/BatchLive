@@ -924,7 +924,11 @@ Evidence: Generic structured motor/valve/SP/out transitions and supported
   execute through real parameter entry. Live Cancel kept255; Apply1 released
   the waiting step and commanded XV-101, leaving configured/saved/deployed
   defaults255. Original p291 chart loops back to its prompt: that routing is
-  NOT implemented by the current linear subset. Graph routing, exact device bindings,
+  now supported by explicit Transition Properties destinations, including initial/
+  self-loop returns and deliberate termination. Live saved/deployed routine
+  alternated step1/step0 and SP50/SP10 three times without COMPLETE; this was
+  a routing fixture, not the complete course equipment chart. Selective/parallel
+  graph routing, native palette/connector editing, exact device bindings,
   native New workflow and restart/nonvolatile restoration remain missing.
 Acceptance: Execute each state in the exact dependency order with real
   feedback; failed confirmation must hold the appropriate transition.

@@ -88,6 +88,7 @@ function action(value: unknown): value is SfcAction {
 
 function step(value: unknown): value is SfcStep {
   return record(value) && typeof value.id === 'string' && typeof value.name === 'string' &&
+    (value.nextStep === undefined || value.nextStep === null || typeof value.nextStep === 'string') &&
     (value.transitionDescription === undefined || typeof value.transitionDescription === 'string') &&
     Array.isArray(value.actions) && value.actions.every(action) && condition(value.transition)
 }
