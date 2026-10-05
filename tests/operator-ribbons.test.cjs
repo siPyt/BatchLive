@@ -20,6 +20,8 @@ const { DISPLAY_NAVIGATION } = require('../src/renderer/src/ui/displayNavigation
 const { TopBar } = require('../src/renderer/src/components/TopBar.tsx')
 const { AreaDisplay } = require('../src/renderer/src/displays/AreaDisplay.tsx')
 const { OverviewDisplay } = require('../src/renderer/src/displays/OverviewDisplay.tsx')
+const { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } = require('../src/renderer/src/displays/PharmaDiagrams.tsx')
+const { ClassicSanitaryValve, ClassicNavButton } = require('../src/renderer/src/components/ClassicGraphics.tsx')
 const { App } = require('../src/renderer/src/App.tsx')
 
 function render(Component, props) {
@@ -106,4 +108,48 @@ test('blank projects show an explicit unconfigured picture rather than throwing'
   } finally {
     store.useStore.setState(before, true)
   }
+})
+
+test('partially configured pictures report missing required modules in standalone and embedded views', () => {
+  const before = useStore.getState()
+  try {
+    for (const [area, tag, Diagram] of [
+      ['WFI', 'TIC-401', WfiDiagram], ['AUTOCLAVE', 'TIC-501', AutoclaveDiagram],
+      ['LYO', 'TIC-601', LyoDiagram], ['CIP', 'TIC-701', CipDiagram], ['TCU', 'TIC-801', TcuDiagram]
+    ]) {
+      const modules = { ...before.modules }
+      delete modules[tag]
+      useStore.setState({ modules })
+      const html = render(AreaDisplay, { area })
+      assert.match(html, /role="status"/, area)
+      assert.ok(html.includes(`Required modules missing: ${tag}.`), area)
+      assert.match(html, /Module directory \(/, area)
+      const embedded = render(Diagram, { embedded: true })
+      assert.match(embedded, /^<g role="status"><text/, area)
+      assert.ok(embedded.includes(tag), area)
+      assert.ok(!embedded.includes('<div'), area)
+    }
+  } finally {
+    useStore.setState(before, true)
+  }
+})
+
+test('WFI inlet caption clearance changes only its label, while unavailable reference navigation is explicit', () => {
+  const props = { x: 245, y: 85, open: true, tag: 'XV-411', label: '3T-8120-YV006', labelPosition: 'above' }
+  const original = render(ClassicSanitaryValve, props)
+  const adjusted = render(ClassicSanitaryValve, { ...props, labelOffsetY: -22 })
+  assert.equal(adjusted, original.replace('y="60"', 'y="38"'))
+  const picture = render(WfiDiagram)
+  assert.match(picture, /y="38"[^>]*>3T-8120-YV006<\/text>/)
+  assert.match(picture, /WFI STILL: reference navigation only; this destination is not modeled/)
+  assert.match(picture, /aria-disabled="true"/)
+  for (const box of [
+    '<rect x="770" y="550" width="80" height="34"',
+    '<rect x="855" y="550" width="80" height="34"',
+    '<rect x="940" y="550" width="90" height="34"',
+    '<rect x="590" y="495" width="170" height="85"'
+  ]) assert.ok(picture.includes(box), box)
+  const active = render(ClassicNavButton, { x: 0, y: 0, text: 'Modeled display', onClick: () => {} })
+  assert.ok(!active.includes('aria-disabled'))
+  assert.ok(!active.includes('reference navigation only'))
 })

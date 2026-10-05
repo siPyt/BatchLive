@@ -200,3 +200,37 @@ Remaining explicit boundaries (NOT marked complete):
   PCSD composites and exact native toolbar semantics remain unmodeled.
 - This milestone covers supported main displays and recovered faceplates,
   not 100% parity with every vendor screen or DV-09 requirement.
+
+2026-10-05 - EXISTING-PICTURE FOLLOW-UP
+-------------------------------------
+User chose to finish visual refinements of existing simulated displays
+before adding a WFI Still process model.
+
+- Published recovery/ribbon milestone: 8ce17d0.
+- Compared the upright IMG_0601 again with the actual compiled renderer.
+  Moved only the upper inlet valve's caption to clear the adjacent long
+  tag. Real Electron DOM bounds show a 5.92px caption gap at 1600x1000.
+  The regression proves that the shared sanitary valve's geometry,
+  colors, frame, actuator, click target and live state stay byte-identical
+  apart from the intentionally offset label.
+- WFI Still/Comms/N3 reference-navigation tiles now form the right-side
+  bottom group, matching the photograph's arrangement. The Sani panel
+  and level-control caption are positioned separately to its left.
+  Bounds assertions verify no panel overlap or picture-edge clipping.
+  Mechanical equipment and every pipe endpoint remain untouched.
+- Unavailable navigation destinations carry aria-disabled and a tooltip
+  explaining that they are reference-only and not modeled. No fake
+  navigation, controller readings or still functionality was introduced.
+- Partially configured WFI/autoclave/lyo/CIP/TCU pictures now identify
+  missing required modules instead of silently showing a blank area.
+  Standalone views keep the module directory available; embedded world
+  views use SVG-only status text rather than invalid HTML inside the SVG.
+  Empty areas show only the existing unconfigured-area message.
+- Final production renderer verified all nine supported process routes
+  at the full 1600px working-area width, not only SSR/static markup.
+- Final typecheck/build and 14 focused regressions pass. Full suite:
+  394 tests, 393 passing; only failure is the same missing pdf_om.txt.
+- Final WFI/Overview screenshots are retained in the session, outside
+  the repository. Preview servers and temporary capture tooling removed.
+- WFI Still modeling and all previously listed native/arbitration gaps
+  remain deferred, not falsely marked complete.

@@ -346,9 +346,10 @@ export function ClassicTitle({ x, y, text }: { x: number; y: number; text: strin
   )
 }
 
-export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label = tag ?? 'Reference valve', orientation = 'horizontal', labelPosition = 'below', animationColor, actuatorAnimationColor }: {
+export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label = tag ?? 'Reference valve', orientation = 'horizontal', labelPosition = 'below', labelOffsetY = 0, animationColor, actuatorAnimationColor }: {
   x: number; y: number; open: boolean; tag?: string; mode?: string; label?: string
   orientation?: ValveOrientation; labelPosition?: 'above' | 'below' | 'right'
+  labelOffsetY?: number
   animationColor?: string
   actuatorAnimationColor?: string
 }): JSX.Element {
@@ -363,7 +364,7 @@ export function ClassicSanitaryValve({ x, y, open, tag, mode = 'CA', label = tag
       <rect x={x - 20} y={y + 7} width={4} height={5} fill={DEVICE_BLUE} />
       <line x1={x - 18} y1={y + 8} x2={x - 18} y2={y + 11} stroke="#eef1f3" strokeWidth={0.6} />
       <text x={vertical ? x - 17 : x} y={vertical ? y + 3 : y + 11} fill={PALE_TEXT} fontSize={7} textAnchor="middle">{mode}</text>
-      <ClassicLabel x={labelPosition === 'right' ? x + 23 : x} y={labelPosition === 'above' ? y - 25 : labelPosition === 'right' ? y + 3 : y + 29} text={label} anchor={labelPosition === 'right' ? 'start' : 'middle'} />
+      <ClassicLabel x={labelPosition === 'right' ? x + 23 : x} y={(labelPosition === 'above' ? y - 25 : labelPosition === 'right' ? y + 3 : y + 29) + labelOffsetY} text={label} anchor={labelPosition === 'right' ? 'start' : 'middle'} />
     </g>
   )
 }
@@ -429,7 +430,8 @@ export function ClassicNamedValue({ x, y, tag, value, w = 96, bindTag }: { x: nu
 export function ClassicNavButton({ x, y, w = 92, h = 34, text, onClick }: { x: number; y: number; w?: number; h?: number; text: string; onClick?: () => void }): JSX.Element {
   const lines = text.split('\n')
   return (
-    <g style={{ cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
+    <g style={{ cursor: onClick ? 'pointer' : 'default' }} onClick={onClick} aria-disabled={onClick ? undefined : true}>
+      {!onClick && <title>{`${text.replace(/\n/g, ' ')}: reference navigation only; this destination is not modeled`}</title>}
       <rect x={x} y={y} width={w} height={h} fill="#dfe3e6" stroke="#2b3137" strokeWidth={1.3} />
       {lines.map((ln, i) => (
         <text key={i} x={x + w / 2} y={y + h / 2 - (lines.length - 1) * 6 + i * 12 + 4} fill={PALE_TEXT} fontSize={10} fontWeight={800} textAnchor="middle">{ln}</text>

@@ -1676,3 +1676,12 @@ Do not confuse these with Control Studio's separate Office-style ribbon.
 - IMG_0604's separate WFI Still process is not simulated yet. Do not
   fabricate feed/distillate levels, compressor/oil state or new control
   loops merely to fill its photographed readout boxes.
+
+Existing-picture follow-up:
+- WFI inlet captions must not overlap. Label offsets must not move the
+  valve body, blue frame, click target or connected pipes.
+- IMG_0601's WFI Still/Comms/N3 reference-navigation group sits on the
+  bottom right, clear of the Sani panel and level-control information.
+  Unmodeled destinations remain explicitly disabled/reference-only.
+- Incomplete area pictures must identify missing required modules in
+  both standalone and embedded views, never silently render blank.

@@ -39,7 +39,7 @@ export function AreaDisplay({ area }: { area: string }): JSX.Element {
   return (
     <div className="display graphic-display">
       {area !== 'WFI' && <h1 className="graphic-display-title">{AREA_TITLE[area] ?? area}</h1>}
-      {Diagram && <Diagram />}
+      {list.length > 0 && Diagram && <Diagram />}
       {!list.length && <div className="graphic-empty" role="status">No modules configured in this area. Use DeltaV Explorer to create modules.</div>}
       <ModuleDirectory modules={list} />
     </div>

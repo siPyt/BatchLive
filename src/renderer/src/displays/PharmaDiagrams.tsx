@@ -23,7 +23,8 @@ import {
   ClassicNavButton,
   PALE_BORDER,
   PALE_GREEN,
-  PALE_RED
+  PALE_RED,
+  PALE_TEXT
 } from '../components/ClassicGraphics'
 import { durationString } from '../utils/format'
 import { appliedPidOutput } from '../engine/analogStrategy'
@@ -47,6 +48,16 @@ function Wrap({ height, children, embedded }: { height: number; children: ReactN
   )
 }
 
+function UnavailablePicture({ area, missingTags, embedded }: { area: string; missingTags: string[]; embedded?: boolean }): JSX.Element {
+  const message = `${area} process picture is unavailable. Required modules missing: ${missingTags.join(', ')}.`
+  if (embedded) return <g role="status">
+    <text x={20} y={40} fill={PALE_TEXT} fontSize={12}>{message}</text>
+  </g>
+  return <div className="graphic-empty" role="status">
+    {message} Use DeltaV Explorer to configure the picture modules or load the GMP Pharma Factory project.
+  </div>
+}
+
 export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Element | null {
   const modules = useStore((s) => s.modules)
   const time = useStore((s) => s.time)
@@ -63,7 +74,8 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
   const at402 = modules['AT-402'] as AnalogIndicator
   const ti402 = modules['TI-402'] as AnalogIndicator
   const proc = modules['LIC-401'] as PidModule
-  if (!tic401 || !tic411 || !pic401 || !p401 || !p402 || !proc || !xv411 || !xv401 || !xv422 || !pcv401) return null
+  const missingTags = ['TIC-401', 'TIC-411', 'PIC-401', 'P-401', 'P-402', 'LIC-401', 'XV-411', 'XV-401', 'XV-422', 'PCV-401'].filter(tag => !modules[tag])
+  if (missingTags.length) return <UnavailablePicture area="WFI" missingTags={missingTags} embedded={embedded} />
 
   // Live display strings for the many 3T-8120 indicator tags.
   const liters = (((proc?.pv ?? 0) / 100) * 7000).toFixed(1)
@@ -143,7 +155,7 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
       <ClassicFlag x={95} y={23} w={82} text="Hot WFI from Still" pointRight={false} />
       <ClassicNamedValue x={10} y={63} tag="3T-8120-TI004" value="101.7 °C" w={78} />
       <ClassicSanitaryValve x={115} y={53} open={xv411.open} tag="XV-411" label="3WFI-8110-YV007" orientation="vertical" labelPosition="right" />
-      <ClassicSanitaryValve x={245} y={85} open={xv411.open} tag="XV-411" label="3T-8120-YV006" labelPosition="above" />
+      <ClassicSanitaryValve x={245} y={85} open={xv411.open} tag="XV-411" label="3T-8120-YV006" labelPosition="above" labelOffsetY={-22} />
       <ClassicNamedValue x={10} y={122} tag="3T-8120-PI047" value="-0.1 psi" w={78} />
       <ClassicSanitaryValve x={115} y={125} open={false} label="3T-8120-YV006" orientation="vertical" labelPosition="right" />
       <ClassicNamedValue x={10} y={155} tag="3T-8120-ZSA007" value="Normal" w={78} />
@@ -186,15 +198,15 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
       <ClassicNamedValue x={490} y={495} tag="3T-8120-XA015" value="Normal" w={80} />
 
       {/* ===== WFI level control + product-water drain ===== */}
-      <ClassicNamedValue x={590} y={503} tag="WFI-LVL-CTRL" value="Not Filling" w={92} />
+      <ClassicNamedValue x={490} y={547} tag="WFI-LVL-CTRL" value="Not Filling" w={92} />
       <polygon points="456,526 466,526 461,536" fill={PALE_BORDER} />
       <ClassicLabel x={461} y={550} text="PW" />
 
       {/* ===== Sani Schedule panel ===== */}
       <ClassicPanel
-        x={720}
+        x={590}
         y={495}
-        w={190}
+        w={170}
         h={85}
         title="N1-WFI-SANI"
         rows={[
@@ -213,9 +225,9 @@ export function WfiDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Eleme
 
       {/* ===== bottom navigation ===== */}
       <ClassicNavButton x={55} y={525} w={104} text={'N1BP WFI Tank\nand Loop'} />
-      <ClassicNavButton x={167} y={525} w={92} text="WFI STILL" />
-      <ClassicNavButton x={267} y={525} w={104} text={'WFI STILL\nComms'} />
-      <ClassicNavButton x={575} y={525} w={104} text={'N3 WFI Tank\nand Loop'} />
+      <ClassicNavButton x={770} y={550} w={80} text="WFI STILL" />
+      <ClassicNavButton x={855} y={550} w={80} text={'WFI STILL\nComms'} />
+      <ClassicNavButton x={940} y={550} w={90} text={'N3 WFI Tank\nand Loop'} />
     </Wrap>
   )
 }
@@ -255,7 +267,8 @@ function ChamberUnit({
 
 export function AutoclaveDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Element | null {
   const modules = useStore((s) => s.modules)
-  if (!modules['TIC-501'] || !modules['TIC-511']) return null
+  const missingTags = ['TIC-501', 'TIC-511'].filter(tag => !modules[tag])
+  if (missingTags.length) return <UnavailablePicture area="Autoclave" missingTags={missingTags} embedded={embedded} />
   return (
     <Wrap height={240} embedded={embedded}>
       <ClassicBackground w={1040} h={240} />
@@ -324,7 +337,8 @@ function LyoUnit({
 
 export function LyoDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Element | null {
   const modules = useStore((s) => s.modules)
-  if (!modules['TIC-601'] || !modules['TIC-611']) return null
+  const missingTags = ['TIC-601', 'TIC-611'].filter(tag => !modules[tag])
+  if (missingTags.length) return <UnavailablePicture area="Lyophilization" missingTags={missingTags} embedded={embedded} />
   return (
     <Wrap height={230} embedded={embedded}>
       <ClassicBackground w={1040} h={230} />
@@ -388,7 +402,8 @@ function CipUnit({
 
 export function CipDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Element | null {
   const modules = useStore((s) => s.modules)
-  if (!modules['TIC-701'] || !modules['TIC-711'] || !modules['TIC-721']) return null
+  const missingTags = ['TIC-701', 'TIC-711', 'TIC-721'].filter(tag => !modules[tag])
+  if (missingTags.length) return <UnavailablePicture area="CIP" missingTags={missingTags} embedded={embedded} />
   return (
     <Wrap height={280} embedded={embedded}>
       <ClassicBackground w={1040} h={280} />
@@ -463,7 +478,8 @@ function TcuUnit({
 
 export function TcuDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Element | null {
   const modules = useStore((s) => s.modules)
-  if (!modules['TIC-801'] || !modules['TIC-811'] || !modules['TIC-821']) return null
+  const missingTags = ['TIC-801', 'TIC-811', 'TIC-821'].filter(tag => !modules[tag])
+  if (missingTags.length) return <UnavailablePicture area="TCU" missingTags={missingTags} embedded={embedded} />
   return (
     <Wrap height={230} embedded={embedded}>
       <ClassicBackground w={1040} h={230} />
