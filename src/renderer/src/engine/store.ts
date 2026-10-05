@@ -27,6 +27,7 @@ import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId 
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { reconcileDeviceAlarms } from './deviceAlarms'
 import { useSimulator, validateScale } from './simulatorSession'
+import { DEFAULT_RECIPE_NAME, defaultRecipe, recipeErrors, resolveRecipe, type Recipe } from './recipes'
 import { isDefaultSchedule, validateExecutionOrder, validateScanMultiple, type ModuleScheduling } from './moduleScheduling'
 import { featureDisabledError, featureEnabled } from './systemPreferences'
 import {
@@ -359,6 +360,13 @@ interface StoreState extends PlantState {
   setSpeed: (s: number) => void
   /** Restore the local simulation to its initial process conditions and put it on hold. */
   initializeSimulation: () => boolean
+  recipes: Record<string, Recipe>
+  activeRecipe: string
+  /** DV09-074: create or change a recipe (Build Recipes key); returns an error message or null. */
+  saveRecipe: (recipe: Recipe) => string | null
+  deleteRecipe: (name: string) => string | null
+  /** Choose the recipe the next batch runs (Batch Operate key), only while the batch is READY. */
+  selectRecipe: (name: string) => string | null
   moduleScheduling: ModuleScheduling
   /** Set a module's scan multiple (1-255 x 1 s) and/or manual execution order; null order restores automatic order. */
   setModuleSchedule: (tag: string, change: { multiple?: number; order?: number | null }) => boolean
@@ -1794,6 +1802,49 @@ export const useStore = create<StoreState>((set, get) => ({
     get().logEvent('CONFIGURE', tag, `Module scan multiple ${multiple} (${multiple} s base period), execution order ${order ?? 'automatic'}`)
     return true
   },
+  recipes: { [DEFAULT_RECIPE_NAME]: defaultRecipe() },
+  activeRecipe: DEFAULT_RECIPE_NAME,
+  saveRecipe: (recipe) => {
+    if (!useSecurity.getState().requireLock('BUILD_RECIPES', `Save recipe ${recipe.name}`)) return 'Requires the Build Recipes key'
+    const state = get()
+    const fail = (message: string): string => {
+      get().logEvent('DIAGNOSTIC', recipe.name, `Recipe save rejected: ${message}`)
+      return message
+    }
+    const errors = recipeErrors(recipe, state.phases)
+    if (errors.length) return fail(errors.join('; '))
+    const busy = state.batch.status === 'RUNNING' || state.batch.status === 'HELD'
+    if (busy && state.activeRecipe === recipe.name) return fail('Stop or reset the batch before changing the recipe it is running')
+    const existing = state.recipes[recipe.name]
+    const saved: Recipe = { ...recipe, procedure: [...recipe.procedure], formula: { ...recipe.formula },
+      version: existing ? existing.version + 1 : 1 }
+    set({ recipes: { ...state.recipes, [saved.name]: saved }, rev: state.rev + 1 })
+    get().logEvent('CONFIGURE', saved.name, `Recipe ${existing ? 'changed' : 'created'}: version ${saved.version}, procedure ${saved.procedure.join(' > ')}`)
+    return null
+  },
+  deleteRecipe: (name) => {
+    if (!useSecurity.getState().requireLock('BUILD_RECIPES', `Delete recipe ${name}`)) return 'Requires the Build Recipes key'
+    const state = get()
+    const message = !state.recipes[name] ? `Recipe ${name} does not exist` :
+      name === state.activeRecipe ? 'The selected recipe cannot be deleted; select another recipe first' :
+        Object.keys(state.recipes).length <= 1 ? 'The last recipe cannot be deleted' : null
+    if (message) { get().logEvent('DIAGNOSTIC', name, `Recipe delete rejected: ${message}`); return message }
+    const recipes = { ...state.recipes }
+    delete recipes[name]
+    set({ recipes, rev: state.rev + 1 })
+    get().logEvent('CONFIGURE', name, 'Recipe deleted')
+    return null
+  },
+  selectRecipe: (name) => {
+    if (!requireUnlockedLock('BATCH_OPERATE', `Select recipe ${name}`)) return 'Requires the Batch Operate key'
+    const state = get()
+    const message = !state.recipes[name] ? `Recipe ${name} does not exist` :
+      state.batch.status !== 'READY' ? 'Reset the batch to READY before selecting a different recipe' : null
+    if (message) { get().logEvent('DIAGNOSTIC', name, `Recipe selection rejected: ${message}`); return message }
+    set({ activeRecipe: name, batch: { ...state.batch, recipe: name }, rev: state.rev + 1 })
+    get().logEvent('BATCH', state.batch.id, `Recipe ${name} selected`)
+    return null
+  },
   initializeSimulation: () => {
     if (!requireUnlockedLock('CONTROL', 'Initialize simulation')) return false
     const state = get()
@@ -1807,7 +1858,7 @@ export const useStore = create<StoreState>((set, get) => ({
       modules,
       alarms: [],
       trend: [],
-      batch: makeBatch(),
+      batch: { ...makeBatch(), recipe: state.activeRecipe },
       sfcs: Object.fromEntries(Object.entries(state.sfcs).map(([name, sfc]) => [name, { ...sfc, parameters: resetSfcBooleanActions(sfc),
         status: 'READY' as const, active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined, blockStates: {} }])),
       rev: state.rev + 1
@@ -1819,10 +1870,22 @@ export const useStore = create<StoreState>((set, get) => ({
 
   batchCommand: (cmd) => {
     if (!useSecurity.getState().requireLock('BATCH_OPERATE', 'Batch command')) return
+    let resolved: ReturnType<typeof resolveRecipe> | undefined
+    if (cmd === 'START') {
+      const recipe = get().recipes[get().activeRecipe]
+      resolved = recipe ? resolveRecipe(recipe, get().phases) : { ok: false, errors: [`Recipe ${get().activeRecipe} does not exist`] }
+      if (!resolved.ok) {
+        const message = `Recipe ${get().activeRecipe} cannot run: ${resolved.errors.join('; ')}`
+        get().logEvent('DIAGNOSTIC', get().batch.id, `Batch command rejected: ${message}`); window.alert(message)
+        return
+      }
+    }
     if (cmd === 'START' || cmd === 'RESTART') {
       const state = get()
-      for (const name of PROCEDURE) {
-        const phase = state.phases[name]
+      const procedure = resolved?.ok ? resolved.resolved.procedure : state.batch.procedure ?? PROCEDURE
+      const phaseDefs = resolved?.ok ? resolved.resolved.phases : state.batch.phaseDefs ?? state.phases
+      for (const name of procedure) {
+        const phase = phaseDefs[name]
         const error = !phase || !phase.steps.length ? `Phase ${name} requires steps` : sfcStepsError(phase.steps, state.modules)
         if (error) {
           get().logEvent('DIAGNOSTIC', state.batch.id, `Batch command rejected: ${error}`); window.alert(error)
@@ -1830,7 +1893,7 @@ export const useStore = create<StoreState>((set, get) => ({
         }
       }
     }
-    set((s) => ({ batch: commandBatch(s.batch, cmd, s.time, s.phases), rev: s.rev + 1 }))
+    set((s) => ({ batch: commandBatch(s.batch, cmd, s.time, s.phases, resolved?.ok ? resolved.resolved : undefined), rev: s.rev + 1 }))
     get().logEvent('BATCH', get().batch.id, `Batch command: ${cmd}`)
   },
 
@@ -3725,6 +3788,8 @@ export const useStore = create<StoreState>((set, get) => ({
       conditionDelayAlarms: {},
       conditionDelayAlarmRuntime: {},
       moduleScheduling: {},
+      recipes: { [DEFAULT_RECIPE_NAME]: defaultRecipe() },
+      activeRecipe: DEFAULT_RECIPE_NAME,
       sfcLifecycle: {},
       downloadStatusChecks: {},
       rev: get().rev + 1

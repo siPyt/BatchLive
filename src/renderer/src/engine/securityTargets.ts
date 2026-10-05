@@ -67,6 +67,8 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
   t('function', 'fn-signature-config', 'Electronic signature policies, areas and modules', 'CAN_CONFIGURE', /^Configure electronic signatures$/),
   t('function', 'fn-export-import', 'Export and import configuration', 'CAN_CONFIGURE', /^(Export|Import) configuration$/),
   t('function', 'fn-sfc-command', 'SFC command', 'BATCH_OPERATE', /^SFC command /),
+  t('function', 'fn-recipe-edit', 'Create, change and delete recipes (Recipe Studio)', 'BUILD_RECIPES', /^(Save|Delete) recipe /),
+  t('function', 'fn-recipe-select', 'Select the recipe a batch runs', 'BATCH_OPERATE', /^Select recipe /),
   t('function', 'fn-module-scan', 'Module scan multiple and execution order', 'CAN_CONFIGURE', /^Configure module scan /),
   t('function', 'fn-simulator-init', 'Initialize simulation', 'CONTROL', /^Initialize simulation$/),
   t('function', 'fn-sanitation', 'Start and cancel sanitation', 'CONTROL', /^(Start|Cancel) sanitation /),

@@ -4,6 +4,7 @@ import { PROCEDURE, type PhaseState, type BatchStatus, type BatchCommand } from 
 import { newStep, describeAction, describeCondition, type SfcStep } from '../engine/sfc'
 import { ActionEditor, TransitionEditor, firstTag } from './SfcDisplay'
 import { clockString } from '../utils/format'
+import { RecipeStudioPanel } from '../components/RecipeStudioPanel'
 
 const PHASE_STATE_COLOR: Record<PhaseState, string> = {
   IDLE: 'var(--dv-text-mute)',
@@ -43,6 +44,10 @@ export function BatchDisplay(): JSX.Element {
   const batch = useStore((s) => s.batch)
   const batchCommand = useStore((s) => s.batchCommand)
   const phases = useStore((s) => s.phases)
+  const recipes = useStore((s) => s.recipes)
+  const activeRecipe = useStore((s) => s.activeRecipe)
+  const procedure = batch.status !== 'READY' && batch.procedure ? batch.procedure : recipes[activeRecipe]?.procedure ?? PROCEDURE
+  const shownPhases = batch.status !== 'READY' && batch.phaseDefs ? batch.phaseDefs : phases
   const enabled = ENABLED[batch.status]
   const [editingPhase, setEditingPhase] = useState<string | null>(null)
 
@@ -72,7 +77,7 @@ export function BatchDisplay(): JSX.Element {
       <div className="batch-body">
         <div className="batch-procedure">
           <div className="batch-panel-head">Procedure — {batch.recipe}</div>
-          {PROCEDURE.map((name, i) => {
+          {procedure.map((name, i) => {
             const active = batch.phase && batch.opIndex === i && batch.status !== 'READY'
             const done = batch.opIndex > i || batch.status === 'COMPLETE'
             const state = active && batch.phase ? batch.phase.state : done ? 'COMPLETE' : 'IDLE'
@@ -86,7 +91,7 @@ export function BatchDisplay(): JSX.Element {
                 <span className="batch-op-num">{i + 1}</span>
                 <div className="batch-op-main">
                   <b>{name}</b>
-                  <span className="batch-op-desc">{phases[name].description}</span>
+                  <span className="batch-op-desc">{shownPhases[name]?.description ?? ''}</span>
                 </div>
                 <span className="batch-op-state" style={{ color: PHASE_STATE_COLOR[state] }}>
                   {state}
@@ -122,7 +127,7 @@ export function BatchDisplay(): JSX.Element {
                 <div>
                   <span className="k">Operation</span>
                   <span className="v">
-                    {batch.opIndex + 1} / {PROCEDURE.length}
+                    {batch.opIndex + 1} / {procedure.length}
                   </span>
                 </div>
               </div>
@@ -148,6 +153,8 @@ export function BatchDisplay(): JSX.Element {
           </div>
         </div>
       </div>
+
+      <RecipeStudioPanel />
 
       {editingPhase && (
         <PhaseEditor

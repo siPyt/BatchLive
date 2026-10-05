@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 51 VERIFIED_SUBSET, 52 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 52 VERIFIED_SUBSET, 51 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -1658,16 +1658,28 @@ CHAPTER 8: SECURITY, WORKSTATIONS, SIMULATION AND EXPORT
 
 [DV09-074]
 Pages: 303-306
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Locks/keys for control, restricted control, tuning, system records,
   diagnostics, alarms, UserLock01-10, batch operate, recipes, calibration,
   configuration, download and administration.
-Evidence (Pass68): SECURITY now carries a typed lock registry: the twelve
-  named locks plus UserLock01-UserLock10 (USER_LOCKS, labelled "User Lock nn"),
-  all assignable to users, groups and secured items, and held by the admin and
-  ENGINEER accounts. Gaps that remain honest: Build Recipes (no Recipe Studio)
-  and Can Calibrate (no AMS calibration workflow) have no executable
-  operation to gate, so they are keys without a corresponding feature.
+Evidence (Pass68 + Pass81): SECURITY carries a typed lock registry: the twelve
+  named locks plus UserLock01-UserLock10 (USER_LOCKS), assignable to users,
+  groups and secured items. Pass81 gives the two previously ungated keys real
+  operations: Build Recipes now gates a Recipe Studio on the Batch Operator
+  (create/change/delete recipes, procedure order and a formula of charge
+  level, reaction temperature, soak time and discharge level, validated, versioned,
+  logged); Batch Operate gates selecting the recipe a batch runs (only while
+  READY). START snapshots the procedure and formula-applied phase logic, so edits
+  never alter a running batch. Can Calibrate gates field-device resource,
+  transducer and calibration-parameter configuration (Pass73). Both targets are
+  registered in Security Properties and the source-scan test requires every call
+  site to be reassignable. Nine recipe regressions cover validation, resolution,
+  key refusal, delete/select rules, snapshotting, running a custom procedure
+  to COMPLETE, refusal of an unrunnable recipe, and File > New / Initialize.
+  Boundary: the Recipe Studio is a bounded training editor for the reactor
+  phases, not DeltaV Batch recipe management (no unit procedures, formula
+  parameter libraries, approval workflow or batch history); Can Calibrate covers
+  field-device configuration only, not an AMS calibration management workflow.
 Acceptance: Implement a typed configurable lock registry and test each target
   operation; do not advertise unsupported rights as executable capabilities.
 
@@ -3928,3 +3940,25 @@ Validation: 556 tests locally (555 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-076 PARTIAL -> VERIFIED_SUBSET. Totals 51 VERIFIED_SUBSET/
   52 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 81 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-074 locks/keys - Build Recipes now gates a real operation (pp303-306).
+Engine: new recipes.ts (Recipe/formula model, validation, resolveRecipe writing
+  the formula into cloned phases); batch.ts carries an optional procedure/
+  phaseDefs/recipeVersion snapshot (legacy START path unchanged); store gained
+  recipes, activeRecipe, saveRecipe, deleteRecipe, selectRecipe and START
+  resolution; registry targets fn-recipe-edit (BUILD_RECIPES) and
+  fn-recipe-select (BATCH_OPERATE).
+UI: RecipeStudioPanel on the Batch Operator display; the procedure list follows
+  the selected/running recipe.
+Tests: tests/recipes.test.cjs (9). The legacy sfc-qualifiers batch test caught
+  an early snapshot bug and now passes.
+Browser: created QUICK_SOAK (soak 12 s), saved, selected; the procedure header and
+  applied-formula preview updated.
+Boundary (honest): training Recipe Studio only; Can Calibrate is field-device
+  configuration, not AMS calibration management.
+Validation: 565 tests locally (564 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-074 PARTIAL -> VERIFIED_SUBSET. Totals 52 VERIFIED_SUBSET/
+  51 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

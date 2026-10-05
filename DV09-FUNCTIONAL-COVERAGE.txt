@@ -2608,3 +2608,10 @@ Line1 - Policy: length, classes, user name, max age, history (fingerprints only)
 Line2 - Enforced on create/change/reset and at logon; aged password forces change.
 Line3 - Account expiry date refuses logon/authentication; never-expires; reset.
 Line4 - No Windows/domain, lockout or persistence. Tests: password-policy.test.cjs.
+
+PASS 81: RECIPE STUDIO AND BUILD RECIPES KEY (pp303-306)
+-----------------------------------------------------------------------
+Line1 - Build Recipes gates recipe create/change/delete; Batch Operate gates selection.
+Line2 - START snapshots procedure and formula-applied phases; running batch unaffected.
+Line3 - Can Calibrate = field-device configuration; AMS calibration workflow absent.
+Line4 - Tests: recipes.test.cjs.

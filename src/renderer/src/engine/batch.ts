@@ -57,6 +57,10 @@ export interface BatchRuntime {
   opIndex: number
   phase: BatchPhaseRuntime | null
   log: BatchEvent[]
+  /** Recipe snapshot taken at START (DV09-074): the ordered phases, their formula-applied logic and the recipe version. */
+  procedure?: string[]
+  phaseDefs?: Record<string, PhaseDef>
+  recipeVersion?: number
 }
 
 // --- Reactor batch recipe --------------------------------------------------
@@ -181,7 +185,8 @@ export function commandBatch(
   prev: BatchRuntime,
   cmd: BatchCommand,
   now: number,
-  phases: Record<string, PhaseDef>
+  phases: Record<string, PhaseDef>,
+  resolved?: { procedure: string[]; phases: Record<string, PhaseDef>; version: number }
 ): BatchRuntime {
   const b: BatchRuntime = { ...prev, log: prev.log, phase: prev.phase ? { ...prev.phase } : null }
   switch (cmd) {
@@ -189,8 +194,11 @@ export function commandBatch(
       if (b.status === 'READY') {
         b.status = 'RUNNING'
         b.opIndex = 0
-        b.phase = newPhaseRuntime(phases, PROCEDURE[0])
-        log(b, now, `Batch ${b.id} started · recipe ${b.recipe}`)
+        b.procedure = resolved ? [...resolved.procedure] : undefined
+        b.phaseDefs = resolved?.phases
+        b.recipeVersion = resolved?.version
+        b.phase = newPhaseRuntime(b.phaseDefs ?? phases, (b.procedure ?? PROCEDURE)[0])
+        log(b, now, `Batch ${b.id} started · recipe ${b.recipe}${resolved ? ` v${resolved.version}` : ''}`)
       } else if (b.status === 'HELD' && b.phase) {
         b.status = 'RUNNING'
         b.phase.state = 'RUNNING'
@@ -251,7 +259,9 @@ export function advanceBatch(
   }
 
   const phase = { ...b.phase }
-  const def = state.phases[phase.name]
+  const phaseDefs = b.phaseDefs ?? state.phases
+  const procedure = b.procedure ?? PROCEDURE
+  const def = phaseDefs[phase.name]
   const routine: SfcDef = { name: phase.name, area: def.unit, steps: def.steps,
     status: 'RUNNING', active: phase.step, elapsed: phase.elapsed, actionStates: phase.actionStates }
   const advanced = advanceSfcs({ ...state, sfcs: { [phase.name]: routine } }, state.modules, dt)
@@ -268,10 +278,10 @@ export function advanceBatch(
     phase.state = 'COMPLETE'
     log(nextBatch, now, `Phase ${phase.name} complete`)
     const nextOp = b.opIndex + 1
-    if (nextOp < PROCEDURE.length) {
+    if (nextOp < procedure.length) {
       nextBatch.opIndex = nextOp
-      nextBatch.phase = newPhaseRuntime(state.phases, PROCEDURE[nextOp])
-      log(nextBatch, now, `Phase ${PROCEDURE[nextOp]} running`)
+      nextBatch.phase = newPhaseRuntime(phaseDefs, procedure[nextOp])
+      log(nextBatch, now, `Phase ${procedure[nextOp]} running`)
     } else {
       nextBatch.status = 'COMPLETE'
       nextBatch.phase = phase
