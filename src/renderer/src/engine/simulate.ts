@@ -17,6 +17,7 @@ import { CUSTOM_PHYSICS_TAGS } from './plant'
 import { PHOTO_TAGS, COUPLED_LEGACY_TAGS, STEAM_USERS, COOLING_USERS, photoMeasurements, stepPhotoPlant } from './photoPlant'
 import { ownedMotorBlock, strategyModules } from './motorStrategy'
 import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue, resetConditionTiming } from './fb'
+import { applyExecutionOrder, decideScan, pruneScheduling } from './moduleScheduling'
 import { evaluateConditionExpression } from './fbCondition'
 import { advanceControllers, computeBadTags, controllerIsDown, type HardwareState } from './hardware'
 import {
@@ -1034,9 +1035,9 @@ export function stepPlant(
     }
   }
   sampleAnalogInputs(prev.hardware, modules)
-  const executeLoop = (m: PidModule): number => {
-    stepPidWithStrategy(m, modules, dt)
-    executePidOutput(m, modules, analogOutputBad(m.tag), dt, analogOutputBad(m.tag, true))
+  const executeLoop = (m: PidModule, dtm: number): number => {
+    stepPidWithStrategy(m, modules, dtm)
+    executePidOutput(m, modules, analogOutputBad(m.tag), dtm, analogOutputBad(m.tag, true))
     const io = pidIo(m)
     if (m.actualMode === 'IMAN' && io.bkcalConnected &&
         pidOutputUnavailable(m)) {
@@ -1064,22 +1065,31 @@ export function stepPlant(
     at301?.type === 'AI' && ti101?.type === 'AI' && lsh101?.type === 'DI'
 
   // Inputs, control algorithms and field outputs execute once in dependency order.
-  for (const tag of moduleExecutionOrder(modules)) {
+  const scheduling = prev.moduleScheduling ?? {}
+  let nextScheduling = scheduling
+  for (const tag of applyExecutionOrder(moduleExecutionOrder(modules), scheduling)) {
     const module = modules[tag]
-    if (module.type === 'PID') executeLoop(module)
+    const scan = decideScan(scheduling[tag], dt)
+    if (scan.schedule !== scheduling[tag]) {
+      if (nextScheduling === scheduling) nextScheduling = { ...scheduling }
+      nextScheduling[tag] = scan.schedule!
+    }
+    if (!scan.run) continue
+    const dtm = scan.dt
+    if (module.type === 'PID') executeLoop(module, dtm)
     else if (module.type === 'FB') {
       const owned = ownedMotorBlock(modules, tag)
       const controller = owned?.owner.controllerTag ? prev.hardware.controllers[owned.owner.controllerTag] : undefined
       if (owned && (!owned.owner.downloaded || !controller || controllerIsDown(controller))) {
         if (module.fbType === 'CND') resetConditionTiming(module)
         module.bad = true
-      } else stepFunctionBlock(module, modules, dt)
+      } else stepFunctionBlock(module, modules, dtm)
     }
     else if (module.type === 'AO') executeStandaloneAo(module, analogOutputBad(tag) ||
       (!!module.controllerTag && (!prev.hardware.controllers[module.controllerTag] ||
         controllerIsDown(prev.hardware.controllers[module.controllerTag]))))
-    else if (module.type === 'MOTOR') applyMotorDC(module, dt, modules, prev.hardware)
-    else if (module.type === 'VALVE') applyValveDC(module, dt, modules, prev.hardware)
+    else if (module.type === 'MOTOR') applyMotorDC(module, dtm, modules, prev.hardware)
+    else if (module.type === 'VALVE') applyValveDC(module, dtm, modules, prev.hardware)
     else if (module.type === 'DO' && !prev.hardware.discreteBindings?.[tag] && module.mode !== 'OOS') {
       module.state = module.commanded
     }
@@ -1244,6 +1254,7 @@ export function stepPlant(
   const hardware = { ...advanceTraditionalIo(prev.hardware, modules, dt),
     controllers: advanceControllers(prev.hardware.controllers, dt) }
   for (const tag of Object.keys(modules)) if (!prev.modules[tag]) delete modules[tag]
+  const liveScheduling = Object.keys(nextScheduling).some(tag => !modules[tag]) ? pruneScheduling(nextScheduling, modules) : nextScheduling
   return {
     ...prev,
     time: now,
@@ -1251,6 +1262,7 @@ export function stepPlant(
     alarms,
     process: proc,
     photoPlant,
-    hardware
+    hardware,
+    ...(prev.moduleScheduling ? { moduleScheduling: liveScheduling } : {})
   }
 }

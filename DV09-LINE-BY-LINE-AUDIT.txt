@@ -460,17 +460,27 @@ Status: PARTIAL
 Required: Unique module names of at most 16 permitted characters with at
   least one letter; independent OOS, module scan, block scan multiples 1-255,
   execution order and primary/detail/faceplate assignments.
-Verified subset: naming.ts, STORE, EXPLORER and STUDIO now share validation.
-  Normalization, exact boundaries, allowed symbols, duplicate/invalid/denied
-  rejection and absence of false creation logs have regressions.
-  Independent primary/detail picture references now configure through module
-  properties and resolve actual created pictures in Run mode. Faceplate links
-  navigate each reference separately. Named-picture Back/Forward works within
-  the same builder display; missing/deleted targets reject without fallback.
-Gaps: Independent scan multiples/manual order and full module property model.
-  Only limited automatic dependency execution and block OOS exist. Native
-  arbitrary faceplate-template assignment remains absent.
-Acceptance: Add per-module/per-block scheduling and assignments; do not treat
+Evidence: naming.ts, STORE, EXPLORER and STUDIO share name validation
+  (normalization, exact boundaries, allowed symbols, duplicate/invalid/denied
+  rejection, no false creation logs). Independent primary/detail picture
+  references configure through module properties and resolve actual created
+  pictures in Run mode; faceplate links navigate each reference separately;
+  missing/deleted targets reject without fallback.
+  Pass79: moduleScheduling.ts gives every module an independent scan multiple
+  (whole number 1-255 x 1 s simulated base period) and an optional manual
+  execution order (0-9999). A scheduled module's algorithm (PID, function
+  block, motor/valve device control) executes only when its accumulated
+  simulated time reaches the period and integrates over the whole interval;
+  manually ordered modules run first in ascending order (ties and unordered
+  modules keep dependency order) so a consumer ordered ahead of its source
+  reads the previous scan value. Settings live in the store, need CAN_CONFIGURE,
+  are validated with diagnostics, reset with File > New and are pruned when a
+  module disappears; Explorer shows "Module Scan and Execution Order".
+  Eight regressions cover validation, accumulation, order and persistence.
+Gaps: per-block scan multiples inside a module and the OOS-per-block scan model,
+  the full native module property model, exporting these settings through the
+  project export, and native arbitrary faceplate-template assignment remain
+  absent. Only the algorithm is scheduled; I/O sampling and alarms run each step.Acceptance: Add per-module/per-block scheduling and assignments; do not treat
   the app's 10 Hz tick as an independently configured scan.
 
 [DV09-022]
@@ -3871,3 +3881,24 @@ Boundary (honest): not DeltaV Simulate; no licenses/OPC/networked nodes; node
 Validation: 540 tests locally (539 pass; only pdf_om.txt-dependent audit fails).
 Result: DV09-082 PARTIAL -> VERIFIED_SUBSET. Totals 50 VERIFIED_SUBSET/
   53 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 79 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-021 independent module scan multiples and manual execution order (pp109-110).
+Engine: new moduleScheduling.ts (validation, decideScan accumulation, manual
+  order, pruning); stepPlant now loops applyExecutionOrder(moduleExecutionOrder)
+  and gives each scheduled module its accumulated dt; store gained
+  moduleScheduling and setModuleSchedule (CAN_CONFIGURE, fn-module-scan target).
+UI: ModuleScanControls under Explorer module properties.
+Tests: tests/module-scheduling.test.cjs (8): validation, accumulation (5/10 s),
+  order rules, real stepPlant multiple-3 sequence [0,0,6,6,6,6], simulated-time
+  basis at speed 3, previous-scan read with explicit order, store rejects/lock/
+  default clearing, tick persistence/reference stability/prune/new-project reset.
+Browser: SIC-201 rejected 999, accepted 5 / order 3 and showed the 5 s text.
+Boundary (honest): only the module algorithm is scheduled; no per-block scan
+  multiples or block OOS; settings are not in the project export; the default
+  (multiple 1) still means every simulation step.
+Validation: 548 tests locally (547 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-021 stays PARTIAL with the scan/order gap closed. Totals unchanged
+  at 50 VERIFIED_SUBSET/53 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

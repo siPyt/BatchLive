@@ -2594,3 +2594,10 @@ Line2 - Time scale 0.1x-20x validated; simulated time advances dt x scale.
 Line3 - Node and test mode persist and drive readiness; disclosure says this is
   not DeltaV Simulate and not networked.
 Line4 - Tests: tests/simulator-session.test.cjs.
+
+PASS 79: MODULE SCAN MULTIPLES AND EXECUTION ORDER (pp109-110)
+-----------------------------------------------------------------------
+Line1 - Each module has a scan multiple 1-255 (x1 s) and optional manual order.
+Line2 - Scheduled algorithms run only when due and integrate over elapsed time.
+Line3 - Explicit order makes a consumer read the previous scan value.
+Line4 - Per-block scheduling and export remain gaps. Tests: module-scheduling.test.cjs.

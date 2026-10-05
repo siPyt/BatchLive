@@ -7,6 +7,7 @@ import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
 import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engine/types'
 import { ModuleIcon } from '../components/EngineeringIcons'
 import { ModuleDisplayControls } from '../components/ModuleDisplayControls'
+import { ModuleScanControls } from '../components/ModuleScanControls'
 import { nextAreaName } from '../engine/areas'
 import { moduleNameError } from '../engine/naming'
 import { NamedSetControls } from '../components/NamedSetControls'
@@ -662,6 +663,7 @@ function ModuleProperties({
         </tbody>
       </table>
       <ModuleDisplayControls tag={m.tag} />
+      <ModuleScanControls tag={m.tag} />
       <div className="exp-props-alarms">
         <div className="exp-props-subhead">Configured Alarms</div>
         {m.alarms.length === 0 ? (

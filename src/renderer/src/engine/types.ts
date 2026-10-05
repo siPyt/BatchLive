@@ -668,6 +668,8 @@ export interface TrendPoint {
 
 export interface PlantState {
   photoPlant?: import('./photoPlant').PhotoPlantState
+  /** Per-module scan multiples and manual execution order (DV09-021); absent means every module runs each step. */
+  moduleScheduling?: import('./moduleScheduling').ModuleScheduling
   time: number
   running: boolean
   speed: number // sim speed multiplier

@@ -27,6 +27,7 @@ import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId 
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { reconcileDeviceAlarms } from './deviceAlarms'
 import { useSimulator, validateScale } from './simulatorSession'
+import { isDefaultSchedule, validateExecutionOrder, validateScanMultiple, type ModuleScheduling } from './moduleScheduling'
 import { featureDisabledError, featureEnabled } from './systemPreferences'
 import {
   SERIAL_LIMITS,
@@ -358,6 +359,9 @@ interface StoreState extends PlantState {
   setSpeed: (s: number) => void
   /** Restore the local simulation to its initial process conditions and put it on hold. */
   initializeSimulation: () => boolean
+  moduleScheduling: ModuleScheduling
+  /** Set a module's scan multiple (1-255 x 1 s) and/or manual execution order; null order restores automatic order. */
+  setModuleSchedule: (tag: string, change: { multiple?: number; order?: number | null }) => boolean
   tick: (dt: number) => void
   batchCommand: (cmd: BatchCommand) => void
   /** Edit a phase's logic (requires Can Configure), mirroring setSfcSteps. */
@@ -1767,6 +1771,28 @@ export const useStore = create<StoreState>((set, get) => ({
     if (error) { get().logEvent('DIAGNOSTIC', 'SIMULATOR', `Time scale rejected: ${error}`); return }
     set({ speed })
     get().logEvent('OPERATOR', 'SIMULATOR', `Time scale set to ${speed}x`)
+  },
+  moduleScheduling: {},
+  setModuleSchedule: (tag, change) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure module scan ${tag}`)) return false
+    const state = get()
+    const reject = (message: string): false => {
+      get().logEvent('DIAGNOSTIC', tag, `Module scan rejected: ${message}`)
+      window.alert(message)
+      return false
+    }
+    if (!state.modules[tag]) return reject(`Module ${tag} does not exist`)
+    const current = state.moduleScheduling[tag] ?? { multiple: 1, order: null, accum: 0 }
+    const multiple = change.multiple ?? current.multiple
+    const order = change.order === undefined ? current.order : change.order
+    const error = validateScanMultiple(multiple) ?? validateExecutionOrder(order)
+    if (error) return reject(error)
+    const next = { ...state.moduleScheduling }
+    if (isDefaultSchedule({ multiple, order })) delete next[tag]
+    else next[tag] = { multiple, order, accum: 0 }
+    set({ moduleScheduling: next, rev: state.rev + 1 })
+    get().logEvent('CONFIGURE', tag, `Module scan multiple ${multiple} (${multiple} s base period), execution order ${order ?? 'automatic'}`)
+    return true
   },
   initializeSimulation: () => {
     if (!requireUnlockedLock('CONTROL', 'Initialize simulation')) return false
@@ -3698,6 +3724,7 @@ export const useStore = create<StoreState>((set, get) => ({
       customAlarmTypes: { configured: {}, deployed: {} },
       conditionDelayAlarms: {},
       conditionDelayAlarmRuntime: {},
+      moduleScheduling: {},
       sfcLifecycle: {},
       downloadStatusChecks: {},
       rev: get().rev + 1
