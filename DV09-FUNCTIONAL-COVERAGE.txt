@@ -3,9 +3,9 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: managed-AO download
-verification/caution/results (Pass49, LOCAL; pushes paused by user).
-Previous milestone: 0196b49, AO restart-memory-only update (Pass48, LOCAL).
+DV-09 is NOT complete. Latest implemented milestone: controller-owned managed-AO
+atomic Full batch (Pass50, LOCAL; pushes paused by user).
+Previous milestone: be34b68, AO verification/caution/results (Pass49, LOCAL).
 Last published functional milestone: da59138, PID Detail/trends (Pass41).
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
@@ -18,10 +18,10 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:351 repository tests passed; typecheck, production build,
+Last validation:355 repository tests passed; typecheck, production build,
 edited-file diagnostics, audit validator and diff whitespace checks passed.
-Browser verified actual AO dialog verify/no transfer, stale-disabled Confirm,
-Cancel/no deployment and reverify/Full producing CAS900/90% output.
+Browser verified actual PhysicalNetworkDisplay fixture: confirmation listed
+two AO names; Cancel left both undeployed; Full produced25/50% outputs.
 Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
@@ -39,6 +39,7 @@ Most recent delivered functionality:
   - Atomic AO memory-only transfer capture consumed by actual cold restart.
   - AO readonly download verification, caution/abort, exact-saved confirmation,
     transfer-time target/access recheck and actual synchronous result stages.
+  - Atomic controller-owned managed-AO Full batch with whole-scope validation.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1845,3 +1846,34 @@ generic upload stages and Fieldbus dependency handling remain open.
 DV09-019 becomes PARTIAL; line dispositions regenerated from the source mapping.
 Validation:351 full-suite tests, typecheck, build, scoped diagnostics and audit
 validator passed. Local commits only; pushes remain paused.
+
+PASS 50: ATOMIC CONTROLLER-OWNED MANAGED AO FULL BATCH (pp94,99-104)
+-----------------------------------------------------------------
+Line1 - Scope: saved or draft assignment to selected controller includes every
+  enrolled AO in that scope; missing/dirty member is not silently skipped.
+Line2 - Preflight: every member uses the shared Full validation before any
+  change. Failure of a later member cannot partially transfer the earlier ones.
+Line3 - Caution/abort: Physical Network lists module names and warns running
+  modes/outputs use saved defaults. Cancel makes no transfers.
+Line4 - Staleness: confirmation captures exact membership/saved objects; later
+  saved change/addition/removal/reassignment rejects without substituting data.
+Line5 - Commit: one Zustand update changes all scoped runtime/deployed/bindings;
+  revision increments once. Saved/draft/storage and other algorithms are retained.
+Line6 - Lifecycle: each Full capture updates last-good snapshot, clears fresh-
+  Full guard, refreshes existing opted-in restart memory and captures live NVM.
+Line7 - Feedback: module structural comparisons clear after actual transfer;
+  controller journal lists committed module names and excluded algorithm scopes.
+Line8 - Guards: missing/down/uncommissioned/empty controller, locked workstation
+  and denied Download key reject explicitly before deployment.
+Line9 - Tests: three engine regressions cover single commit, isolation, invalid
+  second member, stale scope/saved revision, key/lock and restart400 consumption;
+  one Physical Network rendering regression checks separate Full/memory actions.
+Line10 - Browser mounted actual PhysicalNetworkDisplay in an isolated fixture
+  and dispatched its real React Full button. Warning listed SCOPE-AO1/AO2.
+  Cancel retained both deployments/runtime references. Confirm and running
+  scan produced CAS250/25% and CAS500/50%. Original96-module running plant,
+  UI/security and exact saved fixture storage restored; temporary root removed.
+Boundary: explicitly not native whole-controller Total Download. PID/device/SFC,
+card configuration and Setup remain excluded. DV09-017/019 remain PARTIAL.
+Validation:355 repository tests, typecheck, production build, scoped diagnostics,
+audit validator and diff whitespace passed. No push without authorization.

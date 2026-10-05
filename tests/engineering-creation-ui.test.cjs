@@ -17,6 +17,7 @@ const { NewControlModuleDialog } = require('../src/renderer/src/displays/Explore
 const { ControlStudioDisplay } = require('../src/renderer/src/displays/ControlStudioDisplay.tsx')
 const { SfcDisplay } = require('../src/renderer/src/displays/SfcDisplay.tsx')
 const { ModuleDownloadDialog } = require('../src/renderer/src/components/ModuleLifecycleControls.tsx')
+const { PhysicalNetworkDisplay } = require('../src/renderer/src/displays/PhysicalNetworkDisplay.tsx')
 
 test('shared Studio New dialog retains FBD default, SFC choice, metadata and explicit Create/Cancel without creating on render', () => {
   const before = useStore.getState()
@@ -57,5 +58,13 @@ test('AO download dialog requires verification and exposes truthful scope, pendi
   assert.match(markup, />Verify Configuration<\/button>/)
   assert.match(markup, /disabled="">Confirm Download<\/button>/)
   assert.match(markup, />Cancel Download<\/button>/)
+  assert.equal(useStore.getState(), before)
+})
+
+test('Physical Network offers explicit managed-AO Full scope separately from restart memory without changing state on render', () => {
+  const before = useStore.getState()
+  const markup = renderToStaticMarkup(React.createElement(PhysicalNetworkDisplay))
+  assert.match(markup, />Full Download Managed AOs<\/button>/)
+  assert.match(markup, />Update AO Cold Restart Memory<\/button>/)
   assert.equal(useStore.getState(), before)
 })

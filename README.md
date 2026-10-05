@@ -561,6 +561,14 @@ does not imitate asynchronous controller progress, licensing, Fieldbus dependenc
 checks or generic upload stages. Full uses configured values; Partial selects configured values,
 critical block values only, or critical plus user-defined values. The DV-09
 CAS/500 versus AUTO/555 exercise produces CAS/500, AUTO/500 and AUTO/555 respectively.
+Physical Network's **Full Download Managed AOs** lists all enrolled AOs whose
+saved or draft assignment targets the selected controller. Confirmation validates
+the entire scope before committing one state update. Unsaved/invalid members,
+changed saved configurations or membership, unavailable targets and denied/locked
+access abort the entire batch. It refreshes each module's last-good snapshot and
+any opted-in AO restart memory, leaving saved defaults and other controllers/
+algorithms unchanged. This bounded controller-owned AO transfer is not native
+Total Download: PID/device/SFC, I/O-card configuration and Setup are excluded.
 Online shows runtime; offline edits do not alter the deployed module. Upload
 copies live values into a draft, requiring explicit Save before persistence.
 Cold restart restores selected values only when both deployed module and

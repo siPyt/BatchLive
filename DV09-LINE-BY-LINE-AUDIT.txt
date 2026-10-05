@@ -298,6 +298,16 @@ Verified module subset (Pass45): managed AO, PID_LOOP, MOTOR/VALVE and SFC
 Existing transfer subsets: standalone AO Full/Partial is single-module scope;
   managed devices/PID/SFC transfer only their saved module. Changed Named Set
   Setup Data has independent controller/workstation targets.
+  Pass50 adds controller-owned managed-AO Full batch: all saved/draft-assigned
+  managed AOs are validated before one atomic commit. Dirty/invalid member,
+  changed confirmation membership/saved configuration, missing/down/empty target
+  or denied/locked access rejects the whole batch. Other controllers, saved
+  browser defaults, PID/device/SFC/card/Setup data are not transferred.
+  Last-good transfer and opted-in restart memory refresh consistently. Three
+  engine tests plus UI rendering regression cover single state commit, preserved
+  references/storage, invalid second-member isolation, scope/revision rejection,
+  access and actual25/50% outputs. Browser actual PhysicalNetworkDisplay fixture
+  button listed both AO names; Cancel left both undeployed, confirm yielded25/50%.
 Gaps: whole-controller Total/Full transfer, card configuration download,
   whole-node/network status and remaining Setup scopes are not implemented.
   Single-module Full commands are not a native full-controller download.
@@ -367,6 +377,9 @@ Gaps: whole-controller download orchestration, native disk download log file,
   license/installability stages, generic upload checks and Fieldbus dependencies.
   AO stages describe the synchronous module operation; no fabricated asynchronous
   progress/checkmarks or implied native controller transfer.
+  Pass50 controller-owned AO batch applies the same reference/target validation
+  to every member before any transfer; confirmation explicitly lists module scope
+  and exclusions. Cancel/any-member failure changes no module deployment.
 Acceptance: Failed/cancelled transfer must preserve last-good runtime and
   dirty status. Only successful transfer clears the relevant indicators.
 

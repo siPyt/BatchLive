@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useStore } from '../engine/store'
+import { controllerAoRecords } from '../engine/moduleLifecycle'
 import { useUi } from '../ui/uiStore'
 import { TraditionalIoPanel } from './TraditionalIoPanel'
 import {
@@ -313,6 +314,13 @@ function ControllerPanel({
           </button>
         )}
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={autoSense}>Auto-sense I/O</button>
+        <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
+          const records = controllerAoRecords(useStore.getState().moduleLifecycle, c.tag)
+          const reviewed = Object.fromEntries(records.map(([tag, record]) => [tag, record.saved]))
+          if (window.confirm(`Full Download all configured managed AOs assigned to ${c.tag}: ${records.map(([tag]) => tag).join(', ') || '(none)'}. Every module is validated before any runtime changes. Running modes and outputs use saved defaults. Cancel aborts all transfers. PID/device/SFC, cards and Setup are excluded; this is not native controller Total Download.`)) {
+            useStore.getState().downloadControllerAos(c.tag, reviewed)
+          }
+        }}>Full Download Managed AOs</button>
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
           if (window.confirm('Capture last-good downloads for managed AO modules on this controller into separate simulated restart memory? Running configuration and saved database stay unchanged. This opts those modules into transfer-snapshot restart; Partial downloads then require another memory update. Other module types and native controller scripts are not included.')) {
             useStore.getState().updateControllerAoRestartMemory(c.tag)

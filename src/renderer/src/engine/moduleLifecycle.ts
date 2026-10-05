@@ -156,6 +156,19 @@ export function prepareAoTransfer(record: AoLifecycle | undefined, runtime: AnyM
   return transferError ? { error: `Preserved runtime values are invalid: ${transferError}` } :
     { saved, module, behavior }
 }
+export function controllerAoRecords(records: Record<string, AoLifecycle>, controllerTag: string): [string, AoLifecycle][] {
+  return Object.entries(records).filter(([, record]) =>
+    record.saved?.controllerTag === controllerTag || record.draft.controllerTag === controllerTag)
+}
+export function committedAoTransfer(record: AoLifecycle, saved: AoConfiguration,
+  module: AnalogOutputModule, scope: 'FULL' | 'PARTIAL'): AoLifecycle {
+  return { ...record, deployed: cloneConfiguration(saved), deployedRevision: record.savedRevision,
+    lastGoodDownload: capturedAoDownload(saved, module), replayFullRequired: false,
+    ...(record.restartDownload ? scope === 'FULL' ?
+      { restartDownload: capturedAoDownload(saved, module), restartMemoryRequired: false } :
+      { restartMemoryRequired: true } : {}),
+    nvm: memoryOf(module) }
+}
 export function restartAo(record: AoLifecycle, runtime: AnalogOutputModule, hw: HardwareState): AnalogOutputModule {
   if (!record.deployed || record.replayFullRequired || record.restartMemoryRequired) return { ...runtime, downloaded: false, bad: true, actualMode: 'OOS' }
   const c = record.restartDownload ?? record.deployed

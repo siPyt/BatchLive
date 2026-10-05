@@ -30,7 +30,7 @@ import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './anal
 import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
 import {
   aoOperatorError, cloneAo, cloneConfiguration, configurationError, deployedAo, downloadError, lifecycleDirty,
-  memoryOf, capturedAoDownload, prepareAoTransfer, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
+  memoryOf, committedAoTransfer, controllerAoRecords, prepareAoTransfer, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
   type AoConfiguration, type AoDraftPatch, type AoLifecycle
 } from './moduleLifecycle'
 import {
@@ -161,6 +161,7 @@ interface StoreState extends PlantState {
   loadSavedModuleConfiguration: (tag: string) => boolean
   verifyAoDownload: (tag: string, scope: 'FULL' | 'PARTIAL') => boolean
   downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL', expected?: AoConfiguration) => boolean
+  downloadControllerAos: (tag: string, expected?: Record<string, AoConfiguration | undefined>) => boolean
   resendLastGoodModuleDownload: (tag: string) => boolean
   updateControllerAoRestartMemory: (tag: string) => boolean
   uploadModule: (tag: string) => boolean
@@ -1919,15 +1920,41 @@ export const useStore = create<StoreState>((set, get) => ({
       modules: { ...s.modules, [tag]: module },
       hardware: { ...s.hardware, analogBindings: { ...s.hardware.analogBindings,
         [tag]: { output: saved.outputDst } } },
-      moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record,
-        deployed: cloneConfiguration(saved), deployedRevision: record.savedRevision,
-        lastGoodDownload: capturedAoDownload(saved, module), replayFullRequired: false,
-        ...(record.restartDownload ? scope === 'FULL' ?
-          { restartDownload: capturedAoDownload(saved, module), restartMemoryRequired: false } :
-          { restartMemoryRequired: true } : {}),
-        nvm: memoryOf(module) } }, rev: s.rev + 1
+      moduleLifecycle: { ...s.moduleLifecycle, [tag]: committedAoTransfer(record, saved, module, scope) },
+      rev: s.rev + 1
     }))
     get().logEvent('CONFIGURE', tag, `${scope} simulated module download committed atomically (${behavior}); NVM updated`)
+    return true
+  },
+
+  downloadControllerAos: (tag, expected) => {
+    if (!requireUnlockedKey('CAN_DOWNLOAD', `Full Download managed AOs on ${tag}`)) return false
+    const state = get()
+    const controller = state.hardware.controllers[tag]
+    if (!controller || !controller.commissioned || controllerIsDown(controller)) {
+      return rejectAo(get, tag, 'Managed AO controller transfer requires a commissioned available controller')
+    }
+    const records = controllerAoRecords(state.moduleLifecycle, tag)
+    if (!records.length) return rejectAo(get, tag, 'No configured managed AOs belong to this controller')
+    if (expected && (Object.keys(expected).length !== records.length ||
+      records.some(([moduleTag, record]) => !(moduleTag in expected) || expected[moduleTag] !== record.saved))) {
+      return rejectAo(get, tag, 'Managed AO scope or saved configuration changed after confirmation opened; no modules transferred')
+    }
+    const modules = { ...state.modules }
+    const moduleLifecycle = { ...state.moduleLifecycle }
+    const analogBindings = { ...state.hardware.analogBindings }
+    for (const [moduleTag, record] of records) {
+      const prepared = prepareAoTransfer(record, state.modules[moduleTag], state.hardware, 'FULL')
+      if ('error' in prepared) {
+        return rejectAo(get, tag, `Managed AO controller transfer rejected for ${moduleTag}: ${prepared.error}; no modules transferred`)
+      }
+      const { saved, module } = prepared
+      modules[moduleTag] = module
+      moduleLifecycle[moduleTag] = committedAoTransfer(record, saved, module, 'FULL')
+      analogBindings[moduleTag] = { output: saved.outputDst }
+    }
+    set({ modules, moduleLifecycle, hardware: { ...state.hardware, analogBindings }, rev: state.rev + 1 })
+    get().logEvent('CONFIGURE', tag, `FULL managed-AO controller transfer committed atomically for ${records.length} modules: ${records.map(([name]) => name).join(', ')}; other algorithms, cards and Setup excluded`)
     return true
   },
 

@@ -1507,6 +1507,116 @@ function savedAoCourseProject(store) {
   store.tick(0.1)
 }
 
+function secondSavedAo(store) {
+  assert.equal(store.createModule({ tag: 'SECOND-AO', type: 'AO', area: 'PLANT_AREA_A',
+    description: 'Second controller-owned output', unit: 'gal', pvMin: 0, pvMax: 1000 }), true)
+  assert.equal(store.bindAnalogDst('SECOND-AO', 'output', 'FY-2'), true)
+  assert.equal(store.addAoParameter('SECOND-AO', 'CAS_SP', 250), true)
+  assert.equal(store.connectAoParameter('SECOND-AO', 'CAS_SP'), true)
+  assert.equal(store.enableModuleLifecycle('SECOND-AO'), true)
+  assert.equal(store.editModuleDraft('SECOND-AO', { controllerTag: 'CTRL1', mode: 'CAS' }), true)
+  assert.equal(store.saveModuleConfiguration('SECOND-AO'), true)
+}
+
+test('controller-scoped AO Full transfer commits every saved module once without downloading other algorithms', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    secondSavedAo(store)
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 700)
+    store.tick(.1)
+    const before = useStore.getState()
+    const expected = Object.fromEntries(Object.entries(before.moduleLifecycle).map(([tag, record]) => [tag, record.saved]))
+    const stored = window.localStorage.getItem(savedAoStorageKey('LEVEL-101'))
+    let writes = 0
+    const unsubscribe = useStore.subscribe((next, previous) => {
+      if (next.moduleLifecycle !== previous.moduleLifecycle) writes++
+    })
+    assert.equal(store.downloadControllerAos('CTRL1', expected), true)
+    unsubscribe()
+    const after = useStore.getState()
+    assert.equal(writes, 1)
+    assert.equal(after.rev, before.rev + 1)
+    assert.equal(after.modules['LI-101'], before.modules['LI-101'])
+    assert.equal(after.sfcs, before.sfcs)
+    assert.equal(after.pidLifecycle, before.pidLifecycle)
+    assert.equal(after.deviceLifecycle, before.deviceLifecycle)
+    assert.equal(after.sfcLifecycle, before.sfcLifecycle)
+    assert.equal(window.localStorage.getItem(savedAoStorageKey('LEVEL-101')), stored)
+    for (const tag of ['LEVEL-101', 'SECOND-AO']) {
+      assert.equal(after.moduleLifecycle[tag].saved, before.moduleLifecycle[tag].saved)
+      assert.equal(after.moduleLifecycle[tag].draft, before.moduleLifecycle[tag].draft)
+      assert.equal(after.moduleLifecycle[tag].deployedRevision, before.moduleLifecycle[tag].savedRevision)
+      assert.equal(moduleDownloadStatus(after, tag).status, 'MATCH')
+    }
+    store.tick(.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 50)
+    assert.equal(useStore.getState().modules['SECOND-AO'].out, 25)
+  })
+})
+
+test('controller-scoped AO Full rejects the whole batch for invalid member, changed scope or changed saved revision', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    const first = useStore.getState().moduleLifecycle['LEVEL-101'].saved
+    secondSavedAo(store)
+    const expected = { 'LEVEL-101': first, 'SECOND-AO': useStore.getState().moduleLifecycle['SECOND-AO'].saved }
+    const before = useStore.getState()
+    assert.equal(store.downloadControllerAos('CTRL1', { 'LEVEL-101': first }), false)
+    assert.equal(useStore.getState().modules, before.modules)
+    assert.equal(useStore.getState().moduleLifecycle, before.moduleLifecycle)
+    store.editModuleDraft('SECOND-AO', { parameter: { name: 'CAS_SP', value: 900 } })
+    const dirty = useStore.getState()
+    assert.equal(store.downloadControllerAos('CTRL1', expected), false)
+    assert.equal(useStore.getState().modules, dirty.modules)
+    assert.equal(useStore.getState().hardware, dirty.hardware)
+    assert.equal(useStore.getState().moduleLifecycle, dirty.moduleLifecycle)
+    store.saveModuleConfiguration('SECOND-AO')
+    const saved = useStore.getState()
+    assert.equal(store.downloadControllerAos('CTRL1', expected), false)
+    assert.equal(useStore.getState().modules, saved.modules)
+    assert.equal(useStore.getState().moduleLifecycle, saved.moduleLifecycle)
+    assert.equal(store.downloadControllerAos('CTRL1'), true)
+    store.tick(.1)
+    assert.equal(useStore.getState().modules['SECOND-AO'].out, 90)
+  })
+})
+
+test('controller-scoped AO Full rejects missing/down/empty/locked/denied controllers and refreshes opted-in replay memory', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    assert.equal(store.updateControllerAoRestartMemory('CTRL1'), true)
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 400 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    const before = useStore.getState()
+    assert.equal(store.downloadControllerAos('MISSING'), false)
+    store.createController('EMPTY', 'No managed AO scope')
+    store.commissionController('EMPTY')
+    assert.equal(store.downloadControllerAos('EMPTY'), false)
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    assert.equal(store.downloadControllerAos('CTRL1'), false)
+    useSecurity.setState({ currentUser: 'admin', locked: true })
+    assert.equal(store.downloadControllerAos('CTRL1'), false)
+    useSecurity.setState({ locked: false })
+    const hardware = useStore.getState().hardware
+    useStore.setState({ hardware: { ...hardware, controllers: { ...hardware.controllers,
+      CTRL1: { ...hardware.controllers.CTRL1, primary: 'FAILED', secondary: 'FAILED' } } } })
+    assert.equal(store.downloadControllerAos('CTRL1'), false)
+    assert.equal(useStore.getState().modules, before.modules)
+    assert.equal(useStore.getState().moduleLifecycle, before.moduleLifecycle)
+    useStore.setState({ hardware })
+    assert.equal(store.downloadControllerAos('CTRL1'), true)
+    const record = useStore.getState().moduleLifecycle['LEVEL-101']
+    assert.equal(record.lastGoodDownload.module.parameters.CAS_SP.value, 400)
+    assert.equal(record.restartDownload.module.parameters.CAS_SP.value, 400)
+    assert.equal(record.restartMemoryRequired, false)
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 700)
+    store.tick(.1)
+    assert.equal(store.restartModule('LEVEL-101'), true)
+    store.tick(.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 40)
+  })
+})
+
 test('AO download verification is read-only and stale confirmation cannot transfer newer saved configuration', () => {
   withAreaProject(store => {
     savedAoCourseProject(store)
