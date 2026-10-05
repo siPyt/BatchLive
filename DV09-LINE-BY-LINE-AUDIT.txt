@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 53 VERIFIED_SUBSET, 50 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 54 VERIFIED_SUBSET, 49 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -157,12 +157,26 @@ Acceptance: A training-only desktop/login sequence must be identified as
 
 [DV09-005]
 Pages: 53-56
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Discover decommissioned nodes and identify the selected controller
   using the course indication behavior, stopping identification appropriately.
-Evidence: STORE/HW/NETWORK support decommissioned state and Identify/Stop
-  Identify. Exact LED timing/colors and closing the course dialog to stop the
-  indication have not been matched.
+Evidence (Pass83): Decommissioned nodes list under Physical Network and
+  Identify/Stop Identify work on decommissioned and commissioned controllers
+  and only on the selected one (needs the Diagnostic key; ended by power loss or
+  commissioning). controllerLeds.ts implements the indicator behaviour from the
+  extracted manual text: decommissioned = Power green ON, Error red flashing at
+  one-second intervals, Active/Standby OFF, yellow LEDs flashing at random;
+  Identify = Power ON and all other LEDs flashing together at one-second
+  intervals. A live LED strip sits in each controller row, and Identify opens a
+  pop-up whose close button, Escape or Stop Flashing ends the Identify state, as
+  p56 describes. Six regressions cover the flash cycle, both patterns, running/
+  failed/unpowered patterns, selected-controller identity and stop paths; the
+  browser confirmed alternating LED states and that closing the dialog resets
+  the Identify button.
+  Boundary: the LED count and layout, flash phase and the running/failed
+  patterns are not specified by the course text and are marked as such in the
+  UI; the PDF screenshots were not inspected, so no dialog look-and-feel parity
+  is claimed.
 Acceptance: Test indication start, stop, dismissal and controller identity;
   independently inspect the PDF screenshots before claiming dialog parity.
 
@@ -3994,3 +4008,21 @@ Validation: 571 tests locally (570 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-009 PARTIAL -> VERIFIED_SUBSET. Totals 53 VERIFIED_SUBSET/
   50 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 83 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-005 controller indicators and Identify dialog (pp53-56), from the
+  extracted manual text.
+Engine: new controllerLeds.ts (flash cycle, deterministic random yellow flashing,
+  decommissioned/identify/running/failed/power-off patterns, documented notes).
+UI: ControllerIndicators.tsx (LED strip in every controller row; Identify dialog
+  that stops Identify on close/Escape/Stop Flashing) mounted in Physical Network.
+Tests: tests/controller-leds.test.cjs (6).
+Browser: Identify opened the dialog with the Error LED alternating; closing it
+  ended Identify.
+Boundary (honest): LED layout/phase and non-course patterns are marked as not
+  specified; no PDF screenshot comparison.
+Validation: 577 tests locally (576 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-005 PARTIAL -> VERIFIED_SUBSET. Totals 54 VERIFIED_SUBSET/
+  49 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

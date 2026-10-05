@@ -2621,3 +2621,9 @@ PASS 82: COLD RESTART SELECTORS AND WINDOW (pp63-65)
 Line1 - Always Disabled / Always Enabled / Within A Time Limit with d/h/m ranges.
 Line2 - Power back <= limit cold restarts; above, zero and past-maximum do not.
 Line3 - Last power-return result displayed and journalled. Tests: cold-restart.test.cjs.
+
+PASS 83: CONTROLLER INDICATORS AND IDENTIFY (pp53-56)
+-----------------------------------------------------------------------
+Line1 - Decommissioned: Power ON, Error flashes 1 s, Active/Standby OFF, yellow random.
+Line2 - Identify: Power ON, all other LEDs flash 1 s; closing the dialog stops it.
+Line3 - Only the selected controller identifies. Tests: controller-leds.test.cjs.

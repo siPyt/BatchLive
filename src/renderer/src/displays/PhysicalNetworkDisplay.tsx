@@ -8,6 +8,7 @@ import { TraditionalIoPanel } from './TraditionalIoPanel'
 import { SerialIoPanel } from '../components/SerialIoPanel'
 import { H1Panel } from '../components/H1Panel'
 import { useSystem } from '../engine/systemPreferences'
+import { ControllerLedStrip, IdentifyDialog } from '../components/ControllerIndicators'
 import {
   COLD_RESTART_MODE_LABEL, coldRestartFromSelectors, coldRestartMode, describeColdRestart, splitColdRestart,
   type ColdRestartMode, type ColdRestartParts
@@ -330,6 +331,8 @@ function ControllerPanel({
         <span className="hardware-controller-load">
           Scan {c.scanTimeMs.toFixed(0)} ms · CPU {c.cpuLoadPct.toFixed(0)}%
         </span>
+        <ControllerLedStrip controller={c} />
+        <IdentifyDialog tag={c.tag} />
         <button className="tbtn sm" disabled={c.powerDownAt !== null} onClick={identify}>
           {c.identified ? 'Stop Identify' : 'Identify'}
         </button>
