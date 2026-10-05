@@ -12,10 +12,10 @@ CURRENT RECOVERY / CONNECTED-PLANT MILESTONE
   expanded page's styles were removed; only the overview page was reverted.
   The default pharma project (and New Project > pharma) still installs the
   photographed units; blank projects do not.
-- Plant Overview additions from IMG_0636: live N3/N1/N1BP loop panels, Rooms and Storage Tanks layout (Room 1040/1040A/1042; vessels explicitly not modeled, no fake readings) and the full set of reference navigation boxes as disabled reference-only buttons. WFI Still picture rebuilt in the IMG_0604 layout with new functional sandbox modules (PIC103, TIC200, LIC200, TT200, IY100, OIL-TEMP, SV500, XV200, XV202, FCV300).
+- Plant Overview additions from IMG_0636: live N3/N1/N1BP loop panels, Rooms and Storage Tanks layout (Room 1040/1040A/1042; vessels explicitly not modeled, no fake readings) and the full set of reference navigation boxes as disabled reference-only buttons. WFI Still picture rebuilt in the IMG_0604 layout with new functional modules (PIC103, TIC200, LIC200, TT200, IY100, OIL-TEMP, SV500, XV200, XV202, FCV300).
 - A larger three-tank Photographed WFI Overview (Not In Use, WFI-LVL-CTRL,
   sanitation panels) remains as its own route.
-- A separate Photographed WFI Overview installs real N3/N1/N1BP sandbox
+- A separate Photographed WFI Overview installs real N3/N1/N1BP
   storage loops and a coupled 3WFI-8110 training still, using original shared
   mechanical symbols, real faceplates and confirmed device feedback.
 - Installation preserves existing modules/process/batch/exercises/hardware.
@@ -35,7 +35,7 @@ CURRENT RECOVERY / CONNECTED-PLANT MILESTONE
   PW neutralization, SUR-3300/3200, Buffer Prep, CIP-3200 and tanks 3300/3350
   still require photo inventory, models and real interconnections.
 - Capacities/rates/control assumptions and startup instructions are in
-  README.md. The legacy receiver is an extra sandbox buffer, not a second
+  README.md. The legacy receiver is an extra buffer, not a second
   physical site N1 tank. Expansion state is current-project runtime state;
   no project-save/restart persistence is claimed.
 - Typecheck, production build and 21 focused regressions passed, including

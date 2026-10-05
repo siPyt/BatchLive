@@ -127,7 +127,7 @@ test('IMG_0616 overview is a fixed three-panel navigation screen, while area det
   for (const tag of ['3T-8130', '3T-8120', '3T-8140', '3T-5370', '3T-5440', '3T-5460', '3T-8030', '3T-5420', '3T-5110']) {
     assert.ok(html.includes(tag), tag)
   }
-  for (const label of ['Room 1040', 'Room 1040A', 'Room 1042', 'WFI Still (Sandbox)']) assert.ok(html.includes(label), label)
+  for (const label of ['Room 1040', 'Room 1040A', 'Room 1042', 'WFI Still']) assert.ok(html.includes(label), label)
   for (const label of ['NGS-808', 'Scrubber 3S-8050', 'CIP-804', 'WFI Pretr Skid', '3TCU-8010', '3TCU-8020', 'Glycol 3T-8150',
     'Process Waste', '3UF-8201', 'HCL Totes', 'PW Neutr.', '3SUR-3300', '3SUR-3200', 'Buffer Prep', '3CIP-3200', '3T-3300', '3T-3350']) {
     assert.match(html, new RegExp(`aria-disabled="true"[^>]*>${label.replace(/[.]/g, '\\.')}</button>`), label)
@@ -140,7 +140,7 @@ test('photographed overview and all unit pictures expose real modules, shared ut
   const before = useStore.getState()
   try {
     useStore.setState({ photoPlant: undefined })
-    assert.match(render(PhotoPlantDisplay, { view: 'overview' }), /Add photographed WFI training units/)
+    assert.match(render(PhotoPlantDisplay, { view: 'overview' }), /Add WFI tank loops and still/)
     const addon = createPhotoPlant()
     useStore.setState({ photoPlant: addon.state, modules: { ...before.modules, ...addon.modules } })
     const html = render(PhotoPlantDisplay, { view: 'overview' })

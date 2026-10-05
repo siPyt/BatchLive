@@ -73,13 +73,12 @@ is maintained in [GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt](GRAPHICS-APPEARANCE-AND-
 Visual milestones and unresolved reference-only/modeling gaps are recorded
 separately in [VISUAL-FIDELITY-LOG.txt](VISUAL-FIDELITY-LOG.txt).
 
-## Connected whole-plant training expansion
+## Connected whole-plant simulation
 
 Open **Photographed WFI Overview** from Plant Overview or the picture selector.
 The default pharma project now installs these units automatically; a blank
 project, or one without them, shows an installer. As an unlocked user with
-configuration permission, select **Add photographed WFI
-training units**. This explicitly enables the integrated model in the current
+configuration permission, select **Add WFI tank loops and still**. This explicitly enables the integrated model in the current
 project: existing modules, faceplates, SFCs, batch state and hardware are retained;
 shared supply constraints now affect their process response. Without installation,
 the previous standalone simulation behavior is unchanged. New Project clears the
@@ -120,14 +119,14 @@ Lifecycle-managed controllers/devices must use their deployed controls instead.
 Cancel/reset sanitation requests 25°C and leaves the pump under operator control.
 Run/Hold and the simulation speed apply to the coupled model and its timers.
 
-**Sandbox assumptions:** each storage tank and the retained legacy receiver are
+**Simulation assumptions:** each storage tank and the retained legacy receiver are
 7000 L, still feed/distillate capacities are 1000/500 L, maximum production is
 0.8 L/s, aggregate still delivery is 2 L/s, tank distribution is 0.35 L/s,
 and drain flow is 1.5 L/s. The feed boundary supplies assumed available clean
 water; distillate conductivity is assumed 0.3 µS/cm. Steam and cooling have
 simplified finite-response availability models, not site utility engineering.
-The retained legacy receiver is an extra training buffer, not a claim that the
-photographed site contains two physical N1 tanks. Sandbox module suffixes are
+The retained legacy receiver is an extra buffer, not a claim that the
+photographed site contains two physical N1 tanks. Module suffixes are
 not a certified one-to-one mapping to every photographed tag.
 
 PW neutralization, SUR-3300/3200, Buffer Prep, CIP-3200 and tanks 3300/3350 still
@@ -141,7 +140,7 @@ and blowdown exchangers, evaporator with feed-water and distillate level bars, c
 with motor current, oil pump with oil pressure/temperature indicators, SV500 oil cooler
 cooling water, steam valves TCV102/PCV103, level valves LCV100/LCV200, TCV200,
 XV200/XV201/XV202/FCV300, Hot Standby status and the N3/N1/N1BP loop navigation.
-All of these are real sandbox modules (TCV102 is the existing TIC102 output; LCV100 is the
+All of these are real simulated modules (TCV102 is the existing TIC102 output; LCV100 is the
 LIC100 output; TCV200 uses incoming feed water, not plant cooling). PCV103 starts in manual
 at 0%, LCV200 in manual at 100%. Oil temperature rises with the compressor and needs SV500
 and cooling water; waste, drain and blowdown remove water only on valve feedback; LCV200

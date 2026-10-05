@@ -15,7 +15,7 @@ Installation explicitly enables documented shared utility/water coupling;
 without it, the previous standalone process response remains unchanged.
 Use confirmed feedback and quality-aware live instrumentation throughout.
 Bad/missing level instruments must not show a plausible good tank fill.
-All new physical rates, capacities and sanitation logic are sandbox
+All new physical rates, capacities and sanitation logic are simulation
 approximations, not validated site engineering/GMP procedures. Existing
 reference-only WFI navigation remains distinguishable from actual new
 training routes. The full photographed plant is still being expanded.

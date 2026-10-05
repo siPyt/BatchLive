@@ -27,23 +27,16 @@ export function PhotoPlantDisplay({ view }: { view: PhotoView }): JSX.Element {
 
   if (!state) return <div className="display photo-plant-install">
     <h1>{title}</h1>
-    <p>Add three independent WFI tanks and a coupled still alongside the existing plant.</p>
-    <p>Existing modules, course exercises, graphics and live process state are not replaced.</p>
-    <p>Installation enables shared steam/cooling effects on the existing reactor and pharma units.
-      N1 supplies the existing WFI storage receiver, which feeds all three CIP skids.</p>
-    <p><b>Training approximation:</b> capacities, rates, startup permissives and sanitation timing are sandbox assumptions,
-      not the photographed site's validated engineering or GMP procedures.</p>
-    <button className="overview-navigation-button" onClick={add}>Add photographed WFI training units</button>
+    <p>The N3, N1 and N1BP WFI tank loops and the WFI still are not installed in this project.</p>
+    <p>Adding them keeps all existing modules, exercises, graphics and live process state.</p>
+    <button className="overview-navigation-button" onClick={add}>Add WFI tank loops and still</button>
     <button className="overview-navigation-button" onClick={() => navigate('plant-map')}>Original Spatial Plant Map</button>
   </div>
 
   return <div className={`display ${view === 'overview' ? 'plant-navigation-overview' : 'graphic-display photo-process-display'}`}>
     <h1 className={view === 'overview' ? undefined : 'graphic-display-title'}>{title}</h1>
-    <div className="photo-model-note">Sandbox training model - not site control logic or a validated GMP process.
-      Shared utilities and N1-to-existing-WFI/CIP supply are connected; other photographed areas are not yet built.</div>
-    {view === 'still' && <div className="photo-model-note">Startup: start the oil pump and open the SV500 cooling-water valve; once oil pressure is ready, reset and start the compressor. Open feed isolation XV100 so LCV100 can admit feed water; heat with TCV102/PCV103. Distillate above 95 degC is produced; TCV200 cools it using incoming feed water. Start the DIST pump with XV201 (storage) or XV202 (waste) open.</div>}
     {missing.length > 0 && <div className="photo-model-note" role="alert">Incomplete model - required modules missing or wrong type:
-      {' '}{missing.join(', ')}. Restore the modules before training; physical vessel state is not a valid instrument reading.</div>}
+      {' '}{missing.join(', ')}. Restore the modules before use; physical vessel state is not a valid instrument reading.</div>}
     <div className="photo-utility-summary" aria-label="Shared plant utilities">
       {['SB-STEAM', 'SB-COOLING', 'SB-STEAM-PRESS', 'SB-COOLING-AVAIL'].map(tag => {
         const module = modules[tag]
@@ -70,7 +63,7 @@ export function PhotoPlantDisplay({ view }: { view: PhotoView }): JSX.Element {
       {view !== 'overview' && PHOTO_TANKS.map(config =>
         <button className="overview-navigation-button" key={config.id} onClick={() => navigate(tankRoute(config.id))}>{config.title}</button>)}
       {tank && <button className="overview-navigation-button" disabled={state.tanks[tank.id].sanitation !== 'IDLE'}
-        onClick={() => sanitize(tank.id)}>Start sanitation (training)</button>}
+        onClick={() => sanitize(tank.id)}>Start sanitation</button>}
       {tank && <button className="overview-navigation-button" disabled={state.tanks[tank.id].sanitation === 'IDLE'}
         onClick={() => cancelSanitation(tank.id)}>Cancel/reset sanitation</button>}
       <button className="overview-navigation-button" onClick={() => navigate('wfi')}>Existing WFI Display</button>

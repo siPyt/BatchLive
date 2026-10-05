@@ -75,14 +75,14 @@ export function TankSummary({ id, state }: { id: PhotoTankId; state: PhotoPlantS
     <OverviewReading tag={`${p}-TIC011`} module={modules[`${p}-TIC011`]} x={292} y={56} />
     <OverviewReading tag={`${p}-PIC016`} module={modules[`${p}-PIC016`]} x={292} y={155} />
     <OverviewReading tag={`${p}-LIC005`} module={modules[`${p}-LIC005`]} x={154} y={157} pvOnly />
-    <text x={210} y={238} textAnchor="middle" fill={PALE_TEXT} fontSize={10}>{tank.liters.toFixed(0)} liter (model)</text>
+    <text x={210} y={238} textAnchor="middle" fill={PALE_TEXT} fontSize={10}>{tank.liters.toFixed(0)} liter</text>
     <rect x={14} y={282} width={112} height={56} fill="#fff" stroke="#6b7680" />
     <text x={70} y={304} textAnchor="middle" fill={PALE_TEXT} fontSize={11} fontWeight={700}>WFI-LVL-CTRL</text>
     <text x={70} y={324} textAnchor="middle" fill={PALE_TEXT} fontSize={11}>{filling ? 'Filling' : 'Not Filling'}</text>
-    <g aria-label={`${id.toUpperCase()}-WFI-SANI sandbox sanitation`}>
+    <g aria-label={`${id.toUpperCase()}-WFI-SANI sanitation`}>
       <rect x={140} y={262} width={266} height={118} fill="#fff" stroke={sanitationActive ? '#8a6d00' : '#6b7680'}
         strokeWidth={sanitationActive ? 2 : 1} />
-      <text x={273} y={280} textAnchor="middle" fill={PALE_TEXT} fontSize={11} fontWeight={700}>{id.toUpperCase()}-WFI-SANI (training)</text>
+      <text x={273} y={280} textAnchor="middle" fill={PALE_TEXT} fontSize={11} fontWeight={700}>{id.toUpperCase()}-WFI-SANI</text>
       <text x={150} y={299} fill={PALE_TEXT} fontSize={10}>Cycle Stage: {tank.sanitation}</text>
       <text x={150} y={315} fill={PALE_TEXT} fontSize={10}>Hot Soak: {tank.soakSeconds.toFixed(0)} / 600 s</text>
       <text x={150} y={331} fill={PALE_TEXT} fontSize={10}>Sani Time Remaining: {clock}</text>

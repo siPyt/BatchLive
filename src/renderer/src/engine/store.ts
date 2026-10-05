@@ -341,20 +341,20 @@ function makeDefaultSfcs(): Record<string, SfcDef> {
 export const useStore = create<StoreState>((set, get) => ({
   ...initial,
   addPhotoPlant: () => {
-    if (!requireUnlockedLock('CAN_CONFIGURE', 'Add photographed WFI training units')) return false
+    if (!requireUnlockedLock('CAN_CONFIGURE', 'Add WFI tank loops and still')) return false
     const state = get()
-    if (state.photoPlant) return rejectSfc(get, 'PHOTO-PLANT', 'Photographed WFI training units are already installed')
+    if (state.photoPlant) return rejectSfc(get, 'PHOTO-PLANT', 'WFI tank loops and still are already installed')
     const { plant, conflicts } = installPhotoPlant(state)
-    if (conflicts.length) return rejectSfc(get, 'PHOTO-PLANT', `Cannot add photographed units; existing tags would be overwritten: ${conflicts.join(', ')}`)
+    if (conflicts.length) return rejectSfc(get, 'PHOTO-PLANT', `Cannot add WFI tank loops and still; existing tags would be overwritten: ${conflicts.join(', ')}`)
     set({ modules: plant.modules, photoPlant: plant.photoPlant, areas: plant.areas, rev: state.rev + 1 })
-    get().logEvent('CONFIGURE', 'PHOTO-PLANT', 'Added coupled N3/N1/N1BP WFI tanks, still and shared steam/cooling utilities; N1 feeds legacy WFI storage and CIP supplies; existing modules/process preserved, integrated training physics enabled')
+    get().logEvent('CONFIGURE', 'PHOTO-PLANT', 'Added coupled N3/N1/N1BP WFI tanks, still and shared steam/cooling utilities; N1 feeds legacy WFI storage and CIP supplies; existing modules/process preserved, integrated physics enabled')
     return true
   },
   startPhotoTankSanitation: id => {
-    if (!requireUnlockedLock('CONTROL', `Start sandbox sanitation ${id}`)) return false
+    if (!requireUnlockedLock('CONTROL', `Start sanitation ${id}`)) return false
     const state = get()
     const config = PHOTO_TANKS.find(tank => tank.id === id)
-    if (!state.photoPlant || !config) return rejectSfc(get, 'PHOTO-PLANT', 'Install photographed WFI units before requesting sanitation')
+    if (!state.photoPlant || !config) return rejectSfc(get, 'PHOTO-PLANT', 'Install the WFI tank loops and still before requesting sanitation')
     const tag = `${config.prefix}-TIC011`
     const loop = state.modules[tag]
     const pump = state.modules[`${config.prefix}-XC002`]
@@ -368,11 +368,11 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ photoPlant: startPhotoSanitation(state.photoPlant, id),
       modules: { ...state.modules, [tag]: { ...loop, mode: 'AUTO', sp: 85 },
         [pump.tag]: { ...pump, commanded: true } } })
-    get().logEvent('OPERATOR', config.prefix, 'Sandbox sanitation requested: heat to 80 degC, continuous 600-second soak, then cool to 30 degC; not a validated GMP cycle')
+    get().logEvent('OPERATOR', config.prefix, 'Sanitation requested: heat to 80 degC, continuous 600-second soak, then cool to 30 degC')
     return true
   },
   cancelPhotoTankSanitation: id => {
-    if (!requireUnlockedLock('CONTROL', `Cancel sandbox sanitation ${id}`)) return false
+    if (!requireUnlockedLock('CONTROL', `Cancel sanitation ${id}`)) return false
     const state = get()
     const config = PHOTO_TANKS.find(tank => tank.id === id)
     if (!state.photoPlant || !config || state.photoPlant.tanks[id].sanitation === 'IDLE')
@@ -385,7 +385,7 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ photoPlant: { ...state.photoPlant, tanks: { ...state.photoPlant.tanks,
       [id]: { ...state.photoPlant.tanks[id], sanitation: 'IDLE', soakSeconds: 0 } } },
       modules: { ...state.modules, [tag]: { ...loop, sp: 25 } } })
-    get().logEvent('OPERATOR', config.prefix, 'Sandbox sanitation cancelled; temperature target 25 degC; recirculation pump remains under operator control')
+    get().logEvent('OPERATOR', config.prefix, 'Sanitation cancelled; temperature target 25 degC; recirculation pump remains under operator control')
     return true
   },
   trend: [],
@@ -518,7 +518,7 @@ export const useStore = create<StoreState>((set, get) => ({
         const stage = next.photoPlant.tanks[tank.id].sanitation
         if (stage !== s.photoPlant.tanks[tank.id].sanitation) newEntries.push({
           id: `${tank.prefix}-sanitation-${next.time}`, time: next.time, category: 'DIAGNOSTIC',
-          tag: tank.prefix, user: 'SYSTEM', description: `Sandbox sanitation changed to ${stage}${stage === 'ABORTED'
+          tag: tank.prefix, user: 'SYSTEM', description: `Sanitation changed to ${stage}${stage === 'ABORTED'
             ? ': temperature control unavailable or overridden; no automatic setpoint written, restore control and cancel/reset the cycle' : ''}`
         })
       }

@@ -80,7 +80,7 @@ export function PlantNavigationOverview(): JSX.Element {
     </div>
     </section>
     <section className="overview-section" aria-label="WFI tank loops">
-      <h2 className="overview-section-heading">WFI Tank Loops<small>Sandbox training models</small></h2>
+      <h2 className="overview-section-heading">WFI Tank Loops</h2>
       {photoPlant ? <div className="overview-vessel-panels">
         {PHOTO_TANKS.map(tank => <section className="overview-vessel-section" key={tank.id} aria-label={tank.title}>
           <div className="overview-vessel-panel overview-loop-panel">
@@ -90,7 +90,7 @@ export function PlantNavigationOverview(): JSX.Element {
           <button className="overview-navigation-button" onClick={() => navigate(tankRoute(tank.id))}>Open {tank.title}</button>
         </section>)}
       </div> : <div className="overview-room">
-        <p>The photographed WFI training units are not installed in this project.</p>
+        <p>The WFI tank loops and still are not installed in this project.</p>
         <button className="overview-navigation-button" onClick={() => navigate('photo-overview')}>Open installer</button>
       </div>}
     </section>

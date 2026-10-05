@@ -61,7 +61,7 @@ export function createPhotoPlant(): { state: PhotoPlantState; modules: Record<st
   const modules: Record<string, AnyModule> = {}
   const loop = (tag: string, description: string, unit: string, max: number, pv: number, sp = pv,
     extra: Record<string, unknown> = {}): void => {
-    const m = makeModule({ tag, description: `Sandbox: ${description}`, area: PHOTO_AREA, type: 'PID', unit, pvMax: max })
+    const m = makeModule({ tag, description, area: PHOTO_AREA, type: 'PID', unit, pvMax: max })
     if (m.type !== 'PID') throw new Error('Photo plant loop factory requires PID')
     Object.assign(m, { pv, sp, out: 0, _integral: 0, _prevPv: pv, gain: 2, reset: 30, ...extra })
     m.alarms = [{ type: 'PVBAD', label: 'PV BAD', priority: 'CRITICAL', enabled: true },
@@ -71,7 +71,7 @@ export function createPhotoPlant(): { state: PhotoPlantState; modules: Record<st
     modules[tag] = m
   }
   const indicator = (tag: string, description: string, unit: string, max: number, pv: number): void => {
-    const m = makeModule({ tag, description: `Sandbox: ${description}`, area: PHOTO_AREA, type: 'AI', unit, pvMax: max })
+    const m = makeModule({ tag, description, area: PHOTO_AREA, type: 'AI', unit, pvMax: max })
     if (m.type !== 'AI') throw new Error('Photo plant indicator factory requires AI')
     m.pv = pv
     m.alarms = [{ type: 'PVBAD', label: 'PV BAD', priority: 'CRITICAL', enabled: true },
@@ -80,10 +80,10 @@ export function createPhotoPlant(): { state: PhotoPlantState; modules: Record<st
     modules[tag] = m
   }
   const device = (tag: string, description: string, type: 'MOTOR' | 'VALVE'): void => {
-    modules[tag] = makeModule({ tag, description: `Sandbox: ${description}`, area: PHOTO_AREA, type })
+    modules[tag] = makeModule({ tag, description, area: PHOTO_AREA, type })
   }
   const compare = (tag: string, source: string, op: '<' | '>=', limit: number): void => {
-    const m = makeModule({ tag, description: 'Sandbox equipment protection', area: PHOTO_AREA, type: 'FB', fbType: 'CMP' })
+    const m = makeModule({ tag, description: 'Equipment protection', area: PHOTO_AREA, type: 'FB', fbType: 'CMP' })
     if (m.type !== 'FB') throw new Error('Photo plant interlock factory requires FB')
     Object.assign(m, { in1: { kind: 'ref', tag: source, value: 0 }, in2: { kind: 'const', value: limit }, cmpOp: op })
     modules[tag] = m
