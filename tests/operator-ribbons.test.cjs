@@ -90,8 +90,19 @@ test('picture navigation and reset affect UI only, never live process state or f
   }
 })
 
-test('all process areas render graphics with collapsed, still-accessible module directories', () => {
-  for (const area of ['FEED', 'REACTOR', 'PRODUCT', 'WFI', 'AUTOCLAVE', 'LYO', 'CIP', 'TCU']) {
+test('Feed and Reactor displays show only the 8001 picture, scaled to fit, with nothing else', () => {
+  for (const area of ['FEED', 'REACTOR']) {
+    const html = render(AreaDisplay, { area })
+    assert.equal(html, `<div class="display static-picture"><img src="./feed-reactor-picture.png" alt="${area === 'FEED' ? 'Feed tank and supply' : 'Reactor train'} process picture" draggable="false"/></div>`, area)
+    assert.ok(!html.includes('<svg') && !html.includes('plant-directory') && !html.includes('<h1'), area)
+  }
+  const bytes = fs.readFileSync(require('node:path').join(__dirname, '..', 'src', 'renderer', 'public', 'feed-reactor-picture.png'))
+  const original = fs.readFileSync(require('node:path').join(__dirname, '..', 'newImage', 'newNewImages', '8001.png'))
+  assert.ok(bytes.equals(original), 'the shipped picture is the 8001 image')
+})
+
+test('all other process areas render graphics with collapsed, still-accessible module directories', () => {
+  for (const area of ['PRODUCT', 'WFI', 'AUTOCLAVE', 'LYO', 'CIP', 'TCU']) {
     const html = render(AreaDisplay, { area })
     assert.match(html, /<svg/, area)
     assert.match(html, /<details class="plant-directory">/, area)

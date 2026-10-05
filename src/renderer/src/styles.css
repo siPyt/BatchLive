@@ -4282,3 +4282,17 @@ button {
   flex: 1;
   min-height: 260px;
 }
+
+/* Feed and Reactor displays show one reference picture, scaled to fit */
+.static-picture {
+  background: #cdd6de;
+  overflow: hidden;
+}
+.static-picture img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+}

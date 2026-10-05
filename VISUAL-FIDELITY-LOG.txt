@@ -285,3 +285,71 @@ before adding a WFI Still process model.
   the repository. Preview servers and temporary capture tooling removed.
 - WFI Still modeling and all previously listed native/arbitration gaps
   remain deferred, not falsely marked complete.
+
+=============================================================================
+CHRONOLOGICAL ACTIVITY LOG  (all times 2026-10-05, local; newest last)
+=============================================================================
+Maintained here, in the visual-fidelity log, because this is the running record
+for the display/graphics work. Every request, what was done, and the commit.
+Local-only files that are NOT committed: FLEXLOCK-LOGINS.txt (excluded via
+.git/info/exclude), pdf_extracted/ (ignored; vendor manual extractions).
+
+12:58-13:44  Request: recover after a bad shutdown; check the txt progress files for
+  newImage/newNewImages visual integrity; commit and push.
+  Done: recovered faceplates (vertical PV / horizontal OUTPUT PID layout, hook-order,
+  scrolling, output-entry gates, truthful ownership wording) and the three operator
+  ribbon bands from IMG_0602 (original SVG icons, full-width process pictures,
+  optional sidebar/module directories, UI-only picture reset, bottom alarm tiles).
+  Commit 8ce17d0.
+13:44-14:13  Request: refine existing displays first (WFI Still deferred).
+  Done: WFI caption clearance, bottom navigation, explicit missing-module feedback.
+  Commit 138a480.
+14:13-14:42  Request: plant overview should look more like IMG_0616; then build out the
+  entire photographed plant as a connected simulator; keep everything already there.
+  Done: fixed three-panel Plant Overview (Feed, Reactor, WFI) with bordered navigation;
+  additive N3/N1/N1BP WFI tank loops + coupled 3WFI-8110 still with CMP interlocks,
+  sanitation (600 s hot soak), shared steam/cooling, N1 -> legacy WFI -> CIP supply;
+  Original Spatial Plant Map kept as its own route; 26 routes; tests added.
+  Commit c95258f.
+14:53  Request: overview should show everything, not three things. Done: whole-plant card
+  page (commit 797b8a8). User then asked to go back to the three-panel version
+  ("just on the overview"): restored (commit 6bbb2c3); unused styles removed.
+15:04  Request: IMG_0636 layout for the overview; WFI Still like IMG_0604.
+  Done: overview gained live N3/N1/N1BP loop panels, a Rooms and Storage Tanks section
+  (vessels explicitly "Not modeled", no invented readings) and all reference navigation
+  boxes (disabled where unmodeled). Still picture rebuilt in the IMG_0604 layout with
+  new functional modules (PIC103, TIC200, LIC200, TT200, IY100, OIL-TEMP, SV500, XV200,
+  XV202, FCV300): steam makeup, distillate cooling via feed water, oil temperature and
+  SV500 cooling, compressor current, drain/blowdown/waste, LCV200 delivery throttle.
+  Commit 606557b.
+15:05  Request: commit/push every image. Done: IMG_0636 pushed (ab6d451). The ~2,400 images
+  under pdf_extracted/ were NOT pushed: ignored vendor-manual extractions (copyright).
+15:07  Request: "sandbox" meant a normal simulator, no difference. Done: removed sandbox/
+  training labels from navigation, module descriptions, notes, buttons, event log text
+  and docs. Commit 32bb8e0.
+15:18  Request: Control Studio per IMG_0643 and PDFs; then IMG_0640-0646 elaborate controls
+  with narratives. PDFs checked: DV-09 O&M manual (five Control Studio panes, toolbar
+  Assign To Node/Properties/Save/Download/On-Line, step to change SP_D online), DeltaV
+  Function Block reference (parameter filter subsets incl. Online Parameters, Device
+  Control block, NN launched from Control Studio), licence tables (Tune with InSight,
+  Predict/PredictPro, Neural, Configuration Audit Trail/Version Control, Control
+  Studio-Online). Not documented in the PDFs: Insert group, alarm groups, Class group.
+  Done: documented Module Template for discrete valves/motors (description, Mode Locking,
+  DCC1/EDC1 algorithm with live pin values, standard interface, TP variables, CND1 ->
+  FAILURE, configuration narrative, live options, revision history), Function Block
+  Diagram kept as a tab, ribbon groups per IMG_0643, Alarm View pane, status bar
+  (Assigned to, zoom slider). The earlier "Office ribbon out of scope" decision above was
+  superseded. 6 tests added. Commit da20ab8.
+15:18  8001.png appeared in newImage/newNewImages; committed per "push every image".
+  Commit 2fdbabb.
+15:19-15:22  Request: the 8001 image must be the ONLY thing shown, sized to fit, on the
+  Reactor Train and Feed Tank and Supply displays; log everything in the right txt file.
+  Done: Feed System and Reactor displays render only the 8001 picture (copied to
+  src/renderer/public/feed-reactor-picture.png so it ships with the build), object-fit
+  contain, no heading/module directory/other elements. Verified in the browser at
+  1500x900, 1000x700 and 700x800: one <img> filling the working area, fully loaded, no
+  scrolling. It is a static picture, so those two displays no longer show live values;
+  live graphics remain on Original Spatial Plant Map, Plant Overview and Product.
+  Tests updated (11 in operator-ribbons). Commit: see git log.
+Validation baseline through 15:22: typecheck and build pass; full suite 416 tests, the
+only failure is the existing dv09-audit dependency on the missing local pdf_om.txt.

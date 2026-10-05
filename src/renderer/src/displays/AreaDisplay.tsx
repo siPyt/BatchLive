@@ -4,6 +4,7 @@ import { moduleAlarm, fmt, isPid } from '../utils/format'
 import type { AnyModule } from '../engine/types'
 import { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } from './PharmaDiagrams'
 import { OverviewDisplay } from './OverviewDisplay'
+import { StaticPictureDisplay, FEED_REACTOR_PICTURE } from './StaticPictureDisplay'
 
 const AREA_TITLE: Record<string, string> = {
   FEED: 'FEED SYSTEM',
@@ -29,7 +30,11 @@ export function AreaDisplay({ area }: { area: string }): JSX.Element {
   const list = Object.values(modules).filter((m) => m.area === area)
   const Diagram = AREA_DIAGRAM[area]
 
-  if (area === 'FEED' || area === 'REACTOR' || area === 'PRODUCT') {
+  if (area === 'FEED' || area === 'REACTOR') {
+    return <StaticPictureDisplay src={FEED_REACTOR_PICTURE} label={area === 'FEED' ? 'Feed tank and supply process picture' : 'Reactor train process picture'} />
+  }
+
+  if (area === 'PRODUCT') {
     return <div className="display process-detail">
       <OverviewDisplay focusArea={area} />
       <ModuleDirectory modules={list} />
