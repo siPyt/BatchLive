@@ -18,6 +18,8 @@ import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
 import { sfcConfiguredMetadata } from '../engine/sfcLifecycle'
 import type { SfcDef } from '../engine/sfc'
 import { LicensingProperties } from '../components/LicensingProperties'
+import { HierarchyPanel } from '../components/HierarchyPanel'
+import type { EquipmentModule } from '../engine/equipment'
 import { SecurityPropertiesPanel } from '../components/SecurityPropertiesPanel'
 import { SignatureSetupPanel } from '../components/SignatureSetupPanel'
 import { ExportImportPanel } from '../components/ExportImportPanel'
@@ -84,6 +86,8 @@ export function ExplorerDisplay(): JSX.Element {
   const sfcLifecycles = useStore(s => s.sfcLifecycle)
   const alarms = useStore((s) => s.alarms)
   const equipment = useStore((s) => s.equipment)
+  const processCells = useStore((s) => s.processCells)
+  const units = useStore((s) => s.units)
   const areas = useStore((s) => s.areas)
   const namedSets = useStore(s => s.namedSets.configured)
   const customAlarmTypes = useStore(s => s.customAlarmTypes.configured)
@@ -107,7 +111,7 @@ export function ExplorerDisplay(): JSX.Element {
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
-  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing' | 'securityParameter' | 'securityField' | 'securityFunction' | 'signatures' | 'export'>('modules')
+  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing' | 'securityParameter' | 'securityField' | 'securityFunction' | 'signatures' | 'export' | 'hierarchy'>('modules')
   const [selectedNamedSet, setSelectedNamedSet] = useState<string | null>(null)
   const [namedSetCreateRequest, setNamedSetCreateRequest] = useState(0)
   const [namedSetPropertiesRequest, setNamedSetPropertiesRequest] =
@@ -273,6 +277,10 @@ export function ExplorerDisplay(): JSX.Element {
             onClick={() => setSetupView('signatures')}>
             <b>Electronic Signatures</b>
           </div>}
+          <div className={'exp-node exp-area' + (setupView === 'hierarchy' ? ' sel' : '')}
+            onClick={() => setSetupView('hierarchy')}>
+            <b>Equipment Hierarchy</b>
+          </div>
           <div className={'exp-node exp-area' + (setupView === 'export' ? ' sel' : '')}
             onClick={() => setSetupView('export')}>
             <b>Export / Import</b>
@@ -292,14 +300,7 @@ export function ExplorerDisplay(): JSX.Element {
         >
           <b>Control Strategies</b>
         </div>
-        <div className="exp-node exp-cell" onClick={() => toggle('CELL')}>
-          <span className="exp-caret">{open.CELL ? '▾' : '▸'}</span>
-          <ModuleIcon kind="cell" />
-          <b>REACTOR_CELL</b>
-          <span className="exp-sub">Process Cell</span>
-        </div>
-        {open.CELL &&
-          areas.map((area) => {
+        {areas.map((area) => {
             const mods = list.filter((m) => m.area === area)
             const ems = Object.values(equipment).filter((em) => em.area === area)
             const areaSfcs = Object.values(sfcs).map(sfc => ({
@@ -308,6 +309,34 @@ export function ExplorerDisplay(): JSX.Element {
             const unassignedSfcs = areaSfcs.filter(sfc => !sfc.equipmentModule ||
               !equipment[sfc.equipmentModule] || equipment[sfc.equipmentModule].area !== area)
             const unassigned = mods.filter((m) => !m.equipmentModule || !equipment[m.equipmentModule])
+            const renderEm = (em: EquipmentModule): JSX.Element => {
+                      const emKey = `EM:${em.tag}`
+                      const emMods = mods.filter((m) => m.equipmentModule === em.tag)
+                      const emSfcs = areaSfcs.filter(sfc => sfc.equipmentModule === em.tag)
+                      return (
+                        <div key={em.tag}>
+                          <div
+                            className="exp-node exp-em"
+                            onClick={() => toggle(emKey)}
+                            onContextMenu={(e) => {
+                              e.preventDefault()
+                              setMenu({ x: e.clientX, y: e.clientY, kind: 'em', target: em.tag })
+                            }}
+                          >
+                            <span className="exp-caret">{open[emKey] ? '▾' : '▸'}</span>
+                            <ModuleIcon kind="equipment" />
+                            {em.tag}
+                            <span className="exp-sub">
+                              {em.description} · {emMods.length + emSfcs.length} modules
+                            </span>
+                          </div>
+                          {open[emKey] && <>
+                            {emMods.map((m) => renderModuleRow(m, true))}
+                            {emSfcs.map(sfc => renderSfcRow(sfc, true))}
+                          </>}
+                        </div>
+                      )
+            }
             return (
               <div key={area}>
                 <div
@@ -341,35 +370,35 @@ export function ExplorerDisplay(): JSX.Element {
                 </div>
                 {open[area] && (
                   <>
-                    {ems.map((em) => {
-                      const emKey = `EM:${em.tag}`
-                      const emMods = mods.filter((m) => m.equipmentModule === em.tag)
-                      const emSfcs = areaSfcs.filter(sfc => sfc.equipmentModule === em.tag)
+                    {Object.values(processCells).filter((cell) => cell.area === area).map((cell) => {
+                      const cellKey = `CELL:${cell.name}`
                       return (
-                        <div key={em.tag}>
-                          <div
-                            className="exp-node exp-em"
-                            onClick={() => toggle(emKey)}
-                            onContextMenu={(e) => {
-                              e.preventDefault()
-                              setMenu({ x: e.clientX, y: e.clientY, kind: 'em', target: em.tag })
-                            }}
-                          >
-                            <span className="exp-caret">{open[emKey] ? '▾' : '▸'}</span>
-                            <ModuleIcon kind="equipment" />
-                            {em.tag}
-                            <span className="exp-sub">
-                              {em.description} · {emMods.length + emSfcs.length} modules
-                            </span>
+                        <div key={cell.name}>
+                          <div className="exp-node exp-cell" onClick={() => toggle(cellKey)} title={cell.description}>
+                            <span className="exp-caret">{open[cellKey] === false ? '▸' : '▾'}</span>
+                            <ModuleIcon kind="cell" />
+                            <b>{cell.name}</b>
+                            <span className="exp-sub">Process Cell</span>
                           </div>
-                          {open[emKey] && <>
-                            {emMods.map((m) => renderModuleRow(m, true))}
-                            {emSfcs.map(sfc => renderSfcRow(sfc, true))}
-                          </>}
+                          {open[cellKey] !== false && Object.values(units).filter((unit) => unit.cell === cell.name).map((unit) => {
+                            const unitKey = `UNIT:${unit.name}`
+                            const unitEms = ems.filter((em) => em.unit === unit.name)
+                            return (
+                              <div key={unit.name}>
+                                <div className="exp-node exp-em" onClick={() => toggle(unitKey)} title={unit.description}>
+                                  <span className="exp-caret">{open[unitKey] === false ? '▸' : '▾'}</span>
+                                  <ModuleIcon kind="equipment" />
+                                  <b>{unit.name}</b>
+                                  <span className="exp-sub">Unit · {unitEms.length} equipment module(s)</span>
+                                </div>
+                                {open[unitKey] !== false && unitEms.map((em) => renderEm(em))}
+                              </div>
+                            )
+                          })}
                         </div>
                       )
                     })}
-                    {(unassigned.length > 0 || unassignedSfcs.length > 0) && (
+                    {ems.filter((em) => !em.unit || !units[em.unit]).map((em) => renderEm(em))}                    {(unassigned.length > 0 || unassignedSfcs.length > 0) && (
                       <div>
                         <div className="exp-node exp-em unassigned">
                           <span className="exp-caret">▾</span>
@@ -389,7 +418,7 @@ export function ExplorerDisplay(): JSX.Element {
       </div>
 
       <div className="explorer-detail">
-        {setupView === 'licensing' ? <LicensingProperties /> : setupView === 'export' ? (
+        {setupView === 'hierarchy' ? <HierarchyPanel /> : setupView === 'licensing' ? <LicensingProperties /> : setupView === 'export' ? (
           <ExportImportPanel initialNamedSet={selectedNamedSet} />
         ) : setupView === 'signatures' ? (
           <SignatureSetupPanel />

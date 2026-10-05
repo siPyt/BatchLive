@@ -9,6 +9,8 @@ export interface EquipmentModule {
   tag: string
   description: string
   area: string
+  /** DV09-013: the Unit this equipment module sits under; undefined means it hangs directly under its area. */
+  unit?: string
 }
 
 /** Seed Equipment Modules grouping the built-in plant's Control Modules. */

@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 59 VERIFIED_SUBSET, 44 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 60 VERIFIED_SUBSET, 43 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -313,11 +313,34 @@ Acceptance: Add an isolated course scenario with these exact relationships
 
 [DV09-013]
 Pages: 79-83
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Use area-specific privileges and workstation alarm boundaries;
   represent Area -> Process Cell -> Unit -> Equipment -> Control hierarchy.
-Evidence: Areas and equipment membership exist; EXPLORER's organization is
-  simplified and reverses some displayed relationships. SECURITY is sitewide.
+Evidence (Pass65, Pass69, Pass89): areas hold control modules and define two
+  real boundaries: a workstation's alarm subscription (area eligibility, user
+  area keys for the banner) and per-user/group area write keys enforced on
+  parameter and field writes, with cross-area negative tests.
+  Pass89 adds the missing hierarchy levels (hierarchy.ts): Process Cells belong
+  to an area, Units to a cell, Equipment Modules sit under a unit of their own
+  area (or directly under the area), and Control Modules under an equipment
+  module, giving Area > Process Cell > Unit > Equipment Module > Control Module
+  with a computed path per module. Explorer now shows exactly that nesting
+  (the static REACTOR_CELL wrapper that reversed Area and Cell is gone); the
+  pharma project is seeded with one cell and unit per equipped area; a new Setup
+  > Equipment Hierarchy panel creates/deletes cells and units (names unique
+  across the hierarchy, 16-character tag rule) and places equipment modules,
+  all under Can Configure with containment rules (a cell with units or a unit
+  with equipment cannot be deleted; a unit from another area is refused).
+  Renaming an area carries its cells. Unit behavior: DeltaV Batch refuses to
+  start unless its unit's area has a complete Area > Process Cell > Unit
+  hierarchy, with a journaled reason. Twelve regressions cover the seeded
+  hierarchy, blank projects, names, containment, placement, rename, the batch
+  rule, keys and a cross-area negative case; the browser showed the new tree and
+  created a cell.
+  Boundary: class-based process cells and unit classes, units carrying batch
+  phases or advanced unit alarming, and the Explorer drag-and-drop of modules
+  between units are not modelled; hierarchy edits are not part of project
+  export/import.
 Acceptance: Exercise the complete hierarchy, unit behavior, area writes and
   alarm subscription boundaries with cross-area negative tests.
 
@@ -4194,3 +4217,23 @@ Validation: 618 tests locally (617 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-055 PARTIAL -> VERIFIED_SUBSET. Totals 59 VERIFIED_SUBSET/
   44 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 89 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-013 equipment hierarchy and unit behavior (pp79-83, course 2-8..2-14).
+Engine: new hierarchy.ts (cells, units, validation, paths, batch rule);
+  equipment.ts gains EquipmentModule.unit; store gains processCells, units,
+  create/delete/assign actions (registry target fn-hierarchy, Can Configure),
+  default hierarchy for the pharma project, area-rename cascade, optional unit on
+  createEquipmentModule and the Batch START hierarchy check.
+UI: Explorer tree is now Area > Process Cell > Unit > Equipment Module > Control
+  Module; Setup > Equipment Hierarchy panel.
+Tests: tests/hierarchy.test.cjs (12).
+Browser: FEED_CELL/REACTOR_CELL/PRODUCT_CELL render under their areas; the
+  hierarchy panel reported the batch unit complete and created FEED_B.
+Boundary (honest): no class-based cells/unit classes, no unit alarming/phases,
+  no module drag-drop between units, hierarchy not in project export.
+Validation: 630 tests locally (629 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-013 PARTIAL -> VERIFIED_SUBSET. Totals 60 VERIFIED_SUBSET/
+  43 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

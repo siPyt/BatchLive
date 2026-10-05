@@ -2656,3 +2656,9 @@ PASS 88: RCAS / ROUT REMOTE HOST (pp243-249)
 Line1 - RCAS follows RCAS_IN, ROUT follows ROUT_IN, both from a simulated external program.
 Line2 - Stale/Bad/no data sheds RCAS to AUTO and ROUT to MAN; timeout configurable.
 Line3 - No OPC; panel stands in for the host. Tests: remote-host.test.cjs.
+
+PASS 89: EQUIPMENT HIERARCHY (pp79-83)
+-----------------------------------------------------------------------
+Line1 - Area > Process Cell > Unit > Equipment Module > Control Module, shown in Explorer and in a Setup panel.
+Line2 - Containment rules, per-area placement, rename cascade.
+Line3 - Unit behavior: Batch needs a complete hierarchy. Tests: hierarchy.test.cjs.

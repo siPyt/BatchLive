@@ -29,6 +29,7 @@ import { reconcileDeviceAlarms } from './deviceAlarms'
 import { commissionPropertiesErrors, controllerReferenceCount, placeholderErrors, reconcileHardwareAlarms, type CommissionProperties } from './commissioning'
 import { useSimulator, validateScale } from './simulatorSession'
 import { coldRestartDecision, type ColdRestartDecision } from './coldRestart'
+import { assignUnitError, batchHierarchyError, deleteProcessCellError, deleteUnitError, makeDefaultHierarchy, processCellError, renameAreaInHierarchy, unitError, type ProcessCell, type Unit } from './hierarchy'
 import { DEFAULT_RECIPE_NAME, defaultRecipe, recipeErrors, resolveRecipe, type Recipe } from './recipes'
 import { hostTimeoutError, hostWriteError, markHostBad, remoteHostOf, writeHostSignal, type HostInput } from './remoteHost'
 import { isDefaultSchedule, validateExecutionOrder, validateScanMultiple, type ModuleScheduling } from './moduleScheduling'
@@ -91,7 +92,7 @@ import {
   analogBindingError, channelConfigurationError, deviceBindingError, discreteBindingError, doOptionError, findDst, makeTraditionalCard,
   type AnalogBindingPort, type DeviceBindingPort, type DoOutputOption, type TraditionalCardType
 } from './traditionalIo'
-import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
+import { advanceBatch, BATCH_UNIT, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { cloneSfcBlocks, reconcileSfcAlarms, sfcBlockConfigurationError, type SfcBlockConfiguration } from './sfcBlocks'
 import { registerAreaResolver, requireUnlockedKey, useSecurity } from './security'
@@ -175,6 +176,15 @@ interface StoreState extends PlantState {
   sfcs: Record<string, SfcDef>
   /** Equipment Modules (ISA-88 physical hierarchy), keyed by tag. */
   equipment: Record<string, EquipmentModule>
+  /** DV09-013 hierarchy: Area > Process Cell > Unit > Equipment Module > Control Module. */
+  processCells: Record<string, ProcessCell>
+  units: Record<string, Unit>
+  createProcessCell: (name: string, area: string, description: string) => string | null
+  deleteProcessCell: (name: string) => string | null
+  createUnit: (name: string, cell: string, description: string) => string | null
+  deleteUnit: (name: string) => string | null
+  /** Place an equipment module under a unit of its own area, or null to hang it directly under the area. */
+  assignEquipmentUnit: (emTag: string, unit: string | null) => string | null
   /** Physical Network: Controllers / I/O Carriers / CHARM baseplates. */
   hardware: HardwareState
   moduleLifecycle: Record<string, AoLifecycle>
@@ -393,7 +403,7 @@ interface StoreState extends PlantState {
   createArea: (name: string) => boolean
   renameArea: (name: string, nextName: string) => boolean
   deleteModule: (tag: string) => void
-  createEquipmentModule: (tag: string, description: string, area: string) => void
+  createEquipmentModule: (tag: string, description: string, area: string, unit?: string | null) => void
   deleteEquipmentModule: (tag: string) => void
   /** Assign (or clear, with null) a Control Module's Equipment Module. */
   setModuleEquipment: (moduleTag: string, emTag: string | null) => void
@@ -411,6 +421,7 @@ interface StoreState extends PlantState {
 }
 
 const initial = installPhotoPlant(buildInitialPlant()).plant
+const defaultHierarchy = makeDefaultHierarchy(initial.areas, makeDefaultEquipment())
 
 /** Process conditions Initialize Simulation returns to; replaced when File > New loads a different baseline. */
 let simulationBaseline = { process: { ...initial.process }, photoPlant: initial.photoPlant }
@@ -497,7 +508,9 @@ export const useStore = create<StoreState>((set, get) => ({
   batch: makeBatch(),
   phases: makeDefaultPhases(),
   sfcs: makeDefaultSfcs(),
-  equipment: makeDefaultEquipment(),
+  equipment: defaultHierarchy.equipment,
+  processCells: defaultHierarchy.processCells,
+  units: defaultHierarchy.units,
   hardware: makeDefaultHardware(),
   moduleLifecycle: {},
   pidLifecycle: {},
@@ -1995,6 +2008,11 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!useSecurity.getState().requireLock('BATCH_OPERATE', 'Batch command')) return
     let resolved: ReturnType<typeof resolveRecipe> | undefined
     if (cmd === 'START') {
+      const hierarchyError = batchHierarchyError(BATCH_UNIT, get())
+      if (hierarchyError) {
+        get().logEvent('DIAGNOSTIC', get().batch.id, `Batch command rejected: ${hierarchyError}`); window.alert(hierarchyError)
+        return
+      }
       const recipe = get().recipes[get().activeRecipe]
       resolved = recipe ? resolveRecipe(recipe, get().phases) : { ok: false, errors: [`Recipe ${get().activeRecipe} does not exist`] }
       if (!resolved.ok) {
@@ -2070,6 +2088,7 @@ export const useStore = create<StoreState>((set, get) => ({
           { ...module, area: key } : module])),
       equipment: Object.fromEntries(Object.entries(s.equipment).map(([tag, equipment]) =>
         [tag, equipment.area === name ? { ...equipment, area: key } : equipment])),
+      processCells: renameAreaInHierarchy(s.processCells, name, key),
       sfcs: Object.fromEntries(Object.entries(s.sfcs).map(([tag, sfc]) =>
         [tag, sfc.area === name ? { ...sfc, area: key } : sfc])),
       sfcLifecycle: Object.fromEntries(Object.entries(s.sfcLifecycle).map(([tag, lifecycle]) =>
@@ -3389,8 +3408,58 @@ export const useStore = create<StoreState>((set, get) => ({
     get().logEvent('CONFIGURE', tag, 'Module deleted')
   },
 
-  createEquipmentModule: (tag, description, area) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create Equipment Module ${tag}`)) return
+  createProcessCell: (name, area, description) => {
+    const key = name.trim().toUpperCase()
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create Process Cell ${key}`)) return 'Requires the Can Configure key'
+    const s = get()
+    const error = processCellError(key, area, description.trim(), s)
+    if (error) { get().logEvent('DIAGNOSTIC', key, `Process Cell creation rejected: ${error}`); return error }
+    set({ processCells: { ...s.processCells, [key]: { name: key, area, description: description.trim() } }, rev: s.rev + 1 })
+    get().logEvent('CONFIGURE', key, `Process Cell created in area ${area}`)
+    return null
+  },
+  deleteProcessCell: (name) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Delete Process Cell ${name}`)) return 'Requires the Can Configure key'
+    const s = get()
+    const error = deleteProcessCellError(name, s)
+    if (error) { get().logEvent('DIAGNOSTIC', name, `Process Cell delete rejected: ${error}`); return error }
+    const processCells = { ...s.processCells }
+    delete processCells[name]
+    set({ processCells, rev: s.rev + 1 })
+    get().logEvent('CONFIGURE', name, 'Process Cell deleted')
+    return null
+  },
+  createUnit: (name, cell, description) => {
+    const key = name.trim().toUpperCase()
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create Unit ${key}`)) return 'Requires the Can Configure key'
+    const s = get()
+    const error = unitError(key, cell, description.trim(), s)
+    if (error) { get().logEvent('DIAGNOSTIC', key, `Unit creation rejected: ${error}`); return error }
+    set({ units: { ...s.units, [key]: { name: key, cell, description: description.trim() } }, rev: s.rev + 1 })
+    get().logEvent('CONFIGURE', key, `Unit created in Process Cell ${cell}`)
+    return null
+  },
+  deleteUnit: (name) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Delete Unit ${name}`)) return 'Requires the Can Configure key'
+    const s = get()
+    const error = deleteUnitError(name, s)
+    if (error) { get().logEvent('DIAGNOSTIC', name, `Unit delete rejected: ${error}`); return error }
+    const units = { ...s.units }
+    delete units[name]
+    set({ units, rev: s.rev + 1 })
+    get().logEvent('CONFIGURE', name, 'Unit deleted')
+    return null
+  },
+  assignEquipmentUnit: (emTag, unit) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Assign Equipment Module ${emTag} to Unit`)) return 'Requires the Can Configure key'
+    const s = get()
+    const error = assignUnitError(emTag, unit, s)
+    if (error) { get().logEvent('DIAGNOSTIC', emTag, `Unit assignment rejected: ${error}`); return error }
+    set({ equipment: { ...s.equipment, [emTag]: { ...s.equipment[emTag], unit: unit ?? undefined } }, rev: s.rev + 1 })
+    get().logEvent('CONFIGURE', emTag, `Equipment Module placed under ${unit ?? 'its area (no unit)'}`)
+    return null
+  },
+  createEquipmentModule: (tag, description, area, unit) => {    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create Equipment Module ${tag}`)) return
     if (!get().areas.includes(area)) {
       const message = `Area ${area} does not exist`
       get().logEvent('DIAGNOSTIC', tag, `Equipment Module creation rejected: ${message}`)
@@ -3400,7 +3469,11 @@ export const useStore = create<StoreState>((set, get) => ({
     set((s) => {
       const key = tag.trim().toUpperCase()
       if (!key || s.equipment[key]) return {}
-      return { equipment: { ...s.equipment, [key]: { tag: key, description, area } }, rev: s.rev + 1 }
+      if (unit) {
+        const placement = assignUnitError(key, unit, { ...s, equipment: { ...s.equipment, [key]: { tag: key, description, area } } })
+        if (placement) { window.alert(placement); return {} }
+      }
+      return { equipment: { ...s.equipment, [key]: { tag: key, description, area, ...(unit ? { unit } : {}) } }, rev: s.rev + 1 }
     })
     get().logEvent('CONFIGURE', tag, 'Equipment Module created')
   },
@@ -3907,6 +3980,7 @@ export const useStore = create<StoreState>((set, get) => ({
   newProject: (kind) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `New Project (${kind})`)) return
     const base = kind === 'blank' ? buildBlankPlant() : installPhotoPlant(buildInitialPlant()).plant
+    const freshHierarchy = makeDefaultHierarchy(base.areas, makeDefaultEquipment())
     simulationBaseline = { process: { ...base.process }, photoPlant: kind === 'blank' ? undefined : base.photoPlant }
     set({
       ...base,
@@ -3916,7 +3990,9 @@ export const useStore = create<StoreState>((set, get) => ({
       batch: makeBatch(),
       phases: makeDefaultPhases(),
       sfcs: kind === 'blank' ? {} : makeDefaultSfcs(),
-      equipment: kind === 'blank' ? makeBlankEquipment() : makeDefaultEquipment(),
+      equipment: kind === 'blank' ? makeBlankEquipment() : freshHierarchy.equipment,
+      processCells: kind === 'blank' ? {} : freshHierarchy.processCells,
+      units: kind === 'blank' ? {} : freshHierarchy.units,
       hardware: kind === 'blank' ? makeBlankHardware() : makeDefaultHardware(),
       moduleLifecycle: {},
       pidLifecycle: {},
