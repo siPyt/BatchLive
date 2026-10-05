@@ -30,8 +30,8 @@ import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './anal
 import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
 import {
   aoOperatorError, cloneAo, cloneConfiguration, configurationError, deployedAo, downloadError, lifecycleDirty,
-  memoryOf, capturedAoDownload, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
-  type AoDraftPatch, type AoLifecycle
+  memoryOf, capturedAoDownload, prepareAoTransfer, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
+  type AoConfiguration, type AoDraftPatch, type AoLifecycle
 } from './moduleLifecycle'
 import {
   changedPidTuningParameters, clonePidConfiguration, lifecyclePidModules, parseSavedPid,
@@ -159,7 +159,8 @@ interface StoreState extends PlantState {
   editModuleDraft: (tag: string, patch: AoDraftPatch) => boolean
   saveModuleConfiguration: (tag: string) => boolean
   loadSavedModuleConfiguration: (tag: string) => boolean
-  downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL') => boolean
+  verifyAoDownload: (tag: string, scope: 'FULL' | 'PARTIAL') => boolean
+  downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL', expected?: AoConfiguration) => boolean
   resendLastGoodModuleDownload: (tag: string) => boolean
   updateControllerAoRestartMemory: (tag: string) => boolean
   uploadModule: (tag: string) => boolean
@@ -1894,27 +1895,26 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
-  downloadModule: (tag, scope) => {
+  verifyAoDownload: (tag, scope) => {
+    if (!requireUnlockedKey('CAN_DOWNLOAD', `Verify AO download ${tag}`)) return false
+    const state = get()
+    const prepared = prepareAoTransfer(state.moduleLifecycle[tag], state.modules[tag], state.hardware, scope)
+    if ('error' in prepared) return rejectAo(get, tag, `Download verification rejected: ${prepared.error}`)
+    get().logEvent('DIAGNOSTIC', tag,
+      `AO ${scope} verification passed: saved references, controller, output ownership and preserved values checked; no transfer`)
+    return true
+  },
+
+  downloadModule: (tag, scope, expected) => {
+    if (expected && !requireUnlockedKey('CAN_DOWNLOAD', `Confirm verified AO download ${tag}`)) return false
     if (!useSecurity.getState().requireLock('CAN_DOWNLOAD', `Download module ${tag}`)) return false
     const state = get()
     const record = state.moduleLifecycle[tag]
     const runtime = state.modules[tag]
-    if (!record?.saved || runtime?.type !== 'AO' || lifecycleDirty(record)) {
-      return rejectAo(get, tag, 'Save a valid offline draft before downloading')
-    }
-    if (!['FULL', 'PARTIAL'].includes(scope) || (scope === 'PARTIAL' && (!record.deployed || !runtime.downloaded))) {
-      return rejectAo(get, tag, 'First download must be Full; subsequent scope must be Full or Partial')
-    }
-    if (scope === 'PARTIAL' && record.replayFullRequired) {
-      return rejectAo(get, tag, 'Perform a fresh Full module download after controller recommissioning')
-    }
-    const error = downloadError(record.saved, state.hardware)
-    if (error) return rejectAo(get, tag, `Download failed; last-good runtime retained: ${error}`)
-    const saved = record.saved
-    const behavior = scope === 'FULL' ? 'CONFIGURED' : saved.downloadBehavior
-    const module = deployedAo(saved, runtime, behavior, state.hardware)
-    const transferError = configurationError({ ...saved, module })
-    if (transferError) return rejectAo(get, tag, `Preserved runtime values are invalid: ${transferError}`)
+    const prepared = prepareAoTransfer(record, runtime, state.hardware, scope, expected)
+    if ('error' in prepared) return rejectAo(get, tag, prepared.error)
+    if (!record) return rejectAo(get, tag, 'Managed AO lifecycle no longer exists')
+    const { saved, module, behavior } = prepared
     set(s => ({
       modules: { ...s.modules, [tag]: module },
       hardware: { ...s.hardware, analogBindings: { ...s.hardware.analogBindings,

@@ -550,7 +550,15 @@ Enable it in an isolated training session: the output holds until Save and the
 first Full Download. Offline drafts, saved defaults, deployed configuration,
 live values and simulated NVM are independent. Assign a commissioned controller,
 Save, then Download the module. Cancelled or invalid transfers leave runtime
-unchanged. Full uses configured values; Partial selects configured values,
+unchanged. The AO Download dialog requires **Verify Configuration** before
+confirmation, reports reference/target/preservation checks and shows a running-
+output caution with Cancel. Confirmation rechecks hardware and rejects a saved
+configuration changed since verification; it cannot silently download a newer
+revision. The dialog stays open with actual atomic transfer results and **Close
+Download Results** after success. Verification and transfer events use the
+simulator's event journal, not a native disk log. The synchronous module transfer
+does not imitate asynchronous controller progress, licensing, Fieldbus dependency
+checks or generic upload stages. Full uses configured values; Partial selects configured values,
 critical block values only, or critical plus user-defined values. The DV-09
 CAS/500 versus AUTO/555 exercise produces CAS/500, AUTO/500 and AUTO/555 respectively.
 Online shows runtime; offline edits do not alter the deployed module. Upload

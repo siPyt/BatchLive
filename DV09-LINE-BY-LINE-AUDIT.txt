@@ -343,11 +343,30 @@ Acceptance: Test an undownloaded edit, memory-only update and last-good replay;
 
 [DV09-019]
 Pages: 99-104
-Status: MISSING
+Status: PARTIAL
 Required: Verify references/dependencies, handle download cautions/abort,
   upload and pre-download checks, stages/progress/logs and indicator clearing;
   use diagnostics to verify the result.
-Evidence: NETWORK diagnostics exist, but do not execute this download chain.
+Evidence:
+  Pass49 - bounded managed-AO workflow. Download dialog requires Verify
+  Configuration and displays a running-output caution with Cancel before
+  transfer. Shared preflight validates saved/dirty state, available commissioned
+  controller, output ownership/type, references and preservation policy.
+  Verification does not change runtime, binding, deployment, revisions or saved
+  storage. Confirm uses the exact reviewed saved configuration object and rejects
+  later saved edits; hardware and access are rechecked before atomic transfer.
+  The result remains visible until Close Download Results; failures retain
+  last-good runtime. Actual module saved/deployed comparison clears only after
+  transfer. Verification/rejection/transfer events are in the existing event
+  journal; NETWORK diagnostics remain available for checking the controller.
+  Two engine regressions and one UI-rendering regression cover isolation,
+  stale saved revisions, changed targets, dirty drafts, access and disabled
+  initial Confirm. Browser tested verify/no transfer, stale-disabled Confirm,
+  Cancel/no deployment and reverify/Full producing CAS900/90%.
+Gaps: whole-controller download orchestration, native disk download log file,
+  license/installability stages, generic upload checks and Fieldbus dependencies.
+  AO stages describe the synchronous module operation; no fabricated asynchronous
+  progress/checkmarks or implied native controller transfer.
 Acceptance: Failed/cancelled transfer must preserve last-good runtime and
   dirty status. Only successful transfer clears the relevant indicators.
 

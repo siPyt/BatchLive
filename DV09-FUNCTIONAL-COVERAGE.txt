@@ -3,25 +3,25 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: opt-in controller-owned
-AO restart-memory-only update (Pass48, LOCAL; pushes paused by user).
-Previous milestone: d9310c8, immutable AO replay (Pass47, LOCAL).
+DV-09 is NOT complete. Latest implemented milestone: managed-AO download
+verification/caution/results (Pass49, LOCAL; pushes paused by user).
+Previous milestone: 0196b49, AO restart-memory-only update (Pass48, LOCAL).
 Last published functional milestone: da59138, PID Detail/trends (Pass41).
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
   VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
-  PARTIAL         56 - related behavior exists; exact workflow has gaps
-  MISSING         39 - required executable workflow/model is absent
+  PARTIAL         57 - related behavior exists; exact workflow has gaps
+  MISSING         38 - required executable workflow/model is absent
   BOUNDARY        19 - hardware/vendor/host behavior outside verified simulation
   CONTEXT          6 - framing/recap, not implementation requirements
   TOTAL          128
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:348 repository tests passed; typecheck, production build,
+Last validation:351 repository tests passed; typecheck, production build,
 edited-file diagnostics, audit validator and diff whitespace checks passed.
-Browser verified Physical Network memory update retaining live700/saved900,
-capturing500 without working changes; actual restart restored500/50% output.
+Browser verified actual AO dialog verify/no transfer, stale-disabled Confirm,
+Cancel/no deployment and reverify/Full producing CAS900/90% output.
 Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
@@ -37,6 +37,8 @@ Most recent delivered functionality:
   - Control Studio File/New and empty-Studio/SFC entry into shared FBD/SFC creation.
   - Immutable AO replay excluding newer saved/live values and guarding recommission.
   - Atomic AO memory-only transfer capture consumed by actual cold restart.
+  - AO readonly download verification, caution/abort, exact-saved confirmation,
+    transfer-time target/access recheck and actual synchronous result stages.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1813,3 +1815,33 @@ upgrade recovery or PID/device/SFC/card/Setup restart memory is claimed.
 DV09-018 remains PARTIAL. No push without explicit authorization.
 Validation:348 full-suite tests, targeted restart/memory tests, typecheck,
 production build, scoped diagnostics, audit validator and diff whitespace pass.
+
+PASS 49: MANAGED AO DOWNLOAD VERIFICATION/CAUTION/RESULTS (pp99-104)
+-----------------------------------------------------------------
+Line1 - Verify Configuration uses shared transfer preflight: saved/dirty state,
+  scope, recommission requirement, controller availability, output DST ownership/
+  type, CAS references and preserved parameter validity.
+Line2 - Verification changes only diagnostic journal/security feedback, not
+  deployment, runtime, bindings, revision counters or stored defaults.
+Line3 - Confirm rechecks access/targets and refuses any changed saved object.
+  Newer saved edits cannot replace the configuration the operator reviewed.
+Line4 - Caution explains potential running mode/output changes. Cancel aborts
+  before transfer. Failed confirmation retains last-good runtime/configuration.
+Line5 - Successful atomic result stays visible until Close Download Results.
+  Module saved/deployed comparison clears only after actual successful transfer.
+Line6 - Stage list distinguishes event journal, reference/pre-download checks,
+  preservation policy, inapplicable Fieldbus checks and pending/failed/completed
+  atomic transfer; no fake timed native progress or disk-log-file claim.
+Line7 - Two engine tests plus one rendering test verify read-only isolation,
+  stale saved revisions, changed targets, dirty drafts, permission/lock recheck
+  and initially disabled Confirm.
+Line8 - Browser mounted the actual ModuleDownloadDialog in a temporary fixture
+  and dispatched actual React buttons. Verify left runtime/deployment unchanged;
+  a later saved900 edit disabled Confirm. Cancel left the AO undownloaded.
+  Reverify/Full transferred CAS_SP900; running scan produced SP900/OUT90%.
+  Original96-module running plant/security and exact fixture storage restored.
+Boundary: whole-controller chain, native disk download log, license/installability,
+generic upload stages and Fieldbus dependency handling remain open.
+DV09-019 becomes PARTIAL; line dispositions regenerated from the source mapping.
+Validation:351 full-suite tests, typecheck, build, scoped diagnostics and audit
+validator passed. Local commits only; pushes remain paused.

@@ -16,6 +16,7 @@ const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { NewControlModuleDialog } = require('../src/renderer/src/displays/ExplorerDisplay.tsx')
 const { ControlStudioDisplay } = require('../src/renderer/src/displays/ControlStudioDisplay.tsx')
 const { SfcDisplay } = require('../src/renderer/src/displays/SfcDisplay.tsx')
+const { ModuleDownloadDialog } = require('../src/renderer/src/components/ModuleLifecycleControls.tsx')
 
 test('shared Studio New dialog retains FBD default, SFC choice, metadata and explicit Create/Cancel without creating on render', () => {
   const before = useStore.getState()
@@ -40,4 +41,21 @@ test('an empty Studio and SFC editor both expose New without replacing existing 
   assert.match(sfc, />New Control Module\.\.\.<\/button>/)
   assert.match(sfc, /placeholder="New SFC name"/)
   assert.match(sfc, />Create<\/button>/)
+})
+
+test('AO download dialog requires verification and exposes truthful scope, pending stages and Cancel without transferring on render', () => {
+  const before = useStore.getState()
+  const markup = renderToStaticMarkup(React.createElement(ModuleDownloadDialog, {
+    tag: 'UNSAVED-AO', onClose: () => {}
+  }))
+  assert.match(markup, /aria-label="AO download stages"/)
+  assert.match(markup, /Pending verification/)
+  assert.match(markup, /Atomic module transfer: Not started/)
+  assert.match(markup, /no native disk log file/)
+  assert.match(markup, /Fieldbus dependency checks: not applicable/)
+  assert.match(markup, /Save a valid offline draft/)
+  assert.match(markup, />Verify Configuration<\/button>/)
+  assert.match(markup, /disabled="">Confirm Download<\/button>/)
+  assert.match(markup, />Cancel Download<\/button>/)
+  assert.equal(useStore.getState(), before)
 })

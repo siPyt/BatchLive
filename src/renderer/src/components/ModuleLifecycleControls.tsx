@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { SimulatorDialog } from './SimulatorDialog'
 import { useStore } from '../engine/store'
-import { lifecycleDirty } from '../engine/moduleLifecycle'
+import { lifecycleDirty, prepareAoTransfer, type AoConfiguration } from '../engine/moduleLifecycle'
 import { DownloadStatusIndicator } from './DownloadStatusIndicator'
 import { compareModuleDownload } from '../engine/downloadStatus'
 
@@ -105,20 +105,54 @@ export function ModuleDownloadDialog({ tag, onClose }: { tag: string; onClose: (
   const record = useStore(s => s.moduleLifecycle[tag])
   const runtime = useStore(s => s.modules[tag])
   const download = useStore(s => s.downloadModule)
+  const hardware = useStore(s => s.hardware)
+  const verify = useStore(s => s.verifyAoDownload)
   const downloaded = runtime?.type === 'AO' && runtime.downloaded === true
   const [scope, setScope] = useState<'FULL' | 'PARTIAL'>(downloaded ? 'PARTIAL' : 'FULL')
+  const [verified, setVerified] = useState<AoConfiguration | null>(null)
+  const [result, setResult] = useState<'pending' | 'failed' | 'complete'>('pending')
+  const [error, setError] = useState('')
+  const stale = !!verified && record?.saved !== verified
+  const preflight = prepareAoTransfer(record, runtime, hardware, scope)
   return <SimulatorDialog className="module-download-dialog" label={`${tag} Download`} onClose={onClose}>
     <b>{tag} - Simulated Module Download</b>
     <p>Validate saved configuration, then transfer atomically. Failed or cancelled downloads leave the last-good runtime unchanged.</p>
     <label>Scope <select aria-label={`${tag} download scope`} value={scope} onChange={e => {
-      if (e.target.value === 'FULL' || e.target.value === 'PARTIAL') setScope(e.target.value)
-    }}><option value="FULL">Full - use configured values</option>
+      if (e.target.value === 'FULL' || e.target.value === 'PARTIAL') {
+        setScope(e.target.value); setVerified(null); setResult('pending'); setError('')
+      }
+    }} disabled={result === 'complete'}><option value="FULL">Full - use configured values</option>
       <option value="PARTIAL" disabled={!downloaded}>Partial - use saved preservation policy</option>
     </select></label>
     <p>Partial policy: {record?.saved?.downloadBehavior ?? '(save required)'}. Only this module is transferred; no physical controller communication is performed.</p>
+    <ol aria-label="AO download stages">
+      <li>Event journal: verification/rejection/transfer results are recorded; no native disk log file.</li>
+      <li>References and pre-download checks: {result === 'complete' ? 'Checked at transfer' :
+        stale ? 'Saved configuration changed; verify again' : verified ? 'Verified; checked again on confirmation' : 'Pending verification'}.</li>
+      <li>Upload/preservation policy: {scope === 'FULL' ? 'Configured defaults replace live values' :
+        `Current live values preserved according to ${record?.saved?.downloadBehavior ?? 'unsaved'} policy at transfer`}.</li>
+      <li>Fieldbus dependency checks: not applicable to this traditional AO scope.</li>
+      <li>Atomic module transfer: {result === 'complete' ? 'Complete' : result === 'failed' ? 'Rejected; last-good runtime retained' : 'Not started'}.</li>
+    </ol>
+    {verified && result !== 'complete' && <p role="note">Caution: confirmation can change this module's running mode and output.
+      Cancel aborts before transfer. This is not a whole-controller download.</p>}
+    {(error || stale || 'error' in preflight) && result !== 'complete' && <p role="alert">
+      {error || (stale ? 'Saved configuration changed; verify again before confirming.' :
+        'error' in preflight ? preflight.error : '')}</p>}
     <div className="traditional-channel-form">
-      <button className="tbtn sm" onClick={() => { if (download(tag, scope)) onClose() }}>Confirm Download</button>
-      <button className="tbtn sm" onClick={onClose}>Cancel Download</button>
+      {result === 'complete' ? <button className="tbtn sm" onClick={onClose}>Close Download Results</button> : <>
+        <button className="tbtn sm" onClick={() => {
+          setError(''); setResult('pending')
+          if (verify(tag, scope) && record?.saved) setVerified(record.saved)
+          else { setVerified(null); setError('Verification rejected. Correct the reported configuration or permission problem.') }
+        }}>Verify Configuration</button>
+        <button className="tbtn sm" disabled={!verified || stale || 'error' in preflight} onClick={() => {
+          if (!verified) return
+          if (download(tag, scope, verified)) { setResult('complete'); setError('') }
+          else { setResult('failed'); setVerified(null); setError('Download rejected. Verify again after correcting the reported problem.') }
+        }}>Confirm Download</button>
+        <button className="tbtn sm" onClick={onClose}>Cancel Download</button>
+      </>}
     </div>
   </SimulatorDialog>
 }

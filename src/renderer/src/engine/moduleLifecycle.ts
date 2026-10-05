@@ -134,6 +134,28 @@ export function deployedAo(c: AoConfiguration, runtime: AnalogOutputModule, beha
   m.downloaded = true
   return m
 }
+export function prepareAoTransfer(record: AoLifecycle | undefined, runtime: AnyModule | undefined,
+  hardware: HardwareState, scope: 'FULL' | 'PARTIAL', expected?: AoConfiguration):
+  { error: string } | { saved: AoConfiguration; module: AnalogOutputModule; behavior: DownloadBehavior } {
+  if (expected && record?.saved !== expected) return { error: 'Saved AO configuration changed after verification; verify again' }
+  if (!record?.saved || runtime?.type !== 'AO' || lifecycleDirty(record)) {
+    return { error: 'Save a valid offline draft before downloading' }
+  }
+  if (!['FULL', 'PARTIAL'].includes(scope) || scope === 'PARTIAL' && (!record.deployed || !runtime.downloaded)) {
+    return { error: 'First download must be Full; subsequent scope must be Full or Partial' }
+  }
+  if (scope === 'PARTIAL' && record.replayFullRequired) {
+    return { error: 'Perform a fresh Full module download after controller recommissioning' }
+  }
+  const error = downloadError(record.saved, hardware)
+  if (error) return { error: `Download failed; last-good runtime retained: ${error}` }
+  const saved = record.saved
+  const behavior = scope === 'FULL' ? 'CONFIGURED' : saved.downloadBehavior
+  const module = deployedAo(saved, runtime, behavior, hardware)
+  const transferError = configurationError({ ...saved, module })
+  return transferError ? { error: `Preserved runtime values are invalid: ${transferError}` } :
+    { saved, module, behavior }
+}
 export function restartAo(record: AoLifecycle, runtime: AnalogOutputModule, hw: HardwareState): AnalogOutputModule {
   if (!record.deployed || record.replayFullRequired || record.restartMemoryRequired) return { ...runtime, downloaded: false, bad: true, actualMode: 'OOS' }
   const c = record.restartDownload ?? record.deployed

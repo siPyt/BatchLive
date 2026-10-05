@@ -1507,6 +1507,64 @@ function savedAoCourseProject(store) {
   store.tick(0.1)
 }
 
+test('AO download verification is read-only and stale confirmation cannot transfer newer saved configuration', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 600 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    const before = useStore.getState()
+    const expected = before.moduleLifecycle['LEVEL-101'].saved
+    const stored = window.localStorage.getItem(savedAoStorageKey('LEVEL-101'))
+    assert.equal(store.verifyAoDownload('LEVEL-101', 'PARTIAL'), true)
+    const verified = useStore.getState()
+    for (const key of ['modules', 'hardware', 'moduleLifecycle', 'sfcs', 'downloadStatusChecks']) {
+      assert.equal(verified[key], before[key])
+    }
+    assert.equal(window.localStorage.getItem(savedAoStorageKey('LEVEL-101')), stored)
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 900 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    const current = useStore.getState()
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL', expected), false)
+    assert.equal(useStore.getState().modules, current.modules)
+    assert.equal(useStore.getState().moduleLifecycle, current.moduleLifecycle)
+    assert.equal(store.verifyAoDownload('LEVEL-101', 'PARTIAL'), true)
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL', current.moduleLifecycle['LEVEL-101'].saved), true)
+    store.tick(.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 90)
+    assert.ok(useStore.getState().eventLog.some(event => event.description.includes('verification passed')))
+  })
+})
+
+test('verified AO downloads recheck targets, dirty drafts, permission and lock before committing', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    const expected = useStore.getState().moduleLifecycle['LEVEL-101'].saved
+    assert.equal(store.verifyAoDownload('LEVEL-101', 'FULL'), true)
+    const before = useStore.getState()
+    const hardware = before.hardware
+    useStore.setState({ hardware: { ...hardware, controllers: { ...hardware.controllers,
+      CTRL1: { ...hardware.controllers.CTRL1, primary: 'FAILED', secondary: 'FAILED' } } } })
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL', expected), false)
+    assert.equal(store.verifyAoDownload('LEVEL-101', 'FULL'), false)
+    useStore.setState({ hardware })
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    assert.equal(store.verifyAoDownload('LEVEL-101', 'FULL'), false)
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL', expected), false)
+    useSecurity.setState({ currentUser: 'admin', locked: true })
+    assert.equal(store.verifyAoDownload('LEVEL-101', 'FULL'), false)
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL', expected), false)
+    useSecurity.setState({ locked: false })
+    assert.equal(useStore.getState().modules, before.modules)
+    assert.equal(useStore.getState().moduleLifecycle, before.moduleLifecycle)
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 700 } })
+    const dirty = useStore.getState()
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL', expected), false)
+    assert.equal(store.verifyAoDownload('LEVEL-101', 'FULL'), false)
+    assert.equal(useStore.getState().modules, dirty.modules)
+    assert.equal(useStore.getState().moduleLifecycle, dirty.moduleLifecycle)
+  })
+})
+
 test('p97 AO restart-memory-only update captures last transfers, not newer saved or working values, and powers real restart', () => {
   withAreaProject(store => {
     savedAoCourseProject(store)
