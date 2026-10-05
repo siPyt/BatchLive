@@ -101,13 +101,16 @@ export function FbdCanvas({
   selectedTag,
   onSelect,
   selectedBlock = 'PID1',
-  zoom = 1
+  zoom = 1,
+  compact = false
 }: {
   areaTags: string[]
   selectedTag: string
   onSelect: (tag: string, block?: PidBlockName) => void
   selectedBlock?: PidBlockName
   zoom?: number
+  /** Size the canvas to its blocks so it flows into the page that follows it instead of scrolling on its own. */
+  compact?: boolean
 }): JSX.Element {
   const runtimeModules = useStore((s) => s.modules)
   const moduleLifecycle = useStore(s => s.moduleLifecycle)
@@ -227,9 +230,9 @@ export function FbdCanvas({
   const autoPositions = avoidSavedBlockOverlaps(
     getAutoPositions(blockIds, wires, modules, blocks), layout, sizes)
   const posOf = (tag: string): { x: number; y: number } => layout[tag] ?? autoPositions[tag] ?? { x: 48, y: 48 }
-  const canvasWidth = Math.max(CANVAS_W, ...blockIds.map((tag) => posOf(tag).x + NODE_W + 80))
-  const canvasHeight = Math.max(CANVAS_H, ...blockIds.map((tag) =>
-    posOf(tag).y + nodeHeight(modules[blocks[tag].moduleTag], blocks[tag].part) + 100))
+  const canvasWidth = Math.max(compact ? 1000 : CANVAS_W, ...blockIds.map((tag) => posOf(tag).x + NODE_W + 80))
+  const canvasHeight = Math.max(compact ? 200 : CANVAS_H, ...blockIds.map((tag) =>
+    posOf(tag).y + nodeHeight(modules[blocks[tag].moduleTag], blocks[tag].part) + (compact ? 40 : 100)))
 
   const pinPos = (tag: string, which: string, output = false): { x: number; y: number } => {
     const p = posOf(tag)
@@ -363,7 +366,7 @@ export function FbdCanvas({
   }
 
   return (
-    <div className="fbd-canvas-scroll">
+    <div className={compact ? 'fbd-canvas-scroll fbd-canvas-compact' : 'fbd-canvas-scroll'}>
       <svg ref={svgRef} className="fbd-canvas-svg" width={canvasWidth * zoom} height={canvasHeight * zoom} viewBox={`0 0 ${canvasWidth} ${canvasHeight}`} onMouseDown={() => setSelectedWire(null)}>
         <defs>
           <pattern id="fbdGrid" width={20} height={20} patternUnits="userSpaceOnUse">

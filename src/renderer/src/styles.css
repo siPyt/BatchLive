@@ -4296,3 +4296,255 @@ button {
   object-fit: contain;
   user-select: none;
 }
+
+/* Control Studio: live module logic, editors and explanation */
+.logic-document {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 8px 12px 24px;
+  color: #17222b;
+}
+.logic-bypass {
+  padding: 4px 10px 8px;
+  font-size: 12px;
+}
+.logic-editor {
+  border: 1px solid #8a8d90;
+  margin: 8px 0;
+  background: #fff;
+}
+.logic-editor h4 {
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: #eceeef;
+  border-bottom: 1px solid #8a8d90;
+}
+.logic-editor h4 small {
+  margin-left: 8px;
+  font-weight: 400;
+  color: #5a6670;
+}
+.logic-editor input[type='text'],
+.logic-editor input:not([type]) {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 11px;
+}
+.logic-editor-buttons {
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px 8px;
+}
+.logic-explanation {
+  border: 1px solid #8a8d90;
+  background: #fff;
+  padding: 6px 12px 12px;
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.logic-explanation h3 {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.logic-explanation h4 {
+  margin: 10px 0 2px;
+  font-size: 12px;
+  border-bottom: 1px solid #c3c6c8;
+}
+.logic-explanation ul {
+  margin: 2px 0 2px 18px;
+  padding: 0;
+}
+.logic-decision {
+  background: #eef4fb;
+  border-left: 4px solid #1f6fbf;
+  padding: 4px 8px;
+}
+.logic-note {
+  font-size: 11px;
+  color: #5a6670;
+}
+.studio-explain {
+  height: 170px;
+  border-top: 1px solid var(--dv-border);
+}
+.studio-explain-scroll {
+  flex: 1;
+  overflow: auto;
+}
+.studio-explain .logic-explanation {
+  border: none;
+  margin: 0;
+}
+
+/* Control Studio ribbon: Office-style Home tab (groups, large/small/tiny buttons) */
+.rb-body {
+  align-items: stretch;
+  background: linear-gradient(#f9fafc, #e8ebf0);
+  min-height: 108px;
+  padding: 4px 2px 2px;
+}
+.rb-group {
+  display: flex;
+  flex-direction: column;
+  padding: 0 6px;
+  border-right: 1px solid #c3c9d3;
+  flex-shrink: 0;
+}
+.rb-group-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 1;
+}
+.rb-group-label {
+  text-align: center;
+  font-size: 11px;
+  color: #4b5b73;
+  padding: 2px 0;
+}
+.rb-btn {
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #1d2733;
+  font-size: 11px;
+  line-height: 1.15;
+  cursor: pointer;
+}
+.rb-btn:hover:not(:disabled) {
+  background: #e0eaf8;
+  border-color: #9bb6dd;
+}
+.rb-btn:focus-visible {
+  outline: 2px solid #005fb8;
+  outline-offset: -2px;
+}
+.rb-btn:disabled {
+  cursor: not-allowed;
+}
+.rb-btn:disabled .rb-glyph {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.rb-btn:disabled .rb-label {
+  color: #6c7685;
+}
+.rb-btn.active {
+  background: #1f2f8f;
+  border-color: #141f66;
+  color: #fff;
+}
+.rb-btn.active .rb-label {
+  color: #fff;
+}
+.rb-large {
+  flex-direction: column;
+  justify-content: flex-start;
+  min-width: 62px;
+  max-width: 96px;
+  min-height: 82px;
+  padding: 4px 4px;
+  gap: 3px;
+  text-align: center;
+}
+.rb-small {
+  flex-direction: row;
+  gap: 6px;
+  height: 25px;
+  min-width: 124px;
+  padding: 2px 6px;
+  text-align: left;
+}
+.rb-tiny {
+  width: 24px;
+  height: 24px;
+  padding: 3px;
+  justify-content: center;
+}
+.rb-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 2px;
+}
+.rb-glyph {
+  flex-shrink: 0;
+}
+.rb-quick {
+  display: flex;
+  gap: 1px;
+  margin-right: 10px;
+}
+
+/* Control Studio bottom panel: one tabbed area for explanation, parameters and alarms */
+.studio-bottom {
+  display: flex;
+  flex-direction: column;
+  height: 230px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--dv-border);
+  background: #fff;
+}
+.studio-bottom-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px 8px 0;
+  background: #e7e9ec;
+  border-bottom: 1px solid var(--dv-border);
+}
+.studio-bottom-tabs button {
+  padding: 3px 12px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: var(--dv-text-dim);
+}
+.studio-bottom-tabs button.active {
+  background: #fff;
+  border-color: var(--dv-border);
+  color: var(--dv-text);
+  font-weight: 600;
+}
+.studio-bottom .studio-params,
+.studio-bottom .studio-alarms,
+.studio-bottom .studio-explain {
+  height: auto;
+  flex: 1;
+  min-height: 0;
+  border-top: none;
+}
+
+/* Control Studio: one continuous page per module (diagram, then its explanation) */
+.studio-page {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #fff;
+  padding: 6px 12px 24px;
+}
+.studio-canvas-page {
+  flex: none;
+  overflow: visible;
+  min-height: 0;
+}
+.fbd-canvas-compact {
+  height: auto;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.studio-page .logic-explanation,
+.studio-page .logic-document {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding-left: 0;
+  padding-right: 0;
+}
+.studio-bottom {
+  height: 200px;
+}

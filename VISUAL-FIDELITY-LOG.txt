@@ -353,3 +353,34 @@ Local-only files that are NOT committed: FLEXLOCK-LOGINS.txt (excluded via
   Tests updated (11 in operator-ribbons). Commit: see git log.
 Validation baseline through 15:22: typecheck and build pass; full suite 416 tests, the
 only failure is the existing dv09-audit dependency on the missing local pdf_om.txt.
+15:22-15:40  Request: the module template means nothing; Control Studio must show the
+  actual logic of whatever is looked up, complex and explained; the ribbons must match
+  IMG_0643-0646. Then: Control Studio has no "Module Logic" option, and the function block
+  diagram and the real explanation must be one continuous page, not segments.
+  Done (engine): devices gained real, executed logic - interlockConditions (16),
+  permissiveConditions (8), forceSetpoints (8), BYPASSED (types.ts); evaluation in
+  simulate.ts (deviceInterlockConditions/PermissiveConditions/ForceConditions/ForceSignal,
+  existing signal functions extended; Bad interlock source trips, Bad permissive denies;
+  first true force setpoint drives the request; interlock still wins); execution order
+  includes condition sources (fb.ts); setDeviceLogic store action with validation
+  (deviceLogicError), CAN_CONFIGURE key, journaling, refusal for lifecycle-managed
+  devices. logicExplanation.ts generates a live explanation for every module type
+  (devices with a decision trace, PID with the control equation, AI/AO/DI/DO/FB).
+  Done (UI): the static template was replaced. Valve/motor page = real DCC1/EDC1/CND1
+  diagram with condition nodes and live values, then the explanation with an editor
+  inside each of its force/interlock/permissive sections. Other modules = compact real
+  function block diagram then the explanation, in the same scrolling page. Module Logic
+  and Function Block Diagram tabs, the bottom Explanation tab and the Explanation ribbon
+  button were removed; Parameter View and Alarm View remain as a bottom panel.
+  Done (ribbon): original SVG icon set (StudioRibbonIcons.tsx) and Office-style Home tab
+  with the reference groups, large/small/tiny buttons, quick-access Save/Undo/Redo and
+  dark active On-Line Debug/Edit; Diagram and View tabs kept.
+  Reading of the photos: History Collection, History Recorder and Properties are a stacked
+  trio in the Module group; Alarm Groups Configuration / Assignment References are two
+  buttons; tiny icon-only buttons beside Insert and Version Control are disabled
+  placeholders. Not documented in the PDFs and therefore disabled: Insert group, alarm
+  groups, Class/Configure, clipboard, Undo/Redo, History Collection.
+  Tests: device-logic (7) and control-studio-logic (7) added; the earlier template tests
+  were replaced. Commit: see git log.
+Validation baseline through 15:40: typecheck and build pass; full suite 424 tests,
+423 passing; the only failure is the existing dv09-audit missing local pdf_om.txt.

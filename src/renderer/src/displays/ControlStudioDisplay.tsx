@@ -14,6 +14,7 @@ import { deviceEditorModules } from '../engine/deviceLifecycle'
 import { lifecycleModules } from '../engine/moduleLifecycle'
 import { changedPidTuningParameters, lifecyclePidModules, pidLifecycleDirty } from '../engine/pidLifecycle'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
+import { RibbonGlyph, type GlyphName } from '../components/StudioRibbonIcons'
 import { FB_NEEDS_IN2 } from '../engine/fb'
 import { moduleNameError } from '../engine/naming'
 import { traditionalChannels, type AnalogBindingPort } from '../engine/traditionalIo'
@@ -22,7 +23,7 @@ import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
 import { deviceInterlockSignal, devicePermissiveSignal } from '../engine/simulate'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
 import { NewControlModuleDialog } from './ExplorerDisplay'
-import { DiscreteModuleTemplate } from './ModuleTemplateView'
+import { DeviceLogicView, LogicExplanationView } from './ModuleLogicView'
 import type {
   AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
   PidBlockName, PidIoPatch, SplitterPatch, SplitterState, FbInputRef,
@@ -49,10 +50,8 @@ export function ControlStudioDisplay(): JSX.Element {
   const openStudio = useUi((s) => s.openStudio)
   const [zoom, setZoom] = useState(1)
   const [showHierarchy, setShowHierarchy] = useState(true)
-  const [showParameters, setShowParameters] = useState(true)
+  const [bottomTab, setBottomTab] = useState<'parameters' | 'alarms'>('parameters')
   const [showPalette, setShowPalette] = useState(true)
-  const [showAlarms, setShowAlarms] = useState(true)
-  const [centerView, setCenterView] = useState<'template' | 'fbd'>('template')
   const [blockSelection, setBlockSelection] = useState<{ tag: string; block: PidBlockName } | null>(null)
   const [showNew, setShowNew] = useState(false)
   const areas = useStore(s => s.areas)
@@ -71,7 +70,6 @@ export function ControlStudioDisplay(): JSX.Element {
   const visibleTags = connectedModuleTags(modules, m.tag)
   const selectedBlock = blockSelection?.tag === m.tag ? blockSelection.block : 'PID1'
   const isDevice = m.type === 'MOTOR' || m.type === 'VALVE'
-  const templateView = isDevice && centerView === 'template'
   const owner = modules[m.tag.split('/')[0]]
   const assigned = owner && 'controllerTag' in owner ? owner.controllerTag : undefined
 
@@ -83,47 +81,49 @@ export function ControlStudioDisplay(): JSX.Element {
         onFaceplate={() => openFaceplate(m.tag.split('/')[0])}
         zoom={zoom}
         onZoom={(value) => setZoom(Math.max(0.5, Math.min(1.5, Math.round(value * 10) / 10)))}
-        panes={{ hierarchy: showHierarchy, parameters: showParameters, palette: showPalette, alarms: showAlarms }}
+        panes={{ hierarchy: showHierarchy, parameters: bottomTab === 'parameters', palette: showPalette, alarms: bottomTab === 'alarms' }}
         onToggle={(pane) => {
           if (pane === 'hierarchy') setShowHierarchy((value) => !value)
-          else if (pane === 'parameters') setShowParameters((value) => !value)
-          else if (pane === 'alarms') setShowAlarms((value) => !value)
+          else if (pane === 'parameters' || pane === 'alarms') setBottomTab(pane)
           else setShowPalette((value) => !value)
         }}
-        isDevice={isDevice}
-        centerView={centerView}
-        onCenterView={setCenterView}
       />
       {showNew && <NewControlModuleDialog initialArea={m.area} onClose={() => setShowNew(false)} />}
       <div className="studio-main">
         {showHierarchy && <HierarchyView module={m} selectedBlock={selectedBlock}
           onSelect={(block) => setBlockSelection({ tag: m.tag, block })} />}
-        <div className={'studio-center' + (templateView ? ' template-active' : '')}>
-          {isDevice && <div className="studio-view-tabs" role="tablist" aria-label="Diagram view">
-            <button type="button" role="tab" aria-selected={centerView === 'template'} className={centerView === 'template' ? 'active' : ''}
-              onClick={() => setCenterView('template')}>Module Template</button>
-            <button type="button" role="tab" aria-selected={centerView === 'fbd'} className={centerView === 'fbd' ? 'active' : ''}
-              onClick={() => setCenterView('fbd')}>Function Block Diagram</button>
-          </div>}
-          {templateView ? <div className="studio-canvas studio-template"><DiscreteModuleTemplate module={m as MotorModule | ValveModule} /></div> : <div className="studio-canvas">
-            <FbdCanvas
-              areaTags={visibleTags}
-              selectedTag={m.tag}
-              selectedBlock={selectedBlock}
-              zoom={zoom}
-              onSelect={(tag, block) => {
-                select(tag)
-                openStudio(tag)
-                setBlockSelection({ tag, block: block ?? 'PID1' })
-              }}
-            />
-          </div>}
-          {showParameters && <ParameterView module={m} selectedBlock={selectedBlock} />}
-          {showAlarms && <AlarmView module={m} />}
-          {m.type === 'FB' && m.tag.includes('/') && modules[m.tag.split('/')[0]]?.type === 'MOTOR' &&
-            <button className="tbtn sm" onClick={() => openStudio(m.tag.split('/')[0])}>Owning motor: {m.tag.split('/')[0]} - Save / Download</button>}
+        <div className="studio-center">
+          <div className="studio-page" role="document" aria-label={`${m.tag} diagram and logic explanation`}>
+            {isDevice ? <DeviceLogicView module={m as MotorModule | ValveModule} zoom={zoom} /> : <>
+              <div className="studio-canvas studio-canvas-page">
+                <FbdCanvas
+                  compact
+                  areaTags={visibleTags}
+                  selectedTag={m.tag}
+                  selectedBlock={selectedBlock}
+                  zoom={zoom}
+                  onSelect={(tag, block) => {
+                    select(tag)
+                    openStudio(tag)
+                    setBlockSelection({ tag, block: block ?? 'PID1' })
+                  }}
+                />
+              </div>
+              <LogicExplanationView module={m} />
+            </>}
+            {m.type === 'FB' && m.tag.includes('/') && modules[m.tag.split('/')[0]]?.type === 'MOTOR' &&
+              <button className="tbtn sm" onClick={() => openStudio(m.tag.split('/')[0])}>Owning motor: {m.tag.split('/')[0]} - Save / Download</button>}
+          </div>
+          <div className="studio-bottom">
+            <div className="studio-bottom-tabs" role="tablist" aria-label="Bottom panel">
+              <button type="button" role="tab" aria-selected={bottomTab === 'parameters'} className={bottomTab === 'parameters' ? 'active' : ''} onClick={() => setBottomTab('parameters')}>Parameter View</button>
+              <button type="button" role="tab" aria-selected={bottomTab === 'alarms'} className={bottomTab === 'alarms' ? 'active' : ''} onClick={() => setBottomTab('alarms')}>Alarm View</button>
+            </div>
+            {bottomTab === 'parameters' && <ParameterView module={m} selectedBlock={selectedBlock} />}
+            {bottomTab === 'alarms' && <AlarmView module={m} />}
+          </div>
         </div>
-        {showPalette && !templateView && <PaletteView area={m.area} />}
+        {showPalette && !isDevice && <PaletteView area={m.area} />}
       </div>
       <div className="studio-statusbar">
         <span>Assigned to: {assigned ?? 'Not assigned'}</span>
@@ -1386,32 +1386,9 @@ function PaletteView({ area }: { area: string }): JSX.Element {
 const RIBBON_TABS = ['File', 'Home', 'Diagram', 'View']
 
 type StudioPane = 'hierarchy' | 'parameters' | 'palette' | 'alarms'
-type RibbonIconKind = 'module' | 'diagram' | 'parameters' | 'zoomIn' | 'zoomOut' | 'reset' | 'download' | 'edit' | 'alarm' | 'history'
-
-function RibbonIcon({ kind }: { kind: RibbonIconKind }): JSX.Element {
-  if (kind === 'module') return <ModuleIcon kind="control" size={28} />
-  const paths: Record<Exclude<RibbonIconKind, 'module'>, string> = {
-    diagram: 'M3,5 H11 V12 H3 Z M19,18 H27 V25 H19 Z M11,8 H23 V18 M7,12 V21 H19',
-    parameters: 'M5,3 H25 V27 H5 Z M9,9 H21 M9,15 H21 M9,21 H17',
-    zoomIn: 'M21,21 L29,29 M7,13 H19 M13,7 V19',
-    zoomOut: 'M21,21 L29,29 M7,13 H19',
-    reset: 'M5,11 A11,11 0 1 1 5,22 M5,3 V11 H13',
-    download: 'M10,3 H22 V16 H29 L16,29 L3,16 H10 Z',
-    edit: 'M5,22 L21,6 L26,11 L10,27 H5 Z M18,9 L23,14',
-    alarm: 'M7,22 V13 A9,9 0 0 1 18,4 Q25,7 25,13 V22 Z M4,22 H28 M13,26 H19',
-    history: 'M4,4 H28 V28 H4 Z M8,21 L12,13 L17,17 L24,8'
-  }
-  return (
-    <svg width={28} height={28} viewBox="0 0 32 32" aria-hidden="true">
-      {(kind === 'zoomIn' || kind === 'zoomOut') && <circle cx={13} cy={13} r={10} fill="#eef1f5" stroke="#63748b" strokeWidth={1.5} />}
-      <path d={paths[kind]} fill={kind === 'download' ? '#b7bfd1' : kind === 'alarm' ? '#e1cd79' : 'none'} stroke="#63748b" strokeWidth={1.5} strokeLinejoin="round" />
-    </svg>
-  )
-}
-
 const PARAMETER_FOR: Record<string, string> = { PVBAD: 'PV.STATUS', FAIL: 'FAILURE', INTERLOCK: 'INTERLOCK_D' }
 
-function AlarmView({ module: m }: { module: AnyModule }): JSX.Element {
+export function AlarmView({ module: m }: { module: AnyModule }): JSX.Element {
   const active = useStore(s => s.alarms)
   const owner = m.tag.split('/')[0]
   const alarms = 'alarms' in m ? m.alarms : []
@@ -1442,11 +1419,38 @@ function AlarmView({ module: m }: { module: AnyModule }): JSX.Element {
   )
 }
 
-function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle, isDevice, centerView, onCenterView }: {
+interface BtnProps {
+  glyph: GlyphName; label: string; size?: 'large' | 'small' | 'tiny'; active?: boolean
+  onClick?: () => void; unavailable?: string
+}
+
+function Btn({ glyph, label, size = 'large', active, onClick, unavailable }: BtnProps): JSX.Element {
+  return (
+    <button type="button" className={`rb-btn rb-${size}` + (active ? ' active' : '')} onClick={onClick} disabled={!!unavailable}
+      title={unavailable ?? label} aria-label={label} aria-pressed={active === undefined ? undefined : active}>
+      <RibbonGlyph name={glyph} size={size === 'large' ? 34 : 16} />
+      {size !== 'tiny' && <span className="rb-label">{label}</span>}
+    </button>
+  )
+}
+
+function Group({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+  return (
+    <div className="rb-group">
+      <div className="rb-group-body">{children}</div>
+      <div className="rb-group-label">{label}</div>
+    </div>
+  )
+}
+
+function Stack({ children }: { children: ReactNode }): JSX.Element {
+  return <div className="rb-stack">{children}</div>
+}
+
+function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle }: {
   onNew: () => void
   tag: string; onFaceplate: () => void; zoom: number; onZoom: (value: number) => void
   panes: Record<StudioPane, boolean>; onToggle: (pane: StudioPane) => void
-  isDevice: boolean; centerView: 'template' | 'fbd'; onCenterView: (view: 'template' | 'fbd') => void
 }): JSX.Element {
   const [tab, setTab] = useState('Home')
   const [showDownload, setShowDownload] = useState(false)
@@ -1490,10 +1494,19 @@ function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle, 
   }
   const downloadUnavailable = pidRecord ? pidDownloadUnavailable : lifecycle ? undefined : pidTemplate ? 'Enable Saved PID_LOOP Lifecycle first' :
     'Enable Saved Module Lifecycle or Saved Device Lifecycle first'
+  const saveAction = lifecycle ? () => pidRecord ? savePid(tag) : deviceRecord ? deviceSave(ownerTag) : save(tag) : undefined
+  const saveUnavailable = !lifecycle ? 'Enable a saved lifecycle first' : lifecycle.online ? 'Go Offline before saving configuration' : undefined
+  const noClipboard = 'Block clipboard operations are not implemented'
+  const tinyNote = 'This command is not implemented in the simulator'
   return (
     <div className="ribbon">
       <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio{lifecycle?.online ? ' (Read-Only)' : ''}</span><span className="studio-caption-status">{lifecycle ? lifecycle.online ? 'ONLINE - controller runtime' : 'OFFLINE - configuration draft' : 'ONLINE · simulated configuration'}</span><DownloadStatusIndicator tag={deviceRecord ? ownerTag : tag} controls /></div>
       <div className="ribbon-tabs">
+        <div className="rb-quick" role="toolbar" aria-label="Quick access">
+          <Btn glyph="save" label="Save" size="tiny" onClick={saveAction} unavailable={saveUnavailable} />
+          <Btn glyph="undo" label="Undo" size="tiny" unavailable="Undo is not implemented" />
+          <Btn glyph="redo" label="Redo" size="tiny" unavailable="Redo is not implemented" />
+        </div>
         {RIBBON_TABS.map((t) => (
           <button key={t} type="button" className={'ribbon-tab' + (t === 'File' ? ' file' : t === tab ? ' active' : '')}
             title={`${t} commands`}
@@ -1503,119 +1516,98 @@ function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle, 
         ))}
         <span className="ribbon-title">{Math.round(zoom * 100)}%</span>
       </div>
-      <div className="ribbon-body">
-        {tab === 'File' && <RibbonGroup label="Create">
-          <RibbonBtn ic="module" label="New..." onClick={onNew} />
-        </RibbonGroup>}
+      <div className="ribbon-body rb-body">
+        {tab === 'File' && <Group label="Create">
+          <Btn glyph="new" label="New..." onClick={onNew} />
+        </Group>}
         {tab === 'Home' && <>
-          <RibbonGroup label="Clipboard">
-            <RibbonBtn ic="parameters" label="Paste" unavailable="Block clipboard operations are not implemented" />
-            <RibbonBtn ic="parameters" label="Cut" unavailable="Block clipboard operations are not implemented" />
-            <RibbonBtn ic="parameters" label="Copy" unavailable="Block clipboard operations are not implemented" />
-          </RibbonGroup>
-          <RibbonGroup label="Module">
-            <RibbonBtn ic="download" label="Download" onClick={downloadAction} unavailable={downloadUnavailable} />
-            <RibbonBtn ic="module" label="Assign To Node" onClick={() => setShowDownload(true)}
+          <Group label="Clipboard">
+            <Btn glyph="paste" label="Paste" unavailable={noClipboard} />
+            <Stack>
+              <Btn glyph="cut" label="Cut" size="small" unavailable={noClipboard} />
+              <Btn glyph="copy" label="Copy" size="small" unavailable={noClipboard} />
+            </Stack>
+          </Group>
+          <Group label="Module">
+            <Btn glyph="download" label="Download" onClick={downloadAction} unavailable={downloadUnavailable} />
+            <Btn glyph="assign" label="Assign To Node" onClick={() => setShowDownload(true)}
               unavailable={pidRecord ? 'Assign the PID_LOOP controller in its lifecycle controls' : lifecycle ? undefined :
                 'Enable a saved lifecycle first; the controller is chosen in the Download dialog'} />
-            {lifecycle && <RibbonBtn ic="parameters" label="Save" onClick={() => pidRecord ? savePid(tag) :
-              deviceRecord ? deviceSave(ownerTag) : save(tag)}
-              unavailable={lifecycle.online ? 'Go Offline before saving configuration' : undefined} />}
-            <RibbonBtn ic="module" label="Faceplate" onClick={onFaceplate} />
-            <RibbonBtn ic="parameters" label="Properties" onClick={() => focusExplorer(ownerTag)} />
-          </RibbonGroup>
-          <RibbonGroup label="Diagram">
-            <RibbonBtn ic="history" label="History Collection" unavailable="Per-parameter history collection setup is not implemented; PID and AI values are collected automatically" />
-            <RibbonBtn ic="history" label="History View" onClick={trendAvailable ? () => focusTrend(tag) : undefined} unavailable={trendAvailable ? undefined : 'Historian pens are available for PID and AI modules'} />
-          </RibbonGroup>
-        </>}
-        {(tab === 'Home' || tab === 'Diagram') && <>
-          <RibbonGroup label="Insert">
-            <RibbonBtn ic="parameters" label="Module Parameter" unavailable="Adding module-level parameters is not implemented; the standard interface is shown in the Module Template" />
-            <RibbonBtn ic="parameters" label="Custom" unavailable="Custom diagram objects are not implemented" />
-            <RibbonBtn ic="parameters" label="Text Box" unavailable="Diagram text boxes are not implemented" />
-            <RibbonBtn ic="parameters" label="State Item" unavailable="State items are not implemented" />
-          </RibbonGroup>
-          <RibbonGroup label="Alarms">
-            <RibbonBtn ic="alarm" label="Alarm" onClick={() => focusAlarms(tag)} />
-            <RibbonBtn ic="alarm" label="Alarm Groups Configuration" unavailable="Alarm groups are not modeled" />
-            <RibbonBtn ic="alarm" label="Alarm Groups Assignment" unavailable="Alarm groups are not modeled" />
-            <RibbonBtn ic="alarm" label="References" unavailable="Alarm references are not modeled" />
-          </RibbonGroup>
-          <RibbonGroup label="Algorithm">
-            <RibbonBtn ic="diagram" label="Function Block" active={!isDevice || centerView === 'fbd'} onClick={() => { onCenterView('fbd'); setTab('Diagram') }} />
-            {isDevice && <RibbonBtn ic="module" label="Module Template" active={centerView === 'template'} onClick={() => onCenterView('template')} />}
-            <RibbonBtn ic="edit" label="Edit Object" onClick={onFaceplate} />
-            <RibbonBtn ic="diagram" label="Drill Down" onClick={firstNested ? () => openStudio(firstNested.tag) : undefined}
+            <Stack>
+              <Btn glyph="collection" label="History Collection" size="small" unavailable="Per-parameter history collection setup is not implemented; PID and AI values are collected automatically" />
+              <Btn glyph="recorder" label="History Recorder" size="small" onClick={trendAvailable ? () => focusTrend(tag) : undefined}
+                unavailable={trendAvailable ? undefined : 'Historian pens are available for PID and AI modules'} />
+              <Btn glyph="properties" label="Properties" size="small" onClick={() => focusExplorer(ownerTag)} />
+            </Stack>
+          </Group>
+          <Group label="Insert">
+            <Btn glyph="moduleParameter" label="Module Parameter" unavailable="Adding module-level parameters is not implemented; the standard interface (SP_D, MODE, PV_D, PV_STATE) is shown in the module diagram" />
+            <Stack>
+              <Btn glyph="custom" label="Custom" size="small" unavailable="Custom diagram objects are not implemented" />
+              <Btn glyph="textBox" label="Text Box" size="small" unavailable="Diagram text boxes are not implemented" />
+              <Btn glyph="stateItem" label="State Item" size="small" unavailable="State items are not implemented" />
+            </Stack>
+            <Stack>
+              <Btn glyph="generic" label="Insert options" size="tiny" unavailable={tinyNote} />
+              <Btn glyph="generic" label="Insert options" size="tiny" unavailable={tinyNote} />
+              <Btn glyph="generic" label="Insert options" size="tiny" unavailable={tinyNote} />
+            </Stack>
+          </Group>
+          <Group label="Alarms">
+            <Btn glyph="alarm" label="Alarm" onClick={() => focusAlarms(tag)} />
+            <Btn glyph="alarmGroups" label="Alarm Groups Configuration" unavailable="Alarm groups are not modeled" />
+            <Btn glyph="alarmGroupRefs" label="Alarm Groups Assignment References" unavailable="Alarm group assignments and references are not modeled" />
+          </Group>
+          <Group label="Algorithm">
+            <Btn glyph="editObject" label="Edit Object" onClick={onFaceplate} />
+            <Btn glyph="drillDown" label="Drill Down" onClick={firstNested ? () => openStudio(firstNested.tag) : undefined}
               unavailable={firstNested ? undefined : 'This module has no nested block level to drill into'} />
-            <RibbonBtn ic="diagram" label="Back Out" onClick={tag.includes('/') ? () => openStudio(ownerTag) : undefined}
+            <Btn glyph="backOut" label="Back Out" onClick={tag.includes('/') ? () => openStudio(ownerTag) : undefined}
               unavailable={tag.includes('/') ? undefined : 'Already at the module level'} />
-          </RibbonGroup>
-          <RibbonGroup label="Diagram Mode">
-            <RibbonBtn ic="history" label="On-Line Debug" active={!lifecycle || lifecycle.online}
+          </Group>
+          <Group label="Diagram Mode">
+            <Btn glyph="onlineDebug" label="On-Line Debug" active={!lifecycle || lifecycle.online}
               onClick={lifecycle && !lifecycle.online ? () => setOnline(true) : undefined} />
-            <RibbonBtn ic="edit" label="Edit" active={!!lifecycle && !lifecycle.online}
+            <Btn glyph="edit" label="Edit" active={!!lifecycle && !lifecycle.online}
               onClick={lifecycle?.online ? () => setOnline(false) : undefined}
               unavailable={lifecycle ? undefined : 'Enable a saved lifecycle to edit an offline configuration draft separately from the running module'} />
-          </RibbonGroup>
-          <RibbonGroup label="Class">
-            <RibbonBtn ic="module" label="Configure" unavailable="Module classes and library templates are not implemented" />
-            <RibbonBtn ic="parameters" label="Named Set" onClick={() => navigate('explorer')} />
-          </RibbonGroup>
-          <RibbonGroup label="Advanced">
-            <RibbonBtn ic="edit" label="Tune with Insight" unavailable={licensed('Tune with InSight') + '; PID tuning is on the faceplate'} />
-            <RibbonBtn ic="history" label="Predict" unavailable={licensed('Predict and PredictPro')} />
-            <RibbonBtn ic="diagram" label="Neural" unavailable={licensed('Neural')} />
-          </RibbonGroup>
-          <RibbonGroup label="Version Control">
-            <RibbonBtn ic="download" label="Check Out" unavailable="Configuration Audit Trail (Version Control) is an optional licensed feature; configuration changes are recorded in the Event Journal" />
-          </RibbonGroup>
+          </Group>
+          <Group label="Class">
+            <Stack>
+              <Btn glyph="configure" label="Configure" size="small" unavailable="Module classes and library templates are not implemented" />
+              <Btn glyph="namedSet" label="Named Set" size="small" onClick={() => navigate('explorer')} />
+            </Stack>
+          </Group>
+          <Group label="Advanced">
+            <Stack>
+              <Btn glyph="tune" label="Tune with Insight" size="small" unavailable={licensed('Tune with InSight') + '; PID tuning is on the faceplate'} />
+              <Btn glyph="predict" label="Predict" size="small" unavailable={licensed('Predict and PredictPro')} />
+              <Btn glyph="neural" label="Neural" size="small" unavailable={licensed('Neural')} />
+            </Stack>
+          </Group>
+          <Group label="Version Control">
+            <Btn glyph="checkOut" label="Check Out" unavailable="Configuration Audit Trail (Version Control) is an optional licensed feature; configuration changes are recorded in the Event Journal" />
+            <Stack>
+              <Btn glyph="checkIn" label="Check In" size="tiny" unavailable={tinyNote} />
+              <Btn glyph="undoCheckOut" label="Undo Check Out" size="tiny" unavailable={tinyNote} />
+            </Stack>
+          </Group>
         </>}
-        {tab === 'View' && <RibbonGroup label="Windows">
-          <RibbonBtn ic="module" label="Hierarchy" active={panes.hierarchy} onClick={() => onToggle('hierarchy')} />
-          <RibbonBtn ic="parameters" label="Parameters" active={panes.parameters} onClick={() => onToggle('parameters')} />
-          <RibbonBtn ic="diagram" label="Palette" active={panes.palette} onClick={() => onToggle('palette')} />
-          <RibbonBtn ic="alarm" label="Alarm View" active={panes.alarms} onClick={() => onToggle('alarms')} />
-        </RibbonGroup>}
-        <RibbonGroup label="Zoom">
-          <RibbonBtn ic="zoomIn" label="Zoom In" onClick={() => onZoom(zoom + 0.1)} unavailable={zoom >= 1.5 ? 'Maximum zoom is 150%' : undefined} />
-          <RibbonBtn ic="zoomOut" label="Zoom Out" onClick={() => onZoom(zoom - 0.1)} unavailable={zoom <= 0.5 ? 'Minimum zoom is 50%' : undefined} />
-          <RibbonBtn ic="reset" label="100%" onClick={() => onZoom(1)} />
-        </RibbonGroup>
+        {tab === 'View' && <Group label="Windows">
+          <Btn glyph="hierarchy" label="Hierarchy" active={panes.hierarchy} onClick={() => onToggle('hierarchy')} />
+          <Btn glyph="parameters" label="Parameters" active={panes.parameters} onClick={() => onToggle('parameters')} />
+          <Btn glyph="palette" label="Palette" active={panes.palette} onClick={() => onToggle('palette')} />
+          <Btn glyph="alarm" label="Alarm View" active={panes.alarms} onClick={() => onToggle('alarms')} />
+        </Group>}
+        {(tab === 'Diagram' || tab === 'View') && <Group label="Zoom">
+          <Btn glyph="zoomIn" label="Zoom In" onClick={() => onZoom(zoom + 0.1)} unavailable={zoom >= 1.5 ? 'Maximum zoom is 150%' : undefined} />
+          <Btn glyph="zoomOut" label="Zoom Out" onClick={() => onZoom(zoom - 0.1)} unavailable={zoom <= 0.5 ? 'Minimum zoom is 50%' : undefined} />
+          <Btn glyph="reset" label="100%" onClick={() => onZoom(1)} />
+        </Group>}
       </div>
       {showDownload && (deviceRecord ? <DeviceDownloadDialog tag={ownerTag} onClose={() => setShowDownload(false)} /> :
         <ModuleDownloadDialog tag={tag} onClose={() => setShowDownload(false)} />)}
       {showPidTransfer && <PidTransferDialog tag={tag} mode="DOWNLOAD" onClose={() => setShowPidTransfer(false)} />}
     </div>
-  )
-}
-function RibbonGroup({ label, children }: { label: string; children: ReactNode }): JSX.Element {
-  return (
-    <div className="ribbon-group">
-      <div className="ribbon-group-btns">{children}</div>
-      <div className="ribbon-group-label">{label}</div>
-    </div>
-  )
-}
-
-function RibbonBtn({
-  ic,
-  label,
-  active,
-  onClick,
-  unavailable
-}: {
-  ic: RibbonIconKind
-  label: string
-  active?: boolean
-  onClick?: () => void
-  unavailable?: string
-}): JSX.Element {
-  return (
-    <button type="button" className={'ribbon-btn' + (active ? ' active' : '')} onClick={onClick} disabled={!!unavailable}
-      title={unavailable ?? label} aria-label={label} aria-pressed={active === undefined ? undefined : active}>
-      <RibbonIcon kind={ic} />
-      <span>{label}</span>
-    </button>
   )
 }

@@ -10,7 +10,8 @@ import type {
   AnyModule,
   DcState,
   FunctionBlockModule,
-  FbInputRef
+  FbInputRef,
+  DeviceCondition
 } from './types'
 import { CUSTOM_PHYSICS_TAGS } from './plant'
 import { PHOTO_TAGS, COUPLED_LEGACY_TAGS, STEAM_USERS, COOLING_USERS, photoMeasurements, stepPhotoPlant } from './photoPlant'
@@ -437,9 +438,11 @@ function applyExternalDevice(m: MotorModule | ValveModule, hw: HardwareState, dt
 }
 
 function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyModule>, hw: HardwareState): void {
-  if (m.permissiveSource) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
-  if (m.interlockSource) m.interlock = deviceInterlockSignal(m, modules).value !== 0
+  if (m.permissiveSource || m.permissiveConditions?.length) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
+  if (m.interlockSource || m.interlockConditions?.length) m.interlock = deviceInterlockSignal(m, modules).value !== 0
   if (m.commandSource) m.commanded = readModuleValue(modules[m.commandSource]) !== 0
+  const force = deviceForceSignal(m, modules)
+  if (force.active) m.commanded = force.state
   if (applyExternalDevice(m, hw, dt)) return
   const io: DcIo = {
     desired: m.commanded,
@@ -463,9 +466,11 @@ function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyMod
 }
 
 function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyModule>, hw: HardwareState): void {
-  if (m.permissiveSource) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
-  if (m.interlockSource) m.interlock = deviceInterlockSignal(m, modules).value !== 0
+  if (m.permissiveSource || m.permissiveConditions?.length) m.permissiveOk = devicePermissiveSignal(m, modules).value !== 0
+  if (m.interlockSource || m.interlockConditions?.length) m.interlock = deviceInterlockSignal(m, modules).value !== 0
   if (m.commandSource) m.commandedOpen = readModuleValue(modules[m.commandSource]) !== 0
+  const force = deviceForceSignal(m, modules)
+  if (force.active) m.commandedOpen = force.state
   if (applyExternalDevice(m, hw, dt)) return
   const io: DcIo = {
     desired: m.commandedOpen,
@@ -487,21 +492,98 @@ function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyMod
   m.dcState = io.dcState
 }
 
+export interface DeviceConditionResult {
+  index: number
+  source: string
+  description: string
+  /** Value read from the source after the Invert option. */
+  value: boolean
+  /** Source missing or Bad quality; a Bad interlock trips, a Bad permissive or force condition does not act. */
+  bad: boolean
+  invert: boolean
+  bypassable: boolean
+  /** True when this condition currently contributes (trips, denies, or forces). */
+  effective: boolean
+  /** Interlock only: tripped but ignored because BYPASSED is set. */
+  bypassed: boolean
+  state?: 'ACTIVE' | 'PASSIVE'
+}
+
+function readCondition(modules: Record<string, AnyModule>, c: DeviceCondition): { value: boolean; bad: boolean } {
+  const signal = resolveFbInput(modules, { kind: 'ref', tag: c.source, value: 0 })
+  return { value: c.invert ? signal.value === 0 : signal.value !== 0, bad: signal.bad }
+}
+
+export function deviceInterlockConditions(m: MotorModule | ValveModule, modules: Record<string, AnyModule>): DeviceConditionResult[] {
+  return (m.interlockConditions ?? []).map((c, index) => {
+    const { value, bad } = readCondition(modules, c)
+    const tripped = value || bad
+    const bypassed = tripped && !!m.bypassed && !!c.bypassable
+    return { index: index + 1, source: c.source, description: c.description, value, bad, invert: !!c.invert,
+      bypassable: !!c.bypassable, effective: tripped && !bypassed, bypassed }
+  })
+}
+
+export function devicePermissiveConditions(m: MotorModule | ValveModule, modules: Record<string, AnyModule>): DeviceConditionResult[] {
+  return (m.permissiveConditions ?? []).map((c, index) => {
+    const { value, bad } = readCondition(modules, c)
+    return { index: index + 1, source: c.source, description: c.description, value, bad, invert: !!c.invert,
+      bypassable: false, effective: !value || bad, bypassed: false }
+  })
+}
+
+export function deviceForceConditions(m: MotorModule | ValveModule, modules: Record<string, AnyModule>): DeviceConditionResult[] {
+  let found = false
+  return (m.forceSetpoints ?? []).map((c, index) => {
+    const { value, bad } = readCondition(modules, c)
+    const effective = value && !bad && !found
+    if (effective) found = true
+    return { index: index + 1, source: c.source, description: c.description, value, bad, invert: !!c.invert,
+      bypassable: false, effective, bypassed: false, state: c.state }
+  })
+}
+
+/** The first true force setpoint, in list order, drives the requested state. */
+export function deviceForceSignal(m: MotorModule | ValveModule, modules: Record<string, AnyModule>):
+  { active: boolean; state: boolean; index: number } {
+  const hit = deviceForceConditions(m, modules).find(c => c.effective)
+  return hit ? { active: true, state: hit.state === 'ACTIVE', index: hit.index } : { active: false, state: false, index: 0 }
+}
+
 export function deviceInterlockSignal(m: MotorModule | ValveModule, modules: Record<string, AnyModule>):
   { value: number; bad: boolean } {
-  if (!m.interlockSource) return { value: Number(m.interlock), bad: false }
-  const signal = resolveFbInput(modules, { kind: 'ref', tag: m.interlockSource, value: 0 })
-  return signal.bad ? { value: 1, bad: true } :
-    { value: m.interlockInverted ? Number(signal.value === 0) : signal.value, bad: false }
+  const conditions = deviceInterlockConditions(m, modules)
+  if (!m.interlockSource && !conditions.length) return { value: Number(m.interlock), bad: false }
+  let value = 0
+  let bad = false
+  if (m.interlockSource) {
+    const signal = resolveFbInput(modules, { kind: 'ref', tag: m.interlockSource, value: 0 })
+    if (signal.bad) { value = 1; bad = true } else value = m.interlockInverted ? Number(signal.value === 0) : signal.value
+  }
+  for (const condition of conditions) {
+    if (condition.bad) bad = true
+    if (condition.effective) value = value || 1
+  }
+  return { value, bad }
 }
 
 export function devicePermissiveSignal(module: MotorModule | ValveModule,
   modules: Record<string, AnyModule>): { value: number; bad: boolean } {
-  if (!module.permissiveSource) return { value: Number(module.permissiveOk), bad: false }
-  const signal = resolveFbInput(modules, { kind: 'ref', tag: module.permissiveSource, value: 0 })
-  return { value: signal.bad ? 0 : signal.value, bad: signal.bad }
+  const conditions = devicePermissiveConditions(module, modules)
+  if (!module.permissiveSource && !conditions.length) return { value: Number(module.permissiveOk), bad: false }
+  let value = 1
+  let bad = false
+  if (module.permissiveSource) {
+    const signal = resolveFbInput(modules, { kind: 'ref', tag: module.permissiveSource, value: 0 })
+    value = signal.bad ? 0 : signal.value
+    bad = signal.bad
+  }
+  for (const condition of conditions) {
+    if (condition.bad) bad = true
+    if (condition.effective) value = 0
+  }
+  return { value, bad }
 }
-
 /** Reads PV, discrete feedback or block OUT with source quality. */
 function resolveFbInput(
   modules: Record<string, AnyModule>, ref: FbInputRef

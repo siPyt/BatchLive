@@ -593,7 +593,7 @@ Ribbon presentation and behavior:
   types not supported by the existing historian.
 - Pane visibility and zoom are presentation state, not module configuration.
 
-Update (Control Studio module template and ribbon): discrete valve/motor modules open on a documented Module Template with narratives and live values; the Function Block Diagram remains a tab and keeps all wiring/editing. Ribbon groups follow IMG_0643 (Insert, Alarms, Algorithm, Diagram Mode, Class, Advanced, Version Control). Diagram Mode maps to the saved-lifecycle online/offline switch. Licensed add-ons and unimplemented commands are disabled with explanations; nothing claims to arbitrate ownership or download to a physical controller.
+Update (Control Studio, user direction 2026-10-05 15:22-15:40): the earlier static Module Template and the Module Logic / Function Block Diagram tabs were REMOVED. Each module is one continuous page: its real diagram, then a generated explanation of its actual logic, with no tab strip or split panes between them. Valve/motor logic is real and executed (force setpoints, interlock and permissive condition lists, BYPASSED); the explanation is generated from live configuration, never static artwork. The ribbon is the Office-style Home tab from IMG_0643-0646 (Clipboard, Module, Insert, Alarms, Algorithm, Diagram Mode, Class, Advanced, Version Control) with large/small buttons and dark-blue active state. Diagram Mode maps to the saved-lifecycle online/offline switch. Licensed add-ons and unimplemented commands are disabled with explanations; nothing claims to arbitrate ownership or download to a physical controller.
 
 Regression checks for this revision:
 - Compare both photographs and confirm name-left/icon-right header placement.

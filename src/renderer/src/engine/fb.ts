@@ -1,4 +1,5 @@
-import type { AnyModule, FbBlockType, FunctionBlockModule } from './types'
+import { DEVICE_LIMITS } from './types'
+import type { AnyModule, DeviceCondition, DeviceLogicPatch, FbBlockType, FunctionBlockModule } from './types'
 import { conditionReferences } from './fbCondition'
 
 export function resetConditionTiming(module: FunctionBlockModule): void {
@@ -17,6 +18,28 @@ export function deviceSourceError(modules: Record<string, AnyModule>, tag: strin
   }
   return source !== undefined && (!modules[source] || source === tag)
     ? `Choose an existing, separate ${role.toLowerCase()} source module` : null
+}
+
+/** Validates an edit of a device's interlock/permissive/force-setpoint lists and BYPASSED flag. */
+export function deviceLogicError(modules: Record<string, AnyModule>, tag: string, patch: DeviceLogicPatch): string | null {
+  const module = modules[tag]
+  if (!module || module.type !== 'MOTOR' && module.type !== 'VALVE') return 'Device logic requires an existing motor or valve'
+  const lists: [string, DeviceCondition[] | undefined, number][] = [
+    ['Interlock', patch.interlockConditions, DEVICE_LIMITS.interlocks],
+    ['Permissive', patch.permissiveConditions, DEVICE_LIMITS.permissives],
+    ['Force setpoint', patch.forceSetpoints, DEVICE_LIMITS.forceSetpoints]
+  ]
+  for (const [role, list, max] of lists) {
+    if (list === undefined) continue
+    if (list.length > max) return `${role} conditions are limited to ${max}`
+    for (const [index, c] of list.entries()) {
+      if (!c.source || !modules[c.source]) return `${role} condition ${index + 1}: choose an existing source module`
+      if (c.source === tag) return `${role} condition ${index + 1}: a device cannot reference itself`
+      if (c.description.length > DEVICE_LIMITS.description) return `${role} condition ${index + 1}: description is limited to ${DEVICE_LIMITS.description} characters`
+    }
+  }
+  if (patch.forceSetpoints?.some(c => c.state !== 'ACTIVE' && c.state !== 'PASSIVE')) return 'Force setpoint state must be ACTIVE or PASSIVE'
+  return null
 }
 
 // Shared Function Block helpers used by both the simulation engine
@@ -183,6 +206,7 @@ export function moduleExecutionOrder(modules: Record<string, AnyModule>): string
       visit(m.interlockSource)
       visit(m.permissiveSource)
       visit(m.commandSource)
+      for (const c of [...(m.interlockConditions ?? []), ...(m.permissiveConditions ?? []), ...(m.forceSetpoints ?? [])]) visit(c.source)
     }
     visiting.delete(tag)
     done.add(tag)

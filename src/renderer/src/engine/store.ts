@@ -19,7 +19,8 @@ import type {
   SplitterPatch,
   AnalogSignalRef,
   AnalogOutputModule,
-  AnalogOutputPatch
+  AnalogOutputPatch,
+  DeviceLogicPatch
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
@@ -49,7 +50,7 @@ import { moduleNameError } from './naming'
 import { conditionSourceError } from './fbCondition'
 import { isPidTargetMode, pidTargetAllowed, pidExecutionBad } from './pidModes'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from './deviceDescriptors'
-import { deviceSourceError, resetConditionTiming } from './fb'
+import { deviceLogicError, deviceSourceError, resetConditionTiming } from './fb'
 import {
   analogBindingError, channelConfigurationError, deviceBindingError, discreteBindingError, findDst, makeTraditionalCard,
   type AnalogBindingPort, type DeviceBindingPort, type TraditionalCardType
@@ -274,6 +275,8 @@ interface StoreState extends PlantState {
   setPermissiveSource: (tag: string, source: string | undefined) => boolean
   /** Wire a logic/alarm tag to automatically drive a MOTOR/VALVE's SP_D (commanded) every scan, overriding manual Start/Stop or Open/Close. */
   setCommandSource: (tag: string, source: string | undefined) => void
+  /** Edit a device's interlock/permissive/force-setpoint condition lists and BYPASSED flag (runtime module). */
+  setDeviceLogic: (tag: string, patch: DeviceLogicPatch) => boolean
   /** CAS_IN_D connection health; false sheds a Cas/RCas PID to Auto. */
   setCasHealthy: (tag: string, healthy: boolean) => void
   /** Fail a controller leg (primary, or both legs if not redundant) — bound I/O goes Bad. */
@@ -1127,6 +1130,30 @@ export const useStore = create<StoreState>((set, get) => ({
       if (m.type === 'MOTOR' || m.type === 'VALVE') m.commandSource = source
     })
     get().logEvent('CONFIGURE', tag, `COMMAND_SOURCE set to ${source ?? '(none)'}`)
+  },
+
+  setDeviceLogic: (tag, patch) => {
+    const state = get()
+    if (state.deviceLifecycle[tag]) return rejectSfc(get, tag, 'Device logic is edited on the runtime module; turn off the saved device lifecycle for this device first')
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Edit device logic ${tag}`)) return false
+    const error = deviceLogicError(state.modules, tag, patch)
+    if (error) return rejectSfc(get, tag, error)
+    mutateModule(set, get, tag, (m) => {
+      if (m.type !== 'MOTOR' && m.type !== 'VALVE') return
+      if (patch.interlockConditions) {
+        m.interlockConditions = patch.interlockConditions.map(c => ({ ...c }))
+        if (!m.interlockConditions.length && !m.interlockSource) m.interlock = false
+      }
+      if (patch.permissiveConditions) {
+        m.permissiveConditions = patch.permissiveConditions.map(c => ({ ...c }))
+        if (m.permissiveConditions.length) m.permissiveRequired = true
+        else if (!m.permissiveSource) m.permissiveOk = true
+      }
+      if (patch.forceSetpoints) m.forceSetpoints = patch.forceSetpoints.map(c => ({ ...c }))
+      if (patch.bypassed !== undefined) m.bypassed = patch.bypassed
+    })
+    get().logEvent('CONFIGURE', tag, `Device logic changed: interlocks ${patch.interlockConditions?.length ?? 'unchanged'}, permissives ${patch.permissiveConditions?.length ?? 'unchanged'}, force setpoints ${patch.forceSetpoints?.length ?? 'unchanged'}, bypass ${patch.bypassed ?? 'unchanged'}`)
+    return true
   },
 
   setCasHealthy: (tag, healthy) => {

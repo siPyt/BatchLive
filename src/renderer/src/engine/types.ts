@@ -342,6 +342,31 @@ export type DcState =
   | 'SHUTDOWN'
   | 'LOCKED'
 
+/** One evaluated device condition: a live reference whose (optionally inverted) value decides an interlock, permissive or force setpoint. */
+export interface DeviceCondition {
+  /** Tag of the module whose value is read (PV, state or OUT). */
+  source: string
+  /** Operator-facing description, at most 24 characters. */
+  description: string
+  invert?: boolean
+  /** Interlock conditions only: ignored while the module BYPASSED parameter is set. */
+  bypassable?: boolean
+}
+
+export interface DeviceForceSetpoint extends DeviceCondition {
+  /** State the device is driven to while the condition is true. */
+  state: 'ACTIVE' | 'PASSIVE'
+}
+
+export interface DeviceLogicPatch {
+  interlockConditions?: DeviceCondition[]
+  permissiveConditions?: DeviceCondition[]
+  forceSetpoints?: DeviceForceSetpoint[]
+  bypassed?: boolean
+}
+
+export const DEVICE_LIMITS = { interlocks: 16, permissives: 8, forceSetpoints: 8, description: 24 } as const
+
 export interface MotorModule extends ModuleDisplayProperties {
   descriptors?: DeviceStateDescriptors
   templateId?: 'MTR-11_ILOCK'
@@ -361,6 +386,14 @@ export interface MotorModule extends ModuleDisplayProperties {
   passiveOnTimeout?: boolean
   tag: string
   type: 'MOTOR'
+  /** Up to 16 interlock conditions; any true (or Bad) condition trips the device to Passive. */
+  interlockConditions?: DeviceCondition[]
+  /** Up to 8 permissive conditions; all must be true to leave Passive. */
+  permissiveConditions?: DeviceCondition[]
+  /** Up to 8 force setpoints; the first true condition drives the command to its state. */
+  forceSetpoints?: DeviceForceSetpoint[]
+  /** BYPASSED: interlock conditions marked bypassable are ignored. */
+  bypassed?: boolean
   description: string
   area: string
   /** Equipment Module this Control Module belongs to, if any. */
@@ -415,6 +448,10 @@ export interface ValveModule extends ModuleDisplayProperties {
   passiveOnTimeout?: boolean
   tag: string
   type: 'VALVE'
+  interlockConditions?: DeviceCondition[]
+  permissiveConditions?: DeviceCondition[]
+  forceSetpoints?: DeviceForceSetpoint[]
+  bypassed?: boolean
   description: string
   area: string
   /** Equipment Module this Control Module belongs to, if any. */
