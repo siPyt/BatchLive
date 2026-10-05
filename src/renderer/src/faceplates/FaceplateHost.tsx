@@ -8,6 +8,7 @@ import { AiFaceplate } from './AiFaceplate'
 import { DiscreteFaceplate } from './DiscreteFaceplate'
 import { AoFaceplate } from './AoFaceplate'
 import { moduleTrendPens } from '../engine/trendPens'
+import { moduleOwnUnacknowledgedAlarms } from '../utils/format'
 import { PidDetailDialog } from './PidDetailDialog'
 
 /** Renders every open faceplate window. */
@@ -27,6 +28,8 @@ export function FaceplateHost(): JSX.Element {
 
 function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag])
+  const alarms = useStore((s) => s.alarms)
+  const ackAlarm = useStore((s) => s.ackAlarm)
   const close = useUi((s) => s.closeFaceplate)
   const move = useUi((s) => s.moveFaceplate)
   const select = useUi((s) => s.select)
@@ -54,6 +57,10 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
   }, [tag, move])
 
   if (!m) return null
+
+  // DV09 real-DeltaV faceplate chrome: "Ack Alarm" acknowledges this module's
+  // own active, unacknowledged alarm(s) directly, without opening Alarm Summary.
+  const ownUnacked = moduleOwnUnacknowledgedAlarms(tag, alarms)
 
   let body: ReactNode = null
   switch (m.type) {
@@ -114,6 +121,13 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
         {m.alarms.length > 0 && (
           <button className="fp-link-btn" onClick={() => focusAlarms(tag)} title="Open Alarm List">
             ⚠ Alarms
+          </button>
+        )}
+        {m.alarms.length > 0 && (
+          <button className="fp-link-btn" disabled={ownUnacked.length === 0}
+            onClick={() => ownUnacked.forEach((a) => ackAlarm(a.id))}
+            title="Acknowledge this module's own active alarm(s) without opening Alarm Summary">
+            Ack Alarm
           </button>
         )}
       </div>

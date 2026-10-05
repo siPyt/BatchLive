@@ -1619,3 +1619,32 @@ DV-09 p257 PipesAnim Tank/Pump/Valve connection:
   "Connect the TANK, PUMP and VALVES together using PipesAnim" step, not the
   native DeltaV PipesAnim dynamo library; applied AO output is not measured
   physical valve travel, and no baseline plant graphic geometry is changed.
+
+FACEPLATE CHROME: "Ack Alarm" BUTTON (2026-10-05, Pass60)
+---------------------------------------------------------
+New reference photographs: newImage/newNewImages/IMG_0638.jpeg (PIC016 PID
+faceplate, MAN), IMG_0639.jpeg (XC010 speed faceplate, AUTO/RUNNING),
+IMG_0646.jpeg (YV008 discrete valve faceplate, CAS/OPEN). All three real
+faceplates share a common chrome: title block, large mode text, a Modelock
+Override checkbox, a right-side icon rail, an "Owned by:/Unit:" block, Help
+and an explicit "Ack Alarm" button — acknowledging the module's own alarm
+directly from its faceplate, not only from Alarm Summary.
+- Added: FaceplateHost.tsx's shared fp-links row (used by every faceplate
+  type: PID/Motor/Valve/AI/AO/Discrete) gets an "Ack Alarm" button alongside
+  the existing Alarms button. It is enabled only when this module has a real
+  active, unacknowledged alarm (utils/format.ts's new
+  moduleOwnUnacknowledgedAlarms), and calls the existing store ackAlarm
+  action for each one — the same acknowledgment path Alarm Summary already
+  uses, just exposed where real DeltaV exposes it.
+- Deliberately NOT added this pass (would be cosmetic, not real, without
+  further engine work): a Modelock Override checkbox (real DeltaV semantics
+  require a modeled Equipment Module/Phase acquire-release arbitration this
+  simulator does not yet have — see C_ARB_MOD_EM/PH in newNewImages'
+  Control Studio screenshots) and an "Owned by:" row (would require the same
+  real ownership/arbitration model; showing static Equipment Module
+  membership instead would misrepresent it as live ownership). These remain
+  open items for a future pass that actually implements arbitration, not a
+  decorative substitute.
+- No existing faceplate layout, tab structure, bar/readout styling or plant
+  equipment-body palette was changed; this is purely an additive row in the
+  already-shared chrome, preserving every protected appearance rule above.

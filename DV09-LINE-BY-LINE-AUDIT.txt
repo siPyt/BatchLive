@@ -2771,3 +2771,39 @@ Validation: 370 repository tests run locally (369 pass; the remaining failure
 Result: DV09-041 MISSING -> VERIFIED_SUBSET. Current totals11 VERIFIED_SUBSET/
   57 PARTIAL/35 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the
   next remaining group in a subsequent pass.
+
+PASS 60 CHANGE DETAIL AND VALIDATION (2026-10-05)
+--------------------------------------------------
+Scope: cross-cutting visual-alignment work (not a single DV09-xxx line item):
+the user supplied newImage/newNewImages/ photographs of three real DeltaV
+faceplates (PID, discrete valve, speed/motor) and asked that BatchLive's
+look/feel be brought in line with them wherever genuinely possible. All three
+share one chrome: title, mode, a Modelock Override checkbox, a right icon
+rail, Owned by/Unit, Help and an explicit faceplate-level "Ack Alarm" button.
+Change: FaceplateHost.tsx's shared fp-links row (used by all six faceplate
+  types) adds an "Ack Alarm" button, enabled only when the module has a real
+  active/unacknowledged alarm (format.ts's new moduleOwnUnacknowledgedAlarms),
+  calling the existing store ackAlarm action per alarm — the same
+  acknowledgment path Alarm Summary already uses.
+Deliberately not added (to avoid a decorative, non-functional substitute):
+  Modelock Override and an "Owned by:" row. Real DeltaV semantics for both
+  require a modeled Equipment Module/Phase acquire-release arbitration
+  (C_ARB_MOD_EM/PH, visible in the newNewImages Control Studio screenshots)
+  that does not exist yet; faking the checkbox or mislabeling static
+  Equipment Module membership as live ownership would misrepresent the
+  simulator. This is recorded honestly in GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt
+  as an open item for a future pass that implements real arbitration.
+Tests: control-strategy.test.cjs adds a regression for
+  moduleOwnUnacknowledgedAlarms (synthetic-alarm filtering by tag/active/ack
+  state) plus a real-engine case (XVSTAT-101's genuine ON VALUE 0 alarm is
+  found, cleared via store.ackAlarm, and the alarm's acknowledged flag flips).
+Validation: 371 repository tests run locally (370 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency in dv09-audit.test.cjs).
+  Typecheck and the production build both passed. No existing faceplate
+  layout, tab structure, bar/readout styling or plant equipment-body palette
+  was changed (additive row only), per GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt's
+  protected-appearance rules.
+Result: no DV09-xxx classification changes (this pass is cross-cutting
+chrome, not a scored line item); totals remain11 VERIFIED_SUBSET/57 PARTIAL/
+35 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next remaining
+scored group in a subsequent pass.

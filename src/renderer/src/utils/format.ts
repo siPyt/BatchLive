@@ -175,6 +175,13 @@ export function moduleAlarm(tag: string, alarms: ActiveAlarm[]): ActiveAlarm | n
   return best
 }
 
+/** This module's own active, unacknowledged alarm(s) — what a real DeltaV
+ * faceplate's "Ack Alarm" button acknowledges directly, without requiring
+ * the operator to open Alarm Summary first. */
+export function moduleOwnUnacknowledgedAlarms(tag: string, alarms: ActiveAlarm[]): ActiveAlarm[] {
+  return alarms.filter((a) => a.moduleTag === tag && a.active && !a.acknowledged)
+}
+
 export function prioClass(p: AlarmPriority): string {
   return p.toLowerCase()
 }

@@ -32,7 +32,7 @@ const { usePictures, resolvePictureTarget } = require('../src/renderer/src/engin
 const { moduleNameError, isValidDeltaVTag } = require('../src/renderer/src/engine/naming.ts')
 const {
   compareAlarmRank, alarmRank, priorityRank, alarmColumnText, alarmParameter, alarmCategory,
-  ALARM_COLUMNS, DEFAULT_ALARM_COLUMNS, loadAlarmColumns, saveAlarmColumns
+  ALARM_COLUMNS, DEFAULT_ALARM_COLUMNS, loadAlarmColumns, saveAlarmColumns, moduleOwnUnacknowledgedAlarms
 } = require('../src/renderer/src/utils/format.ts')
 const { findDst, channelConfigurationError, advanceTraditionalIo, sampleAnalogInputs } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
@@ -879,6 +879,31 @@ test('DV09-041 custom alarm type registry validates definitions, requires Change
     assert.equal(Object.keys(useStore.getState().customAlarmTypes.configured).length, MAX_CUSTOM_ALARM_TYPES)
     // Updating an existing type (not adding a new one) is still allowed once the registry is full.
     assert.equal(store.defineCustomAlarmType('T0', { priority: 'WARNING', messageTemplate: 'updated' }), true)
+  })
+})
+
+test('faceplate "Ack Alarm" acknowledges a module\'s own active alarm(s) directly, matching real DeltaV faceplate chrome', () => {
+  // Pure-function coverage with synthetic alarms (same pattern as the DV09-040 regression).
+  const base = { id: 'X', moduleTag: 'LI-101', moduleDesc: 'd', type: 'HI', label: 'HI', priority: 'WARNING',
+    value: 1, unit: 'gal', time: 0 }
+  const activeUnacked = { ...base, active: true, acknowledged: false }
+  const otherModule = { ...base, id: 'Y', moduleTag: 'OTHER-101', active: true, acknowledged: false }
+  const acked = { ...base, id: 'Z', active: true, acknowledged: true }
+  const inactive = { ...base, id: 'W', active: false, acknowledged: false }
+  assert.deepEqual(moduleOwnUnacknowledgedAlarms('LI-101', [activeUnacked, otherModule, acked, inactive]), [activeUnacked])
+  assert.deepEqual(moduleOwnUnacknowledgedAlarms('LI-101', [otherModule, acked, inactive]), [])
+
+  // Real engine integration: a genuinely active alarm on XVSTAT-101 is found and clears after ackAlarm.
+  withAreaProject(store => {
+    discreteCourseProject(store)
+    store.configureDiscreteAlarm('XVSTAT-101', false, true)
+    store.tick(0.1)
+    const live = moduleOwnUnacknowledgedAlarms('XVSTAT-101', useStore.getState().alarms)
+    assert.equal(live.length, 1)
+    assert.equal(live[0].active, true)
+    live.forEach(a => store.ackAlarm(a.id))
+    assert.deepEqual(moduleOwnUnacknowledgedAlarms('XVSTAT-101', useStore.getState().alarms), [])
+    assert.equal(useStore.getState().alarms.find(a => a.moduleTag === 'XVSTAT-101').acknowledged, true)
   })
 })
 
