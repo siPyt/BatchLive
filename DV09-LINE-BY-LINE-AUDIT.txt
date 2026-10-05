@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 52 VERIFIED_SUBSET, 51 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 53 VERIFIED_SUBSET, 50 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -202,12 +202,24 @@ Acceptance: Preserve both CHARM and traditional inventory scan regressions.
 
 [DV09-009]
 Pages: 63-65
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Configure cold restart, including disabled/always-enabled behavior,
   time-window eligibility, nonvolatile values and downloaded configuration.
-Evidence: HW/STORE enforce a minutes window up to 30d23h59m; zero disables.
-  The five-minute inclusive boundary is tested. No separate configured,
-  downloaded, runtime or NVM parameter stores/replay scripts exist.
+Evidence (Pass82): coldRestart.ts reproduces the course Cold Restart selectors
+  (Explorer CTLR > Properties > Controller): Always Disabled, Always Enabled
+  (maximum time, 30 d 23 h 59 min) and Enabled Within A Time Limit set as Days
+  0-30, Hours 0-23, Minutes 0-59 (a time of 0 is Always Disabled; the manual's
+  two-minute recommendation is shown). Physical Network replaces the raw minutes
+  box with those selectors, a plain-language summary and the last power-return
+  result. Restoration commissions-and-downloads (cold restarts) only when power
+  returns in less than or equal to the limit; tests with a controlled clock cover
+  just below, exactly at and just above 5 minutes, zero, the maximum and just
+  past it, and the journal records minutes and reason. Retained AO values replay
+  from non-volatile memory on a successful cold restart and are discarded
+  otherwise (existing control-strategy regressions). Six new regressions.
+  Boundary: configuration applies immediately; there is no separate downloaded
+  Setup Data / Controller Cold Restart Memory transfer step, and NVM replay is
+  modelled for AO modules only.
 Acceptance: Test just below/at/above the window, zero and maximum, power
   restoration and NVM replay. Reproduce the course selectors/always-enabled
   semantics rather than relabeling the current minutes input.
@@ -3962,3 +3974,23 @@ Validation: 565 tests locally (564 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-074 PARTIAL -> VERIFIED_SUBSET. Totals 52 VERIFIED_SUBSET/
   51 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 82 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-009 controller cold restart selectors and window semantics (pp63-65),
+  from the extracted manual text (Always Disabled / Always Enabled / Within A
+  Time Limit; days 0-30, hours 0-23, minutes 0-59; <= limit restarts; 0 disables).
+Engine: new coldRestart.ts (mode, split/join, validation, decision); store
+  restoreControllerPower uses coldRestartDecision and records lastRestoration on
+  the controller; the journal text now gives the reason.
+UI: Physical Network cold-restart mode select with days/hours/minutes inputs and
+  the last power-return outcome.
+Tests: tests/cold-restart.test.cjs (6) with a controlled Date.now.
+Browser: Always Enabled applied and summarised; 75 minutes in the minutes field
+  showed the range error.
+Boundary (honest): no separate downloaded Setup Data/Cold Restart Memory step;
+  NVM replay modelled for AO modules only.
+Validation: 571 tests locally (570 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-009 PARTIAL -> VERIFIED_SUBSET. Totals 53 VERIFIED_SUBSET/
+  50 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

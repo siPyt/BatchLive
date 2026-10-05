@@ -9,6 +9,10 @@ import { SerialIoPanel } from '../components/SerialIoPanel'
 import { H1Panel } from '../components/H1Panel'
 import { useSystem } from '../engine/systemPreferences'
 import {
+  COLD_RESTART_MODE_LABEL, coldRestartFromSelectors, coldRestartMode, describeColdRestart, splitColdRestart,
+  type ColdRestartMode, type ColdRestartParts
+} from '../engine/coldRestart'
+import {
   CHARM_TYPE_LABEL,
   controllerIsDown,
   isValidControllerTag,
@@ -183,6 +187,8 @@ function ControllerPanel({
     networkRedundant: c.networkRedundant,
     coldRestartMinutes: c.coldRestartMinutes
   })
+  const [crMode, setCrMode] = useState<ColdRestartMode>(coldRestartMode(c.coldRestartMinutes))
+  const [crParts, setCrParts] = useState<ColdRestartParts>(splitColdRestart(c.coldRestartMinutes))
   const [error, setError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [commissioningScan, setCommissioningScan] = useState(false)
@@ -193,7 +199,22 @@ function ControllerPanel({
       networkRedundant: c.networkRedundant,
       coldRestartMinutes: c.coldRestartMinutes
     })
+    setCrMode(coldRestartMode(c.coldRestartMinutes))
+    setCrParts(splitColdRestart(c.coldRestartMinutes))
   }, [c.tag, c.redundant, c.networkRedundant, c.coldRestartMinutes])
+
+  const updateColdRestart = (mode: ColdRestartMode, parts: ColdRestartParts): void => {
+    setCrMode(mode)
+    setCrParts(parts)
+    const result = coldRestartFromSelectors(mode, parts)
+    if ('error' in result) {
+      setError(result.error)
+      setSettings((current) => ({ ...current, coldRestartMinutes: Number.NaN }))
+      return
+    }
+    setError('')
+    setSettings((current) => ({ ...current, coldRestartMinutes: result.minutes }))
+  }
 
   useEffect(() => {
     if (!c.commissioned) setCommissioningScan(false)
@@ -401,19 +422,24 @@ function ControllerPanel({
           />
         </label>
         <label>
-          Cold Restart (minutes; 0 disables)
-          <input
-            type="number"
-            min={0}
-            max={MAX_COLD_RESTART_MINUTES}
-            step={1}
-            value={Number.isNaN(settings.coldRestartMinutes) ? '' : settings.coldRestartMinutes}
-            onChange={(e) =>
-              setSettings((current) => ({ ...current, coldRestartMinutes: e.target.value.trim() ? Number(e.target.value) : Number.NaN }))
-            }
-          />
+          Cold Restart
+          <select aria-label="Cold restart mode" value={crMode} onChange={(e) => updateColdRestart(e.target.value as ColdRestartMode, crParts)}>
+            {(Object.keys(COLD_RESTART_MODE_LABEL) as ColdRestartMode[]).map((m) => <option key={m} value={m}>{COLD_RESTART_MODE_LABEL[m]}</option>)}
+          </select>
         </label>
-        <button className="tbtn sm" disabled={down && c.commissioned} onClick={applySettings}>Apply Properties</button>
+        {crMode === 'WITHIN_LIMIT' && (['days', 'hours', 'minutes'] as const).map((part) => (
+          <label key={part}>
+            {part[0].toUpperCase() + part.slice(1)}
+            <input aria-label={`Cold restart ${part}`} type="number" min={0} step={1} style={{ width: 56 }} value={Number.isNaN(crParts[part]) ? '' : crParts[part]}
+              onChange={(e) => updateColdRestart('WITHIN_LIMIT', { ...crParts, [part]: e.target.value.trim() ? Number(e.target.value) : Number.NaN })} />
+          </label>
+        ))}
+        <span className="hardware-autosense-result">{describeColdRestart(c.coldRestartMinutes)}</span>
+        {c.lastRestoration && (
+          <span className="hardware-autosense-result">
+            Last power return: {c.lastRestoration.outageMinutes.toFixed(2)} min — {c.lastRestoration.coldRestart ? 'cold restart' : 'no cold restart'} ({c.lastRestoration.reason})
+          </span>
+        )}        <button className="tbtn sm" disabled={down && c.commissioned} onClick={applySettings}>Apply Properties</button>
         {c.lastAutoSense ? (
           <span className="hardware-autosense-result">
             Last scan {new Date(c.lastAutoSense.scannedAt).toLocaleTimeString()} · {c.lastAutoSense.carriersScanned} carriers ·{' '}

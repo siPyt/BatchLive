@@ -68,6 +68,8 @@ export interface Controller {
   scanTimeMs: number
   cpuLoadPct: number
   carrierIds: string[]
+  /** Outcome of the most recent power restoration, for the cold-restart status display. */
+  lastRestoration?: { at: number; outageMinutes: number; coldRestart: boolean; reason: string }
 }
 
 export interface AutoSenseResult {

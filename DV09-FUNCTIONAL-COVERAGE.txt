@@ -2615,3 +2615,9 @@ Line1 - Build Recipes gates recipe create/change/delete; Batch Operate gates sel
 Line2 - START snapshots procedure and formula-applied phases; running batch unaffected.
 Line3 - Can Calibrate = field-device configuration; AMS calibration workflow absent.
 Line4 - Tests: recipes.test.cjs.
+
+PASS 82: COLD RESTART SELECTORS AND WINDOW (pp63-65)
+-----------------------------------------------------------------------
+Line1 - Always Disabled / Always Enabled / Within A Time Limit with d/h/m ranges.
+Line2 - Power back <= limit cold restarts; above, zero and past-maximum do not.
+Line3 - Last power-return result displayed and journalled. Tests: cold-restart.test.cjs.

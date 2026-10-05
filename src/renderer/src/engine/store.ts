@@ -27,6 +27,7 @@ import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId 
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { reconcileDeviceAlarms } from './deviceAlarms'
 import { useSimulator, validateScale } from './simulatorSession'
+import { coldRestartDecision, type ColdRestartDecision } from './coldRestart'
 import { DEFAULT_RECIPE_NAME, defaultRecipe, recipeErrors, resolveRecipe, type Recipe } from './recipes'
 import { isDefaultSchedule, validateExecutionOrder, validateScanMultiple, type ModuleScheduling } from './moduleScheduling'
 import { featureDisabledError, featureEnabled } from './systemPreferences'
@@ -1644,11 +1645,13 @@ export const useStore = create<StoreState>((set, get) => ({
     let restored = false
     let coldRestartSucceeded = false
     let outageMinutes = 0
+    let decision: ColdRestartDecision = { restart: false, reason: '' }
     set((s) => {
       const c = s.hardware.controllers[tag]
       if (!c || c.powerDownAt === null) return {}
       outageMinutes = Math.max(0, (Date.now() - c.powerDownAt) / 60_000)
-      coldRestartSucceeded = c.coldRestartMinutes > 0 && outageMinutes <= c.coldRestartMinutes
+      decision = coldRestartDecision(c.coldRestartMinutes, outageMinutes)
+      coldRestartSucceeded = decision.restart
       restored = true
       const modules = { ...s.modules }
       const moduleLifecycle = { ...s.moduleLifecycle }
@@ -1670,6 +1673,7 @@ export const useStore = create<StoreState>((set, get) => ({
             [tag]: coldRestartSucceeded
               ? {
                   ...c,
+                  lastRestoration: { at: Date.now(), outageMinutes, coldRestart: true, reason: decision.reason },
                   commissioned: true,
                   powerDownAt: null,
                   primary: 'ACTIVE',
@@ -1677,6 +1681,7 @@ export const useStore = create<StoreState>((set, get) => ({
                 }
               : {
                   ...c,
+                  lastRestoration: { at: Date.now(), outageMinutes, coldRestart: false, reason: decision.reason },
                   commissioned: false,
                   identified: false,
                   powerDownAt: null,
@@ -1690,8 +1695,8 @@ export const useStore = create<StoreState>((set, get) => ({
     })
     if (restored) {
       const message = coldRestartSucceeded
-        ? `Cold restart succeeded after ${outageMinutes.toFixed(2)} minutes; controller returned to service`
-        : `Cold restart unavailable after ${outageMinutes.toFixed(2)} minutes; controller requires commissioning and download`
+        ? `Cold restart succeeded after ${outageMinutes.toFixed(2)} minutes (${decision.reason}); controller returned to service`
+        : `Cold restart unavailable after ${outageMinutes.toFixed(2)} minutes (${decision.reason}); controller requires commissioning and download`
       get().logEvent('DIAGNOSTIC', tag, message)
       for (const [moduleTag, record] of Object.entries(get().moduleLifecycle)) {
         if (record.deployed?.controllerTag === tag && record.restartMemoryRequired) {
