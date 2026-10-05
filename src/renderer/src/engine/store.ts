@@ -1841,7 +1841,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const target = get().alarms.find((a) => a.id === id)
     set((s) => ({
       alarms: s.alarms
-        .map((a) => (a.id === id ? { ...a, acknowledged: true } : a))
+        .map((a) => (a.id === id ? { ...a, acknowledged: true, timeLast: s.time } : a))
         .filter((a) => a.active || !a.acknowledged),
       rev: s.rev + 1
     }))
@@ -1852,7 +1852,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!useSecurity.getState().requireLock('ALARMS', 'Acknowledge All')) return
     const count = get().alarms.filter((a) => !a.acknowledged).length
     set((s) => ({
-      alarms: s.alarms.map((a) => ({ ...a, acknowledged: true })).filter((a) => a.active),
+      alarms: s.alarms.map((a) => (a.acknowledged ? a : { ...a, acknowledged: true, timeLast: s.time })).filter((a) => a.active),
       rev: s.rev + 1
     }))
     get().logEvent('ACK', '—', `Acknowledge All (${count} alarms)`)

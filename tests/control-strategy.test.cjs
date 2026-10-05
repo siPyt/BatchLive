@@ -795,7 +795,8 @@ test('DV09-040 alarm list columns expose typed, selectable/reorderable, truthful
   assert.equal(alarmCategory({ ...alarm, type: 'INTERLOCK' }), 'SYSTEM')
   assert.equal(alarmCategory({ ...alarm, type: 'CUSTOM' }), '—')
   assert.deepEqual(ALARM_COLUMNS.map(c => c.key),
-    ['timeIn', 'module', 'description', 'alarm', 'value', 'priority', 'rank', 'area', 'node', 'partOf', 'parameter', 'category'])
+    ['timeIn', 'module', 'description', 'alarm', 'value', 'priority', 'rank', 'area', 'node', 'partOf', 'parameter', 'category',
+      'message', 'timeLast', 'unit'])
 })
 
 test('DV09-124 alarm-summary Category column can be added, moved to the fourth position, and persists across reopen', () => {

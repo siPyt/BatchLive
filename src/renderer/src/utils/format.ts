@@ -85,7 +85,7 @@ export function alarmCategory(a: ActiveAlarm): string {
  * alarmColumnText so the same logic is unit-testable outside React. */
 export type AlarmColumnKey =
   | 'timeIn' | 'module' | 'description' | 'alarm' | 'value' | 'priority' | 'rank'
-  | 'area' | 'node' | 'partOf' | 'parameter' | 'category'
+  | 'area' | 'node' | 'partOf' | 'parameter' | 'category' | 'message' | 'timeLast' | 'unit'
 
 export interface AlarmColumnDef {
   key: AlarmColumnKey
@@ -108,7 +108,10 @@ export const ALARM_COLUMNS: AlarmColumnDef[] = [
   { key: 'node', label: 'Node', defaultVisible: false },
   { key: 'partOf', label: 'Part Of', defaultVisible: false },
   { key: 'parameter', label: 'Parameter', defaultVisible: false },
-  { key: 'category', label: 'Category', defaultVisible: false }
+  { key: 'category', label: 'Category', defaultVisible: false },
+  { key: 'message', label: 'Message', defaultVisible: false },
+  { key: 'timeLast', label: 'Time Last', defaultVisible: false },
+  { key: 'unit', label: 'Unit', defaultVisible: false }
 ]
 
 export const DEFAULT_ALARM_COLUMNS: AlarmColumnKey[] = ALARM_COLUMNS
@@ -151,7 +154,7 @@ export function saveAlarmColumns(columns: AlarmColumnKey[]): void {
  * the alarm belongs to, if it still exists (area/node/part-of come from the
  * real module record, never invented when the module or field is absent).
  */
-export function alarmColumnText(key: AlarmColumnKey, a: ActiveAlarm, m: AnyModule | undefined, area?: string): string {
+export function alarmColumnText(key: AlarmColumnKey, a: ActiveAlarm, m: AnyModule | undefined, area?: string, unitName?: string): string {
   switch (key) {
     case 'timeIn': return clockString(a.time)
     case 'module': return a.moduleTag
@@ -165,6 +168,9 @@ export function alarmColumnText(key: AlarmColumnKey, a: ActiveAlarm, m: AnyModul
     case 'partOf': return m?.equipmentModule ?? '—'
     case 'parameter': return alarmParameter(a)
     case 'category': return alarmCategory(a)
+    case 'message': return a.message ?? a.label
+    case 'timeLast': return clockString(a.timeLast ?? a.time)
+    case 'unit': return unitName ?? '—'
   }
 }
 

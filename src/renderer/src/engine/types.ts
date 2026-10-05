@@ -59,6 +59,10 @@ export interface ActiveAlarm {
   acknowledged: boolean
   /** epoch ms when the alarm went active. */
   time: number
+  /** DV09-040: epoch ms of the most recent state change (activation, return to normal or acknowledgement). */
+  timeLast?: number
+  /** DV09-040: message text captured when the alarm tripped, e.g. the limit that was crossed. */
+  message?: string
   /** ISA-18.2 Shelving: epoch ms the shelf expires, or undefined if not shelved. */
   shelvedUntil?: number
   /** DV09-123 repeat annunciation of an unacknowledged device alarm. */

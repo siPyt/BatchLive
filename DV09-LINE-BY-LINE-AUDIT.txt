@@ -863,14 +863,19 @@ Pages: 183-184
 Status: PARTIAL
 Required: Alarm list columns including area/category/message/node/parameter/
   part-of/time-last/unit/zone, as well as normal alarm operations.
-Evidence (Pass58, superseding prior "static reduced columns" note): AlarmSummary
-  now exposes typed, selectable, reorderable, persisted columns: Time In,
-  Module/Param, Description, Alarm, Value, Priority, Rank, Area, Node, Part
-  Of, Parameter and Category, each rendered through alarmColumnText so no
-  field is ever fabricated for a missing/deleted module.
-Gaps still MISSING: a distinct Message column (separate from the Alarm label),
-  a Time Last (vs Time In) column, a standalone Unit column (value embeds
-  unit inline today) and Zone. Status stays PARTIAL until those are added.
+Evidence (Pass58 + Pass92): AlarmSummary exposes typed, selectable, reorderable,
+  persisted columns: Time In, Module/Param, Description, Alarm, Value, Priority,
+  Rank, Area, Node, Part Of, Parameter and Category (Pass58) and, from Pass92,
+  Message (the text captured when the alarm tripped, e.g. "HI limit 85 degC",
+  falling back to the label), Time Last (stamped at activation, return to
+  normal and acknowledgement, while Time In stays the activation time) and
+  Unit (the Unit module from the equipment hierarchy). Every column renders
+  through alarmColumnText so nothing is fabricated for a missing module,
+  hierarchy level or older alarm. Seven regressions cover message capture,
+  Time In versus Time Last transitions, acknowledgement stamps, the typed
+  optional columns, hierarchy-derived Unit, persistence and live plant alarms;
+  the browser column picker lists Message, Time Last and Unit.
+Gaps: Zone (DeltaV alarm zones need a zone configuration that BatchLive does not have, so no Zone column is offered rather than a fabricated one).
 Acceptance: Add typed selectable/reorderable columns with truthful values;
   do not populate missing fields with fabricated labels.
 
@@ -4284,3 +4289,20 @@ PARTIAL to VERIFIED_SUBSET; their stated boundaries are unchanged:
     Review/Update tuning experiment and application are tested; real DeltaV Tune
     is a vendor-software boundary and the suggestion is not claimed to match it.
 Result: Totals 64 VERIFIED_SUBSET/39 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 92 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-040 alarm list columns Message, Time Last and Unit (pp183-184).
+Engine: ActiveAlarm gains message and timeLast; reconcileAlarm captures the message
+  and stamps Time Last on activation/return to normal; ackAlarm/ackAll stamp it
+  from the simulation clock.
+UI: three new optional columns in the Alarm List column picker; Unit comes from the
+  Pass89 equipment hierarchy.
+Tests: tests/alarm-columns-extra.test.cjs (7); the earlier column-key assertion in
+  control-strategy.test.cjs extended by the three keys.
+Browser: Configure Columns lists Message, Time Last and Unit.
+Result: DV09-040 stays PARTIAL; the only remaining listed column gap is Zone (no
+  zone configuration exists, so none is fabricated). Totals unchanged at
+  64 VERIFIED_SUBSET/39 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+Validation: 641 tests locally (640 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.

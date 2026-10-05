@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { alarmArea } from '../engine/deviceAlarms'
+import { modulePath } from '../engine/hierarchy'
 import { isSfcAlarm } from '../engine/sfcBlocks'
 import { useUi } from '../ui/uiStore'
 import { compareAlarmRank, alarmColumnText, ALARM_COLUMNS, loadAlarmColumns, saveAlarmColumns } from '../utils/format'
@@ -13,6 +14,10 @@ export function AlarmSummary(): JSX.Element {
   const alarms = useStore((s) => s.alarms)
   const modules = useStore((s) => s.modules)
   const hardware = useStore((s) => s.hardware)
+  const equipment = useStore((s) => s.equipment)
+  const processCells = useStore((s) => s.processCells)
+  const units = useStore((s) => s.units)
+  const areas = useStore((s) => s.areas)
   const ackAlarm = useStore((s) => s.ackAlarm)
   const ackAll = useStore((s) => s.ackAll)
   const shelveAlarm = useStore((s) => s.shelveAlarm)
@@ -143,6 +148,7 @@ export function AlarmSummary(): JSX.Element {
                 columns={columns}
                 module={modules[a.moduleTag]}
                 area={alarmArea(a, modules, hardware)}
+                unit={modules[a.moduleTag] ? modulePath(modules[a.moduleTag], { areas, processCells, units, equipment }).unit : undefined}
                 onAck={() => ackAlarm(a.id)}
                 onOpen={() => isSfcAlarm(a) ? openSfc(a.moduleTag) : openFaceplate(a.moduleTag)}
                 onShelve={() => shelveAlarm(a.id, 60)}
@@ -164,12 +170,14 @@ function AlarmRow({
   onOpen,
   onShelve,
   onUnshelve,
-  area
+  area,
+  unit
 }: {
   a: ActiveAlarm
   columns: AlarmColumnKey[]
   module: AnyModule | undefined
   area?: string
+  unit?: string
   onAck: () => void
   onOpen: () => void
   onShelve: () => void
@@ -188,12 +196,12 @@ function AlarmRow({
         key === 'module' ? (
           <td key={key}>
             <a style={{ color: linkColor, cursor: 'pointer', fontWeight: 700 }} onClick={onOpen}>
-              {alarmColumnText(key, a, module, area)}
+              {alarmColumnText(key, a, module, area, unit)}
             </a>
           </td>
         ) : (
           <td key={key} style={boldColumns.includes(key) ? { fontWeight: 700 } : undefined}>
-            {alarmColumnText(key, a, module, area)}
+            {alarmColumnText(key, a, module, area, unit)}
           </td>
         )
       )}

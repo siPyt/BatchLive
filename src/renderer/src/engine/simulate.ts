@@ -274,11 +274,14 @@ export function reconcileAlarm(
         unit,
         active: true,
         acknowledged: false,
-        time: now
+        time: now,
+        timeLast: now,
+        message: lim.limit !== undefined ? `${lim.label} limit ${lim.limit}${unit ? ` ${unit}` : ''}` : lim.label
       })
     } else {
       if (!list[idx].active) {
         list[idx].time = now
+        list[idx].timeLast = now
         list[idx].acknowledged = false
       }
       list[idx].active = true
@@ -297,6 +300,7 @@ export function reconcileAlarm(
     if (list[idx].acknowledged) {
       list.splice(idx, 1)
     } else {
+      if (list[idx].active) list[idx].timeLast = now
       list[idx].active = false
       list[idx].value = value
     }

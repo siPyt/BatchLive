@@ -2671,3 +2671,8 @@ Line2 - Unsupported native behaviour is listed, not decorated. Tests: applicatio
 PASS 91: STATUS RECONCILIATION
 -----------------------------------------------------------------------
 DV09-056, DV09-059 and DV09-061 are VERIFIED_SUBSET on existing evidence; boundaries unchanged.
+
+PASS 92: ALARM LIST MESSAGE / TIME LAST / UNIT COLUMNS (pp183-184)
+-----------------------------------------------------------------------
+Line1 - Message captured at trip; Time Last stamped on state changes; Unit from the hierarchy.
+Line2 - Zone remains a gap. Tests: alarm-columns-extra.test.cjs.
