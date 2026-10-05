@@ -754,6 +754,19 @@ Download Only preserves the configured defaults. Cancelling either dialog does
 not write values. This is the FIC-102 tuning subset, not general native module
 upload or controller-database communication.
 
+The same selected/none-safe pattern now also applies to standalone AO modules:
+a downloaded AO's `Upload Selected Parameters` lists each Floating Point
+parameter (e.g. `CAS_SP`) whose live value differs from the offline draft as
+"name: draft X / live Y" with a checkbox. Selected values write into the draft
+only; Save is still required to persist them, and every other draft field
+(mode, SP, manual output, restart/download policy) and every unselected
+parameter are untouched. Selecting none, Cancel, or an already-matching
+selection is a safe no-op. The existing blanket `Upload to Draft` button is
+unchanged and still available for a whole-module capture. This remains a
+per-family selective mechanism, not a single generic upload across every
+module/parameter type, and AO does not yet prompt at download time the way
+PID_LOOP's Full Download does.
+
 In the Display Builder, a FIC-102 `PID1/SP` datalink can use numeric entry
 bounded by its engineering range. `PID1/MODE.A_TARGET` supports a multiple-item
 selector constrained by `MODE.PERMITTED`; `MODE.A_ACTUAL` can be displayed

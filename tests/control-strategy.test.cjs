@@ -2216,6 +2216,40 @@ test('upload captures online values into a separate unsaved draft without overwr
   })
 })
 
+test('DV09-060 generic selective AO parameter upload writes only chosen parameters into the draft', () => {
+  withAreaProject(store => {
+    const { changedAoParameters, lifecycleDirty } = require('../src/renderer/src/engine/moduleLifecycle.ts')
+    savedAoCourseProject(store)
+    store.setModuleOnline('LEVEL-101', true)
+    store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+    const runtime = () => useStore.getState().modules['LEVEL-101']
+    assert.deepEqual(changedAoParameters(useStore.getState().moduleLifecycle['LEVEL-101'], runtime()), ['CAS_SP'])
+    assert.equal(store.uploadAoParameters('LEVEL-101', ['MISSING_PARAM']), false,
+      'an unsupported parameter name rejects the whole selection')
+    assert.equal(store.uploadAoParameters('LEVEL-101', []), true, 'selecting none is a safe no-op')
+    let record = useStore.getState().moduleLifecycle['LEVEL-101']
+    assert.equal(record.draft.module.parameters.CAS_SP.value, 500, 'selecting none leaves the draft unchanged')
+    const before = useStore.getState()
+    assert.equal(store.uploadAoParameters('LEVEL-101', ['CAS_SP']), true)
+    record = useStore.getState().moduleLifecycle['LEVEL-101']
+    assert.equal(record.draft.module.parameters.CAS_SP.value, 555, 'selected parameter is uploaded into the draft')
+    assert.equal(record.draft.module.mode, 'CAS',
+      'unselected draft fields (mode) are untouched, unlike the blanket Upload to Draft')
+    assert.deepEqual([record.saved.module.mode, record.saved.module.parameters.CAS_SP.value], ['CAS', 500],
+      'saved configuration is unaffected; Save is still required to persist the draft')
+    assert.equal(record.online, true, 'selective parameter upload does not force the module offline')
+    assert.equal(lifecycleDirty(record), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'], before.modules['LEVEL-101'])
+    assert.equal(store.uploadAoParameters('LEVEL-101', ['CAS_SP']), true,
+      'an already-matching selection is a safe no-op')
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].draft.module.parameters.CAS_SP.value, 555)
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    assert.equal(store.uploadAoParameters('LEVEL-101', ['CAS_SP']), false)
+    useSecurity.setState({ currentUser: 'admin' })
+  })
+})
+
 test('module lifecycle requires configuration/download keys and cleans all state on deletion/reset', () => {
   withAreaProject(store => {
     savedAoCourseProject(store)

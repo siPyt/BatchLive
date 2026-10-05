@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { SimulatorDialog } from './SimulatorDialog'
 import { useStore } from '../engine/store'
-import { lifecycleDirty, prepareAoTransfer, type AoConfiguration } from '../engine/moduleLifecycle'
+import { changedAoParameters, lifecycleDirty, prepareAoTransfer, type AoConfiguration } from '../engine/moduleLifecycle'
 import { DownloadStatusIndicator } from './DownloadStatusIndicator'
 import { compareModuleDownload } from '../engine/downloadStatus'
 
@@ -18,6 +18,7 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const restart = useStore(s => s.restartModule)
   const resend = useStore(s => s.resendLastGoodModuleDownload)
   const [showDownload, setShowDownload] = useState(false)
+  const [showParameterUpload, setShowParameterUpload] = useState(false)
   if (!record) return <tr><td>SAVED CONFIGURATION</td><td>
     <button className="tbtn sm" onClick={() => {
       if (window.confirm('Enable the isolated saved AO lifecycle? Output will hold until the first Save and Full Download. Existing plant modules are unchanged.')) enable(tag)
@@ -48,10 +49,13 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
       <button className="tbtn sm" disabled={!downloaded} onClick={() => {
         if (window.confirm('Replace the offline draft with uploaded controller values? Unsaved draft edits will be discarded; Save is still required.')) upload(tag)
       }}>Upload to Draft</button>
+      <button className="tbtn sm" disabled={!downloaded || !Object.keys(m.parameters).length}
+        onClick={() => setShowParameterUpload(true)}>Upload Selected Parameters</button>
       <button className="tbtn sm" disabled={!downloaded} onClick={() => {
         if (window.confirm('Simulate a cold restart using deployed defaults and the selected NVM restore flags?')) restart(tag)
       }}>Cold Restart Module</button>
-    </div>{showDownload && <ModuleDownloadDialog tag={tag} onClose={() => setShowDownload(false)} />}</td>
+    </div>{showDownload && <ModuleDownloadDialog tag={tag} onClose={() => setShowDownload(false)} />}
+    {showParameterUpload && <AoParameterUploadDialog tag={tag} onClose={() => setShowParameterUpload(false)} />}</td>
     <td>{record.online ? 'Online runtime' : 'Offline draft'}; {status}</td></tr>
     <tr><td>SAVED / DOWNLOADED REVISION</td><td>{record.savedRevision} / {record.deployedRevision}</td>
       <td>Local browser database / simulated controller</td></tr>
@@ -153,6 +157,40 @@ export function ModuleDownloadDialog({ tag, onClose }: { tag: string; onClose: (
         }}>Confirm Download</button>
         <button className="tbtn sm" onClick={onClose}>Cancel Download</button>
       </>}
+    </div>
+  </SimulatorDialog>
+}
+
+export function AoParameterUploadDialog({ tag, onClose }: { tag: string; onClose: () => void }): JSX.Element {
+  const record = useStore(s => s.moduleLifecycle[tag])
+  const runtime = useStore(s => s.modules[tag])
+  const uploadParameters = useStore(s => s.uploadAoParameters)
+  const [selected, setSelected] = useState<string[]>([])
+  const [error, setError] = useState('')
+  const draftParameters = record?.draft.module.parameters ?? {}
+  const changed = changedAoParameters(record, runtime)
+  const downloaded = runtime?.type === 'AO' && runtime.downloaded === true
+  const canUpload = Boolean(record?.deployed && downloaded)
+  return <SimulatorDialog className="module-download-dialog" label={`${tag} Upload Parameters`} onClose={onClose}>
+    <b>{tag} - Upload Selected AO Parameters</b>
+    <p>Select live parameter values to write into the offline draft. Unselected parameters and every other draft
+      field (mode, SP, manual output, restart/download policy) remain unchanged. Save is still required afterward.</p>
+    {changed.length ? <div className="traditional-channel-form">
+      {changed.map(name => <label key={name}>
+        <input type="checkbox" aria-label={`Upload ${tag} ${name}`} checked={selected.includes(name)}
+          onChange={event => setSelected(current => event.target.checked
+            ? [...current, name] : current.filter(item => item !== name))} />
+        {name}: draft {draftParameters[name]?.value} / live {runtime?.type === 'AO' ? runtime.parameters[name]?.value : undefined}
+      </label>)}
+    </div> : <p>No live parameter values differ from the offline draft.</p>}
+    {!canUpload && <p role="alert">Upload requires a downloaded AO module.</p>}
+    {error && <p role="alert">{error}</p>}
+    <div className="traditional-channel-form">
+      <button className="tbtn sm" disabled={!canUpload} onClick={() => {
+        if (uploadParameters(tag, selected)) onClose()
+        else setError('Upload was not applied; see the reported permission or lifecycle error.')
+      }}>Upload Selected</button>
+      <button className="tbtn sm" onClick={onClose}>Cancel</button>
     </div>
   </SimulatorDialog>
 }

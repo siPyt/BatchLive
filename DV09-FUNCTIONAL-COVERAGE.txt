@@ -3,13 +3,12 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-05
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: OUT ramp data entry and a
-PipesAnim Tank/Pump/Valve connection (Pass54).
-Implementation: a68483a, 2026-10-05, OUT ramp/PipesAnim (Pass54).
-Previous milestone: 0dc6c8f, atomic all-enrolled AO/PID/device/SFC controller
-Full transfer (Pass53), published 2026-10-04.
-The user authorized commit and push of Pass54 on 2026-10-05, separate from the
-2026-10-04 authorization that covered Pass42-53 only.
+DV-09 is NOT complete. Latest implemented milestone: selective AO parameter
+upload generalizing the PID_LOOP tuning-upload pattern (Pass55).
+Implementation: Pass55, local commit (hash recorded after commit below).
+Previous milestone: a68483a, OUT ramp/PipesAnim connection (Pass54), 2026-10-05.
+The user authorized commit and push of Pass54/55 on 2026-10-05, separate from
+the 2026-10-04 authorization that covered Pass42-53 only.
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
   VERIFIED_SUBSET   9 - bounded verified operations, not complete chapters
@@ -21,17 +20,19 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:362 repository tests run locally (361 pass); typecheck and
+Last validation:363 repository tests run locally (362 pass); typecheck and
 production build passed. The one failure is the pre-existing local-only
 pdf_om.txt dependency in dv09-audit.test.cjs, not a regression from this pass.
 Browser verified in a temporary standalone preview of the unchanged renderer:
-OUT ramp rejected a CAS-mode PID, then raised/lowered FIC-101 OUT by exactly
-rate x held time once MAN; a connected Tank/Pump(P-101)/Pipe/Valve(FIC-101)
-picture recolored together on pump stop, with the valve actuator staying
-independent. Temporary preview config removed afterward; no application code,
-artwork or saved browser profile changed.
+a real AO module's Upload Selected Parameters wrote only the checked CAS_SP
+value (500 -> 777) into the offline draft while CONFIGURED MODE/SP stayed at
+their prior draft values; a repeat call reported no differing values. Temporary
+preview config and the test module were removed/discarded afterward.
 
 Most recent delivered functionality:
+  - Upload Selected Parameters for standalone AO modules: selective, none-safe,
+    Save-still-required upload of chosen Floating Point parameters into the
+    offline draft, generalizing the PID_LOOP selected-tuning-upload pattern.
   - OUT ramp (Raise/Lower) data entry bound to PID1/OUT with a configured rate,
     reusing faceplate MAN/ROUT-outside-LO/OOS and managed-Online gates.
   - PipesAnim-style Tank/Pump/Pipe/Valve connection reusing shared flow_color.
@@ -56,7 +57,8 @@ Most recent delivered functionality:
 
 Remaining adjacent regulatory/picture requirements:
   DV09-059 p258: native detail template/file parity; simulated workflow verified.
-  DV09-060 pp259-264: upload is tuning-only; generic/native upload remains absent.
+  DV09-060 pp259-264: AO upload is now selective too, but still not generic for
+    every module/parameter type and still lacks a download-time differs prompt.
   DV09-061 p265: native Tune algorithm and full card/controller lifecycle parity.
   DV09-062 pp266-267: native System Tree/full course dynamo parity remains partial.
 Broader open requirements include general controller/module download/restart
@@ -2051,3 +2053,40 @@ local-only pdf_om.txt dependency in dv09-audit.test.cjs). Typecheck and
 production build passed. The user authorized commit and push of this
 implementation (commit a68483a) on 2026-10-05; remote delivery is verified
 separately after the push.
+
+PASS 55: SELECTIVE AO PARAMETER UPLOAD GENERALIZES PID TUNING PATTERN (pp259-264)
+---------------------------------------------------------------------------
+Line1 - Scope: the next item in the user's "entire DV09, line by line"
+  instruction. Generalizes the selected/none/unaffected-fields upload pattern,
+  previously PID_LOOP-tuning-only, to standalone AO Floating Point parameters.
+Line2 - Engine: changedAoParameters compares the offline draft's parameter
+  values against the live runtime. uploadAoParameters validates CAN_CONFIGURE,
+  a downloaded AO with an available controller and supported names, treats
+  empty/already-matching selections as a safe no-op, and writes only the
+  chosen names into the draft (not saved; Save is still required).
+Line3 - Preservation: mode, SP, manual output, restart/download policy and
+  every unselected parameter are completely untouched; the existing blanket
+  "Upload to Draft" (uploadModule) is unchanged and still available.
+Line4 - UI: a new "Upload Selected Parameters" button opens a dialog listing
+  each changed parameter as "name: draft X / live Y" with a checkbox, matching
+  the existing PID_LOOP upload dialog's pattern and labeling.
+Line5 - Tests: new regression on the existing savedAoCourseProject fixture
+  covers unsupported-name rejection, none-selected no-op, selective upload
+  with mode preserved, saved/online state unaffected, an already-matching
+  repeat no-op, and OperatorA permission denial.
+Line6 - Browser: a temporary standalone preview (not committed) created a
+  real AO module end-to-end (Explorer, Control Studio parameter/output-card
+  binding, Physical Network card, Save, Full Download, Online), changed live
+  CAS_SP 500->777, confirmed Upload Selected Parameters wrote only 777 into
+  the draft while mode/SP stayed prior values, and confirmed the repeat-call
+  "No live parameter values differ" message. Preview config and the test
+  module were discarded; no committed project data changed.
+Boundary: not a generic mechanism for every module/parameter type; AO still
+lacks a PID-style download-time "values differ, select before transfer" prompt.
+Result: DV09-060 remains PARTIAL with a narrower remaining gap. Classification
+totals are unchanged at9 VERIFIED_SUBSET/57 PARTIAL/37 MISSING/19 BOUNDARY/
+6 CONTEXT since no group's Status line changed. 363 repository tests run
+locally (362 pass; the one failure is the pre-existing local-only pdf_om.txt
+dependency). Typecheck and production build passed. Commit/push authorization
+for this pass follows the same 2026-10-05 instruction already recorded for
+Pass54.

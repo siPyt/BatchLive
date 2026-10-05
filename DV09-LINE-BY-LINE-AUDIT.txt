@@ -1110,10 +1110,23 @@ Evidence: PID_LOOP tuning upload supports GAIN/RESET/RATE subset selection,
   Upload, no-selection, selected-subset and subsequent-download store regressions
   cover the manual's 0.5/3/0 versus 0.7/2.5/0 example. Native database/controller
   communication is not modeled; UI cancellation is available without invoking
-  a store action.
+  a store action. Pass55 generalizes the same selected/none/unaffected-fields
+  pattern to a second module family: a new Upload Selected Parameters action
+  and dialog write only chosen AO Floating Point parameters (e.g. CAS_SP) from
+  the live runtime into the offline draft, leaving every other draft field
+  (mode, SP, manual output, restart/download policy) and the saved configuration
+  untouched; selecting none or an already-matching parameter is a safe no-op,
+  and the existing blanket "Upload to Draft" remains available unchanged. A
+  browser pass created a real AO module with a bound output card, Saved/
+  Downloaded it, went Online, changed live CAS_SP, and confirmed Upload Selected
+  Parameters wrote only that value into the offline draft while mode/SP/other
+  draft fields were unaffected, then reported "No live parameter values differ"
+  on a repeat call.
 Acceptance: Verify p259-264 selection, none, cancel and follow-up download in
-  the PID_LOOP workflow. This implements tuning parameters only, not a generic
-  upload mechanism for every module parameter type.
+  the PID_LOOP workflow. The AO parameter case now shares the same selective
+  pattern, but a download-time "values differ, select before transfer" prompt
+  (the PID_LOOP DOWNLOAD-mode behavior) does not yet exist for AO, and this
+  still is not a generic mechanism for every module/parameter type.
 
 [DV09-061]
 Pages: 265-265
@@ -2232,8 +2245,9 @@ DV09-057: Native licensing Properties/exact workshop display certification;
   retain real typed referenced DST counts, do not invent purchased license keys.
 DV09-059: Native detail-template layout/file assignment and full course setup;
   simulator Detail tuning/trends already execute.
-DV09-060: Generic upload of arbitrary module parameters, not only selected
-  PID tuning and AO upload-to-draft; preserve none/Cancel selection isolation.
+DV09-060: Generic upload for arbitrary module/parameter types beyond PID
+  tuning and now-selective AO parameters; add a download-time differs/select
+  prompt for AO matching the existing PID_LOOP DOWNLOAD-mode behavior.
 DV09-061: Whole-card transfer/lifecycle and native Tune algorithm/procedure;
   configured2.6s filter and measured simulator Test/Review/Update already exist.
 DV09-062: Remaining native System Tree/full dynamo catalog/exact picture
@@ -2431,3 +2445,45 @@ Result: DV09-058 moves from PARTIAL to VERIFIED_SUBSET (9 VERIFIED_SUBSET/
   explicitly out of scope and are not claimed. The user authorized commit and
   push of this implementation (commit a68483a) and this dated audit update on
   2026-10-05; remote delivery is verified separately after the push.
+
+PASS 55 CHANGE DETAIL AND VALIDATION (2026-10-05)
+-------------------------------------------------
+Scope: DV09-060 generalizes the selected/none/unaffected-fields upload pattern
+(previously PID_LOOP-tuning-only) to a second module family, standalone AO
+Floating Point parameters, continuing the user's "entire DV09 line by line"
+instruction to the next flagged remaining-adjacent item.
+Engine: moduleLifecycle.ts adds changedAoParameters, comparing the offline
+  draft's parameter values against the live runtime for a given tag. store.ts
+  adds uploadAoParameters(tag, names), mirroring uploadPidParameters: it
+  validates CAN_CONFIGURE, a downloaded AO with an available controller and
+  supported parameter names, treats an empty/already-matching selection as a
+  safe no-op, and writes only the chosen parameters into record.draft (not
+  record.saved; Save is still required), leaving mode/SP/manual output/restart
+  and download policy and every unselected parameter completely untouched.
+  The existing blanket uploadModule ("Upload to Draft") is unchanged and still
+  available for whole-module capture.
+UI: ModuleLifecycleControls.tsx adds an "Upload Selected Parameters" button and
+  AoParameterUploadDialog, listing each changed parameter as "name: draft X /
+  live Y" with a checkbox, matching PidTransferDialog's established pattern.
+Tests: control-strategy.test.cjs adds a regression on the existing savedAo-
+  CourseProject fixture: an unsupported parameter name is rejected, selecting
+  none is a no-op, selecting CAS_SP uploads only that value while mode stays at
+  its prior draft value (unlike the blanket upload), saved/lifecycle online
+  state are unaffected, a repeat already-matching selection is a safe no-op,
+  and OperatorA is denied. 363 repository tests run locally (362 pass; the
+  remaining failure is the pre-existing local-only pdf_om.txt dependency).
+Browser verification: a temporary standalone Vite preview (not committed) was
+  used to create a real TEST-AO module end-to-end through Explorer, Control
+  Studio and Physical Network (CAS_SP parameter, bound output card, Saved,
+  Full Downloaded, Online). The live CAS_SP was changed to 777; Upload Selected
+  Parameters listed "CAS_SP: draft 500 / live 777", and confirming it wrote
+  777 into the offline draft while CONFIGURED MODE/SP remained their prior
+  draft values. A repeat call reported "No live parameter values differ from
+  the offline draft." The temporary preview config and TEST-AO module were
+  removed/discarded afterward; no committed project data was changed.
+Result: DV09-060 remains PARTIAL; it is not a generic mechanism for every
+  module/parameter type and AO still lacks a PID-style download-time upload
+  prompt. Classifications are unchanged at 9 VERIFIED_SUBSET/57 PARTIAL/
+  37 MISSING/19 BOUNDARY/6 CONTEXT since no group's Status line changed.
+  Commit/push authorization for this pass follows the same 2026-10-05
+  instruction already recorded for Pass54.

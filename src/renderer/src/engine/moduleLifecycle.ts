@@ -63,6 +63,12 @@ export function withProjectMembership(c: AoConfiguration, runtime: AnalogOutputM
 export function lifecycleDirty(record: AoLifecycle): boolean {
   return !record.saved || JSON.stringify(record.draft) !== JSON.stringify(record.saved)
 }
+export function changedAoParameters(record: AoLifecycle | undefined, runtime: AnyModule | undefined): string[] {
+  if (!record || runtime?.type !== 'AO') return []
+  const draftParameters = record.draft.module.parameters
+  return Object.keys(draftParameters).filter(name =>
+    runtime.parameters[name] !== undefined && draftParameters[name].value !== runtime.parameters[name].value)
+}
 export function lifecycleModules(state: {
   modules: Record<string, AnyModule>; moduleLifecycle: Record<string, AoLifecycle>
 }, rootTag?: string): Record<string, AnyModule> {

@@ -29,7 +29,7 @@ import { materializeMotorStrategy, motorStrategyError, motorTemplateStrategy, ow
 import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
 import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
 import {
-  aoOperatorError, cloneAo, cloneConfiguration, configurationError, deployedAo, downloadError, lifecycleDirty,
+  aoOperatorError, changedAoParameters, cloneAo, cloneConfiguration, configurationError, deployedAo, downloadError, lifecycleDirty,
   memoryOf, committedAoTransfer, controllerAoRecords, controllerDeployedAoRecords, prepareAoReplay,
   prepareAoTransfer, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
   type AoConfiguration, type AoDraftPatch, type AoLifecycle
@@ -171,6 +171,7 @@ interface StoreState extends PlantState {
   resendControllerAoDownloads: (tag: string, expected?: Record<string, AoConfiguration | undefined>) => boolean
   updateControllerAoRestartMemory: (tag: string) => boolean
   uploadModule: (tag: string) => boolean
+  uploadAoParameters: (tag: string, parameterNames: string[]) => boolean
   restartModule: (tag: string) => boolean
   enablePidLifecycle: (tag: string) => boolean
   editPidLifecycle: (tag: string, patch: PidLifecyclePatch) => boolean
@@ -2069,6 +2070,39 @@ export const useStore = create<StoreState>((set, get) => ({
     set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record, draft, online: false } },
       rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', tag, 'Runtime uploaded into offline draft; Save is still required')
+    return true
+  },
+
+  uploadAoParameters: (tag, parameterNames) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Upload AO parameters ${tag}`)) return false
+    const state = get()
+    const record = state.moduleLifecycle[tag]
+    const runtime = state.modules[tag]
+    const controller = record?.deployed ? state.hardware.controllers[record.deployed.controllerTag] : undefined
+    if (!record?.deployed || runtime?.type !== 'AO' || !runtime.downloaded) {
+      return rejectAo(get, tag, 'Upload requires a downloaded AO module')
+    }
+    if (!controller || controllerIsDown(controller)) return rejectAo(get, tag, 'Upload requires an available assigned controller')
+    const selected = [...new Set(parameterNames)]
+    const draftParameters = record.draft.module.parameters
+    if (selected.some(name => !draftParameters[name] || !runtime.parameters[name])) {
+      return rejectAo(get, tag, 'Upload selection contains an unsupported AO parameter')
+    }
+    if (!selected.length) {
+      get().logEvent('CONFIGURE', tag, 'AO parameter upload selected no parameters; offline draft unchanged')
+      return true
+    }
+    const changed = changedAoParameters(record, runtime)
+    const uploading = selected.filter(name => changed.includes(name))
+    if (!uploading.length) {
+      get().logEvent('CONFIGURE', tag, 'Selected AO parameters already match the offline draft')
+      return true
+    }
+    const draft = cloneConfiguration(record.draft)
+    for (const name of uploading) draft.module.parameters[name].value = runtime.parameters[name].value
+    set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record, draft } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag,
+      `AO parameters uploaded into offline draft: ${uploading.join(', ')}; Save is still required`)
     return true
   },
 
