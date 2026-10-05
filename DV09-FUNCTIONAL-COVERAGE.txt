@@ -3,25 +3,28 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-05
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: an optional numeric
-alarm priority rank (4-15) overriding sort order within the existing 3-class
-priority system (Pass57).
-Implementation: 05cdeca, 2026-10-05, alarm priority rank (Pass57).
-Previous milestone: 27c245d, reaction-curve tuning suggestion (Pass56), 2026-10-05.
-The user authorized commit and push of Pass54-57 on 2026-10-05, separate from
-the 2026-10-04 authorization that covered Pass42-53 only.
+DV-09 is NOT complete. Latest implemented milestone: a generic qualified
+"ALARMS array" datalink resolver (TAG.ALM[TYPE].FIELD) for ENAB/PRI/PRIAD/
+MACK, shared by builder and faceplates with correct per-field Locks & Keys
+(Pass66).
+Implementation: c9d9953, 2026-10-05, qualified alarm field datalink (Pass66).
+Previous milestone: 6a2468f, workstation area subscription AND user area-key
+alarm eligibility (Pass65), 2026-10-05.
+The user's standing instruction ("finish everything and stop stopping",
+2026-10-05) authorizes continuing to commit and push every pass without
+pausing for per-pass confirmation, until 100% or the user interrupts.
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
-  VERIFIED_SUBSET   9 - bounded verified operations, not complete chapters
-  PARTIAL         57 - related behavior exists; exact workflow has gaps
-  MISSING         37 - required executable workflow/model is absent
+  VERIFIED_SUBSET  16 - bounded verified operations, not complete chapters
+  PARTIAL         53 - related behavior exists; exact workflow has gaps
+  MISSING         34 - required executable workflow/model is absent
   BOUNDARY        19 - hardware/vendor/host behavior outside verified simulation
   CONTEXT          6 - framing/recap, not implementation requirements
   TOTAL          128
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation: 367 repository tests run locally (366 pass); typecheck and
+Last validation: 383 repository tests run locally (382 pass); typecheck and
 production build passed. The one failure is the pre-existing local-only
 pdf_om.txt dependency in dv09-audit.test.cjs, not a regression from this pass.
 Browser verified in a temporary standalone preview: opened DeltaV Explorer,

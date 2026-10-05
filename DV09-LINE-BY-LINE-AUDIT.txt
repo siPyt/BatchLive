@@ -1,20 +1,19 @@
 BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
 =============================================
 
-CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS57
+CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS66
 ---------------------------------------------------
-Implementation baseline: 05cdeca, 2026-10-05.
-367 repository tests run locally (366 pass); typecheck, production build and
-whitespace checks pass. The one failure is the pre-existing local-only
-pdf_om.txt dependency in dv09-audit.test.cjs (not bundled with the repo by
-design), not a regression. The dated history and exact known remaining-work
-index are appended at the end of this report. Earlier release records are
-historical.
-DV-09 remains incomplete: 9 VERIFIED_SUBSET, 57 PARTIAL, 37 MISSING,
+Implementation baseline: c9d9953, 2026-10-05.
+383 repository tests run locally (382 pass); typecheck and production build
+pass. The one failure is the pre-existing local-only pdf_om.txt dependency
+in dv09-audit.test.cjs (not bundled with the repo by design), not a
+regression. The dated history and exact known remaining-work index are
+appended at the end of this report. Earlier release records are historical.
+DV-09 remains incomplete: 16 VERIFIED_SUBSET, 53 PARTIAL, 34 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
-The user authorized commit and push of Pass54-57 on 2026-10-05, separate from
-the 2026-10-04 authorization that covered Pass42-53 only. Remote delivery is
-verified separately after each push.
+The user's standing instruction ("finish everything and stop stopping",
+2026-10-05) authorizes continuing to commit and push every pass without
+pausing for per-pass confirmation, until 100% or the user interrupts.
 
 SOURCE, SCOPE AND HONEST COMPLETION BOUNDARY
 -------------------------------------------
