@@ -89,7 +89,7 @@ import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, ty
 import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { cloneSfcBlocks, reconcileSfcAlarms, sfcBlockConfigurationError, type SfcBlockConfiguration } from './sfcBlocks'
 import { registerAreaResolver, requireUnlockedKey, useSecurity } from './security'
-import { ALARM_FIELD_LOCK, alarmFieldWriteError, parseAlarmFieldPath } from './alarmFields'
+import { ALARM_FIELD_LOCK, DEFAULT_SUPPRESS_MINUTES, alarmFieldWriteError, parseAlarmFieldPath, readAlarmField } from './alarmFields'
 import { compareModuleDownload, type DownloadStatusCheck } from './downloadStatus'
 import {
   cloneSfcParameters, controllerNamedSets, sfcParameterError, type SfcExpressionContext, type SfcParameter
@@ -307,6 +307,10 @@ interface StoreState extends PlantState {
   /** DV09-043: generic qualified "TAG.ALM[TYPE].FIELD" datalink write (ENAB/
    * PRIAD/MACK), the same resolver builder, faceplates and any other
    * qualified-path consumer share, each enforcing its own Lock & Key. */
+  /** DV09-042: configured SUPTMO (minutes) per TAG.TYPE; absent = the default. */
+  alarmSuppressMinutes: Record<string, number>
+  /** Reads any TAG.ALM[TYPE].FIELD from the live alarm state. */
+  readAlarmFieldValue: (path: string) => { value: boolean | number | null } | { error: string }
   writeAlarmField: (path: string, value: boolean | number | null) => boolean
   startMotor: (tag: string) => void
   stopMotor: (tag: string) => void
@@ -1099,6 +1103,11 @@ export const useStore = create<StoreState>((set, get) => ({
     get().logEvent('CONFIGURE', tag, `Alarm ${type} configured: ${JSON.stringify(patch)}`)
   },
 
+  alarmSuppressMinutes: {},
+  readAlarmFieldValue: (path) => readAlarmField(get().modules, path, {
+    alarms: get().alarms, time: get().time, suppressMinutes: get().alarmSuppressMinutes
+  }),
+
   writeAlarmField: (path, value) => {
     const parsed = parseAlarmFieldPath(path)
     if ('error' in parsed) {
@@ -1113,6 +1122,25 @@ export const useStore = create<StoreState>((set, get) => ({
       get().logEvent('DIAGNOSTIC', parsed.tag, `Alarm field write rejected: ${error}`)
       window.alert(error)
       return false
+    }
+    if (parsed.field === 'SUPTMO') {
+      set((s) => ({ alarmSuppressMinutes: { ...s.alarmSuppressMinutes, [`${parsed.tag}.${parsed.type}`]: value as number }, rev: s.rev + 1 }))
+      get().logEvent('CONFIGURE', parsed.tag, `${path} = ${value}`)
+      return true
+    }
+    if (parsed.field === 'OPSUP') {
+      const id = `${parsed.tag}.${parsed.type}`
+      const live = get().alarms.find((a) => a.id === id)
+      if (!live) {
+        const message = `Nothing to suppress: ${parsed.tag}.${parsed.type} is not in alarm`
+        get().logEvent('DIAGNOSTIC', parsed.tag, `Alarm field write rejected: ${message}`)
+        window.alert(message)
+        return false
+      }
+      if (value) get().shelveAlarm(id, get().alarmSuppressMinutes[id] ?? DEFAULT_SUPPRESS_MINUTES)
+      else get().unshelveAlarm(id)
+      get().logEvent('OPERATOR', parsed.tag, `${path} := ${value}`)
+      return true
     }
     if (parsed.field === 'MACK') {
       get().ackAlarm(`${parsed.tag}.${parsed.type}`)
@@ -3632,6 +3660,7 @@ export const useStore = create<StoreState>((set, get) => ({
       namedSets: { configured: {}, deployed: {} },
       signature: EMPTY_SIGNATURE_CONFIG,
       signaturePending: [],
+      alarmSuppressMinutes: {},
       customAlarmTypes: { configured: {}, deployed: {} },
       conditionDelayAlarms: {},
       conditionDelayAlarmRuntime: {},

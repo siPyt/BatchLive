@@ -2567,3 +2567,13 @@ Line3 - Server: shut down and connect are real transitions; the features and
   their screens appear only after the restart; configuration and download are
   unavailable while stopped, operator writes continue.
 Line4 - Tests: tests/system-preferences.test.cjs. Not a real DeltaV database.
+
+PASS 76: ALARM COMPOSITE PARAMETERS (pp191-194)
+-----------------------------------------------------------------------
+Line1 - Fields: CUALM, LAALM, CV, NALM, INV, OPSUP, SUPTMO, SUPTMR plus the
+  Pass66 ENAB/PRI/PRIAD/MACK, all addressable as TAG.ALM[TYPE].FIELD.
+Line2 - Codes: 0 normal, 1 active unacknowledged, 2 active acknowledged, 3
+  unacknowledged return to normal.
+Line3 - Suppression: OPSUP/SUPTMO/SUPTMR work on the shelving engine and are
+  distinct from acknowledge and disable; locks follow the course.
+Line4 - Tests: tests/alarm-composites.test.cjs.

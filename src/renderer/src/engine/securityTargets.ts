@@ -50,8 +50,8 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
   t('parameter', 'param-reset', 'Device or latch reset', 'CONTROL', /^Reset /),
 
   // Writable fields
-  t('field', 'field-alm-enab', 'ALM[type].ENAB and ALM[type].PRIAD', 'SYSTEM_RECORDS', /^Write \S+\.ALM\[[^\]]+\]\.(ENAB|PRIAD)$/),
-  t('field', 'field-alm-mack', 'ALM[type].MACK', 'ALARMS', /^Write \S+\.ALM\[[^\]]+\]\.MACK$/),
+  t('field', 'field-alm-enab', 'ALM[type].ENAB and ALM[type].PRIAD', 'SYSTEM_RECORDS', /^Write \S+\.ALM\[[^\]]+\]\.(ENAB|PRIAD|SUPTMO)$/),
+  t('field', 'field-alm-mack', 'ALM[type].MACK', 'ALARMS', /^Write \S+\.ALM\[[^\]]+\]\.(MACK|OPSUP)$/),
   t('field', 'field-fb-safety', 'Function block BYPASS, ARM_TRAP and RESET_IN', 'RESTRICTED_CONTROL', /^(BYPASS|ARM_TRAP|RESET_IN) /),
   t('field', 'field-interlock', 'Interlock override', 'RESTRICTED_CONTROL', /^Force Interlock /),
   t('field', 'field-permissive', 'Permissive override', 'RESTRICTED_CONTROL', /^Set Permissive /),

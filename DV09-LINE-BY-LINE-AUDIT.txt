@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 47 VERIFIED_SUBSET, 56 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 48 VERIFIED_SUBSET, 55 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -775,11 +775,27 @@ Acceptance: Validate unique definitions, capture time/value and message
 
 [DV09-042]
 Pages: 191-194
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Expose CUALM, LAALM, CV, NALM, PRI, ENAB, INV, OPSUP, SUPTMO,
   SUPTMR and numeric state codes.
-Evidence: Active/acknowledged fields and shelving cover a subset, not the
-  course composite protocol.
+Evidence (Pass76): engine/alarmFields.ts now exposes the full composite set
+  through TAG.ALM[TYPE].FIELD: CUALM (current alarm: 0 normal, 1 active
+  unacknowledged, 2 active acknowledged), LAALM (latched: adds 3 for an
+  unacknowledged return to normal and clears once an acknowledged alarm
+  returns), CV (the alarm's monitored value), NALM (active alarms of the
+  module), INV (alarm disabled or PV bad), PRI, ENAB, PRIAD and MACK from
+  Pass66, and the operator-suppression trio OPSUP (read/write, suppresses via
+  the shelving engine, refused when nothing is in alarm), SUPTMO (minutes
+  1-1440, default 60, runtime state cleared by a new project) and SUPTMR (the
+  remaining minutes from the simulated clock). Writes keep the course locks
+  (OPSUP under Alarms, SUPTMO under System Records) and are journaled; the
+  state fields are read-only. Suppression, shelving, disabling and
+  acknowledgment are distinct: suppressing neither acknowledges nor disables
+  (CUALM stays 1, INV stays false). store.readAlarmFieldValue reads any field
+  from the live alarm list. Tests: alarm-composites.test.cjs.
+  Gaps: the composites are not yet selectable as picture-datalink fields beyond
+  the existing A_LAALM visibility expert, and suppression timeouts do not
+  auto-unsuppress on expiry (the shelving engine's behavior is unchanged).
 Acceptance: Implement/test every specified field and suppression timer/state
   transition; distinguish shelving, suppression, disabling and acknowledgment.
 
@@ -3772,3 +3788,19 @@ Validation: 518 repository tests run locally (517 pass; the remaining failure
 Result: DV09-108 and DV09-109 MISSING -> VERIFIED_SUBSET. Totals 47
   VERIFIED_SUBSET/56 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT: every group now
   has at least a bounded executable subset; PARTIAL groups remain.
+
+PASS 76 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-042 alarm composite parameters (pages 191-194).
+Engine: alarmFields.ts adds CUALM, LAALM, CV, NALM, INV, OPSUP, SUPTMO and
+  SUPTMR, the ALARM_STATE_CODE table, an AlarmFieldContext for live state and
+  validation of OPSUP/SUPTMO writes. store.ts adds alarmSuppressMinutes,
+  readAlarmFieldValue and the OPSUP/SUPTMO branches of writeAlarmField;
+  securityTargets.ts extends the alarm field targets to the new writable fields.
+Tests: tests/alarm-composites.test.cjs (6): field set and locks, state codes
+  through trip/acknowledge/return to normal, CV/INV/ENAB, the suppression timer
+  and its limits, locks and journaling, and project reset.
+Validation: 524 repository tests run locally (523 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
+Result: DV09-042 PARTIAL -> VERIFIED_SUBSET. Totals 48 VERIFIED_SUBSET/
+  55 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
