@@ -2676,3 +2676,8 @@ PASS 92: ALARM LIST MESSAGE / TIME LAST / UNIT COLUMNS (pp183-184)
 -----------------------------------------------------------------------
 Line1 - Message captured at trip; Time Last stamped on state changes; Unit from the hierarchy.
 Line2 - Zone remains a gap. Tests: alarm-columns-extra.test.cjs.
+
+PASS 93: ALARM PRIORITIES AND LOG-ONLY LEVEL (pp179-180)
+-----------------------------------------------------------------------
+Line1 - Priority values 4-15, log-only 3; auto-acknowledge new/inactive; banner collapses by module/unit; wave on/off.
+Line2 - Log-only alarms are journaled event records. Tests: alarm-priorities.test.cjs.

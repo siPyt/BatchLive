@@ -6,6 +6,7 @@
 // table rows. PRI is the read-only effective numeric rank (class default,
 // overridden by PRIAD when set) already computed by utils/format's alarmRank.
 // ---------------------------------------------------------------------------
+import { isValidAlarmRank } from './alarmPriorities'
 import type { ActiveAlarm, AlarmType, AlarmLimit, AnyModule } from './types'
 import type { LockType } from './security'
 import { alarmRank } from '../utils/format'
@@ -140,8 +141,8 @@ export function alarmFieldWriteError(
   if (['PRI', 'CUALM', 'LAALM', 'CV', 'NALM', 'INV', 'SUPTMR'].includes(parsed.field)) return `${parsed.field} is a read-only computed field and cannot be written`
   if (parsed.field === 'ENAB') return typeof value !== 'boolean' ? 'ENAB requires a Boolean value' : null
   if (parsed.field === 'PRIAD') {
-    return value !== null && (!Number.isInteger(value) || (value as number) < 4 || (value as number) > 15)
-      ? 'PRIAD must be null (class default) or a whole number from 4 to 15'
+    return value !== null && !isValidAlarmRank(value)
+      ? 'PRIAD must be null (class default) or a whole number from 3 (log only) to 15'
       : null
   }
   if (parsed.field === 'OPSUP') return typeof value !== 'boolean' ? 'OPSUP requires a Boolean value' : null

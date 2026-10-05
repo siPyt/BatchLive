@@ -1,3 +1,4 @@
+import { isValidAlarmRank } from './alarmPriorities'
 import type { AlarmLimit, AnalogOutputModule, AnalogOutputPatch, AnyModule } from './types'
 import type { HardwareState } from './hardware'
 import { controllerIsDown } from './hardware'
@@ -216,7 +217,7 @@ function isAlarm(value: unknown): value is AlarmLimit {
     ['CRITICAL', 'WARNING', 'ADVISORY'].includes(value.priority) && typeof value.enabled === 'boolean' &&
     (value.limit === undefined || typeof value.limit === 'number' && Number.isFinite(value.limit)) &&
     (value.rank === undefined ||
-      typeof value.rank === 'number' && Number.isInteger(value.rank) && value.rank >= 4 && value.rank <= 15)
+      isValidAlarmRank(value.rank))
 }
 function isConfiguration(value: unknown): value is AoConfiguration {
   if (!object(value) || !object(value.module)) return false

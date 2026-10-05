@@ -751,11 +751,11 @@ test('DV09-038/039 arbitrary numeric priority rank (4-15) overrides the class de
 test('DV09-038/039 setAlarmLimit validates and applies an explicit numeric priority rank', () => {
   withAreaProject((store, alerts) => {
     analogCourseProject(store)
-    store.setAlarmLimit('LI-101', 'HI', { rank: 3 })
-    assert.match(alerts.at(-1), /4 to 15/)
+    store.setAlarmLimit('LI-101', 'HI', { rank: 2 })
+    assert.match(alerts.at(-1), /3 \(log only\) to 15/)
     assert.equal(useStore.getState().modules['LI-101'].alarms.find(a => a.type === 'HI').rank, undefined)
     store.setAlarmLimit('LI-101', 'HI', { rank: 4.5 })
-    assert.match(alerts.at(-1), /4 to 15/)
+    assert.match(alerts.at(-1), /3 \(log only\) to 15/)
     store.setAlarmLimit('LI-101', 'HI', { rank: 12 })
     assert.equal(useStore.getState().modules['LI-101'].alarms.find(a => a.type === 'HI').rank, 12)
     store.setAlarmLimit('LI-101', 'HI', { rank: null })

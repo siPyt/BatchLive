@@ -86,6 +86,7 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
   t('function', 'fn-remote-host', 'Write RCAS_IN / ROUT_IN as the remote host', 'CONTROL', /^Write \S+ remote host input$/),
   t('function', 'fn-remote-host-timeout', 'Configure the remote host timeout', 'CAN_CONFIGURE', /^Configure \S+ remote host timeout$/),
   t('function', 'fn-hierarchy', 'Create or delete Process Cells and Units, and place equipment modules under a Unit', 'CAN_CONFIGURE', /^(Create|Delete) (Process Cell|Unit) |^Assign Equipment Module \S+ to Unit$/),
+  t('function', 'fn-alarm-priority', 'Configure alarm priority classes', 'CAN_CONFIGURE', /^Configure alarm priority /),
   t('function', 'fn-licensing', 'Load or remove license files and the System ID Key', 'SYSTEM_ADMIN', /^(Load|Remove) license file |^(Insert|Remove) System ID Key$/),
   t('function', 'fn-controller-placeholder', 'Create or delete a Control Network placeholder', 'CAN_CONFIGURE', /^(Create|Delete) controller placeholder /),
   t('function', 'fn-controller-commission', 'Commission a controller', 'CAN_DOWNLOAD', /^Commission controller /),

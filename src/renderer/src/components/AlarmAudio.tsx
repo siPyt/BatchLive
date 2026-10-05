@@ -4,6 +4,7 @@ import { useSecurity } from '../engine/security'
 import { useUi } from '../ui/uiStore'
 import { alarmEligible } from '../utils/format'
 import { alarmArea, bannerVisible } from '../engine/deviceAlarms'
+import { audibleWave, useAlarmPriorities } from '../engine/alarmPriorities'
 
 // Synthesizes the DeltaV-style audible alarm tone: a two-tone alternating
 // beep for Critical, a single pulsed chime for Warning. Muted by Horn Silence
@@ -14,6 +15,7 @@ export function AlarmAudio(): null {
   const hardware = useStore((s) => s.hardware)
   const thresholds = useUi((s) => s.bannerThresholds)
   const hornSilenced = useStore((s) => s.hornSilenced)
+  const priorities = useAlarmPriorities((s) => s.priorities)
   const subscribedAreas = useUi((s) => s.subscribedAreas)
   const hasAreaKey = useSecurity((s) => s.hasAreaKey)
   const ctxRef = useRef<AudioContext | null>(null)
@@ -25,13 +27,9 @@ export function AlarmAudio(): null {
     const eligible = alarms.filter((a) =>
       alarmEligible(a, alarmArea(a, modules, hardware), subscribedAreas, hasAreaKey) && bannerVisible(a, thresholds)
     )
-    const hasUnackedCritical = eligible.some(
-      (a) => a.active && !a.acknowledged && a.priority === 'CRITICAL' && a.shelvedUntil === undefined
-    )
-    const hasUnackedWarning = eligible.some(
-      (a) => a.active && !a.acknowledged && a.priority === 'WARNING' && a.shelvedUntil === undefined
-    )
-    if (hornSilenced || (!hasUnackedCritical && !hasUnackedWarning)) return
+    // DV09-038: each priority's Wave File decides whether, and with which tone, it sounds; (none) silences it.
+    const sound = audibleWave(eligible.filter((a) => a.shelvedUntil === undefined))
+    if (hornSilenced || !sound) return
     // The alarm list is recreated every ~100ms scan; throttle so this reads
     // as a periodic chime rather than a continuous buzz.
     const now = performance.now()
@@ -57,13 +55,15 @@ export function AlarmAudio(): null {
       osc.stop(ctx.currentTime + start + duration + 0.02)
     }
 
-    if (hasUnackedCritical) {
+    if (sound.cls === 'CRITICAL') {
       beep(800, 0, 0.15)
       beep(1000, 0.18, 0.15)
-    } else if (hasUnackedWarning) {
+    } else if (sound.cls === 'WARNING') {
       beep(500, 0, 0.12)
+    } else {
+      beep(350, 0, 0.1)
     }
-  }, [alarms, hornSilenced, modules, subscribedAreas, hasAreaKey])
+  }, [alarms, hornSilenced, modules, subscribedAreas, hasAreaKey, priorities])
 
   return null
 }

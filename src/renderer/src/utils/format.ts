@@ -1,4 +1,5 @@
 import type { AnyModule, ActiveAlarm, AlarmPriority, PidModule, DcState } from '../engine/types'
+import { isLogOnly, priorityValue } from '../engine/alarmPriorities'
 
 export function fmt(value: number, decimals: number): string {
   return value.toFixed(decimals)
@@ -10,15 +11,9 @@ export function fmtQ(value: number, decimals: number, bad: boolean): string {
   return decimals > 0 ? '-'.repeat(Math.max(1, 3 - decimals)) + '.' + '-'.repeat(decimals) : '---'
 }
 
-// DeltaV default alarm priority numeric values (CRITICAL 15 / WARNING 11 / ADVISORY 7).
-const PRIO_RANK: Record<AlarmPriority, number> = {
-  CRITICAL: 15,
-  WARNING: 11,
-  ADVISORY: 7
-}
-
+// DeltaV default alarm priority numeric values (CRITICAL 15 / WARNING 11 / ADVISORY 7) are configurable (DV09-038).
 export function priorityRank(p: AlarmPriority): number {
-  return PRIO_RANK[p]
+  return priorityValue(p)
 }
 
 /**
@@ -28,7 +23,7 @@ export function priorityRank(p: AlarmPriority): number {
  * the priority class that drives banner color/label.
  */
 export function alarmRank(a: { priority: AlarmPriority; rank?: number }): number {
-  return a.rank ?? PRIO_RANK[a.priority]
+  return a.rank ?? priorityValue(a.priority)
 }
 
 /**
@@ -178,7 +173,7 @@ export function alarmColumnText(key: AlarmColumnKey, a: ActiveAlarm, m: AnyModul
 export function moduleAlarm(tag: string, alarms: ActiveAlarm[]): ActiveAlarm | null {
   let best: ActiveAlarm | null = null
   for (const a of alarms) {
-    if (a.moduleTag !== tag || !a.active) continue
+    if (a.moduleTag !== tag || !a.active || isLogOnly(a)) continue
     if (!best || alarmRank(a) > alarmRank(best)) best = a
   }
   return best
@@ -203,6 +198,7 @@ export function alarmEligible(
   subscribedAreas: string[] | null,
   hasAreaKey: (area: string | undefined) => boolean
 ): boolean {
+  if (isLogOnly(alarm)) return false // log-only alarms are event records, not operator alarms
   if (subscribedAreas !== null && (moduleArea === undefined || !subscribedAreas.includes(moduleArea)))
     return false
   return hasAreaKey(moduleArea)

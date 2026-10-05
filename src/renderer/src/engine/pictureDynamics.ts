@@ -1,4 +1,5 @@
 import { pidExecutionBad, pidModeFieldsError, pidNormalMode, pidPermittedModes } from './pidModes'
+import { isLogOnly } from './alarmPriorities'
 import type { ActiveAlarm, AnyModule, PidTargetMode } from './types'
 import type { PicElement, Picture } from './pictureStore'
 import { pictureNamedSignal, type PictureNamedContext } from './pictureNamedSets'
@@ -83,7 +84,7 @@ export function highestRankedAlarmState(tag: string, alarms: ActiveAlarm[]): Pic
   let bestActive: ActiveAlarm | null = null
   let bestRtnUnacked: ActiveAlarm | null = null
   for (const a of alarms) {
-    if (a.moduleTag !== tag) continue
+    if (a.moduleTag !== tag || isLogOnly(a)) continue
     if (a.active) {
       if (!bestActive || alarmRank(a) > alarmRank(bestActive)) bestActive = a
     } else if (!a.acknowledged) {

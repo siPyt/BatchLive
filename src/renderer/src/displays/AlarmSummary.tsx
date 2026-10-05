@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { alarmArea } from '../engine/deviceAlarms'
 import { modulePath } from '../engine/hierarchy'
+import { isLogOnly } from '../engine/alarmPriorities'
 import { isSfcAlarm } from '../engine/sfcBlocks'
 import { useUi } from '../ui/uiStore'
 import { compareAlarmRank, alarmColumnText, ALARM_COLUMNS, loadAlarmColumns, saveAlarmColumns } from '../utils/format'
@@ -56,7 +57,7 @@ export function AlarmSummary(): JSX.Element {
     clearAlarmFocus()
   }, [alarmFocusTag, clearAlarmFocus])
 
-  let rows = [...alarms]
+  let rows = alarms.filter((a) => !isLogOnly(a))
   if (tagFilter) rows = rows.filter((a) => a.moduleTag === tagFilter)
   if (filter === 'UNACK') rows = rows.filter((a) => !a.acknowledged)
   else if (filter === 'SHELVED') rows = rows.filter((a) => a.shelvedUntil !== undefined)
@@ -64,8 +65,9 @@ export function AlarmSummary(): JSX.Element {
 
   rows.sort(compareAlarmRank)
 
-  const unack = alarms.filter((a) => !a.acknowledged).length
-  const total = alarms.length
+  const shown = alarms.filter((a) => !isLogOnly(a))
+  const unack = shown.filter((a) => !a.acknowledged).length
+  const total = shown.length
   const shelved = alarms.filter((a) => a.shelvedUntil !== undefined).length
 
   return (

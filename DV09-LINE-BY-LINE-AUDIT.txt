@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 64 VERIFIED_SUBSET, 39 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 65 VERIFIED_SUBSET, 38 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -824,19 +824,32 @@ Acceptance: Test low/high/out-of-range entry and fill percentage computed from
 
 [DV09-038]
 Pages: 179-180
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Numeric priorities 4-15, log-only level 3, six banner entries,
   audible settings/WAV, auto-ack/banner options, captured parameters and
   controller timestamps.
-Evidence: Three priority CLASSES (CRITICAL/WARNING/ADVISORY, still driving
-  color/label) plus an additive optional rank (4-15 whole number) that
-  overrides sort order per alarm; setAlarmLimit validates range/integer and
-  a null sentinel clears back to the class default. Editable in ExplorerDisplay
-  (Configured Alarms table Rank column) and PidFaceplate (Alarms tab Rank
-  input); persisted via the existing AO/PID saved-config isAlarm validators.
-  Six tiles, browser audio and memory journal remain as before.
-  Log-only level 3, auto-ack/banner administration options, captured
-  parameters and controller timestamps are still MISSING.
+Evidence (Pass38 + Pass93): three priority classes (CRITICAL/WARNING/ADVISORY)
+  drive color and label, with optional explicit numeric ranks per alarm.
+  Pass93 adds the Explorer Setup > Alarm Priorities table (alarmPriorities.ts):
+  each class has a configurable numeric Value (4-15, strictly ordered Critical >
+  Warning > Advisory; defaults 15/11/7) used to rank alarms that carry no
+  explicit rank, Auto Acknowledge New Alarms, Auto Acknowledge When Inactive,
+  Alarm Banner Shows (Not Hidden, Module or Unit/Equipment Module - the banner
+  keeps only the highest-ranked alarm of each module or hierarchy unit) and a
+  Wave File name ("(none)" silences that priority in the horn, which now
+  follows the highest unacknowledged class). Explicit rank 3 is the course's
+  log-only level: such an alarm is acknowledged at once, journaled as an event
+  record, removed at return to normal and never appears in the banner, list,
+  counts, horn or picture alarm state; every rank validator (module and PID
+  saved configurations, alarm field PRIAD, store, inputs) now accepts 3-15.
+  Automatic acknowledgements are journaled as SYSTEM ACK entries. The table
+  needs Can Configure, validates every field and persists in the browser
+  profile. Twelve regressions cover the defaults, validation, ranking, persistence,
+  both auto-acknowledge options, log-only behaviour end to end, banner collapsing
+  and audible selection; the earlier rank tests were updated for the 3-15 range.
+  Boundary: wave files only name a sound (the browser plays a synthesized tone,
+  not the .wav); captured alarm parameters (up to two) and controller-side time
+  stamps are not modelled; device alarms keep their own 4-15 range.
 Acceptance: Test configurable priorities and logging/visibility/audio separately.
 
 [DV09-039]
@@ -4306,3 +4319,23 @@ Result: DV09-040 stays PARTIAL; the only remaining listed column gap is Zone (no
   64 VERIFIED_SUBSET/39 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
 Validation: 641 tests locally (640 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
+
+PASS 93 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-038 alarm priority values, log-only level and priority options (pp179-180, course 4-23..4-30).
+Engine: new alarmPriorities.ts (table, validation, persisted store, policy for
+  auto-acknowledge and log-only, banner collapsing, audible selection);
+  format.ts ranks and eligibility use the table; rank validators widened to
+  3-15 in store, moduleLifecycle, pidLifecycle and alarmFields; tick applies the
+  priority policy and journals automatic acknowledgements; registry target
+  fn-alarm-priority (Can Configure).
+UI: Setup > Alarm Priorities panel; AlarmBanner collapses by Alarm Banner Shows;
+  AlarmAudio uses each priority's wave setting; rank inputs allow 3.
+Tests: tests/alarm-priorities.test.cjs (12); alarm-fields and control-strategy
+  rank assertions updated to the 3-15 range.
+Browser: an out-of-range WARNING value was rejected, an option toggled and restored.
+Boundary (honest): WAV names only; no captured parameters or controller time stamps.
+Validation: 653 tests locally (652 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-038 PARTIAL -> VERIFIED_SUBSET. Totals 65 VERIFIED_SUBSET/
+  38 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

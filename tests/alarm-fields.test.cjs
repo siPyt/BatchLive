@@ -65,8 +65,8 @@ test('DV09-043 alarmFieldWriteError validates each field independently of Locks 
   assert.match(alarmFieldWriteError(modules, 'LI-901.ALM[HI].ENAB', 1), /Boolean/)
   assert.equal(alarmFieldWriteError(modules, 'LI-901.ALM[HI].PRIAD', 12), null)
   assert.equal(alarmFieldWriteError(modules, 'LI-901.ALM[HI].PRIAD', null), null)
-  assert.match(alarmFieldWriteError(modules, 'LI-901.ALM[HI].PRIAD', 3), /4 to 15/)
-  assert.match(alarmFieldWriteError(modules, 'LI-901.ALM[HI].PRIAD', 4.5), /4 to 15/)
+  assert.match(alarmFieldWriteError(modules, 'LI-901.ALM[HI].PRIAD', 2), /3 \(log only\) to 15/)
+  assert.match(alarmFieldWriteError(modules, 'LI-901.ALM[HI].PRIAD', 4.5), /3 \(log only\) to 15/)
   assert.match(alarmFieldWriteError(modules, 'LI-901.ALM[HI].PRI', 10), /read-only/)
   assert.equal(alarmFieldWriteError(modules, 'LI-901.ALM[HI].MACK', true), null)
   assert.match(alarmFieldWriteError(modules, 'LI-901.ALM[HI].MACK', false), /must be written true/)
@@ -83,8 +83,8 @@ test('DV09-043 store.writeAlarmField enforces SYSTEM_RECORDS for ENAB/PRIAD and 
   assert.equal(useStore.getState().modules['LI-901'].alarms.find((a) => a.type === 'HI').enabled, true)
 
   // PRIAD: validated, then applied.
-  assert.equal(s.writeAlarmField('LI-901.ALM[HI].PRIAD', 3), false)
-  assert.match(alerts.at(-1), /4 to 15/)
+  assert.equal(s.writeAlarmField('LI-901.ALM[HI].PRIAD', 2), false)
+  assert.match(alerts.at(-1), /3 \(log only\) to 15/)
   assert.equal(s.writeAlarmField('LI-901.ALM[HI].PRIAD', 9), true)
   assert.equal(useStore.getState().modules['LI-901'].alarms.find((a) => a.type === 'HI').rank, 9)
 

@@ -3,7 +3,9 @@ import { useStore } from '../engine/store'
 import { isSfcAlarm } from '../engine/sfcBlocks'
 import { useSecurity } from '../engine/security'
 import { useUi } from '../ui/uiStore'
-import { alarmEligible, compareAlarmRank } from '../utils/format'
+import { alarmEligible, alarmRank, compareAlarmRank } from '../utils/format'
+import { collapseBanner, useAlarmPriorities } from '../engine/alarmPriorities'
+import { modulePath } from '../engine/hierarchy'
 import { alarmArea, bannerVisible, isDeviceAlarm } from '../engine/deviceAlarms'
 
 export function AlarmBanner(): JSX.Element {
@@ -11,6 +13,11 @@ export function AlarmBanner(): JSX.Element {
   const alarms = useStore((s) => s.alarms)
   const modules = useStore((s) => s.modules)
   const hardware = useStore((s) => s.hardware)
+  const equipment = useStore((s) => s.equipment)
+  const processCells = useStore((s) => s.processCells)
+  const units = useStore((s) => s.units)
+  const areas = useStore((s) => s.areas)
+  useAlarmPriorities((s) => s.priorities)
   const thresholds = useUi((s) => s.bannerThresholds)
   const setThresholds = useUi((s) => s.setBannerThresholds)
   const [bannerOpen, setBannerOpen] = useState(false)
@@ -46,7 +53,11 @@ export function AlarmBanner(): JSX.Element {
 
   const allAreas = Array.from(new Set(Object.values(modules).map((m) => m.area))).sort()
 
-  const tiles = [...visible].sort(compareAlarmRank).slice(0, 6)
+  const unitOf = (a: (typeof alarms)[number]): string | undefined => {
+    const module = modules[a.moduleTag]
+    return module ? modulePath(module, { areas, processCells, units, equipment }).unit : undefined
+  }
+  const tiles = collapseBanner([...visible].sort(compareAlarmRank), alarmRank, unitOf).sort(compareAlarmRank).slice(0, 6)
 
   return (
     <div className="alarm-banner">

@@ -1,3 +1,4 @@
+import { isValidAlarmRank } from './alarmPriorities'
 import type { AlarmLimit, AnyModule, PidIoStrategy, PidModule } from './types'
 import type { HardwareState } from './hardware'
 import { controllerIsDown } from './hardware'
@@ -161,7 +162,7 @@ function isAlarm(value: unknown): value is AlarmLimit {
     typeof value.enabled === 'boolean' &&
     (value.limit === undefined || typeof value.limit === 'number' && Number.isFinite(value.limit)) &&
     (value.rank === undefined ||
-      typeof value.rank === 'number' && Number.isInteger(value.rank) && value.rank >= 4 && value.rank <= 15)
+      isValidAlarmRank(value.rank))
 }
 
 function isPidIo(value: unknown): value is PidIoStrategy {

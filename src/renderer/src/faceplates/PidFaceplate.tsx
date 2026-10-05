@@ -445,7 +445,7 @@ function AlarmTab({ m }: { m: PidModule }): JSX.Element {
             className="fp-numinput sm"
             aria-label={`${m.tag} ${a.type} priority rank`}
             type="number"
-            min={4}
+            min={3}
             max={15}
             step={1}
             placeholder={String(priorityRank(a.priority))}

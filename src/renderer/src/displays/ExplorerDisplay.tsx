@@ -19,6 +19,7 @@ import { sfcConfiguredMetadata } from '../engine/sfcLifecycle'
 import type { SfcDef } from '../engine/sfc'
 import { LicensingProperties } from '../components/LicensingProperties'
 import { HierarchyPanel } from '../components/HierarchyPanel'
+import { AlarmPrioritiesPanel } from '../components/AlarmPrioritiesPanel'
 import type { EquipmentModule } from '../engine/equipment'
 import { SecurityPropertiesPanel } from '../components/SecurityPropertiesPanel'
 import { SignatureSetupPanel } from '../components/SignatureSetupPanel'
@@ -111,7 +112,7 @@ export function ExplorerDisplay(): JSX.Element {
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
-  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing' | 'securityParameter' | 'securityField' | 'securityFunction' | 'signatures' | 'export' | 'hierarchy'>('modules')
+  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing' | 'securityParameter' | 'securityField' | 'securityFunction' | 'signatures' | 'export' | 'hierarchy' | 'alarmPriorities'>('modules')
   const [selectedNamedSet, setSelectedNamedSet] = useState<string | null>(null)
   const [namedSetCreateRequest, setNamedSetCreateRequest] = useState(0)
   const [namedSetPropertiesRequest, setNamedSetPropertiesRequest] =
@@ -277,6 +278,10 @@ export function ExplorerDisplay(): JSX.Element {
             onClick={() => setSetupView('signatures')}>
             <b>Electronic Signatures</b>
           </div>}
+          <div className={'exp-node exp-area' + (setupView === 'alarmPriorities' ? ' sel' : '')}
+            onClick={() => setSetupView('alarmPriorities')}>
+            <b>Alarm Priorities</b>
+          </div>
           <div className={'exp-node exp-area' + (setupView === 'hierarchy' ? ' sel' : '')}
             onClick={() => setSetupView('hierarchy')}>
             <b>Equipment Hierarchy</b>
@@ -418,7 +423,7 @@ export function ExplorerDisplay(): JSX.Element {
       </div>
 
       <div className="explorer-detail">
-        {setupView === 'hierarchy' ? <HierarchyPanel /> : setupView === 'licensing' ? <LicensingProperties /> : setupView === 'export' ? (
+        {setupView === 'alarmPriorities' ? <AlarmPrioritiesPanel /> : setupView === 'hierarchy' ? <HierarchyPanel /> : setupView === 'licensing' ? <LicensingProperties /> : setupView === 'export' ? (
           <ExportImportPanel initialNamedSet={selectedNamedSet} />
         ) : setupView === 'signatures' ? (
           <SignatureSetupPanel />
@@ -759,7 +764,7 @@ function ModuleProperties({
                       className="exp-alm-input"
                       aria-label={`${m.tag} ${a.type} priority rank`}
                       type="number"
-                      min={4}
+                      min={3}
                       max={15}
                       step={1}
                       placeholder={String(priorityRank(a.priority))}

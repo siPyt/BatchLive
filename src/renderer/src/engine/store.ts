@@ -28,6 +28,7 @@ import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { reconcileDeviceAlarms } from './deviceAlarms'
 import { commissionPropertiesErrors, controllerReferenceCount, placeholderErrors, reconcileHardwareAlarms, type CommissionProperties } from './commissioning'
 import { useSimulator, validateScale } from './simulatorSession'
+import { ALARM_RANK_ERROR, applyPriorityPolicy, isValidAlarmRank } from './alarmPriorities'
 import { coldRestartDecision, type ColdRestartDecision } from './coldRestart'
 import { assignUnitError, batchHierarchyError, deleteProcessCellError, deleteUnitError, makeDefaultHierarchy, processCellError, renameAreaInHierarchy, unitError, type ProcessCell, type Unit } from './hierarchy'
 import { DEFAULT_RECIPE_NAME, defaultRecipe, recipeErrors, resolveRecipe, type Recipe } from './recipes'
@@ -690,6 +691,8 @@ export const useStore = create<StoreState>((set, get) => ({
     // DV09-121..123: fieldbus device alarms (PlantWeb alerts) are device-state alarms, separate from process alarms.
     reconcileDeviceAlarms(next.alarms, s.hardware, next.time)
     reconcileHardwareAlarms(next.alarms, s.hardware, next.time)
+    const priorityPolicy = applyPriorityPolicy(s.alarms, next.alarms, next.time)
+    next.alarms = priorityPolicy.alarms
     // Sample trend data.
     const trend = s.trend
     const last = trend[trend.length - 1]
@@ -718,7 +721,7 @@ export const useStore = create<StoreState>((set, get) => ({
       (a.active && !a.acknowledged && (a.repeats ?? 0) > (priorById.get(a.id)?.repeats ?? 0)))
     // Journal every alarm transition: newly active alarms and returns-to-normal.
     const nextById = new Map(next.alarms.map((a) => [a.id, a]))
-    const newEntries: EventLogEntry[] = [...sfcDiagnostics]
+    const newEntries: EventLogEntry[] = [...sfcDiagnostics, ...priorityPolicy.entries]
     if (s.photoPlant && next.photoPlant) {
       for (const tank of PHOTO_TANKS) {
         const stage = next.photoPlant.tanks[tank.id].sanitation
@@ -1129,8 +1132,8 @@ export const useStore = create<StoreState>((set, get) => ({
     const error = !get().modules[tag]?.alarms.some(alarm => alarm.type === type)
       ? `${tag}.${type} is not a configured alarm`
       : patch.limit !== undefined && !Number.isFinite(patch.limit) ? 'Alarm limit must be finite' :
-      patch.rank != null && (!Number.isInteger(patch.rank) || patch.rank < 4 || patch.rank > 15)
-        ? 'Alarm priority rank must be a whole number from 4 to 15' : null
+      patch.rank != null && !isValidAlarmRank(patch.rank)
+        ? ALARM_RANK_ERROR : null
     if (error) {
       get().logEvent('DIAGNOSTIC', tag, `Alarm configuration rejected: ${error}`)
       window.alert(error)
