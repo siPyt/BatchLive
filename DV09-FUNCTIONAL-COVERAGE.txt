@@ -2190,5 +2190,48 @@ totals unchanged at 9 VERIFIED_SUBSET/57 PARTIAL/37 MISSING/19 BOUNDARY/
 6 CONTEXT since neither group's Status line changed. 367 repository tests run
 locally (366 pass; the one failure is the pre-existing local-only pdf_om.txt
 dependency). Typecheck, production build and whitespace checks passed.
+
+PASS 58: ALARM-SUMMARY CATEGORY COLUMN, FOURTH POSITION, PERSISTED REOPEN (pp183-184, 554-560)
+------------------------------------------------------------------------------------------------
+Line1 - Scope: opens a new continuation instruction: keep working the full
+  DV09 line-by-line pass over every remaining MISSING/PARTIAL/BOUNDARY group,
+  and opportunistically use the user's newImage/ folder of real DeltaV
+  screenshots (Control Studio, DeltaV Explorer, a PID faceplate, process
+  graphics) to align BatchLive's look with real DeltaV, except the TopBar
+  brand/credit block matching newImage/5001.png, which stays exactly as-is.
+Line2 - Found at session start: an uncommitted-to-docs local change (commit
+  79c81c5, made by the user directly, not a numbered pass) had already added
+  a first typed/reorderable/selectable alarm-summary column picker. This pass
+  records that against DV09-040 and builds on it for DV09-124.
+Line3 - DV09-124: format.ts adds alarmCategory() — a genuine PROCESS/DEVICE/
+  SYSTEM classification derived from the existing AlarmType the engine
+  already evaluates, never a fabricated per-alarm label — plus a 'category'
+  ALARM_COLUMNS entry (hidden by default, matching the course workshop where
+  the operator adds then moves it) and loadAlarmColumns/saveAlarmColumns
+  using the established window.localStorage try/catch convention already
+  used by pictureStore.ts/moduleLifecycle.ts, keyed
+  batchlive.alarmSummary.columns.v1, falling back to defaults on missing or
+  corrupt data.
+Line4 - UI: AlarmSummary.tsx now initializes/persists its column state through
+  those functions instead of local-only React state, and labels its picker
+  "Configure Columns" with a title noting it is one simulator-native entry
+  point standing in for DeltaV's three separate Configure/Quick
+  Edit/Properties menu commands (an honest boundary, not literal parity).
+Line5 - Tests: control-strategy.test.cjs extends the DV09-040 regression with
+  the 'category' column/key and alarmCategory() cases, and adds a DV09-124
+  regression driving loadAlarmColumns/saveAlarmColumns directly: defaults on
+  no saved data; appending then splicing 'category' to index3 reproduces
+  "move to fourth position" and round-trips through save/load; corrupt JSON
+  and an unknown column key both fall back to defaults instead of crashing.
+Boundary: Message, Time Last (vs Time In), standalone Unit and Zone columns
+(DV09-040) remain MISSING; one unified Configure Columns entry point stands in
+for three separate real menu commands (DV09-124).
+Result: DV09-040 Evidence updated; Status stays PARTIAL. DV09-124 MISSING ->
+VERIFIED_SUBSET. Current totals10 VERIFIED_SUBSET/57 PARTIAL/36 MISSING/
+19 BOUNDARY/6 CONTEXT. 369 repository tests run locally (368 pass; the
+remaining failure is the pre-existing local-only pdf_om.txt dependency).
+Typecheck and production build both passed. This is the first pass of an
+open-ended continuation; further groups and newImage-driven visual alignment
+continue in subsequent passes within this same release.
 Commit/push authorization for this pass follows the same 2026-10-05
 instruction already recorded for Pass54.

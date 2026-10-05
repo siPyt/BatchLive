@@ -2,13 +2,11 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { isSfcAlarm } from '../engine/sfcBlocks'
 import { useUi } from '../ui/uiStore'
-import { compareAlarmRank, alarmColumnText, ALARM_COLUMNS } from '../utils/format'
+import { compareAlarmRank, alarmColumnText, ALARM_COLUMNS, loadAlarmColumns, saveAlarmColumns } from '../utils/format'
 import type { ActiveAlarm, AlarmPriority, AnyModule } from '../engine/types'
 import type { AlarmColumnKey } from '../utils/format'
 
 type Filter = 'ALL' | AlarmPriority | 'UNACK' | 'SHELVED'
-
-const DEFAULT_COLUMNS: AlarmColumnKey[] = ALARM_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key)
 
 export function AlarmSummary(): JSX.Element {
   const alarms = useStore((s) => s.alarms)
@@ -21,11 +19,15 @@ export function AlarmSummary(): JSX.Element {
   const openSfc = useUi(s => s.openSfc)
   const [filter, setFilter] = useState<Filter>('ALL')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
-  const [columns, setColumns] = useState<AlarmColumnKey[]>(DEFAULT_COLUMNS)
+  const [columns, setColumns] = useState<AlarmColumnKey[]>(() => loadAlarmColumns())
   const [columnPickerOpen, setColumnPickerOpen] = useState(false)
 
   function toggleColumn(key: AlarmColumnKey): void {
-    setColumns((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]))
+    setColumns((cur) => {
+      const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]
+      saveAlarmColumns(next)
+      return next
+    })
   }
   function moveColumn(key: AlarmColumnKey, dir: -1 | 1): void {
     setColumns((cur) => {
@@ -34,6 +36,7 @@ export function AlarmSummary(): JSX.Element {
       if (i === -1 || j < 0 || j >= cur.length) return cur
       const next = [...cur]
       ;[next[i], next[j]] = [next[j], next[i]]
+      saveAlarmColumns(next)
       return next
     })
   }
@@ -80,8 +83,9 @@ export function AlarmSummary(): JSX.Element {
         <span style={{ flex: 1 }} />
         <div style={{ position: 'relative' }}>
           <button className={'tbtn sm' + (columnPickerOpen ? ' active' : '')}
+            title="Configure/Quick Edit/Properties: choose and reorder alarm-summary columns"
             onClick={() => setColumnPickerOpen((v) => !v)}>
-            Columns ▾
+            Configure Columns ▾
           </button>
           {columnPickerOpen && (
             <div className="alm-colpicker">

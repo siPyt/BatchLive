@@ -61,12 +61,28 @@ export function alarmParameter(a: ActiveAlarm): string {
   return ALARM_PARAMETER[a.type] ?? '—'
 }
 
+/**
+ * Alarm-summary Category: a genuine classification derived from the same
+ * AlarmType the engine already evaluates (DV09-124), not a per-alarm
+ * fabricated label. PROCESS covers measured-value trips, DEVICE covers a
+ * module's own failure/bad-quality condition, SYSTEM covers interlocks.
+ */
+const ALARM_CATEGORY: Partial<Record<ActiveAlarm['type'], string>> = {
+  HI: 'PROCESS', HI_HI: 'PROCESS', LO: 'PROCESS', LO_LO: 'PROCESS',
+  DV_HI: 'PROCESS', DV_LO: 'PROCESS', PVBAD: 'PROCESS',
+  FAIL: 'DEVICE', INTERLOCK: 'SYSTEM'
+}
+
+export function alarmCategory(a: ActiveAlarm): string {
+  return ALARM_CATEGORY[a.type] ?? '—'
+}
+
 /** DV09-040 alarm list columns: a typed, selectable/reorderable set. Ack and
  * Shelve stay as dedicated interactive cells; everything else renders through
  * alarmColumnText so the same logic is unit-testable outside React. */
 export type AlarmColumnKey =
   | 'timeIn' | 'module' | 'description' | 'alarm' | 'value' | 'priority' | 'rank'
-  | 'area' | 'node' | 'partOf' | 'parameter'
+  | 'area' | 'node' | 'partOf' | 'parameter' | 'category'
 
 export interface AlarmColumnDef {
   key: AlarmColumnKey
@@ -75,6 +91,8 @@ export interface AlarmColumnDef {
 }
 
 // Order here is also the default column order (DV09-040: reorderable, not fixed).
+// 'category' is deliberately last/hidden by default: DV09-124's workshop has the
+// operator add it and move it to the fourth position themselves.
 export const ALARM_COLUMNS: AlarmColumnDef[] = [
   { key: 'timeIn', label: 'Time In', defaultVisible: true },
   { key: 'module', label: 'Module/Param', defaultVisible: true },
@@ -86,8 +104,44 @@ export const ALARM_COLUMNS: AlarmColumnDef[] = [
   { key: 'area', label: 'Area', defaultVisible: false },
   { key: 'node', label: 'Node', defaultVisible: false },
   { key: 'partOf', label: 'Part Of', defaultVisible: false },
-  { key: 'parameter', label: 'Parameter', defaultVisible: false }
+  { key: 'parameter', label: 'Parameter', defaultVisible: false },
+  { key: 'category', label: 'Category', defaultVisible: false }
 ]
+
+export const DEFAULT_ALARM_COLUMNS: AlarmColumnKey[] = ALARM_COLUMNS
+  .filter((c) => c.defaultVisible)
+  .map((c) => c.key)
+
+const ALARM_COLUMNS_KEY = 'batchlive.alarmSummary.columns.v1'
+
+/**
+ * DV09-124 "apply/save/reopen Run": the operator's configured column set
+ * (e.g. Category added and moved to the fourth position) persists in this
+ * browser profile across closing and reopening the Alarm Summary display.
+ * This is the simulator-native substitute for a saved DeltaV Operate display
+ * configuration file, not a claim of native .dst/.grf persistence.
+ */
+export function loadAlarmColumns(): AlarmColumnKey[] {
+  try {
+    const text = window.localStorage.getItem(ALARM_COLUMNS_KEY)
+    if (!text) return DEFAULT_ALARM_COLUMNS
+    const parsed: unknown = JSON.parse(text)
+    if (!Array.isArray(parsed)) return DEFAULT_ALARM_COLUMNS
+    const known = new Set(ALARM_COLUMNS.map((c) => c.key))
+    const filtered = parsed.filter((k): k is AlarmColumnKey => typeof k === 'string' && known.has(k as AlarmColumnKey))
+    return filtered.length > 0 ? filtered : DEFAULT_ALARM_COLUMNS
+  } catch {
+    return DEFAULT_ALARM_COLUMNS
+  }
+}
+
+export function saveAlarmColumns(columns: AlarmColumnKey[]): void {
+  try {
+    window.localStorage.setItem(ALARM_COLUMNS_KEY, JSON.stringify(columns))
+  } catch {
+    /* ignore quota/availability errors */
+  }
+}
 
 /**
  * Truthful text value for a given alarm-list column. `m` is the live module
@@ -107,6 +161,7 @@ export function alarmColumnText(key: AlarmColumnKey, a: ActiveAlarm, m: AnyModul
     case 'node': return (m && 'controllerTag' in m && m.controllerTag) || '—'
     case 'partOf': return m?.equipmentModule ?? '—'
     case 'parameter': return alarmParameter(a)
+    case 'category': return alarmCategory(a)
   }
 }
 

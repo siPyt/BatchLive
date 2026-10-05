@@ -731,7 +731,14 @@ Pages: 183-184
 Status: PARTIAL
 Required: Alarm list columns including area/category/message/node/parameter/
   part-of/time-last/unit/zone, as well as normal alarm operations.
-Evidence: ALARMS exposes static reduced columns, filtering and acknowledgment.
+Evidence (Pass58, superseding prior "static reduced columns" note): AlarmSummary
+  now exposes typed, selectable, reorderable, persisted columns: Time In,
+  Module/Param, Description, Alarm, Value, Priority, Rank, Area, Node, Part
+  Of, Parameter and Category, each rendered through alarmColumnText so no
+  field is ever fabricated for a missing/deleted module.
+Gaps still MISSING: a distinct Message column (separate from the Alarm label),
+  a Time Last (vs Time In) column, a standalone Unit column (value embeds
+  unit inline today) and Zone. Status stays PARTIAL until those are added.
 Acceptance: Add typed selectable/reorderable columns with truthful values;
   do not populate missing fields with fabricated labels.
 
@@ -1962,10 +1969,20 @@ Acceptance: Test both area-resolution paths and resulting alarm/event scope,
 
 [DV09-124]
 Pages: 554-560
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Customize alarm-summary object columns through Configure/Quick
   Edit/Properties, add Category, move to fourth position, apply/save/reopen Run.
-Evidence: ALARMS has a static table, no configurable column layout/persistence.
+Evidence (Pass58): AlarmSummary.tsx's "Configure Columns" picker adds/removes/
+  reorders typed columns including the new Category column; format.ts's
+  loadAlarmColumns/saveAlarmColumns persist the chosen set+order to this
+  browser profile (batchlive.alarmSummary.columns.v1) so it survives closing
+  and reopening the display, falling back to defaults on missing/corrupt data.
+  alarmCategory() derives PROCESS/DEVICE/SYSTEM from the real AlarmType the
+  engine already evaluates, never a fabricated per-alarm label.
+Gaps (honest, not fixed this pass): one unified "Configure Columns" entry
+  point stands in for DeltaV's three separate Configure/Quick Edit/Properties
+  menu commands; this is a simulator-native substitute, not literal menu
+  parity. No native .dst/.grf display file is produced or round-tripped.
 Acceptance: Configure/reorder/remove columns without fabricated fields;
   verify saved fourth-position category and correct process/device values.
 
@@ -2293,8 +2310,9 @@ DV09-038: Log-only3, six-tile/banner/audible/WAV/auto-ack options, captured
   rank override now exists (Pass57), layered on the 3-class system.
 DV09-039: SFC block custom alarms (SfcAlarmType) still lack a rank field;
   arbitrary numeric priority editor for module/PID alarms now exists (Pass57).
-DV09-040: Typed selectable/reorderable area/category/message/node/parameter/
-  part-of/time-last/unit/zone columns with actual values.
+DV09-040: Remaining Message (distinct from Alarm label), Time Last (vs Time
+  In), standalone Unit and Zone columns; area/category/node/part-of/parameter
+  typed selectable/reorderable columns with actual values now exist (Pass58).
 DV09-041: Configurable alarm type registry up to255 and captured %P1/%P2 message
   parameters, validation and changed-Setup download.
 DV09-042: Full CUALM/LAALM/CV/NALM/PRI/ENAB/INV/OPSUP/SUPTMO/SUPTMR composites,
@@ -2394,7 +2412,6 @@ DV09-121: Device events/Not Communicating/default-disabled Abnormal and prioriti
 DV09-122: Independent Advisory/Not Communicating/Failed/Maintenance alerts.
 DV09-123: Device-alarm enable/re-annunciation/controller-or-module area/display/
   FFDEV_FP navigation and resulting event scope.
-DV09-124: Saved alarm-summary Category fourth-column configuration/reordering.
 DV09-125: Persistent initialized process>3/device>7 banner thresholds; strict
   > comparison, device7 excluded at7/included at6, list independent of banner.
 DV09-126: Complete UserSettings save-as/edit/search/save/close/run threshold
@@ -2634,3 +2651,56 @@ Result: DV09-038 Evidence updated: numeric priority rank administration now
   without changing rule order, which the new regressions directly test).
   Classifications unchanged at 9 VERIFIED_SUBSET/57 PARTIAL/37 MISSING/
   19 BOUNDARY/6 CONTEXT since neither group's Status line changed.
+
+PASS 58 CHANGE DETAIL AND VALIDATION (2026-10-05)
+--------------------------------------------------
+Scope: this pass starts a new instruction phase: continue the full DV09
+line-by-line pass over every remaining MISSING/PARTIAL/BOUNDARY group until
+exhausted, and opportunistically apply the user's own newImage/ folder of
+real DeltaV screenshots (Control Studio module/alarm editing, DeltaV Explorer
+project/Physical Network trees, a PID faceplate, process graphics) to make
+BatchLive's look match real DeltaV wherever a touched screen allows it. The
+TopBar brand/credit block matching newImage/5001.png is explicitly excluded
+from any visual change, per the user's instruction, and was not touched.
+Documented first: an uncommitted local change already on disk at session
+start (commit79c81c5, authored by the user directly, not a prior pass) added
+a first typed/reorderable/selectable alarm-summary column picker
+(AlarmSummary.tsx, utils/format.ts: AlarmColumnKey, ALARM_COLUMNS,
+alarmColumnText, area/node/partOf/parameter columns) plus a regression in
+control-strategy.test.cjs. This pass records that work against DV09-040
+(Evidence updated, Status stays PARTIAL: Message/Time Last/Unit/Zone columns
+are still absent) and builds on it to close DV09-124.
+DV09-124 (Category column, fourth position, persisted reopen): format.ts adds
+  alarmCategory() (a genuine PROCESS/DEVICE/SYSTEM classification derived
+  from the existing AlarmType the engine evaluates, never a fabricated
+  per-alarm label), a 'category' ALARM_COLUMNS entry (hidden by default per
+  the course workshop, which has the operator add then move it), and
+  loadAlarmColumns/saveAlarmColumns using the established window.localStorage
+  try/catch convention (pictureStore.ts/moduleLifecycle.ts pattern) keyed
+  batchlive.alarmSummary.columns.v1, falling back to the default visible set
+  on missing/corrupt/unknown-key data. AlarmSummary.tsx now initializes and
+  persists its column state through these functions instead of local-only
+  React state, and its picker button is labeled "Configure Columns" with a
+  title noting it stands in for DeltaV's three separate Configure/Quick
+  Edit/Properties menu commands (one simulator-native entry point, recorded
+  as an honest boundary, not literal menu parity).
+Tests: control-strategy.test.cjs extends the existing DV09-040 regression
+  with the new 'category' column/key and alarmCategory() cases (PROCESS for
+  process-variable types, DEVICE for FAIL, SYSTEM for INTERLOCK, '—' for
+  CUSTOM/unclassified), and adds a new DV09-124 regression that drives
+  loadAlarmColumns/saveAlarmColumns directly: no saved data falls back to
+  defaults; appending 'category' then splicing it to index3 reproduces the
+  course's "move to fourth position" action and round-trips through
+  save/load exactly; corrupt JSON and an unknown column key both fall back
+  to defaults rather than crashing or rendering a blank column.
+Validation: 369 repository tests run locally (368 pass; the remaining
+  failure is the pre-existing local-only pdf_om.txt dependency in
+  dv09-audit.test.cjs, unrelated to this change). Typecheck (tsconfig.node.json
+  + tsconfig.web.json) and the production build (electron-vite build) both
+  passed with no new errors.
+Result: DV09-040 Evidence updated (Status stays PARTIAL; Message/Time
+  Last/Unit/Zone columns remain the honest gap). DV09-124 MISSING ->
+  VERIFIED_SUBSET. Current totals10 VERIFIED_SUBSET/57 PARTIAL/36 MISSING/
+  19 BOUNDARY/6 CONTEXT. This pass is the first of an open-ended continuation;
+  remaining MISSING/PARTIAL/BOUNDARY groups and newImage-driven visual
+  alignment continue in subsequent passes within this same release.

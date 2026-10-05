@@ -30,7 +30,10 @@ const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const { nextAreaName } = require('../src/renderer/src/engine/areas.ts')
 const { usePictures, resolvePictureTarget } = require('../src/renderer/src/engine/pictureStore.ts')
 const { moduleNameError, isValidDeltaVTag } = require('../src/renderer/src/engine/naming.ts')
-const { compareAlarmRank, alarmRank, priorityRank, alarmColumnText, alarmParameter, ALARM_COLUMNS } = require('../src/renderer/src/utils/format.ts')
+const {
+  compareAlarmRank, alarmRank, priorityRank, alarmColumnText, alarmParameter, alarmCategory,
+  ALARM_COLUMNS, DEFAULT_ALARM_COLUMNS, loadAlarmColumns, saveAlarmColumns
+} = require('../src/renderer/src/utils/format.ts')
 const { findDst, channelConfigurationError, advanceTraditionalIo, sampleAnalogInputs } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const { savedAoStorageKey } = require('../src/renderer/src/engine/moduleLifecycle.ts')
@@ -780,8 +783,43 @@ test('DV09-040 alarm list columns expose typed, selectable/reorderable, truthful
   assert.equal(alarmColumnText('partOf', alarm, undefined), '—')
   assert.equal(alarmParameter({ ...alarm, type: 'FAIL' }), 'STATUS')
   assert.equal(alarmParameter({ ...alarm, type: 'CUSTOM' }), '—')
+  assert.equal(alarmColumnText('category', alarm, module), 'PROCESS')
+  assert.equal(alarmCategory({ ...alarm, type: 'FAIL' }), 'DEVICE')
+  assert.equal(alarmCategory({ ...alarm, type: 'INTERLOCK' }), 'SYSTEM')
+  assert.equal(alarmCategory({ ...alarm, type: 'CUSTOM' }), '—')
   assert.deepEqual(ALARM_COLUMNS.map(c => c.key),
-    ['timeIn', 'module', 'description', 'alarm', 'value', 'priority', 'rank', 'area', 'node', 'partOf', 'parameter'])
+    ['timeIn', 'module', 'description', 'alarm', 'value', 'priority', 'rank', 'area', 'node', 'partOf', 'parameter', 'category'])
+})
+
+test('DV09-124 alarm-summary Category column can be added, moved to the fourth position, and persists across reopen', () => {
+  const previousWindow = global.window
+  const savedConfiguration = new Map()
+  global.window = { localStorage: {
+    setItem: (key, value) => savedConfiguration.set(key, value),
+    getItem: key => savedConfiguration.get(key) ?? null
+  } }
+  try {
+    // No saved configuration yet: falls back to the default visible column set.
+    assert.deepEqual(loadAlarmColumns(), DEFAULT_ALARM_COLUMNS)
+    // Operator adds Category (appended) then moves it up to the fourth position.
+    const withCategory = [...DEFAULT_ALARM_COLUMNS, 'category']
+    const fourthPosition = [...withCategory]
+    const from = fourthPosition.indexOf('category')
+    fourthPosition.splice(from, 1)
+    fourthPosition.splice(3, 0, 'category')
+    assert.deepEqual(fourthPosition.slice(0, 4), ['timeIn', 'module', 'description', 'category'])
+    saveAlarmColumns(fourthPosition)
+    // Reopening the display (a fresh load) sees the saved layout, not the defaults.
+    assert.deepEqual(loadAlarmColumns(), fourthPosition)
+    // A corrupted/unknown saved value never crashes and falls back to defaults.
+    global.window.localStorage.setItem('batchlive.alarmSummary.columns.v1', '{not json')
+    assert.deepEqual(loadAlarmColumns(), DEFAULT_ALARM_COLUMNS)
+    global.window.localStorage.setItem('batchlive.alarmSummary.columns.v1', JSON.stringify(['bogusKey']))
+    assert.deepEqual(loadAlarmColumns(), DEFAULT_ALARM_COLUMNS)
+  } finally {
+    if (previousWindow === undefined) delete global.window
+    else global.window = previousWindow
+  }
 })
 
 function discreteCourseProject(store) {
