@@ -5,7 +5,7 @@ CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-05
 -------------------------------------------
 DV-09 is NOT complete. Latest implemented milestone: a calculated open-loop
 reaction-curve tuning suggestion for the simulator PID Tune Test (Pass56).
-Implementation: Pass56, local commit (hash recorded after commit below).
+Implementation: 27c245d, 2026-10-05, reaction-curve tuning suggestion (Pass56).
 Previous milestone: a583253, selective AO parameter upload (Pass55), 2026-10-05.
 The user authorized commit and push of Pass54-56 on 2026-10-05, separate from
 the 2026-10-04 authorization that covered Pass42-53 only.
