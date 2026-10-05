@@ -32,6 +32,9 @@ export function compareModuleDownload(state: DownloadStatusState, tag: string):
     status: 'UNSUPPORTED', message: 'Download comparison is not modeled for this live/unmanaged module', signature: ''
   }
   const signature = JSON.stringify(canonical([record.saved, record.deployed]))
+  if ('replayFullRequired' in record && record.replayFullRequired) return {
+    status: 'NO_CONFIGURATION', message: 'Controller recommissioning requires a fresh Full AO module download', signature
+  }
   if (!record.deployed) return {
     status: 'NO_CONFIGURATION', message: 'No deployed configuration for this managed module', signature
   }

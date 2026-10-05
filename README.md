@@ -559,12 +559,30 @@ Cold restart restores selected values only when both deployed module and
 parameter restore flags are set. Power recovery outside the configured cold
 restart window requires a fresh Full Download, not just commissioning.
 
+**Re-send Last Good Module Download** replays the last successful AO transfer
+without reading later saved defaults or downloading unsaved editor changes.
+Each successful Full/Partial transfer captures a separate snapshot; a Partial
+snapshot includes the critical/user values actually preserved at that transfer,
+not whatever values happen to be live later. Confirmation changes only this
+module's runtime and binding; Cancel changes nothing. Failed target validation,
+denied Download permission or FlexLock retain last-good state.
+Saved/draft configuration, deployment revisions and outstanding database
+differences are not cleared by replay. Decommissioning invalidates managed AO
+deployments and their replay eligibility. Recommission requires a fresh Full,
+not Partial or replay, before those modules can operate again.
+Cold power recovery cannot bypass that fresh-Full requirement.
+Snapshots are session-local. This is a p98 single-AO replay subset, not a
+whole-controller full-plus-partial script, controller-memory-only update,
+workstation recovery or native persistent download script. Existing live
+parameter NVM/restore flags remain a separate simulation.
+
 Save persists only this AO configuration in the local browser profile; Load Saved
 requires the module and its plant area to exist. Controller/card prerequisites
 must be recreated before Download. Deployed state and simulated NVM remain
 in-memory and do not survive browser reload. This is a synchronous, simulated,
 single-module transfer, not native DeltaV communication or a whole-controller
-download. Other module types and unenrolled modules remain immediately live.
+download. PID_LOOP, devices and SFCs have their separate opt-in lifecycles;
+unenrolled modules retain their existing immediately live behavior.
 Area and Equipment Module membership stays project-level metadata; Save captures
 current membership, and transfer/restart does not resurrect renamed/deleted parents.
 Arbitrary typed parameters/paths, 4-20 mA scaling, discrete CAS, native templates,

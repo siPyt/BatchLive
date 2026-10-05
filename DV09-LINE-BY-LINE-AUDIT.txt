@@ -306,11 +306,27 @@ Acceptance: Maintain separate configuration/runtime state; full versus partial
 
 [DV09-018]
 Pages: 96-98
-Status: MISSING
+Status: PARTIAL
 Required: Update download status, manage cold-restart memory separately from
   working configuration, replay the last successful full/partial sequence
   without incorporating later database edits, and handle recommissioning.
-Evidence: Current cold restart is a state/time-window check, not script replay.
+Verified AO subset (Pass47): each successful managed AO Full/Partial download
+  captures an independent final transfer configuration. It includes block/user
+  values actually preserved at that Partial transfer. Re-send Last Good Module
+  Download validates the old target and restores this snapshot without reading
+  current saved configuration, uploading or overwriting later saved/draft edits.
+  Revisions and nominal deployed configuration remain unchanged; saved database
+  differences are not falsely cleared. Cancel/failed/denied/locked replay leaves
+  last-good state intact. Decommissioning invalidates replay and inhibits those
+  AO deployments; recommission requires fresh Full, not Partial or replay.
+  Cold power recovery cannot bypass the managed AO fresh-Full requirement.
+  Browser saved900/live700/snapshot500: Cancel retained700; confirmed replay
+  returned applied50%/PV500 while saved/stored900 remained900. Original state
+  restored. Existing dynamic AO parameter NVM/restore flags remain separate.
+Gaps: whole-controller full-plus-partial script replay, separate controller
+  memory-only script update, upgrade/workstation replay, other module types and
+  native persistent download scripts are absent. AO replay snapshots are
+  session-local; this is not controller cold-restart memory parity.
 Acceptance: Test an undownloaded edit, memory-only update and last-good replay;
   ensure configured data and live control are not silently overwritten.
 

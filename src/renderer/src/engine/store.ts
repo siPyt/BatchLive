@@ -30,7 +30,7 @@ import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './anal
 import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
 import {
   aoOperatorError, cloneAo, cloneConfiguration, configurationError, deployedAo, downloadError, lifecycleDirty,
-  memoryOf, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
+  memoryOf, capturedAoDownload, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
   type AoDraftPatch, type AoLifecycle
 } from './moduleLifecycle'
 import {
@@ -160,6 +160,7 @@ interface StoreState extends PlantState {
   saveModuleConfiguration: (tag: string) => boolean
   loadSavedModuleConfiguration: (tag: string) => boolean
   downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL') => boolean
+  resendLastGoodModuleDownload: (tag: string) => boolean
   uploadModule: (tag: string) => boolean
   restartModule: (tag: string) => boolean
   enablePidLifecycle: (tag: string) => boolean
@@ -1156,10 +1157,16 @@ export const useStore = create<StoreState>((set, get) => ({
             [tag]: { ...c, commissioned: false, identified: false, primary: 'N/A', secondary: 'N/A' }
           }
         },
+        moduleLifecycle: Object.fromEntries(Object.entries(s.moduleLifecycle).map(([moduleTag, record]) =>
+          [moduleTag, record.deployed?.controllerTag === tag
+            ? { ...record, lastGoodDownload: undefined, replayFullRequired: true } : record])),
+        modules: Object.fromEntries(Object.entries(s.modules).map(([moduleTag, module]) =>
+          [moduleTag, module.type === 'AO' && s.moduleLifecycle[moduleTag]?.deployed?.controllerTag === tag
+            ? { ...module, downloaded: false, bad: true, actualMode: 'OOS' as const } : module])),
         rev: s.rev + 1
       }
     })
-    if (decommissioned) get().logEvent('CONFIGURE', tag, 'Controller decommissioned; bound I/O is unavailable')
+    if (decommissioned) get().logEvent('CONFIGURE', tag, 'Controller decommissioned; bound I/O unavailable; managed AO modules require fresh Full downloads')
     return decommissioned
   },
 
@@ -1890,6 +1897,9 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!['FULL', 'PARTIAL'].includes(scope) || (scope === 'PARTIAL' && (!record.deployed || !runtime.downloaded))) {
       return rejectAo(get, tag, 'First download must be Full; subsequent scope must be Full or Partial')
     }
+    if (scope === 'PARTIAL' && record.replayFullRequired) {
+      return rejectAo(get, tag, 'Perform a fresh Full module download after controller recommissioning')
+    }
     const error = downloadError(record.saved, state.hardware)
     if (error) return rejectAo(get, tag, `Download failed; last-good runtime retained: ${error}`)
     const saved = record.saved
@@ -1903,9 +1913,32 @@ export const useStore = create<StoreState>((set, get) => ({
         [tag]: { output: saved.outputDst } } },
       moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record,
         deployed: cloneConfiguration(saved), deployedRevision: record.savedRevision,
+        lastGoodDownload: capturedAoDownload(saved, module), replayFullRequired: false,
         nvm: memoryOf(module) } }, rev: s.rev + 1
     }))
     get().logEvent('CONFIGURE', tag, `${scope} simulated module download committed atomically (${behavior}); NVM updated`)
+    return true
+  },
+
+  resendLastGoodModuleDownload: tag => {
+    if (!requireUnlockedKey('CAN_DOWNLOAD', `Re-send last good module download ${tag}`)) return false
+    const state = get()
+    const record = state.moduleLifecycle[tag]
+    const runtime = state.modules[tag]
+    if (!record?.lastGoodDownload || record.replayFullRequired || runtime?.type !== 'AO') {
+      return rejectAo(get, tag, 'Perform a fresh Full AO module download before re-sending a last-good snapshot')
+    }
+    const snapshot = record.lastGoodDownload
+    const error = downloadError(snapshot, state.hardware)
+    if (error) return rejectAo(get, tag, `Last-good module replay failed; runtime unchanged: ${error}`)
+    const module = deployedAo(snapshot, runtime, 'CONFIGURED', state.hardware)
+    set(s => ({
+      modules: { ...s.modules, [tag]: module },
+      hardware: { ...s.hardware, analogBindings: { ...s.hardware.analogBindings, [tag]: { output: snapshot.outputDst } } },
+      moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record, nvm: memoryOf(module) } },
+      rev: s.rev + 1
+    }))
+    get().logEvent('CONFIGURE', tag, `Last-good AO module transfer re-sent to ${snapshot.controllerTag}; saved/draft edits not downloaded`)
     return true
   },
 

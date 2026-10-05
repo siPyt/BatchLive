@@ -16,6 +16,7 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const load = useStore(s => s.loadSavedModuleConfiguration)
   const upload = useStore(s => s.uploadModule)
   const restart = useStore(s => s.restartModule)
+  const resend = useStore(s => s.resendLastGoodModuleDownload)
   const [showDownload, setShowDownload] = useState(false)
   if (!record) return <tr><td>SAVED CONFIGURATION</td><td>
     <button className="tbtn sm" onClick={() => {
@@ -27,6 +28,7 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const downloaded = runtime?.type === 'AO' && runtime.downloaded === true
   const comparison = compareModuleDownload(useStore.getState(), tag)
   const status = lifecycleDirty(record) ? 'Unsaved draft' : !downloaded ? 'Not downloaded - Full required' :
+    comparison.status === 'NO_CONFIGURATION' ? 'Not downloaded - Full required' :
     comparison.status === 'UNKNOWN' ? 'Controller comparison unavailable' :
     comparison.status === 'DIFFERENT' ? 'Saved - download required' : 'Saved/deployed match'
   return <>
@@ -40,6 +42,9 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
         if (window.confirm('Replace this draft with the saved configuration for this tag from this browser profile? Runtime remains unchanged.')) load(tag)
       }}>Load Saved Configuration</button>
       <button className="tbtn sm" onClick={() => setShowDownload(true)}>Download Module</button>
+      <button className="tbtn sm" disabled={!record.lastGoodDownload || record.replayFullRequired} onClick={() => {
+        if (window.confirm('Re-send this AO module\'s last successful transfer, including values preserved by its last Partial Download? Later saved/draft edits are not included. This changes the simulated runtime; it is not a whole-controller replay.')) resend(tag)
+      }}>Re-send Last Good Module Download</button>
       <button className="tbtn sm" disabled={!downloaded} onClick={() => {
         if (window.confirm('Replace the offline draft with uploaded controller values? Unsaved draft edits will be discarded; Save is still required.')) upload(tag)
       }}>Upload to Draft</button>

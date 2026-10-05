@@ -24,6 +24,8 @@ export interface AoLifecycle {
   draft: AoConfiguration
   saved?: AoConfiguration
   deployed?: AoConfiguration
+  lastGoodDownload?: AoConfiguration
+  replayFullRequired?: boolean
   nvm?: AoMemory
   online: boolean
   savedRevision: number
@@ -100,6 +102,14 @@ export function memoryOf(m: AnalogOutputModule): AoMemory {
   return { mode: m.mode, sp: m.sp, out: m.mode === 'MAN' ? m.manualOutput : m.out,
     parameters: Object.fromEntries(Object.entries(m.parameters).map(([name, p]) => [name, p.value])) }
 }
+export function capturedAoDownload(configuration: AoConfiguration, applied: AnalogOutputModule): AoConfiguration {
+  const snapshot = cloneConfiguration(configuration)
+  snapshot.module.mode = applied.mode
+  snapshot.module.sp = applied.sp
+  snapshot.module.manualOutput = applied.manualOutput
+  snapshot.module.parameters = cloneAo(applied).parameters
+  return snapshot
+}
 export function deployedAo(c: AoConfiguration, runtime: AnalogOutputModule, behavior: DownloadBehavior,
   hw: HardwareState): AnalogOutputModule {
   const m = withProjectMembership(c, runtime).module
@@ -123,7 +133,7 @@ export function deployedAo(c: AoConfiguration, runtime: AnalogOutputModule, beha
   return m
 }
 export function restartAo(record: AoLifecycle, runtime: AnalogOutputModule, hw: HardwareState): AnalogOutputModule {
-  if (!record.deployed) return { ...runtime, downloaded: false, bad: true, actualMode: 'OOS' }
+  if (!record.deployed || record.replayFullRequired) return { ...runtime, downloaded: false, bad: true, actualMode: 'OOS' }
   const c = record.deployed
   const m = deployedAo(c, runtime, 'CONFIGURED', hw)
   if (c.restoreModule && record.nvm) {

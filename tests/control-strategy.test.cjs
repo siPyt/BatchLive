@@ -33,6 +33,8 @@ const { moduleNameError, isValidDeltaVTag } = require('../src/renderer/src/engin
 const { compareAlarmRank } = require('../src/renderer/src/utils/format.ts')
 const { findDst, channelConfigurationError, advanceTraditionalIo, sampleAnalogInputs } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
+const { savedAoStorageKey } = require('../src/renderer/src/engine/moduleLifecycle.ts')
+const { moduleDownloadStatus } = require('../src/renderer/src/engine/downloadStatus.ts')
 
 function plant(splitRange = false) {
   const state = { ...buildInitialPlant(), hardware: makeDefaultHardware(), speed: 1 }
@@ -1501,8 +1503,108 @@ function savedAoCourseProject(store) {
     parameter: { name: 'CAS_SP', value: 500 } }), true)
   assert.equal(store.saveModuleConfiguration('LEVEL-101'), true)
   assert.equal(store.downloadModule('LEVEL-101', 'FULL'), true)
+  assert.equal(moduleDownloadStatus(useStore.getState(), 'LEVEL-101').status, 'MATCH')
   store.tick(0.1)
 }
+
+test('p98 AO last-good replay excludes subsequent saved/draft edits and restores actual transferred defaults only', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    const snapshot = useStore.getState().moduleLifecycle['LEVEL-101'].lastGoodDownload
+    assert.equal(snapshot.module.parameters.CAS_SP.value, 500)
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 900 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 950 } })
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 700)
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 70)
+    const before = useStore.getState()
+    const stored = window.localStorage.getItem(savedAoStorageKey('LEVEL-101'))
+    assert.ok(stored)
+    assert.equal(store.resendLastGoodModuleDownload('LEVEL-101'), true)
+    const after = useStore.getState()
+    const record = after.moduleLifecycle['LEVEL-101']
+    assert.equal(record.saved, before.moduleLifecycle['LEVEL-101'].saved)
+    assert.equal(record.draft, before.moduleLifecycle['LEVEL-101'].draft)
+    assert.equal(record.deployed, before.moduleLifecycle['LEVEL-101'].deployed)
+    assert.equal(record.lastGoodDownload, snapshot)
+    assert.equal(record.savedRevision, before.moduleLifecycle['LEVEL-101'].savedRevision)
+    assert.equal(record.deployedRevision, before.moduleLifecycle['LEVEL-101'].deployedRevision)
+    assert.equal(record.draft.module.parameters.CAS_SP.value, 950)
+    assert.equal(record.saved.module.parameters.CAS_SP.value, 900)
+    assert.equal(window.localStorage.getItem(savedAoStorageKey('LEVEL-101')), stored)
+    for (const [tag, module] of Object.entries(before.modules)) {
+      if (tag !== 'LEVEL-101') assert.equal(after.modules[tag], module)
+    }
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 50)
+    assert.equal(snapshot.module.parameters.CAS_SP.value, 500)
+  })
+})
+
+test('p98 Full plus Partial replay captures preserved block/user values at transfer, not later live or saved values', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { downloadBehavior: 'ALL' })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+    store.setStandaloneAoValue('LEVEL-101', 600)
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), true)
+    const snapshot = useStore.getState().moduleLifecycle['LEVEL-101'].lastGoodDownload
+    assert.deepEqual([snapshot.module.mode, snapshot.module.sp, snapshot.module.parameters.CAS_SP.value], ['AUTO', 600, 555])
+    const configured = useStore.getState().moduleLifecycle['LEVEL-101'].saved
+    assert.equal(configured.module.parameters.CAS_SP.value, 500)
+    store.setStandaloneAoMode('LEVEL-101', 'CAS')
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 888)
+    store.tick(0.1)
+    assert.equal(store.resendLastGoodModuleDownload('LEVEL-101'), true)
+    assert.deepEqual([useStore.getState().modules['LEVEL-101'].mode,
+      useStore.getState().modules['LEVEL-101'].sp,
+      useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value], ['AUTO', 600, 555])
+    store.tick(0.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 60)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].saved, configured)
+  })
+})
+
+test('last-good replay failures preserve runtime/snapshot and recommission requires a fresh Full, not Partial or replay', () => {
+  withAreaProject((store, alerts) => {
+    assert.equal(store.resendLastGoodModuleDownload('MISSING'), false)
+    savedAoCourseProject(store)
+    const before = useStore.getState()
+    useStore.setState({ hardware: { ...before.hardware, controllers: { ...before.hardware.controllers,
+      CTRL1: { ...before.hardware.controllers.CTRL1, primary: 'FAILED', secondary: 'FAILED' } } } })
+    assert.equal(store.resendLastGoodModuleDownload('LEVEL-101'), false)
+    assert.equal(useStore.getState().modules, before.modules)
+    assert.equal(useStore.getState().moduleLifecycle, before.moduleLifecycle)
+    useStore.setState({ hardware: before.hardware })
+    useSecurity.setState({ currentUser: 'OperatorA', locked: false })
+    assert.equal(store.resendLastGoodModuleDownload('LEVEL-101'), false)
+    useSecurity.setState({ currentUser: 'admin', locked: true })
+    assert.equal(store.resendLastGoodModuleDownload('LEVEL-101'), false)
+    useSecurity.setState({ locked: false })
+    assert.equal(store.decommissionController('CTRL1'), true)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].lastGoodDownload, undefined)
+    assert.equal(store.commissionController('CTRL1'), true)
+    assert.equal(moduleDownloadStatus(useStore.getState(), 'LEVEL-101').status, 'NO_CONFIGURATION')
+    assert.equal(useStore.getState().modules['LEVEL-101'].downloaded, false)
+    assert.equal(store.setModuleOnline('LEVEL-101', true), false)
+    assert.equal(store.setAoParameter('LEVEL-101', 'CAS_SP', 800), false)
+    const recommissioned = useStore.getState().hardware
+    useStore.setState({ hardware: { ...recommissioned, controllers: { ...recommissioned.controllers,
+      CTRL1: { ...recommissioned.controllers.CTRL1, coldRestartMinutes: 5 } } } })
+    assert.equal(store.simulateControllerPowerLoss('CTRL1'), true)
+    assert.equal(store.restoreControllerPower('CTRL1'), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].downloaded, false,
+      'power recovery must not bypass the fresh-Full requirement')
+    assert.equal(store.resendLastGoodModuleDownload('LEVEL-101'), false)
+    assert.equal(store.downloadModule('LEVEL-101', 'PARTIAL'), false)
+    assert.equal(store.downloadModule('LEVEL-101', 'FULL'), true)
+    assert.equal(store.resendLastGoodModuleDownload('LEVEL-101'), true)
+    assert.ok(alerts.length >= 4)
+  })
+})
 
 test('saved AO lifecycle is opt-in: enrollment holds, Save does not execute, Full download activates', () => {
   withAreaProject(store => {

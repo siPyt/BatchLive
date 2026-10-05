@@ -3,25 +3,25 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: Control Studio
-New FBD/SFC algorithm workflow (Pass46, LOCAL; pushes paused by user).
-Previous milestone: ffaf292, module Download Status (Pass45, LOCAL).
+DV-09 is NOT complete. Latest implemented milestone: immutable last-good
+AO module download replay (Pass47, LOCAL; pushes paused by user).
+Previous milestone: 16a2903, Studio New FBD/SFC workflow (Pass46, LOCAL).
 Last published functional milestone: da59138, PID Detail/trends (Pass41).
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
   VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
-  PARTIAL         55 - related behavior exists; exact workflow has gaps
-  MISSING         40 - required executable workflow/model is absent
+  PARTIAL         56 - related behavior exists; exact workflow has gaps
+  MISSING         39 - required executable workflow/model is absent
   BOUNDARY        19 - hardware/vendor/host behavior outside verified simulation
   CONTEXT          6 - framing/recap, not implementation requirements
   TOTAL          128
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:342 repository tests passed; typecheck, production build,
+Last validation:345 repository tests passed; typecheck, production build,
 edited-file diagnostics, audit validator and diff whitespace checks passed.
-Browser verified Studio File/New, SFC/FBD creation and exact navigation,
-Cancel/duplicate/FlexLock, empty Studio and SFC Properties/Save/Download READY.
+Browser verified replay Cancel retaining700; confirmation restores snapshot500
+and applied50%/PV500 while saved/stored900 remains900 and status is not cleared.
 Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
@@ -35,6 +35,7 @@ Most recent delivered functionality:
   - SFC description/equipment membership through Properties, persistence and deployment.
   - Shared module-scoped Download Status comparison and yellow/unknown/blue indicators.
   - Control Studio File/New and empty-Studio/SFC entry into shared FBD/SFC creation.
+  - Immutable AO replay excluding newer saved/live values and guarding recommission.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1736,3 +1737,46 @@ Save As, graph palette/layout, restart/NVM and full course parity remain absent.
 DV09-069/070 remain PARTIAL. Local commits only; no push authorization.
 Final verification:342 full-suite tests;16 focused creation/SFC-lifecycle
 regressions; typecheck, production build and scoped editor diagnostics passed.
+
+PASS 47: IMMUTABLE LAST-GOOD AO TRANSFER REPLAY (p98)
+---------------------------------------------------
+DV09-018 is PARTIAL. Existing live AO parameter NVM is not a download-script
+snapshot and must not be presented as controller-memory-only script update.
+Line1 - Successful Full: captures independent transfer configuration, separate
+  from draft/saved/deployed references and live parameter NVM.
+Line2 - Successful Partial: snapshot includes actually preserved critical/user
+  values, as well as the rest of that module's transfer configuration.
+Line3 - Later edits: Save, unsaved edits, uploads and live changes do not rewrite
+  the last successful transfer. Failed downloads cannot replace its snapshot.
+Line4 - Re-send: validates original target/configuration, applies the immutable
+  snapshot using configured transfer semantics and updates only this AO runtime,
+  output binding and parameter NVM. No current saved database is read/transferred.
+Line5 - Isolation: saved/draft/nominal deployed configuration and revisions remain
+  unchanged; their download differences are not falsely cleared. Existing
+  project-level membership behavior is preserved, not a whole database rollback.
+Line6 - Measured result: old500 versus saved900/draft950/live700. Replay returns
+  actual50% output; saved900/draft950 persist. Stored configuration is unchanged.
+Line7 - Partial preservation: ALL transfer of AUTO/SP600/CAS_SP555 replays those
+  exact preserved values after later CAS/CAS_SP888, yielding60% output.
+Line8 - Failure/Cancel: confirmation Cancel retains live state; unknown/unavailable
+  targets, denied Download and FlexLock reject without mutating runtime/snapshot.
+Line9 - Recommission: decommission invalidates snapshot, marks managed AO not
+  downloaded/Bad/OOS and requires fresh Full. Recommission cannot enable old
+  operator writes/Online, Partial or replay. Cold power recovery cannot bypass
+  this requirement. Yellow status persists until Full.
+Line10 - UI: actual Studio lifecycle button asks a scope/working-runtime warning.
+  Browser Cancel kept700; confirm changed runtime to500, applied50%/PV500, while
+  saved/stored900 and outstanding UNKNOWN download status remained unchanged.
+Original96-module running plant/UI/security and exact storage restored; fixture
+module/controller/card and temporary browser references removed.
+Boundary: snapshots are session-local and single-AO only. Whole-controller
+script history, controller memory-only update, other algorithms, upgrade and
+workstation recovery, native nonvolatile scripts and general DB rollback remain
+unimplemented. Existing cold-restart/parameter NVM behavior remains distinct.
+Three executable regressions cover immutable Full/Partial replay, configured/
+live isolation, controller/permission/lock failure and fresh-Full recommission.
+Final validation:345 full-suite tests;18 final selected replay/restart/power
+regressions, typecheck, production build, scoped diagnostics and regenerated
+line ledger passed. Initial full validation found stale line dispositions after
+the intentional DV09-018 status change; regeneration and final full run passed.
+Local commits only; pushes remain paused.
