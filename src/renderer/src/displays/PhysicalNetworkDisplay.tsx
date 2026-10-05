@@ -5,6 +5,7 @@ import { controllerRegulatoryRecords } from '../engine/controllerRegulatoryTrans
 import { controllerManagedRecords } from '../engine/controllerModuleTransfer'
 import { useUi } from '../ui/uiStore'
 import { TraditionalIoPanel } from './TraditionalIoPanel'
+import { SerialIoPanel } from '../components/SerialIoPanel'
 import {
   CHARM_TYPE_LABEL,
   controllerIsDown,
@@ -106,6 +107,7 @@ export function PhysicalNetworkDisplay(): JSX.Element {
             restorePower={restorePower}
           >
             <TraditionalIoPanel controllerTag={c.tag} />
+            <SerialIoPanel controllerTag={c.tag} />
             {c.carrierIds.map((carrierId) => {
               const carrier = hardware.carriers[carrierId]
               if (!carrier) return null

@@ -3,6 +3,7 @@ import { isValidDeltaVTag } from './naming'
 import type { AnyModule } from './types'
 import { pidIo, samplePidInput } from './analogStrategy'
 import { aoEngineeringValue } from './standaloneAo'
+import { serialDatasetStatus, stepSerialCards, type SerialPortId } from './serialIo'
 
 export type AnalogBindingPort = 'input' | 'output' | 'output2'
 export type AnalogDstBindings = Partial<Record<AnalogBindingPort, string>>
@@ -29,6 +30,8 @@ export interface TraditionalCard {
   slot: number
   type: TraditionalCardType
   channels: TraditionalChannel[]
+  /** DV09-086..093: a hidden card exposing one serial dataset as DSTs; not user-editable. */
+  serial?: { cardId: string; port: SerialPortId; device: string; dataset: string }
 }
 
 export function makeTraditionalCard(controllerTag: string, slot: number, type: TraditionalCardType): TraditionalCard {
@@ -98,6 +101,7 @@ export function discreteBindingError(hw: HardwareState, module: AnyModule | unde
 
 export function channelBad(hw: HardwareState, card: TraditionalCard, channel: TraditionalChannel): boolean {
   const controller = hw.controllers[card.controllerTag]
+  if (card.serial && serialDatasetStatus(hw, card) === 'BAD') return true
   return !controller || controllerIsDown(controller) || !channel.enabled || !channel.dst ||
     !Number.isFinite(channel.value) || (card.type === 'AI' &&
       (!Number.isFinite(channel.filterSeconds ?? 0) || (channel.filterSeconds ?? 0) < 0 ||
@@ -281,6 +285,8 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
       }
     }
   }
+  const serial = stepSerialCards(next, dt)
+  if (serial) next.serialCards = serial
   for (const card of Object.values(cards)) {
     if (card.type !== 'DI' && card.type !== 'AI') continue
     for (const channel of card.channels) {

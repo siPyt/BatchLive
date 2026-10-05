@@ -2516,3 +2516,17 @@ Line2 - Import: a file chooser imports a package after validating structure and
 Line3 - Round trips are tested for all four kinds; imports respect Can Configure
   and reset lifecycle records; Named Sets arrive configured, not deployed.
 Line4 - Tests: tests/project-export.test.cjs. Not native .fhx/.grf.
+
+PASS 72: SERIAL INTERFACE AND MODBUS TIE-BACK (pp364-410)
+-----------------------------------------------------------------------
+Line1 - Card: two-port serial card on a controller slot (or placeholder) with
+  per-port Port/Advanced/Communications properties; changes apply on
+  Download Serial Card.
+Line2 - Devices and datasets: DEV01 at address 1; datasets with direction,
+  output mode, read-back, DeltaV type, tag, PLC table, base/offset, count and
+  the 16/16/100 and 500-DST/3200-SCADA limits.
+Line3 - Modules: PID and device IO bind to TAG/R<address> DSTs; value and
+  quality come from the virtual register through the tie-back; failures go Bad
+  after (retry + 1) x time out.
+Line4 - Tests: tests/serial-modbus.test.cjs. Not claimed: physical wiring,
+  a real Modbus stack, MTR-11 template and dynamo exercises.

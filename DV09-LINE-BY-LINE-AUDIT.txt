@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 22 VERIFIED_SUBSET, 54 PARTIAL, 27 MISSING,
+DV-09 remains incomplete: 28 VERIFIED_SUBSET, 56 PARTIAL, 19 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 The user's standing instruction ("finish everything and stop stopping",
 2026-10-05) authorizes continuing to commit and push every pass without
@@ -1842,77 +1842,137 @@ CHAPTER 9: SERIAL INTERFACE AND MODBUS
 
 [DV09-086]
 Pages: 364-371
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Serial card with two ports, RTU/ASCII master/slave, RS232/RS422/485,
   per-port device/dataset limits and Modbus coil/input/holding/status tables.
   Course limits: 16 devices and 16 datasets per port, 100 values per dataset;
   distinguish 500 DST versus 3200 SCADA capacity descriptions.
-Evidence: HW supports CHARMs only. No Modbus bus/register/card model.
+Evidence (Pass72): engine/serialIo.ts + the store implement a virtual
+  two-port Serial Interface card in Explorer/Physical Network (SerialIoPanel).
+  Ports P01/P02 each hold up to 16 devices and 16 datasets of up to 100 values;
+  a card holds 500 DSTs or, in SCADA capacity, 3200 points (switching back to
+  500 is refused while the card holds more). RS232 ports connect one device;
+  RS422/485 ports up to 16. Datasets map to the four Modbus tables with real
+  reference numbers (coil 00001, input status 10001, input registers 30001,
+  holding registers 40001) and floats occupy two registers. Every limit has
+  a specific rejection message and is covered by serial-modbus.test.cjs.
+  Boundary: physical RS232/RS485 wiring, UART behavior and a real Modbus
+  stack are not simulated; the transport is a virtual tie-back.
 Acceptance: Build a virtual transport/state machine with explicit addresses,
   status and resource limits; physical wiring is a separate boundary.
 
 [DV09-087]
 Pages: 372-379
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Add/autosense/placeholder serial card; enable ports; protocol,
   master/slave, retries/timeouts/transmit delay/startup outputs and communication
   type/baud/parity/data/stop settings.
-Evidence: No card/port properties; controller scanTimeMs is not a serial port.
+Evidence (Pass72): a serial card can be added to a free controller slot or
+  configured as a placeholder before the physical card exists (physical
+  autosense of the card is not modeled). Port properties follow the three
+  tabs: Port (description, Enabled), Advanced (RTU/ASCII, Master/Slave,
+  retry count 0-10, message time out, transmit delay, send outputs on
+  startup) and Communications (RS232/RS422-485 full or half duplex, baud
+  300-115200, parity, data bits, stop bits), each validated (for example
+  RTU needs 8 data bits). Settings apply only after Download Serial Card
+  (needs Can Download and a commissioned, available controller). Disabled
+  ports and mismatched communication settings, a missing tie-back cable, two
+  masters or no slave device at the master address never produce Good data;
+  a failing dataset goes Bad only after (retry + 1) x time out of simulated
+  time (tested 2000 ms with retry 1 / 1000 ms and 500 ms with retry 0), and
+  Good data returns when the link recovers. Send outputs on startup sends or
+  withholds the initial output values.
 Acceptance: Disabled/mismatched ports must not silently exchange good data;
   test retry count, timing, startup behavior and invalid settings.
 
 [DV09-088]
 Pages: 380-389
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Create device/address and datasets with direction, complete-block
   versus single-value output, output readback, typed values/status, dataset
   tag, PLC type/base address/offset and count.
-Evidence: No dataset objects or register-path resolver.
+Evidence (Pass72): DEV01-style serial devices (name, address 1-247, unique
+  per port) and datasets with direction, complete-block versus single-value
+  output (complete block rewrites every value when any changes; single value
+  writes only changed values), output read-back (a PLC-side change updates the
+  DeltaV value), DeltaV data type (Boolean, discrete, int16, uint16, float32
+  with status), dataset tag, PLC data type, base register, offset and count.
+  Validation rejects wrong type/table pairs, writes to read-only tables,
+  slave input datasets on read-only tables, overlapping output ranges,
+  duplicate tags/names, past-the-end ranges and counts outside 1-100, and
+  preserves the address offset in the DST name (TAG/R<modbus address>).
 Acceptance: Validate map overlap, type/direction/size, write changes and readback.
   Preserve address offsets instead of treating register labels as arbitrary tags.
 
 [DV09-089]
 Pages: 390-393
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Bind PID input to FT_MODICON holding-register dataset/path.
-Evidence: Qualified ANALOG signals only refer to modules/sub-blocks.
+Evidence (Pass72): downloaded datasets publish DSTs named TAG/R<address>
+  (FLOW-IN/R40001, MTR-IN/R2) with type AI/AO/DI/DO and per-channel quality.
+  PID IO_IN/IO_OUT and device IO_IN_1/IO_OUT_1 bind to them through the same
+  traditionalChannels selectors Control Studio already offers, and the value
+  and Good/Bad quality come from the virtual register (an unreachable link
+  gives a Bad PV; no constant is fabricated). The traditional input simulator
+  refuses to force a serial value. Not claimed: scaling of 16-bit integers
+  beyond a straight engineering value (integers round to whole numbers).
 Acceptance: Dataset I/O must resolve real virtual register value and quality;
   no constant fabricated PV or renamed CHARM counts as this interface.
 
 [DV09-090]
 Pages: 394-400
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Serial card slot5, master port1/slave port2 virtual tieback,
   RTU/RS232/9600/even/8/1, retry1/timeout1000ms/delay0 and enabled ports.
-Evidence: No serial transport/configuration. Physical cable hookup outside app.
+Evidence (Pass72): workshop 1 setup is executable in order: add the serial
+  card in slot 5, wire Port 1 to Port 2 (tie-back checkbox), Port 1 master
+  RTU/RS232/9600/even/8/1 with retry 1, time out 1000 ms, delay 0, Port 2
+  slave with the same communications, both enabled, then Download Serial
+  Card. Covered by serial-modbus.test.cjs ("workshop 1 configuration").
 Acceptance: Simulated paired ports must exchange data only with compatible
   settings and record explicit timeout/communication errors otherwise.
 
 [DV09-091]
 Pages: 401-404
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: DEV01 address1; FLOW-OUT/FLOW-IN integer-with-status holding register
   offset0 and MTR-OUT/MTR-IN Boolean-with-status coil offset1, one value each;
   download card.
-Evidence: No devices/datasets/card download.
+Evidence (Pass72): DEV01 at address 1 on both ports with FLOW-OUT/FLOW-IN
+  (16 bit int w/status, holding registers, offset 0, one value) and
+  MTR-OUT/MTR-IN (Boolean w/status, coils, offset 1, one value) exist as
+  output datasets on the master and input datasets on the slave; they publish
+  FLOW-OUT/R40001, MTR-OUT/R2, FLOW-IN/R40001 and MTR-IN/R2 after download
+  and transfer values across the tie-back (register 40001 and coil 00002).
 Acceptance: Test corresponding 40001 and 00002 mappings, output/input direction,
   status propagation, changed values and transfer lifecycle.
 
 [DV09-092]
 Pages: 405-406
-Status: MISSING
+Status: PARTIAL
 Required: MTR-MODBUS from MTR-11 with dataset IO_IN/IO_OUT, assignment,
   save/download, bound pump dynamo and verified start/stop.
-Evidence: Generic MOTOR is not the specified Modbus module.
+Evidence (Pass72): a managed motor (MTR-MODBUS) bound IO_IN_1 = MTR-IN/R2 and
+  IO_OUT_1 = MTR-OUT/R2 is saved, downloaded (requires both serial DSTs to be
+  scanned Good) and brought Online; Start writes coil 00002 to the slave
+  memory, the slave dataset returns it as MTR-IN, the motor reports running,
+  and Stop clears both. Gaps: the test uses a plain managed motor instead of
+  the MTR-11 library template (whose interlock logic needs its course
+  strategy), and a pump dynamo was not exercised against this module.
 Acceptance: Command must change the mapped coil; returned coil must determine
   feedback and confirmation/fault behavior, not command-colored animation.
 
 [DV09-093]
 Pages: 407-410
-Status: MISSING
+Status: PARTIAL
 Required: FIC-MODBUS from PID_LOOP using FLOW-IN/FLOW-OUT R40001, assign/
   save/download, loop dynamo and closed-loop verification; serial recap.
-Evidence: Generic PID paths do not read/write Modbus datasets.
+Evidence (Pass72): FIC-MODBUS (PID_LOOP) binds IO_IN = FLOW-IN/R40001 and
+  IO_OUT = FLOW-OUT/R40001, is saved, downloaded and Online. In MAN, OUT 40
+  lands in holding register 40001 and returns as the PV; in AUTO with SP 25
+  the loop settles within 2 units with a Good PV. Gap: no loop dynamo was
+  exercised against this module and the closed loop is the register echo,
+  not a modeled process.
 Acceptance: Demonstrate actual register output/input loop with gain/scale/status
   and failure tests before claiming any Modbus workshop complete.
 
@@ -3439,3 +3499,40 @@ Validation: 466 repository tests run locally (465 pass; the remaining failure
   is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
 Result: DV09-084 MISSING -> VERIFIED_SUBSET. Totals are the recount in the
   header.
+
+PASS 72 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: chapter 9 Serial Interface and Modbus, DV09-086 to DV09-093 (pages
+364-410): the two-port serial card, ports, devices, datasets, module binding
+and the Modbus tie-back workshop.
+Engine: new engine/serialIo.ts (types, limits, addressing, encoding,
+  validation, hidden dataset DST cards, virtual Modbus transport with a
+  scheduled master, slave register memory, retry/time-out failure timing,
+  startup, output modes and read-back). hardware.ts adds serialCards;
+  traditionalIo.ts adds TraditionalCard.serial, quality from the serial
+  link in channelBad and the exchange inside advanceTraditionalIo so existing
+  AI/AO/DI/DO bindings, device and PID I/O and DST usage work unchanged.
+  store.ts adds addSerialCard, removeSerialCard, configureSerialCard,
+  configureSerialPort, add/removeSerialDevice, save/removeSerialDataset and
+  downloadSerialCard (Can Configure / Can Download; registered as secured
+  functions). The traditional input simulator refuses serial DSTs.
+UI: components/SerialIoPanel.tsx under each controller on Physical Network
+  with card, tie-back, capacity, Port/Advanced/Communications fields, devices
+  and dataset forms with live per-dataset status.
+Tests: tests/serial-modbus.test.cjs (17): addressing and encoding, all
+  validation limits, device/dataset rules, 500 versus 3200 capacity, the
+  workshop configuration, download rules, MTR-MODBUS start/stop, FIC-MODBUS
+  closed loop, retry/time-out timing, mismatch/tie-back/dual-master cases,
+  output modes and read-back, startup outputs, removal protection, simulator
+  protection and Can Configure.
+Browser: Physical Network rendered the Serial Interface panel and New Serial
+  Card created CTLR-01/C05 with two ports.
+Boundary (honest): no physical RS232/RS485, UART or vendor Modbus stack; the
+  only link is the virtual tie-back (an external simulated PLC is not
+  modeled); physical autosense of the serial card is not modeled; 092/093 stay
+  PARTIAL (library template and dynamo steps).
+Validation: 483 repository tests run locally (482 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
+Result: DV09-086..091 MISSING -> VERIFIED_SUBSET; DV09-092/093 MISSING ->
+  PARTIAL. Totals 28 VERIFIED_SUBSET/56 PARTIAL/19 MISSING/19 BOUNDARY/6
+  CONTEXT.

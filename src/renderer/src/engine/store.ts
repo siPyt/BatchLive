@@ -26,6 +26,24 @@ import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } fr
 import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import {
+  SERIAL_LIMITS,
+  SERIAL_PORT_IDS,
+  cloneSerialConfig,
+  emptySerialRuntime,
+  makeSerialCard,
+  modbusAddress,
+  serialDatasetError,
+  serialDeviceError,
+  serialDstCount,
+  serialPortError,
+  syncSerialDatasetCards,
+  type SerialCard,
+  type SerialCardConfig,
+  type SerialDatasetConfig,
+  type SerialPortConfig,
+  type SerialPortId
+} from './serialIo'
+import {
   EMPTY_SIGNATURE_CONFIG,
   evaluateSignature,
   requiredSignature,
@@ -228,6 +246,16 @@ interface StoreState extends PlantState {
   uploadPidParameters: (tag: string, parameters: PidTuningParameter[]) => boolean
   downloadPidModule: (tag: string, uploadParameters?: PidTuningParameter[]) => boolean
   setPidLifecycleOnline: (tag: string, online: boolean) => boolean
+  /** DV09-086..093 Serial Interface (Modbus). Each action returns an error message, or null on success. */
+  addSerialCard: (controllerTag: string, slot: number, placeholder?: boolean) => string | null
+  removeSerialCard: (cardId: string) => string | null
+  configureSerialCard: (cardId: string, patch: Partial<Pick<SerialCardConfig, 'tieback' | 'capacity'>>) => string | null
+  configureSerialPort: (cardId: string, port: SerialPortId, patch: Partial<Omit<SerialPortConfig, 'devices'>>) => string | null
+  addSerialDevice: (cardId: string, port: SerialPortId, name: string, address: number) => string | null
+  removeSerialDevice: (cardId: string, port: SerialPortId, name: string) => string | null
+  saveSerialDataset: (cardId: string, port: SerialPortId, device: string, dataset: SerialDatasetConfig, existingName?: string) => string | null
+  removeSerialDataset: (cardId: string, port: SerialPortId, device: string, dataset: string) => string | null
+  downloadSerialCard: (cardId: string) => string | null
   addTraditionalCard: (controllerTag: string, slot: number, type: TraditionalCardType) => boolean
   configureTraditionalChannel: (cardId: string, channel: number,
     patch: { dst: string; enabled: boolean; tiebackDst?: string }) => boolean
@@ -1794,6 +1822,164 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  addSerialCard: (controllerTag, slot, placeholder = false) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Add serial card to ${controllerTag}`)) return 'Requires the Can Configure key'
+    const hw = get().hardware
+    const error = !hw.controllers[controllerTag] ? 'Controller does not exist' :
+      !Number.isInteger(slot) || slot < 1 || slot > 8 ? 'Serial card slot must be 1-8' :
+      Object.values(hw.traditionalCards ?? {}).some(card => !card.serial && card.controllerTag === controllerTag && card.slot === slot) ||
+      Object.values(hw.serialCards ?? {}).some(card => card.controllerTag === controllerTag && card.slot === slot)
+        ? `Slot ${slot} already has a card` : null
+    if (error) {
+      get().logEvent('DIAGNOSTIC', controllerTag, `Add serial card rejected: ${error}`)
+      return error
+    }
+    const card = makeSerialCard(controllerTag, slot, placeholder)
+    set(s => ({ hardware: { ...s.hardware, serialCards: { ...s.hardware.serialCards, [card.id]: card } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', card.id, placeholder ? 'Serial card placeholder added' : 'Serial card added')
+    return null
+  },
+
+  removeSerialCard: (cardId) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure serial card ${cardId}`)) return 'Requires the Can Configure key'
+    const card = get().hardware.serialCards?.[cardId]
+    if (!card) return 'Serial card does not exist'
+    const inUse = Object.values(get().hardware.traditionalCards ?? {}).filter(item => item.serial?.cardId === cardId)
+      .flatMap(item => item.channels.map(channel => channel.dst))
+    const bound = inUse.find(dst => Object.values(get().hardware.analogBindings ?? {}).some(b => Object.values(b).includes(dst)) ||
+      Object.values(get().hardware.deviceBindings ?? {}).some(b => Object.values(b).includes(dst)) ||
+      Object.values(get().hardware.discreteBindings ?? {}).includes(dst))
+    if (bound) return `DST ${bound} is bound to a module; disconnect its module binding first`
+    set(s => {
+      const serialCards = { ...s.hardware.serialCards }
+      delete serialCards[cardId]
+      return { hardware: syncSerialDatasetCards({ ...s.hardware, serialCards }), rev: s.rev + 1 }
+    })
+    get().logEvent('CONFIGURE', cardId, 'Serial card removed')
+    return null
+  },
+
+  configureSerialCard: (cardId, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure serial card ${cardId}`)) return 'Requires the Can Configure key'
+    const card = get().hardware.serialCards?.[cardId]
+    if (!card) return 'Serial card does not exist'
+    if (patch.capacity !== undefined && patch.capacity !== 'DST' && patch.capacity !== 'SCADA') return 'Capacity must be DST or SCADA'
+    const next = { ...card.configured, ...patch }
+    const capacity = next.capacity === 'SCADA' ? SERIAL_LIMITS.scadaCapacity : SERIAL_LIMITS.dstCapacity
+    if (serialDstCount(next) > capacity) return `The card holds ${serialDstCount(next)} values; the ${next.capacity} limit is ${capacity}`
+    set(s => ({ hardware: { ...s.hardware, serialCards: { ...s.hardware.serialCards,
+      [cardId]: { ...card, configured: next } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', cardId, `Serial card configured: ${JSON.stringify(patch)}`)
+    return null
+  },
+
+  configureSerialPort: (cardId, portId, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure serial card ${cardId}`)) return 'Requires the Can Configure key'
+    const card = get().hardware.serialCards?.[cardId]
+    if (!card || !SERIAL_PORT_IDS.includes(portId)) return 'Serial card or port does not exist'
+    const port: SerialPortConfig = { ...card.configured.ports[portId], ...patch, devices: card.configured.ports[portId].devices }
+    const error = serialPortError(port, portId)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', cardId, `Serial port configuration rejected: ${error}`)
+      return error
+    }
+    const configured = { ...card.configured, ports: { ...card.configured.ports, [portId]: port } }
+    set(s => ({ hardware: { ...s.hardware, serialCards: { ...s.hardware.serialCards, [cardId]: { ...card, configured } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', `${cardId}/${portId}`, `Serial port configured: ${JSON.stringify(patch)}`)
+    return null
+  },
+
+  addSerialDevice: (cardId, portId, name, address) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure serial card ${cardId}`)) return 'Requires the Can Configure key'
+    const card = get().hardware.serialCards?.[cardId]
+    if (!card || !SERIAL_PORT_IDS.includes(portId)) return 'Serial card or port does not exist'
+    const error = serialDeviceError(card.configured, portId, name, address)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', cardId, `Serial device rejected: ${error}`)
+      return error
+    }
+    const port = card.configured.ports[portId]
+    const configured = { ...card.configured, ports: { ...card.configured.ports,
+      [portId]: { ...port, devices: { ...port.devices, [name]: { name, address, datasets: {} } } } } }
+    set(s => ({ hardware: { ...s.hardware, serialCards: { ...s.hardware.serialCards, [cardId]: { ...card, configured } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', `${cardId}/${portId}/${name}`, `Serial device added at address ${address}`)
+    return null
+  },
+
+  removeSerialDevice: (cardId, portId, name) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure serial card ${cardId}`)) return 'Requires the Can Configure key'
+    const card = get().hardware.serialCards?.[cardId]
+    const port = card?.configured.ports[portId]
+    if (!card || !port?.devices[name]) return 'Serial device does not exist'
+    const devices = { ...port.devices }
+    delete devices[name]
+    const configured = { ...card.configured, ports: { ...card.configured.ports, [portId]: { ...port, devices } } }
+    set(s => ({ hardware: { ...s.hardware, serialCards: { ...s.hardware.serialCards, [cardId]: { ...card, configured } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', `${cardId}/${portId}/${name}`, 'Serial device removed')
+    return null
+  },
+
+  saveSerialDataset: (cardId, portId, deviceName, dataset, existingName) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure serial card ${cardId}`)) return 'Requires the Can Configure key'
+    const card = get().hardware.serialCards?.[cardId]
+    if (!card || !SERIAL_PORT_IDS.includes(portId)) return 'Serial card or port does not exist'
+    const others = Object.values(get().hardware.serialCards ?? {}).filter(item => item.id !== cardId)
+      .flatMap(item => [item.configured])
+    const error = serialDatasetError(card.configured, portId, deviceName, dataset, existingName, others)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', cardId, `Dataset rejected: ${error}`)
+      return error
+    }
+    const port = card.configured.ports[portId]
+    const device = port.devices[deviceName]
+    const datasets = { ...device.datasets }
+    if (existingName && existingName !== dataset.name) delete datasets[existingName]
+    datasets[dataset.name] = dataset
+    const configured = { ...card.configured, ports: { ...card.configured.ports,
+      [portId]: { ...port, devices: { ...port.devices, [deviceName]: { ...device, datasets } } } } }
+    set(s => ({ hardware: { ...s.hardware, serialCards: { ...s.hardware.serialCards, [cardId]: { ...card, configured } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', `${cardId}/${portId}/${deviceName}/${dataset.name}`,
+      `Dataset ${dataset.tag} saved: ${dataset.direction.toLowerCase()} ${dataset.count} ${dataset.plcTable.toLowerCase().replace('_', ' ')} from ${modbusAddress(dataset)}`)
+    return null
+  },
+
+  removeSerialDataset: (cardId, portId, deviceName, datasetName) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure serial card ${cardId}`)) return 'Requires the Can Configure key'
+    const card = get().hardware.serialCards?.[cardId]
+    const port = card?.configured.ports[portId]
+    const device = port?.devices[deviceName]
+    if (!card || !port || !device?.datasets[datasetName]) return 'Dataset does not exist'
+    const datasets = { ...device.datasets }
+    delete datasets[datasetName]
+    const configured = { ...card.configured, ports: { ...card.configured.ports,
+      [portId]: { ...port, devices: { ...port.devices, [deviceName]: { ...device, datasets } } } } }
+    set(s => ({ hardware: { ...s.hardware, serialCards: { ...s.hardware.serialCards, [cardId]: { ...card, configured } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', `${cardId}/${portId}/${deviceName}/${datasetName}`, 'Dataset removed')
+    return null
+  },
+
+  downloadSerialCard: (cardId) => {
+    if (!useSecurity.getState().requireLock('CAN_DOWNLOAD', `Download serial card ${cardId}`)) return 'Requires the Can Download key'
+    const hw = get().hardware
+    const card = hw.serialCards?.[cardId]
+    if (!card) return 'Serial card does not exist'
+    const controller = hw.controllers[card.controllerTag]
+    const problem = !controller || !controller.commissioned ? `Commission controller ${card.controllerTag} before downloading the card` :
+      controllerIsDown(controller) ? `Controller ${card.controllerTag} is not available` : null
+    const config = card.configured
+    const error = problem ?? SERIAL_PORT_IDS.map(id => serialPortError(config.ports[id], id)).find(Boolean) ??
+      (serialDstCount(config) > (config.capacity === 'SCADA' ? SERIAL_LIMITS.scadaCapacity : SERIAL_LIMITS.dstCapacity)
+        ? 'The card exceeds its DST/SCADA capacity' : null)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', cardId, `Serial card download rejected: ${error}`)
+      return error
+    }
+    const deployedCard: SerialCard = { ...card, placeholder: false, deployed: cloneSerialConfig(config), runtime: emptySerialRuntime() }
+    set(s => ({ hardware: syncSerialDatasetCards({ ...s.hardware, serialCards: { ...s.hardware.serialCards, [cardId]: deployedCard } }), rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', cardId, 'Serial card downloaded; ports and datasets are active')
+    return null
+  },
+
   addTraditionalCard: (controllerTag, slot, type) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Add traditional card to ${controllerTag}`)) return false
     const hw = get().hardware
@@ -1883,6 +2069,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!useSecurity.getState().requireLock('RESTRICTED_CONTROL', `Simulate input ${dst}`)) return false
     const target = findDst(get().hardware, dst)
     const error = !target || (target.card.type !== 'AI' && target.card.type !== 'DI') ? 'Select a named input channel' :
+      target.card.serial ? 'Serial dataset values come from the Modbus transport and cannot be simulated here' :
       target.channel.tiebackDst ? 'Disconnect the simulated tieback before forcing this input' :
       !Number.isFinite(value) || (target.card.type === 'DI' && value !== 0 && value !== 1)
         ? 'Input value must be finite; discrete inputs accept only 0 or 1' : null

@@ -107,6 +107,8 @@ export interface HardwareState {
   carriers: Record<string, IoCarrier>
   baseplates: Record<string, CharmBaseplate>
   traditionalCards?: Record<string, TraditionalCard>
+  /** DV09-086..093 serial (Modbus) cards keyed by card id. */
+  serialCards?: Record<string, import('./serialIo').SerialCard>
   /** DI IO_IN / DO IO_OUT keyed by module, independently of channel DST names. */
   discreteBindings?: Record<string, string>
   /** Standalone AI / PID AI1, AO1, AO2 physical channel bindings. */

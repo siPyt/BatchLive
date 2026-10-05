@@ -87,6 +87,8 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
   t('function', 'fn-area', 'Create or rename a plant area', 'CAN_CONFIGURE', /^(Create|Rename) plant area/),
   t('function', 'fn-traditional-io', 'Traditional I/O cards, channels, filters and binding', 'CAN_CONFIGURE',
     /^Add traditional card to |^Configure \S+ channel |^Configure AI channel filter |^Bind .+ traditional I\/O$/),
+  t('function', 'fn-serial-config', 'Serial cards, ports, devices and datasets', 'CAN_CONFIGURE', /^(Add serial card to|Configure serial card) /),
+  t('function', 'fn-serial-download', 'Download a serial card', 'CAN_DOWNLOAD', /^Download serial card /),
   t('function', 'fn-input-filter-download', 'Download input filters', 'CAN_DOWNLOAD', /^Download input filters /),
   t('function', 'fn-module-lifecycle', 'Enable, edit, save and load saved module configuration', 'CAN_CONFIGURE',
     /^(Enable saved lifecycle|Edit offline configuration|Save module configuration|Load saved module|Enable PID_LOOP lifecycle|Edit PID_LOOP assignment|Save PID_LOOP configuration|Load saved PID_LOOP|Enable saved device|Edit saved device|Load saved device|Save device|Go Online PID_LOOP|Go Offline PID_LOOP) /),
