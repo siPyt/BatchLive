@@ -27,6 +27,9 @@ export interface PicElement {
   label?: boolean
   path?: string
   flashWhenNotNormal?: boolean
+  /** DV09-046: hide this ALARMS[1].A_LAALM datalink when Normal; show it with
+   * distinct Active/RTN text otherwise (highestRankedAlarmState). */
+  alarmVisibility?: boolean
   entry?: { method: 'NUMERIC'; fetchLimits: boolean; low: number; high: number } |
     { method: 'NAMED_SET' } | { method: 'PID_MODE' } | { method: 'RAMP'; rate: number }
   fill?: { vertical: boolean; fetchLimits: boolean; low: number; high: number }

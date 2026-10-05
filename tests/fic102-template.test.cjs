@@ -14,7 +14,7 @@ const { findDst } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { dstUsage } = require('../src/renderer/src/engine/dstUsage.ts')
 const { applyAction } = require('../src/renderer/src/engine/sfc.ts')
 const { usePictures } = require('../src/renderer/src/engine/pictureStore.ts')
-const { pictureAlarmSignal, pictureModeSignal, pictureSignal, parseSavedPicture } = require('../src/renderer/src/engine/pictureDynamics.ts')
+const { pictureAlarmSignal, pictureModeSignal, pictureSignal, parseSavedPicture, highestRankedAlarmState, pictureAlarmStateText } = require('../src/renderer/src/engine/pictureDynamics.ts')
 const { lifecyclePidModules, savedPidStorageKey } = require('../src/renderer/src/engine/pidLifecycle.ts')
 const { moduleTrendPens, availableTrendPens } = require('../src/renderer/src/engine/trendPens.ts')
 const { analyzePidTuneTest, pidTuneSample, pidTuneSignature, suggestPidTuning } = require('../src/renderer/src/engine/pidTuneTest.ts')
@@ -747,3 +747,54 @@ test('p256 FIC-102 picture entry writes bounded SP and only permits configured P
   assert.equal(pictures.rampOutput('TANK101', outId, 1, 1), false)
   assert.equal(fic().sp, offlineSetpoint, 'picture writes cannot bypass the Offline lifecycle inhibit')
 }))
+
+test('DV09-046 highest-ranked-alarm visibility distinguishes Normal/Active-Unack/Active-Ack/RTN-Unack', () => fixture(store => {
+  const base = { id: 'A', moduleTag: 'FIC-102', moduleDesc: 'd', type: 'HI', label: 'HI', priority: 'WARNING',
+    value: 1, unit: '%', time: 0 }
+  // No alarms at all for this tag: Normal.
+  assert.equal(highestRankedAlarmState('FIC-102', []), 'NORMAL')
+  assert.equal(pictureAlarmStateText('NORMAL'), '')
+  // A single active, unacknowledged alarm.
+  const activeUnack = { ...base, active: true, acknowledged: false }
+  assert.equal(highestRankedAlarmState('FIC-102', [activeUnack]), 'ACTIVE_UNACK')
+  assert.equal(pictureAlarmStateText('ACTIVE_UNACK'), 'ALARM')
+  // Acknowledging it moves to Active-Acknowledged, still visible.
+  const activeAck = { ...activeUnack, acknowledged: true }
+  assert.equal(highestRankedAlarmState('FIC-102', [activeAck]), 'ACTIVE_ACK')
+  assert.equal(pictureAlarmStateText('ACTIVE_ACK'), 'ALARM')
+  // Returning to normal without acknowledging is distinct ("RTN") from both Active states and from Normal.
+  const rtnUnack = { ...base, active: false, acknowledged: false }
+  assert.equal(highestRankedAlarmState('FIC-102', [rtnUnack]), 'RTN_UNACK')
+  assert.equal(pictureAlarmStateText('RTN_UNACK'), 'RTN')
+  // Acknowledging an inactive (RTN) alarm clears it back to Normal, matching real alarm lifecycle.
+  const rtnAck = { ...rtnUnack, acknowledged: true }
+  assert.equal(highestRankedAlarmState('FIC-102', [rtnAck]), 'NORMAL')
+  // Rank-sensitive: a higher-ranked active CRITICAL alarm wins over a lower-ranked active ADVISORY one.
+  const advisoryActive = { ...base, id: 'B', type: 'LO', priority: 'ADVISORY', active: true, acknowledged: false }
+  const criticalActive = { ...base, id: 'C', type: 'HI_HI', priority: 'CRITICAL', active: true, acknowledged: false }
+  assert.equal(highestRankedAlarmState('FIC-102', [advisoryActive, criticalActive]), 'ACTIVE_UNACK')
+  // Any active alarm outranks any merely-RTN one, regardless of relative priority.
+  const criticalRtnUnack = { ...base, id: 'D', priority: 'CRITICAL', active: false, acknowledged: false }
+  assert.equal(highestRankedAlarmState('FIC-102', [advisoryActive, criticalRtnUnack]), 'ACTIVE_UNACK')
+  // Alarms on other module tags never contribute to this tag's state.
+  assert.equal(highestRankedAlarmState('FIC-102', [{ ...activeUnack, moduleTag: 'OTHER-TAG' }]), 'NORMAL')
+
+  // Builder validation/round-trip: alarmVisibility requires the ALARMS[1].A_LAALM path, like flashWhenNotNormal requires MODE.A_ACTUAL.
+  const pictures = usePictures.getState()
+  const alarmId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 320,
+    tag: 'FIC-102', path: 'ALARMS[1].A_LAALM', alarmVisibility: true })
+  assert.ok(alarmId, global.window.alerts.at(-1))
+  assert.equal(pictures.configureDynamics('TANK101', alarmId, { path: 'PID1/SP' }), false,
+    'Alarm Visibility is restricted to the ALARMS[1].A_LAALM datalink')
+  assert.equal(usePictures.getState().pictures.TANK101.elements.find(el => el.id === alarmId).alarmVisibility, true,
+    'the rejected patch leaves the existing valid alarmVisibility/path untouched')
+  assert.equal(pictures.savePicture('TANK101'), true)
+  const saved = global.window.localStorage.getItem('batchlive.picture.v1.TANK101')
+  const parsed = parseSavedPicture(saved, 'TANK101', useStore.getState().modules, useStore.getState())
+  assert.equal(parsed.elements.find(el => el.id === alarmId).alarmVisibility, true)
+  assert.equal(pictures.configureDynamics('TANK101', alarmId, { alarmVisibility: false }), true)
+  assert.equal(pictures.loadPicture('TANK101'), true)
+  assert.equal(usePictures.getState().pictures.TANK101.elements.find(el => el.id === alarmId).alarmVisibility, true,
+    'load restores the saved (not the unsaved in-memory) alarmVisibility value')
+}))
+

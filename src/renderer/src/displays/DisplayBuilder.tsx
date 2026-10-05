@@ -6,7 +6,7 @@ import { fmt } from '../utils/format'
 import type { AnyModule } from '../engine/types'
 import { ClassicTank, ClassicPump, ClassicControlValve, ClassicSanitaryValve,
   PALE_BORDER, PALE_TEXT, PALE_PIPE, PALE_EQUIP } from '../components/ClassicGraphics'
-import { pictureAlarmSignal, pictureFill, pictureLimits, pictureModeSignal, pictureSignal } from '../engine/pictureDynamics'
+import { highestRankedAlarmState, pictureAlarmSignal, pictureAlarmStateText, pictureFill, pictureLimits, pictureModeSignal, pictureSignal } from '../engine/pictureDynamics'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 import { pictureNamedSignal } from '../engine/pictureNamedSets'
 import { appliedPidOutput } from '../engine/analogStrategy'
@@ -374,11 +374,13 @@ function Canvas({
         const abnormalMode = !!el.flashWhenNotNormal && mode && !('error' in mode) && mode.isNormal === false
         const isAlarmPath = !!el.path && /^ALARMS\[1\]\.A_LAALM$/i.test(el.path.trim())
         const alarm = !named && isAlarmPath ? pictureAlarmSignal(el, modules, alarms) : null
-        if (!edit && (hideNormalMode || alarm && !('error' in alarm) && !alarm.active)) return null
+        const alarmState = isAlarmPath && el.alarmVisibility ? highestRankedAlarmState(el.tag ?? '', alarms) : null
+        const alarmHidden = alarmState !== null ? alarmState === 'NORMAL' : !!(alarm && !('error' in alarm) && !alarm.active)
+        if (!edit && (hideNormalMode || alarmHidden)) return null
         const signal = !named && !mode && !alarm && (el.path || el.entry) ? pictureSignal(el, modules) : null
         const value = named ? 'error' in named ? named.error : `${named.text}${named.bad ? ' (Bad)' : ''}` :
           mode ? 'error' in mode ? mode.error : mode.current :
-            alarm ? 'error' in alarm ? alarm.error : alarm.text :
+            alarm ? 'error' in alarm ? alarm.error : alarmState !== null ? pictureAlarmStateText(alarmState) : alarm.text :
               signal ? 'error' in signal ? signal.error : `${fmt(signal.value, 2)} ${signal.unit}${signal.bad ? ' (Bad)' : ''}` :
                 paramValue(m, el.param ?? 'PV')
         return (
@@ -519,6 +521,7 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
   const [path, setPath] = useState(el.path ?? el.param ?? 'PV')
   const [enabled, setEnabled] = useState(!!(el.entry || el.fill))
   const [flashWhenNotNormal, setFlashWhenNotNormal] = useState(el.flashWhenNotNormal ?? false)
+  const [alarmVisibility, setAlarmVisibility] = useState(el.alarmVisibility ?? false)
   const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET' | 'PID_MODE' | 'RAMP'>(el.entry?.method ?? 'NUMERIC')
   const settings = el.entry?.method === 'NUMERIC' ? el.entry : el.fill
   const [fetchLimits, setFetchLimits] = useState(settings?.fetchLimits ?? el.type === 'rectangle')
@@ -539,6 +542,7 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
         const next = e.target.value
         setPath(next)
         if (!/^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(next.trim())) setFlashWhenNotNormal(false)
+        if (!/^ALARMS\[1\]\.A_LAALM$/i.test(next.trim())) setAlarmVisibility(false)
       }} />
     </label>
     {!rectangle && <label className="bld-f bld-f-row">
@@ -546,6 +550,12 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
         disabled={!/^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(path.trim())}
         onChange={e => setFlashWhenNotNormal(e.target.checked)} />
       Flash actual mode red when it differs from normal; hide when normal
+    </label>}
+    {!rectangle && <label className="bld-f bld-f-row">
+      <input type="checkbox" checked={alarmVisibility}
+        disabled={!/^ALARMS\[1\]\.A_LAALM$/i.test(path.trim())}
+        onChange={e => setAlarmVisibility(e.target.checked)} />
+      Alarm Visibility: show the highest-ranked alarm (Active/RTN), hide when Normal
     </label>}
     <label className="bld-f bld-f-row"><input type="checkbox" checked={enabled}
       onChange={e => setEnabled(e.target.checked)} />{rectangle ? 'Fill Percentage' : 'Data Entry'}</label>
@@ -589,7 +599,9 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
         method === 'PID_MODE' ? { method: 'PID_MODE' } :
         method === 'RAMP' ? { method: 'RAMP', rate: numeric(rate) } : { ...limits, method: 'NUMERIC' } : undefined,
         flashWhenNotNormal: flashWhenNotNormal &&
-          /^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(path.trim()) ? true : undefined }) })
+          /^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(path.trim()) ? true : undefined,
+        alarmVisibility: alarmVisibility &&
+          /^ALARMS\[1\]\.A_LAALM$/i.test(path.trim()) ? true : undefined }) })
     }}>Apply Expert</button>
     <p>Numeric entry supports PID1/SP and standalone AO Floating Point parameters. PID target selection uses MODE.A_TARGET and its configured permitted modes.</p>
     {!rectangle && <p>Named Set entry uses a saved-lifecycle SFC parameter such as MESSAGE.CV.

@@ -3,6 +3,7 @@ import type { ActiveAlarm, AnyModule, PidTargetMode } from './types'
 import type { PicElement, Picture } from './pictureStore'
 import { pictureNamedSignal, type PictureNamedContext } from './pictureNamedSets'
 import { flowAnimationError } from './pictureFlow'
+import { alarmRank } from '../utils/format'
 
 export interface PictureSignal {
   value: number
@@ -25,7 +26,7 @@ export interface PictureAlarmSignal {
 }
 export type PictureAlarmSignalResult = PictureAlarmSignal | { error: string }
 export type PictureDynamicPatch = Pick<Partial<PicElement>,
-  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag' | 'flashWhenNotNormal' | 'flowAnimation' | 'actuatorFlowAnimation'>
+  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag' | 'flashWhenNotNormal' | 'alarmVisibility' | 'flowAnimation' | 'actuatorFlowAnimation'>
 
 function pictureModePath(path: string): 'target' | 'actual' | null {
   const normalized = path.trim().toUpperCase().replace(/^PID1\//, '').replace(/\.CV$/, '')
@@ -67,6 +68,37 @@ export function pictureAlarmSignal(el: Pick<PicElement, 'tag' | 'path'>,
   if (!module.alarms.length) return { error: `${tag} has no configured alarms` }
   const active = alarms.some(alarm => alarm.moduleTag === tag && alarm.active)
   return { active, text: active ? 'ALARM' : '' }
+}
+
+/**
+ * DV09-046 "highest-ranked-alarm visibility": a picture element's alarm-
+ * visibility state, distinguishing Normal, Active-Unacknowledged,
+ * Active-Acknowledged and Return-to-Normal-Unacknowledged, selecting the
+ * highest-ranked candidate among this tag's alarms (active alarms first, by
+ * rank; an RTN-but-unacknowledged alarm only when nothing is active).
+ */
+export type PictureAlarmState = 'NORMAL' | 'ACTIVE_UNACK' | 'ACTIVE_ACK' | 'RTN_UNACK'
+
+export function highestRankedAlarmState(tag: string, alarms: ActiveAlarm[]): PictureAlarmState {
+  let bestActive: ActiveAlarm | null = null
+  let bestRtnUnacked: ActiveAlarm | null = null
+  for (const a of alarms) {
+    if (a.moduleTag !== tag) continue
+    if (a.active) {
+      if (!bestActive || alarmRank(a) > alarmRank(bestActive)) bestActive = a
+    } else if (!a.acknowledged) {
+      if (!bestRtnUnacked || alarmRank(a) > alarmRank(bestRtnUnacked)) bestRtnUnacked = a
+    }
+  }
+  if (bestActive) return bestActive.acknowledged ? 'ACTIVE_ACK' : 'ACTIVE_UNACK'
+  if (bestRtnUnacked) return 'RTN_UNACK'
+  return 'NORMAL'
+}
+
+/** Display text for a highest-ranked alarm visibility state; NORMAL is never
+ * rendered (the element is hidden), so it has no text of its own. */
+export function pictureAlarmStateText(state: PictureAlarmState): string {
+  return state === 'RTN_UNACK' ? 'RTN' : state === 'NORMAL' ? '' : 'ALARM'
 }
 
 export function pictureSignal(el: PicElement, modules: Record<string, AnyModule>): PictureSignalResult {
@@ -139,6 +171,9 @@ export function pictureElementError(el: PicElement, modules: Record<string, AnyM
   if (el.entry && el.type !== 'datalink') return 'Data Entry requires a datalink'
   if (el.flashWhenNotNormal && pictureModePath(el.path ?? '') !== 'actual') {
     return 'Flash-when-not-normal requires a PID MODE.A_ACTUAL datalink'
+  }
+  if (el.alarmVisibility && !pictureAlarmPath(el.path ?? '')) {
+    return 'Alarm Visibility requires an ALARMS[1].A_LAALM datalink'
   }
   if (el.entry?.method === 'NAMED_SET' || el.type === 'datalink' && !!context?.sfcLifecycle[el.tag ?? ''] && el.path !== undefined) {
     if (el.entry && el.entry.method !== 'NAMED_SET') return 'SFC Named Set sources require Named Set entry, not numeric entry'
@@ -220,6 +255,7 @@ function element(v: unknown): v is PicElement {
     ['fontSize', 'width', 'height'].every(k => v[k] === undefined || typeof v[k] === 'number' && Number.isFinite(v[k])) &&
     ['label', 'bold'].every(k => v[k] === undefined || typeof v[k] === 'boolean') &&
     (v.flashWhenNotNormal === undefined || typeof v.flashWhenNotNormal === 'boolean') &&
+    (v.alarmVisibility === undefined || typeof v.alarmVisibility === 'boolean') &&
     ['flowAnimation', 'actuatorFlowAnimation'].every(key => v[key] === undefined || object(v[key]) &&
       typeof v[key].table === 'string' && Array.isArray(v[key].conditions) &&
       v[key].conditions.every(condition => object(condition) && typeof condition.tag === 'string' &&

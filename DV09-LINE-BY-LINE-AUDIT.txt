@@ -809,9 +809,23 @@ Acceptance: Save/reload events and workstation options with correct timestamps;
 
 [DV09-046]
 Pages: 209-212
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Configure highest-ranked-alarm visibility through graphics experts.
-Evidence: No equivalent builder visibility/animation expression model.
+Evidence (Pass61): pictureDynamics.ts adds highestRankedAlarmState (NORMAL/
+  ACTIVE_UNACK/ACTIVE_ACK/RTN_UNACK, selecting the highest-ranked active
+  alarm for a tag, or the highest-ranked inactive-but-unacknowledged one if
+  none is active) and pictureAlarmStateText. DisplayBuilder.tsx's Dynamics
+  Expert adds an opt-in "Alarm Visibility" checkbox (restricted to the
+  existing ALARMS[1].A_LAALM datalink, mirroring flashWhenNotNormal's
+  MODE.A_ACTUAL restriction): when enabled, the element is hidden only in
+  the genuine NORMAL state and shows distinct ALARM/RTN text otherwise.
+  The prior unconditional active-only hide/text behavior is preserved
+  exactly when the new flag is not set, so the existing p256 FIC-102
+  workshop regression is unaffected.
+Gaps (honest, not fixed this pass): this is still a single hardcoded
+  ALARMS[1].A_LAALM path (one alarm slot), not a generic ALARMS[n] array
+  expert; "graphics experts" plural native parity (separate Visibility vs
+  Animation expert dialogs) is approximated by one Dynamics Expert checkbox.
 Acceptance: Test rank-sensitive visibility and acknowledgment/return-to-normal.
 
 [DV09-047]
@@ -2342,7 +2356,9 @@ DV09-044: User area-key AND workstation subscription intersection consistently
   driving banner/list/count/audio/ack, including all four eligibility cases.
 DV09-045: Configured workstation Chronicle/SOE/subscriptions and durable
   save/reload process events; current bounded memory journal is not an archive.
-DV09-046: General highest-ranked alarm graphics-expert visibility.
+DV09-046: Generic ALARMS[n] array visibility expert (today's Alarm Visibility
+  checkbox is restricted to the single hardcoded ALARMS[1].A_LAALM datalink);
+  rank/acknowledgment-sensitive visibility itself now exists (Pass61).
 DV09-047: Exact level>900 AND valve-closed for>20s advisory/custom type/message,
   reset/reactivation/captured values, not just available composable timers.
 DV09-048: Editable DC bit0/bit1/don't-care/unavailable state masks.
@@ -2807,3 +2823,40 @@ Result: no DV09-xxx classification changes (this pass is cross-cutting
 chrome, not a scored line item); totals remain11 VERIFIED_SUBSET/57 PARTIAL/
 35 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next remaining
 scored group in a subsequent pass.
+
+PASS 61 CHANGE DETAIL AND VALIDATION (2026-10-05)
+--------------------------------------------------
+Scope: DV09-046, continuing the open-ended line-by-line continuation.
+Engine: pictureDynamics.ts adds highestRankedAlarmState(tag, alarms), a pure
+  function returning NORMAL/ACTIVE_UNACK/ACTIVE_ACK/RTN_UNACK: the
+  highest-ranked (alarmRank) currently ACTIVE alarm for a tag if one exists
+  (distinguishing acknowledged from unacknowledged), else the highest-ranked
+  inactive-but-unacknowledged (return-to-normal) one, else NORMAL. Alarms on
+  other tags never contribute. pictureAlarmStateText() maps this to display
+  text ('ALARM'/'RTN'/'').
+Data model: pictureStore.ts's PicElement adds an optional alarmVisibility
+  boolean, validated (pictureDynamics.ts) to require the existing
+  ALARMS[1].A_LAALM datalink path, exactly mirroring flashWhenNotNormal's
+  existing MODE.A_ACTUAL restriction; it round-trips through save/load like
+  every other element field.
+UI: DisplayBuilder.tsx's Dynamics Expert adds an "Alarm Visibility" checkbox
+  beside the existing "Flash actual mode" one, auto-clearing if the path is
+  changed away from ALARMS[1].A_LAALM. In Run mode, when the flag is set the
+  element is hidden only in the genuine NORMAL state and shows distinct
+  ALARM/RTN text otherwise; when the flag is unset, the prior unconditional
+  active-only hide/text behavior is preserved exactly, so the existing p256
+  FIC-102 workshop regression needed no changes.
+Tests: fic102-template.test.cjs adds a DV09-046 regression covering all four
+  states, rank-sensitivity (a higher-ranked active CRITICAL alarm wins over a
+  lower-ranked active ADVISORY one; any active alarm outranks a merely-RTN
+  one), cross-tag isolation, builder validation (alarmVisibility rejected on
+  a non-alarm path, existing valid state preserved) and save/load round-trip.
+Boundary (honest, not fixed this pass): still one hardcoded ALARMS[1].A_LAALM
+  slot, not a generic ALARMS[n] array visibility expert; approximates native
+  DeltaV's separate Visibility/Animation expert dialogs as one checkbox.
+Validation: 372 repository tests run locally (371 pass; the remaining
+  failure is the pre-existing local-only pdf_om.txt dependency in
+  dv09-audit.test.cjs). Typecheck and the production build both passed.
+Result: DV09-046 MISSING -> VERIFIED_SUBSET. Current totals12 VERIFIED_SUBSET/
+57 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the
+next remaining group in a subsequent pass.

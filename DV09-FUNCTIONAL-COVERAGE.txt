@@ -2276,5 +2276,48 @@ Result: DV09-041 MISSING -> VERIFIED_SUBSET. Current totals11 VERIFIED_SUBSET/
 dependency). Typecheck and production build both passed. Continuation
 proceeds to the next remaining group in a subsequent pass.
 
+PASS 60: FACEPLATE "ACK ALARM" CHROME MATCHING REAL DELTAV FACEPLATES
+----------------------------------------------------------------------
+Line1 - Cross-cutting visual-alignment pass (not a single DV09-xxx item): new
+  newImage/newNewImages/ photographs of real PID/valve/motor faceplates share
+  one chrome (title, mode, Modelock Override, icon rail, Owned by/Unit, Help,
+  "Ack Alarm"). FaceplateHost.tsx's shared fp-links row (all six faceplate
+  types) adds a real "Ack Alarm" button, enabled only when
+  format.ts's new moduleOwnUnacknowledgedAlarms finds a genuine active,
+  unacknowledged alarm for that module, calling the existing ackAlarm action.
+Line2 - Deliberately not added (would be decorative without real engine
+  work): Modelock Override and an "Owned by:" row, both requiring a modeled
+  Equipment Module/Phase acquire-release arbitration this simulator does not
+  have yet; recorded honestly in GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt.
+Result: no DV09-xxx classification change; totals remain at Pass59's
+11 VERIFIED_SUBSET/57 PARTIAL/35 MISSING/19 BOUNDARY/6 CONTEXT.
+371 repository tests run locally (370 pass; pre-existing pdf_om.txt failure
+unrelated). Typecheck and production build both passed.
+
+PASS 61: DV09-046 HIGHEST-RANKED-ALARM VISIBILITY (pp209-212)
+----------------------------------------------------------------
+Line1 - Engine: pictureDynamics.ts adds highestRankedAlarmState(tag, alarms)
+  returning NORMAL/ACTIVE_UNACK/ACTIVE_ACK/RTN_UNACK (highest-ranked active
+  alarm if one exists, else the highest-ranked unacknowledged RTN one, else
+  NORMAL) and pictureAlarmStateText() for its display text.
+Line2 - Data model: PicElement gains an optional alarmVisibility boolean,
+  validated to require the existing ALARMS[1].A_LAALM path (mirroring
+  flashWhenNotNormal's MODE.A_ACTUAL restriction), round-tripping through
+  save/load like every other field.
+Line3 - UI: DisplayBuilder.tsx's Dynamics Expert adds an "Alarm Visibility"
+  checkbox; when set, the element hides only in the genuine NORMAL state and
+  shows distinct ALARM/RTN text otherwise. When unset, the prior
+  unconditional active-only hide/text behavior is preserved exactly, so the
+  existing p256 FIC-102 workshop regression needed no changes.
+Line4 - Tests: fic102-template.test.cjs covers all four states, rank
+  sensitivity, cross-tag isolation, builder validation and save/load
+  round-trip.
+Boundary: still one hardcoded ALARMS[1].A_LAALM slot, not a generic ALARMS[n]
+array visibility expert.
+Result: DV09-046 MISSING -> VERIFIED_SUBSET. Current totals12 VERIFIED_SUBSET/
+57 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. 372 repository tests run locally
+(371 pass; pre-existing pdf_om.txt failure unrelated). Typecheck and
+production build both passed.
+
 Commit/push authorization for this pass follows the same 2026-10-05
 instruction already recorded for Pass54.
