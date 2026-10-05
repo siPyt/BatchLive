@@ -5,6 +5,7 @@ import { pidExecutionBad } from '../engine/pidModes'
 import { fmt, fmtQ, modeColor, priorityRank } from '../utils/format'
 import { appliedPidOutput, pidIo } from '../engine/analogStrategy'
 import { alarmFieldPath } from '../engine/alarmFields'
+import { ModeBoxRow, ModelockOverrideRow, OwnedByRow } from './FaceplateChrome'
 
 const MODES: PidTargetMode[] = ['MAN', 'AUTO', 'CAS', 'OOS']
 type Tab = 'operate' | 'tune' | 'alarm' | 'trend'
@@ -15,6 +16,7 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const setSetpoint = useStore((s) => s.setSetpoint)
   const setOutput = useStore((s) => s.setOutput)
   const setCasHealthy = useStore((s) => s.setCasHealthy)
+  const online = useStore((s) => !s.pidLifecycle[tag] || s.pidLifecycle[tag].online)
   const [tab, setTab] = useState<Tab>('operate')
 
   if (!m) return null
@@ -24,7 +26,8 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const shed = m.actualMode !== m.mode && m.actualMode !== 'LO'
   const bad = m.pvBad || pidExecutionBad(m)
   const spEditable = m.actualMode === 'AUTO'
-  const outEditable = m.actualMode === 'MAN' || m.actualMode === 'ROUT'
+  const outEditable = online && (m.mode === 'MAN' || m.mode === 'ROUT') &&
+    m.actualMode !== 'LO' && m.actualMode !== 'OOS'
   const io = pidIo(m)
 
   return (
@@ -45,8 +48,7 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
             <Readout label="OUT" cls="fp-out" value={fmtQ(m.out, 1, pidExecutionBad(m))} unit="%" bad={pidExecutionBad(m)} />
           </div>
 
-          <div className="fp-bars">
-            <Bar label="OUT" cls="out" pct={m.out} value={m.out} decimals={1} unit="%" min={0} max={100} />
+          <div className="fp-pid-process">
             <Bar
               label="PV"
               cls="pv"
@@ -59,7 +61,42 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
               max={m.pvMax}
               bad={bad}
               alarms={m.alarms}
+              tall
             />
+            <div className="fp-pid-mode">
+              <ModeBoxRow reqMode={m.mode} actualMode={m.actualMode} />
+              {(shed || m.actualMode === 'LO') && (
+                <div className="fp-row">
+                  {shed && <span style={{ color: 'var(--dv-critical)', fontWeight: 700 }}>SHED</span>}
+                  {m.actualMode === 'LO' && <span style={{ marginLeft: 6 }}>TRACKING</span>}
+                </div>
+              )}
+              <ModelockOverrideRow />
+            </div>
+          </div>
+
+          <Bar label="OUTPUT" cls="out" pct={m.out} value={m.out} decimals={1} unit="%" min={0} max={100}
+            bad={pidExecutionBad(m)} orientation="horizontal" />
+          <div className="fp-out-adjust-row">
+            <button
+              className="fp-bar-adjust"
+              aria-label="Lower OUT"
+              disabled={!outEditable}
+              title="Lower OUT"
+              onClick={() => setOutput(tag, Math.max(0, m.out - 1))}
+            >
+              ◀
+            </button>
+            <span className="fp-value">{fmtQ(m.out, 1, pidExecutionBad(m))} %</span>
+            <button
+              className="fp-bar-adjust"
+              disabled={!outEditable}
+              title="Raise OUT"
+              aria-label="Raise OUT"
+              onClick={() => setOutput(tag, Math.min(100, m.out + 1))}
+            >
+              ▶
+            </button>
           </div>
 
           <AppliedOutputRow label="AO1 applied" stage={io.ao} />
@@ -77,8 +114,6 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
               Tgt <b style={{ color: modeColor(m.mode) }}>{m.mode}</b> · Act{' '}
               <b style={{ color: modeColor(m.actualMode) }}>{m.actualMode}</b>
             </span>
-            {shed && <span style={{ color: 'var(--dv-critical)', fontWeight: 700, marginLeft: 6 }}>SHED</span>}
-            {m.actualMode === 'LO' && <span> TRACKING</span>}
           </div>
           {(m.trackError || m.ffError) && <div role="alert" style={{ color: 'var(--dv-bad)' }}>{m.trackError || m.ffError}</div>}
 
@@ -124,6 +159,7 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
               <span style={{ color: 'var(--mode-cas)', fontWeight: 700 }}>{m.casSource}</span>
             </div>
           )}
+          <OwnedByRow equipmentModule={m.equipmentModule} />
         </>
       )}
 
@@ -204,7 +240,9 @@ function Bar({
   min,
   max,
   bad,
-  alarms
+  alarms,
+  orientation = 'vertical',
+  tall
 }: {
   label: string
   cls: string
@@ -217,6 +255,8 @@ function Bar({
   max: number
   bad?: boolean
   alarms?: AlarmLimit[]
+  orientation?: 'vertical' | 'horizontal'
+  tall?: boolean
 }): JSX.Element {
   const clamped = Math.max(0, Math.min(100, pct))
   const mid = (min + max) / 2
@@ -230,8 +270,38 @@ function Bar({
   const lo = limitPct('LO')
   const hiHi = limitPct('HI_HI')
   const loLo = limitPct('LO_LO')
+
+  if (orientation === 'horizontal') {
+    return (
+      <div className="fp-bar-h">
+        <div className="fp-bar-h-head">
+          <span className="bar-num-h" style={bad ? { color: 'var(--dv-bad)' } : undefined}>
+            {fmtQ(value, decimals, !!bad)}
+          </span>
+          {unit && <span className="fp-ro-unit">{unit}</span>}
+          <span className="bar-lbl" style={{ marginLeft: 'auto' }}>{label}</span>
+        </div>
+        <div className="fp-bar-h-row">
+          <span className="fp-scale-h">{fmt(min, 0)}</span>
+          <div className="track-h">
+            {hi !== undefined && lo !== undefined && (
+              <div className="envelope-h" style={{ left: lo + '%', width: Math.max(0, hi - lo) + '%' }} />
+            )}
+            {hiHi !== undefined && <div className="trip-tick-h hihi" style={{ left: hiHi + '%' }} />}
+            {loLo !== undefined && <div className="trip-tick-h lolo" style={{ left: loLo + '%' }} />}
+            <div className={'fill-h ' + cls} style={{ width: clamped + '%' }} />
+            {spPct !== undefined && (
+              <div className="sp-marker-h" style={{ left: Math.max(0, Math.min(100, spPct)) + '%' }} />
+            )}
+          </div>
+          <span className="fp-scale-h">{fmt(max, 0)}</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="fp-bar">
+    <div className={'fp-bar' + (tall ? ' tall' : '')}>
       <span className="bar-num" style={bad ? { color: 'var(--dv-bad)' } : undefined}>
         {fmtQ(value, decimals, !!bad)}
       </span>

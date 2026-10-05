@@ -15,7 +15,8 @@ An offline **operator HMI sandbox** that recreates the look and feel of an Emers
 - **Process graphics** — interactive SVG tanks, pumps, valves and piping with live dynamos; click any element to open its faceplate.
 - **Classic equipment symbols** — compact centrifugal pumps, blue-framed isolation valves, unboxed hand valves and dome-actuated control valves based on the WFI reference display. Running/open equipment is green; stopped/closed equipment is black. Pump/isolation-valve feedback and applied analog actuation drive the colors, not unapplied commands. WFI reference captions are aliases for the simulator's existing modules; tooltips identify the underlying tag. Unbound valves are reference-only symbols, not simulated controls.
 - **Historian trends** — multi-pen real-time charts with selectable pens and time windows.
-- **Navigation** — display hierarchy, favorites shelf, run/hold and simulation-speed controls.
+- **Operator ribbons** — three gray icon/navigation bands based on IMG_0602, with display/module search, Back/Forward/Up/Home, a complete picture selector, and the alarm banner below the working area. BatchLive branding is preserved. Sidebar/favorites and area module directories remain available on demand; run/hold and speed controls still operate the same simulator.
+- **Main displays** — full-width process graphics rather than module-card dashboards. Feed/reactor/product views focus the existing spatial plant canvas; pharma pictures fit the available working area. Reset Graphic View resets only the picture camera/layout, not live modules, process state, or open faceplates.
 - **Engineering icons** — shared SVG Control Module, Equipment Module and function-block icons in Explorer, Control Studio hierarchy/palette, and diagram headers, based on IMG_0440. Equipment Modules retain an explicit EM identifier; unsupported reference composites are not fabricated.
 - **Control Studio presentation** — reference-style gray block frames with name-left/icon-right headers and real input/output terminals. Grouped Home/Diagram/View ribbons provide faceplates, Explorer properties, alarms, supported history views, pane toggles, and 50–150% diagram zoom. Unsupported clipboard/download commands are explicitly disabled. Layout and connections remain in diagram coordinates at every zoom level.
 - **Executable control strategies** — actual AI → PID → AO stages, with separately selectable blocks, qualified PV/OUT references, manual I/O, limits, faults, and back-calculation. TIC-401/TIC-411 additionally execute PID → SPLTR → two independent AOs with real feedback paths and configured feedforward references. The splitter implements coordinate curves, CAS/AUTO/OOS, AUTO SP rates, lock hysteresis, downstream balancing, and direction-aware limits based on the local function-block reference.
@@ -68,6 +69,8 @@ than newly claimed one-to-one physical heater/cooler valves.
 Run the focused engine regressions with `npm run test:control`, then
 `npm run typecheck` and `npm run build`. The appearance and regression contract
 is maintained in [GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt](GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt).
+Visual milestones and unresolved reference-only/modeling gaps are recorded
+separately in [VISUAL-FIDELITY-LOG.txt](VISUAL-FIDELITY-LOG.txt).
 
 Run `npm run test:sfc` for SFC qualifier timing regressions against the original
 DV-09 timing-chart image. SFCs and batch phases share independent action lifetime

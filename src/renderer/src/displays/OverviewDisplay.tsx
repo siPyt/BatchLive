@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useStore } from '../engine/store'
 import { InstrumentTap } from '../components/Graphics'
 import {
@@ -33,11 +33,16 @@ const AREAS = {
   OVERVIEW: { x: 0, y: 0, cx: 1100, cy: 600, scale: 0.34 }
 } as const
 
-export function OverviewDisplay(): JSX.Element {
+export function OverviewDisplay({ focusArea }: { focusArea?: 'FEED' | 'REACTOR' | 'PRODUCT' } = {}): JSX.Element {
   const modules = useStore((s) => s.modules)
   const proc = useStore((s) => s.process)
   const batch = useStore((s) => s.batch)
   const canvasRef = useRef<DeltaVCanvasHandle>(null)
+  useEffect(() => {
+    if (focusArea === 'FEED') canvasRef.current?.jumpTo(230, 150, 1)
+    if (focusArea === 'REACTOR') canvasRef.current?.jumpTo(530, 180, 0.9)
+    if (focusArea === 'PRODUCT') canvasRef.current?.jumpTo(820, 240, 1)
+  }, [focusArea])
 
   const fic = modules['FIC-101'] as PidModule
   const pic = modules['PIC-301'] as PidModule
@@ -51,6 +56,14 @@ export function OverviewDisplay(): JSX.Element {
   const jump = (area: keyof typeof AREAS): void => {
     const a = AREAS[area]
     canvasRef.current?.jumpTo(a.cx, a.cy, a.scale)
+  }
+
+  if (!fic || !pic || !p101 || !p201 || !xv101 || !xv201 || !psv201 || !sic201) {
+    return <div className="display graphic-display">
+      <div className="graphic-empty" role="status">
+        Reactor train modules are not configured. Use DeltaV Explorer to create modules or load the GMP Pharma Factory project.
+      </div>
+    </div>
   }
 
   return (

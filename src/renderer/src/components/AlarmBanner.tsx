@@ -74,6 +74,13 @@ export function AlarmBanner(): JSX.Element {
             onClick={() => isSfcAlarm(a) ? openSfc(a.moduleTag) : openFaceplate(a.moduleTag)}
             onDoubleClick={() => ackAlarm(a.id)}
           >
+            <svg className="alarm-tile-symbol" viewBox="0 0 16 16" aria-hidden="true">
+              {a.priority === 'CRITICAL'
+                ? <><circle cx="8" cy="8" r="6" fill="#c0392b" /><path d="m5 5 6 6m0-6-6 6" stroke="#fff" strokeWidth="2" /></>
+                : <><path d={a.priority === 'WARNING' ? 'M8 1 15 14H1Z' : 'M1 2H15L8 15Z'}
+                  fill={a.priority === 'WARNING' ? '#d7bd30' : '#6f3198'} stroke="#6b7680" />
+                  <path d="M8 5v4m0 2v1" stroke={a.priority === 'WARNING' ? '#17222b' : '#fff'} strokeWidth="2" /></>}
+            </svg>
             <span className="tag">{a.moduleTag}</span>
             <span className="description">
               {a.moduleDesc}

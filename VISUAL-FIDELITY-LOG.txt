@@ -1,0 +1,202 @@
+BATCHLIVE VISUAL FIDELITY LOG
+==============================
+Purpose: a dedicated, separate running log for the "make it look exactly
+like real DeltaV" visual initiative, kept apart from the DV09-xxx
+functional audit files (DV09-LINE-BY-LINE-AUDIT.txt /
+DV09-FUNCTIONAL-COVERAGE.txt) and from the pre-existing plant-graphics
+contract (GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt), which remains the source
+of truth for the protected plant-equipment palette and must still be
+honored by this work.
+
+STANDING INSTRUCTION (user, this pass)
+---------------------------------------
+"i want to do all the visual changes right now fron new image and new new
+images. i need this too look exactly like DeltaV looks like in the images,
+etc. with the exception of the logo stuff i said before" — then — "keep a
+new separate log of where you are wit hvisual fidelity in a txt file. and
+commit and push as you see fit, and dont stop till i tell you"
+
+EXCLUSION (must never change): the BatchLive/"Charles R. Freeman, software
+engineer" brand block in TopBar.tsx (the `.brand` / `.logo` / `.brand-text`
+/ `.brand-name` / `.brand-credit` elements), matching newImage/5001.png.
+Every other visual surface is in scope.
+
+REFERENCE IMAGES CATALOGUED THIS PASS
+--------------------------------------
+newImage/newNewImages/IMG_0638.jpeg — 3T-8120-PIC016 PID faceplate (MAN):
+  title bar (tag, close/minimize/expand), tag+description, PV horizontal
+  bargraph (VERTICAL when viewed upright; 0-150 psig scale, SP flag marker) with large PV number+unit to
+  the left, RCAS SP / ROUT OUT small readouts, Modelock Override checkbox,
+  REQ. MODE small box above bold actual-mode box, large vertical OUTPUT
+  bargraph (HORIZONTAL when viewed upright; 0-100%) with left/right triangle adjust buttons either side of the
+  numeric "71.0 %" readout, Owned by:/Unit: rows (blank here), Help and Ack
+  Alarm stacked buttons, and (separately, screen-fixed) a 5-icon rounded
+  rail (bell/trend/hierarchy/equipment/search).
+newImage/newNewImages/IMG_0639.jpeg — 3T-8120-XC010 motor "speed" faceplate
+  (AUTO/RUNNING): big bold state word RUNNING, STOP/START buttons, REQ.
+  MODE/actual mode boxes (AUTO/AUTO here), Modelock Override, Speed
+  Information (Auto SP/Remote SP/PV %) — NOT replicated (see decisions),
+  Device State/Operation State/Failure State block ("Confirmed
+  Running"/"Normal"/"Clear"), Owned by: blank, Help/Ack Alarm.
+newImage/newNewImages/IMG_0646.jpeg — 3WFI-8110-YV008 discrete valve
+  faceplate (CAS/OPEN): big bold state word OPEN, CLOSE/OPEN buttons, mode
+  boxes (CAS/CAS) with two small blue "!" interlock/permissive chips,
+  Modelock Override, Device/Operation/Failure State block, Owned by:
+  N3_INT_WFI, Unit: blank, Help/Ack Alarm.
+newImage/newNewImages/IMG_0640/0641/0643/0644/0645.jpeg — Control Studio
+  "PCSD Discrete Valve Module" help/reference diagram pages (DCC/EDC/CND
+  function blocks, Mode Locking box, MODELOCK_OVR/OWNER_ID/HOLD_REQ
+  parameters, Office-ribbon Control Studio chrome: Home/View tabs, Alarms/
+  Algorithm/Diagram Mode/Class/Advanced/Version Control ribbon groups).
+  These confirm the engine-level semantics behind Modelock Override/Owned
+  by (Equipment Module acquire/release arbitration, C_ARB_MOD_EM/PH) that
+  this simulator does not model — see DECISIONS below — and show a full
+  Office-ribbon Control Studio chrome that is explicitly OUT OF SCOPE this
+  pass (disproportionate effort vs. training value; existing FBD-based
+  Control Studio already satisfies GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt
+  section 9's "preserve the complexity work" contract).
+newImage/5001.png — BatchLive's own TopBar branding. EXCLUDED from all
+  changes per standing instruction.
+
+DECISIONS / HONESTY BOUNDARIES (carried into every faceplate change)
+----------------------------------------------------------------------
+- Modelock Override: rendered as a real checkbox matching the reference
+  layout, but disabled with an explicit tooltip explaining Equipment
+  Module/Phase acquire-release arbitration (C_ARB_MOD_EM/PH) is not
+  modeled yet. This is a visual-fidelity placeholder, not a claim of real
+  arbitration — consistent with the Pass60 decision already recorded in
+  GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt.
+- Owned by: explicitly says "Not modeled". Static `equipmentModule`
+  membership, when present, is shown separately as "Equipment Module:".
+  Recovery corrected the interrupted draft's misleading ownership label,
+  honoring the existing graphics contract's Pass60 boundary.
+- Unit: no Unit-module concept exists in this simulator; always renders an
+  em-dash. Documented, not hidden.
+- Speed Information (Auto SP/Remote SP/PV%) block from IMG_0639 is NOT
+  reproduced on MotorModule faceplates: this simulator's MotorModule is a
+  confirmed-running/stopped discrete device (DC1/DCC template), with no
+  modeled variable-speed-drive feedback loop. Adding those numbers would be
+  a fabricated reading, not a real one. Documented as an explicit boundary.
+- Device State / Operation State / Failure State text is derived 100% from
+  existing real fields (dcState, interlock, permissiveRequired/permissiveOk,
+  fault) — only the *labels/wording* change to match DeltaV's phrasing
+  ("Confirmed Running", "Interlocked", "Faulted", etc.); no new simulated
+  state is introduced.
+- Mode (MAN/CAS) shown on Motor/Valve faceplates is derived from the
+  existing `commandSource` field (set = an interlock/FB tag is driving the
+  command automatically = CAS; unset = direct operator Start/Stop/Open/
+  Close = MAN) — an honest real distinction already in the engine, just
+  newly surfaced with DeltaV's own DCC-template vocabulary.
+
+PLAN (this pass)
+-----------------
+1. [DONE] Catalogue newImage/newNewImages references above.
+2. [DONE] New shared faceplates/FaceplateChrome.tsx: deviceStatusBlock()
+   helper + DeviceStateRows / ModeBoxRow / ModelockOverrideRow / OwnedByRow
+   components reused by Motor/Valve/PID faceplates.
+3. [DONE] PidFaceplate.tsx OPER tab restructured: vertical PV bar (SP
+   marker) + horizontal OUTPUT bar with left/right adjust replacing the old
+   two-vertical-bars-side-by-side layout; added REQ. MODE box pair,
+   Modelock Override, Owned by/Unit rows.
+4. [DONE] MotorFaceplate.tsx / ValveFaceplate.tsx restructured: big bold
+   state word, REQ. MODE box pair (MAN/CAS from commandSource), Modelock
+   Override, Device/Operation/Failure State block, Owned by/Unit, keeping
+   all existing engineering rows (travel timer, resolved/applied I/O,
+   runtime, device options, interlock/permissive/reset controls) below.
+5. [DONE] FaceplateHost.tsx fp-links footer restyled: prominent stacked
+   Help + Ack Alarm buttons (Help opens a short static info popover: tag,
+   type, module description — not a fake vendor help system, just an
+   honest "what is this" panel) with the existing Studio/Explorer/Trend/
+   Alarms utility actions kept as a compact secondary icon-only row.
+6. [DONE] styles.css additions for all of the above (fp-state-word,
+   fp-mode-box, fp-modelock-row, fp-owned-row, fp-devstate-row,
+   fp-pv-hbar, fp-out-vbar, fp-help-ack, fp-util-icons).
+7. [DONE] Live browser verification of reference orientation, motor feedback,
+   PID output adjustment and Help. Shared footer remains visible while the
+   body scrolls inside the actual working-area height.
+8. [DONE] Typecheck and build pass; full suite: 392 tests, 391 pass, one
+   pre-existing missing local pdf_om.txt fixture failure. Publication follows
+   the user's renewed commit/push authorization on 2026-10-05.
+9. [ ] Continue opportunistically to any further visual gaps the user
+   flags, or revisit AI/AO/Discrete faceplates for the same Device State
+   treatment where applicable, time permitting.
+
+STATUS: recovered faceplate and existing main-display milestones verified;
+broader visual parity is still in progress. See repo git log for published
+milestones. This file will keep growing with new dated entries per change,
+mirroring (but separate from) the DV09 audit file's pass-log convention.
+
+2026-10-05 - RECOVERY AND MAIN OPERATOR DISPLAYS (IMG_0602)
+--------------------------------------------------------
+User redirect: focus on main displays and the top ribbons in IMG_0602;
+consult DV-09/7009 for symbol meanings, continue committing/pushing, and
+do not break the simulator.
+
+Delivered:
+- Three separate gray ribbon bands: utilities, display actions, and picture
+  navigation. Original SVG icons (no embedded vendor icon assets). Labels
+  explicitly identify simulator functions; no unverified vendor semantics.
+- Search opens real displays and real module faceplates. All 20 existing
+  displays remain reachable through the selector and Utilities menu.
+- Back/Forward use the existing picture history; Up/Home return to the
+  actual plant overview. Reset Graphic View remounts only the process
+  picture and leaves engine state and faceplates untouched.
+- Branding block unchanged; moved as a whole within the utility ribbon.
+- Navigation sidebar is closed by default and can be toggled with the eye
+  button. Favorites and all engineering screens remain accessible.
+- Alarm banner moved below the working area. Outlined priority-colored
+  tiles with explicit priority symbols match the main-screen reference.
+  Eligibility, sorting, acknowledgment, horn, area subscription and RTN
+  behavior retain the original engine paths.
+- All nine existing process screens use the full working-area width.
+  Feed/reactor/product focus the existing plant canvas; WFI/autoclave/
+  lyo/CIP/TCU fit their existing SVG diagrams to the window. Module cards
+  remain available in collapsed, scrollable Module Directory panels.
+- Existing plant symbols, valve varieties, green/black feedback colors,
+  piping geometry and neutral equipment palette are unchanged.
+- Empty projects display an explicit unconfigured-picture message rather
+  than dereferencing missing reactor-train modules.
+- Recovered hook-order bug fixed in FaceplateHost. PID bar orientation
+  corrected after viewing the photographs upright; output controls now
+  use the existing MAN/ROUT target, actual LO/OOS and managed-Online gates.
+
+Source checks:
+- IMG_0601: main WFI storage-loop picture and bottom alarm placement.
+- IMG_0602, IMG_0608: three operator ribbon bands and navigation row.
+- IMG_0603, IMG_0607: right-side session information and still utilities.
+- IMG_0604: a separate WFI Still process picture, not the existing tank loop.
+- IMG_0605/0606/0609/0610/0620: Control Studio/reference-module surfaces,
+  not the main operator ribbon. Do not conflate their Office-style ribbons.
+- 7009-1 printed pp1-36/1-37 and DV-09 chapter1: operator toolbar,
+  working area and alarm banner roles. DV-09 chapter3 confirms Control
+  Studio/configure workflows differ from operator display navigation.
+  The older course toolbar does not identify every site-specific IMG_0602
+  icon; no blanket exact-vendor-semantic claim is made.
+
+Validation:
+- Typecheck and production build pass.
+- Nine new faceplate/operator regressions; full run: 392 tests, 391 pass.
+  Only failure: the already documented absent pdf_om.txt local audit input.
+- Live browser: all nine process screens render without page errors;
+  sidebar toggle, search opening P-401, view reset preserving every live
+  module, confirmed motor STOP/START through simulator scans, PID MAN
+  output 0 -> 1%, and Help open/close verified.
+- Main-area/bottom-alarm adjacency and full-width layout measured.
+- Real Electron offscreen captures at 1600x1000 verify WFI and Overview.
+  Alarm tiles are capped at 220px instead of stretching a single alarm
+  across the entire desktop. The Areas popup stays above the banner and
+  scrolls in shorter windows. Browser geometry assertions pass at
+  1600x1000, 800x600 and 582x409 without changing area subscriptions.
+  Integrated browser screenshotPage can return stale frames or crop to its
+  actual small shared surface; do not use those frames as desktop evidence.
+
+Remaining explicit boundaries (NOT marked complete):
+- IMG_0604 WFI Still has feed/distillate levels, compressor, oil pump and
+  associated control loops not modeled by the current tank-loop simulator.
+  Its existing reference navigation button must not be mistaken for a
+  implemented still process. Adding fake readings or aliasing unrelated
+  loops is not an acceptable substitute for a real still model.
+- Equipment Module/Phase acquire/release, VSD speed feedback, site-specific
+  PCSD composites and exact native toolbar semantics remain unmodeled.
+- This milestone covers supported main displays and recovered faceplates,
+  not 100% parity with every vendor screen or DV-09 requirement.

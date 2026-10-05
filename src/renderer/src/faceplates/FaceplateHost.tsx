@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useUi } from '../ui/uiStore'
 import { useStore } from '../engine/store'
 import { PidFaceplate } from './PidFaceplate'
@@ -39,6 +39,7 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
   const focusAlarms = useUi((s) => s.focusAlarms)
   const openModuleDisplay = useUi(s => s.openModuleDisplay)
   const drag = useRef<{ dx: number; dy: number } | null>(null)
+  const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
     function onMove(e: MouseEvent): void {
@@ -86,7 +87,7 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
   }
 
   return (
-    <div className="faceplate" style={{ left: x, top: y }} onMouseDown={() => select(tag)}>
+    <div className="faceplate" style={{ left: x, top: y, maxHeight: `calc(100% - ${Math.max(0, y)}px - 12px)` }} onMouseDown={() => select(tag)}>
       <div
         className="fp-header"
         onMouseDown={(e) => {
@@ -106,23 +107,38 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
         {(m.detailDisplay || m.type === 'PID') && <button className="fp-link-btn" onClick={() => openModuleDisplay(tag, 'detail')}
           title={m.detailDisplay ? `Detail display: ${m.detailDisplay}` : 'Simulator PID detail tuning'}>Detail</button>}
       </div>}
-      <div className="fp-links">
-        <button className="fp-link-btn" onClick={() => openStudio(tag)} title="Open with Control Studio">
-          ⌁ Studio
+      <div className="fp-util-icons">
+        <button className="fp-icon-btn" onClick={() => openStudio(tag)} title="Open with Control Studio" aria-label="Open with Control Studio">
+          ⌁
         </button>
-        <button className="fp-link-btn" onClick={() => focusExplorer(tag)} title="Locate in DeltaV Explorer">
-          ▦ Explorer
+        <button className="fp-icon-btn" onClick={() => focusExplorer(tag)} title="Locate in DeltaV Explorer" aria-label="Locate in DeltaV Explorer">
+          ▦
         </button>
         {moduleTrendPens(m).length > 0 && (
-          <button className="fp-link-btn" onClick={() => focusTrend(tag)} title="Open Historian Trend">
-            📈 Trend
+          <button className="fp-icon-btn" onClick={() => focusTrend(tag)} title="Open Historian Trend" aria-label="Open Historian Trend">
+            📈
           </button>
         )}
         {m.alarms.length > 0 && (
-          <button className="fp-link-btn" onClick={() => focusAlarms(tag)} title="Open Alarm List">
-            ⚠ Alarms
+          <button className="fp-icon-btn" onClick={() => focusAlarms(tag)} title="Open Alarm List" aria-label="Open Alarm List">
+            ⚠
           </button>
         )}
+      </div>
+      {showHelp && (
+        <div className="fp-help-pop">
+          <div><b>{tag}</b> — {m.description}</div>
+          <div>Module type: {m.type}</div>
+          {m.equipmentModule && <div>Equipment Module: {m.equipmentModule}</div>}
+          <div>Use the mode/command controls above to operate this module; use Ack Alarm to acknowledge
+            its own active alarms, or the icon row to open Control Studio, DeltaV Explorer, Trend or
+            Alarm List for this tag.</div>
+        </div>
+      )}
+      <div className="fp-help-ack">
+        <button className="fp-link-btn" onClick={() => setShowHelp((v) => !v)} title="About this faceplate">
+          Help
+        </button>
         {m.alarms.length > 0 && (
           <button className="fp-link-btn" disabled={ownUnacked.length === 0}
             onClick={() => ownUnacked.forEach((a) => ackAlarm(a.id))}

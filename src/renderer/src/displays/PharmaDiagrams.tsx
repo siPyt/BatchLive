@@ -32,15 +32,15 @@ import type { PidModule, ValveModule, DiscreteInput, MotorModule, DiscreteOutput
 /** P&ID mimic diagrams for the GMP pharma areas, in the same visual language
  * as the reactor-train Plant Overview (Graphics.tsx symbols + ValueBox dynamos). */
 
-/** Standalone (AreaDisplay) mode wraps content in its own bounded, scaled
- * mini-SVG. `embedded` mode (the master plant canvas) instead renders a bare
+/** Standalone mode fits the picture to the available operator working area.
+ * `embedded` mode (the master plant canvas) instead renders a bare
  * `<g>` positioned by the caller — no nested svg/viewBox, no bounding box —
  * so the diagram lives directly on the shared world coordinate plane. */
 function Wrap({ height, children, embedded }: { height: number; children: ReactNode; embedded?: boolean }): JSX.Element {
   if (embedded) return <g>{children}</g>
   return (
-    <div style={{ position: 'relative', margin: '0 auto 18px', maxWidth: 1040, height }}>
-      <svg width="100%" height={height} viewBox={`0 0 1040 ${height}`} style={{ display: 'block' }}>
+    <div className="plant-diagram">
+      <svg width="100%" height="100%" viewBox={`0 0 1040 ${height}`} preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }}>
         {children}
       </svg>
     </div>

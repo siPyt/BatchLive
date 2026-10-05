@@ -1648,3 +1648,31 @@ directly from its faceplate, not only from Alarm Summary.
 - No existing faceplate layout, tab structure, bar/readout styling or plant
   equipment-body palette was changed; this is purely an additive row in the
   already-shared chrome, preserving every protected appearance rule above.
+
+MAIN OPERATOR RIBBONS AND WORKING AREA (2026-10-05)
+--------------------------------------------------
+IMG_0602 and IMG_0608 govern the main operator chrome: three gray bands
+(utilities, display actions, Back/Forward/Up/Home and picture selector),
+with the alarm banner below the working area as shown in IMG_0601.
+Do not confuse these with Control Studio's separate Office-style ribbon.
+
+- Keep the BatchLive/Charles R. Freeman brand block unchanged.
+- Main process pictures use the working area's full width. The sidebar
+  and module-card directory are available on demand, not permanently
+  displacing the graphic.
+- Keep all existing engineering/training navigation reachable through
+  the picture selector, Utilities menu and optional sidebar.
+- Reset Graphic View affects only the picture/camera, never process
+  values, module lifecycles, security, or open faceplates.
+- Outlined alarm tiles retain priority, blink, acknowledgment, eligibility,
+  sorting, horn and area-subscription behavior. The text/tooltip still
+  identifies the real module and alarm; no photographed alarms are faked.
+- Faceplate body scrolling must not hide Help/Ack Alarm below the working
+  area. The upright PID reference has VERTICAL PV and HORIZONTAL OUTPUT.
+- Modelock Override is visibly disabled with an explanation. Owned by
+  says "Not modeled"; static Equipment Module membership is a separate
+  row, not a live ownership claim.
+- No protected plant-equipment geometry or palette changed in this pass.
+- IMG_0604's separate WFI Still process is not simulated yet. Do not
+  fabricate feed/distillate levels, compressor/oil state or new control
+  loops merely to fill its photographed readout boxes.

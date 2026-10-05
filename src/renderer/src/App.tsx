@@ -27,6 +27,8 @@ import { PhysicalNetworkDisplay } from './displays/PhysicalNetworkDisplay'
 export function App(): JSX.Element {
   const tick = useStore((s) => s.tick)
   const display = useUi((s) => s.display)
+  const navigationOpen = useUi((s) => s.navigationOpen)
+  const processViewRevision = useUi((s) => s.processViewRevision)
   const last = useRef<number>(performance.now())
 
   // Fixed-rate simulation loop (~10 Hz) decoupled from render.
@@ -66,20 +68,19 @@ export function App(): JSX.Element {
 
   return (
     <div className="app-shell">
-      <AlarmBanner />
       <TopBar />
       <div className="app-body">
-        <NavSidebar />
+        {navigationOpen && <NavSidebar />}
         <div className="main-area">
-          {display === 'overview' && <OverviewDisplay />}
-          {display === 'feed' && <AreaDisplay area="FEED" />}
-          {display === 'reactor' && <AreaDisplay area="REACTOR" />}
-          {display === 'product' && <AreaDisplay area="PRODUCT" />}
-          {display === 'wfi' && <AreaDisplay area="WFI" />}
-          {display === 'autoclave' && <AreaDisplay area="AUTOCLAVE" />}
-          {display === 'lyo' && <AreaDisplay area="LYO" />}
-          {display === 'cip' && <AreaDisplay area="CIP" />}
-          {display === 'tcu' && <AreaDisplay area="TCU" />}
+          {display === 'overview' && <OverviewDisplay key={processViewRevision} />}
+          {display === 'feed' && <AreaDisplay key={`feed-${processViewRevision}`} area="FEED" />}
+          {display === 'reactor' && <AreaDisplay key={`reactor-${processViewRevision}`} area="REACTOR" />}
+          {display === 'product' && <AreaDisplay key={`product-${processViewRevision}`} area="PRODUCT" />}
+          {display === 'wfi' && <AreaDisplay key={`wfi-${processViewRevision}`} area="WFI" />}
+          {display === 'autoclave' && <AreaDisplay key={`autoclave-${processViewRevision}`} area="AUTOCLAVE" />}
+          {display === 'lyo' && <AreaDisplay key={`lyo-${processViewRevision}`} area="LYO" />}
+          {display === 'cip' && <AreaDisplay key={`cip-${processViewRevision}`} area="CIP" />}
+          {display === 'tcu' && <AreaDisplay key={`tcu-${processViewRevision}`} area="TCU" />}
           {display === 'alarms' && <AlarmSummary />}
           {display === 'journal' && <EventJournalDisplay />}
           {display === 'trend' && <TrendDisplay />}
@@ -94,6 +95,7 @@ export function App(): JSX.Element {
           <FaceplateHost />
         </div>
       </div>
+      <AlarmBanner />
       <StatusBar />
       <AccessDeniedToast />
       <FlexLockOverlay />

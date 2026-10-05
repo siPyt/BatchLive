@@ -31,6 +31,10 @@ export interface OpenFaceplate {
 }
 
 interface UiState {
+  navigationOpen: boolean
+  toggleNavigation: () => void
+  processViewRevision: number
+  resetProcessView: () => void
   display: DisplayId
   history: DisplayId[]
   histIndex: number
@@ -81,6 +85,10 @@ interface UiState {
 let cascade = 0
 
 export const useUi = create<UiState>((set, get) => ({
+  navigationOpen: false,
+  toggleNavigation: () => set(s => ({ navigationOpen: !s.navigationOpen })),
+  processViewRevision: 0,
+  resetProcessView: () => set(s => ({ processViewRevision: s.processViewRevision + 1 })),
   display: 'overview',
   history: ['overview'],
   histIndex: 0,

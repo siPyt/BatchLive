@@ -1,0 +1,24 @@
+import type { DisplayId } from './uiStore'
+
+export const DISPLAY_NAVIGATION: { id: DisplayId; label: string; operator: boolean }[] = [
+  { id: 'overview', label: 'Plant Overview', operator: true },
+  { id: 'feed', label: 'Feed System', operator: true },
+  { id: 'reactor', label: 'Reactor', operator: true },
+  { id: 'product', label: 'Product / Header', operator: true },
+  { id: 'wfi', label: 'WFI Storage Tank and Loop', operator: true },
+  { id: 'autoclave', label: 'Autoclaves', operator: true },
+  { id: 'lyo', label: 'Lyophilizers', operator: true },
+  { id: 'cip', label: 'CIP Skids', operator: true },
+  { id: 'tcu', label: 'Temperature Control Units', operator: true },
+  { id: 'alarms', label: 'Alarm List', operator: false },
+  { id: 'trend', label: 'Historian Trends', operator: false },
+  { id: 'journal', label: 'Event Journal', operator: false },
+  { id: 'explorer', label: 'DeltaV Explorer', operator: false },
+  { id: 'studio', label: 'Control Studio', operator: false },
+  { id: 'batch', label: 'Batch Operator', operator: false },
+  { id: 'sfc', label: 'SFC Charts', operator: false },
+  { id: 'builder', label: 'Display Builder', operator: false },
+  { id: 'workshops', label: 'DV-09 Workshops', operator: false },
+  { id: 'users', label: 'User Manager', operator: false },
+  { id: 'hardware', label: 'Physical Network', operator: false }
+]

@@ -3,6 +3,7 @@ import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt, isPid } from '../utils/format'
 import type { AnyModule } from '../engine/types'
 import { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } from './PharmaDiagrams'
+import { OverviewDisplay } from './OverviewDisplay'
 
 const AREA_TITLE: Record<string, string> = {
   FEED: 'FEED SYSTEM',
@@ -28,23 +29,28 @@ export function AreaDisplay({ area }: { area: string }): JSX.Element {
   const list = Object.values(modules).filter((m) => m.area === area)
   const Diagram = AREA_DIAGRAM[area]
 
+  if (area === 'FEED' || area === 'REACTOR' || area === 'PRODUCT') {
+    return <div className="display process-detail">
+      <OverviewDisplay focusArea={area} />
+      <ModuleDirectory modules={list} />
+    </div>
+  }
+
   return (
-    <div className="display" style={{ padding: '48px 24px 24px' }}>
-      <div className="display-title">{AREA_TITLE[area] ?? area} — Detail</div>
+    <div className="display graphic-display">
+      {area !== 'WFI' && <h1 className="graphic-display-title">{AREA_TITLE[area] ?? area}</h1>}
       {Diagram && <Diagram />}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-          gap: 14
-        }}
-      >
-        {list.map((m) => (
-          <ModuleCard key={m.tag} module={m} />
-        ))}
-      </div>
+      {!list.length && <div className="graphic-empty" role="status">No modules configured in this area. Use DeltaV Explorer to create modules.</div>}
+      <ModuleDirectory modules={list} />
     </div>
   )
+}
+
+function ModuleDirectory({ modules }: { modules: AnyModule[] }): JSX.Element {
+  return <details className="plant-directory">
+    <summary>Module directory ({modules.length})</summary>
+    <div className="plant-directory-grid">{modules.map(m => <ModuleCard key={m.tag} module={m} />)}</div>
+  </details>
 }
 
 function ModuleCard({ module: m }: { module: AnyModule }): JSX.Element {

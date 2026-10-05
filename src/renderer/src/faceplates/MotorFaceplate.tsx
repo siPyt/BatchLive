@@ -3,6 +3,7 @@ import type { MotorModule } from '../engine/types'
 import { dcStateInfo, fmt } from '../utils/format'
 import { MotorInterlockRows } from './MotorInterlockRows'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
+import { DeviceStateRows, ModeBoxRow, ModelockOverrideRow, OwnedByRow } from './FaceplateChrome'
 
 export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as MotorModule | undefined
@@ -25,9 +26,41 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const passiveLabel = deviceDescriptorLabel(m, namedSets, 'command', false).label
   const feedbackLabel = deviceDescriptorLabel(m, namedSets, 'feedback', m.running).label
   const startDisabled = !!descriptorError || m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.running)
+  // DeltaV DCC modules show MODE as CAS when an interlock/FB tag drives the
+  // command automatically (commandSource set), MAN for direct operator control.
+  const dvMode = m.commandSource ? 'CAS' : 'MAN'
 
   return (
     <div className="fp-body">
+      <div className="fp-state-word" style={{ color: m.running ? 'var(--dv-run)' : 'var(--dv-text)' }}>
+        {m.running ? 'RUNNING' : 'STOPPED'}
+      </div>
+
+      <div className="fp-row">
+        <button className={'fp-btn run' + (m.commanded ? ' active' : '')} disabled={startDisabled} onClick={() => startMotor(tag)}>
+          {activeLabel}
+        </button>
+        <button className={'fp-btn stop' + (!m.commanded ? ' active' : '')} onClick={() => stopMotor(tag)}>
+          {passiveLabel}
+        </button>
+      </div>
+
+      <ModeBoxRow reqMode={dvMode} actualMode={dvMode} />
+      <ModelockOverrideRow />
+      <DeviceStateRows
+        dcState={m.dcState}
+        interlock={m.interlock}
+        permissiveRequired={m.permissiveRequired}
+        permissiveOk={m.permissiveOk}
+        fault={m.fault}
+        activeWord="Running"
+        passiveWord="Stopped"
+      />
+      <OwnedByRow equipmentModule={m.equipmentModule} />
+
+      <div className="fp-row" style={{ marginTop: 8, borderTop: '1px solid var(--dv-border)', paddingTop: 6 }}>
+        <span className="fp-label">Engineering Detail</span>
+      </div>
       <div className="fp-row">
         <span className="fp-label">DC_STATE</span>
         <span className="fp-status-pill" style={{ background: stateColor, color: '#fff' }}>
@@ -42,15 +75,6 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
           </span>
         </div>
       )}
-
-      <div className="fp-row">
-        <button className={'fp-btn run' + (m.commanded ? ' active' : '')} disabled={startDisabled} onClick={() => startMotor(tag)}>
-          {activeLabel}
-        </button>
-        <button className={'fp-btn stop' + (!m.commanded ? ' active' : '')} onClick={() => stopMotor(tag)}>
-          {passiveLabel}
-        </button>
-      </div>
 
       <div className="fp-row">
         <span className="fp-label">Command (SP_D)</span>

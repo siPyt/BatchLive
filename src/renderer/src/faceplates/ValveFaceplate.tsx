@@ -2,6 +2,7 @@ import { useStore } from '../engine/store'
 import type { ValveModule } from '../engine/types'
 import { dcStateInfo, fmt } from '../utils/format'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
+import { DeviceStateRows, ModeBoxRow, ModelockOverrideRow, OwnedByRow } from './FaceplateChrome'
 
 export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as ValveModule | undefined
@@ -24,9 +25,41 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const passiveLabel = deviceDescriptorLabel(m, namedSets, 'command', false).label
   const feedbackLabel = deviceDescriptorLabel(m, namedSets, 'feedback', m.open).label
   const openDisabled = !!descriptorError || m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.open)
+  // DeltaV DCC modules show MODE as CAS when an interlock/FB tag drives the
+  // command automatically (commandSource set), MAN for direct operator control.
+  const dvMode = m.commandSource ? 'CAS' : 'MAN'
 
   return (
     <div className="fp-body">
+      <div className="fp-state-word" style={{ color: m.open ? 'var(--dv-run)' : 'var(--dv-text)' }}>
+        {m.open ? 'OPEN' : 'CLOSED'}
+      </div>
+
+      <div className="fp-row">
+        <button className={'fp-btn run' + (m.commandedOpen ? ' active' : '')} disabled={openDisabled} onClick={() => openValve(tag)}>
+          {activeLabel}
+        </button>
+        <button className={'fp-btn stop' + (!m.commandedOpen ? ' active' : '')} onClick={() => closeValve(tag)}>
+          {passiveLabel}
+        </button>
+      </div>
+
+      <ModeBoxRow reqMode={dvMode} actualMode={dvMode} />
+      <ModelockOverrideRow />
+      <DeviceStateRows
+        dcState={m.dcState}
+        interlock={m.interlock}
+        permissiveRequired={m.permissiveRequired}
+        permissiveOk={m.permissiveOk}
+        fault={m.fault}
+        activeWord="Open"
+        passiveWord="Closed"
+      />
+      <OwnedByRow equipmentModule={m.equipmentModule} />
+
+      <div className="fp-row" style={{ marginTop: 8, borderTop: '1px solid var(--dv-border)', paddingTop: 6 }}>
+        <span className="fp-label">Engineering Detail</span>
+      </div>
       <div className="fp-row">
         <span className="fp-label">DC_STATE</span>
         <span className="fp-status-pill" style={{ background: stateColor, color: '#fff' }}>
@@ -41,15 +74,6 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
           </span>
         </div>
       )}
-
-      <div className="fp-row">
-        <button className={'fp-btn run' + (m.commandedOpen ? ' active' : '')} disabled={openDisabled} onClick={() => openValve(tag)}>
-          {activeLabel}
-        </button>
-        <button className={'fp-btn stop' + (!m.commandedOpen ? ' active' : '')} onClick={() => closeValve(tag)}>
-          {passiveLabel}
-        </button>
-      </div>
 
       <div className="fp-row">
         <span className="fp-label">Command (SP_D)</span>
