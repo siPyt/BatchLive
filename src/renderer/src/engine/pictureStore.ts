@@ -28,7 +28,7 @@ export interface PicElement {
   path?: string
   flashWhenNotNormal?: boolean
   entry?: { method: 'NUMERIC'; fetchLimits: boolean; low: number; high: number } |
-    { method: 'NAMED_SET' } | { method: 'PID_MODE' }
+    { method: 'NAMED_SET' } | { method: 'PID_MODE' } | { method: 'RAMP'; rate: number }
   fill?: { vertical: boolean; fetchLimits: boolean; low: number; high: number }
   width?: number
   height?: number
@@ -67,6 +67,7 @@ interface PictureState {
   writeNumericValue: (pic: string, id: string, value: number) => boolean
   writeNamedValue: (pic: string, id: string, value: number, expected?: PicElement) => boolean
   writeModeValue: (pic: string, id: string, value: string, expected?: PicElement) => boolean
+  rampOutput: (pic: string, id: string, direction: 1 | -1, seconds: number, expected?: PicElement) => boolean
   savePicture: (pic: string) => boolean
   loadPicture: (pic: string) => boolean
   assignModuleDisplays: (tag: string, primary: string, detail: string) => boolean
@@ -214,6 +215,21 @@ export const usePictures = create<PictureState>((set, get) => ({
     const target = source.choices?.find(choice => choice === value)
     if (!target) return rejectPicture(pic, `Mode ${value} is not an allowed target choice`)
     return useStore.getState().setMode(element.tag ?? '', target)
+  },
+
+  rampOutput: (pic, id, direction, seconds, expected) => {
+    const element = get().pictures[pic]?.elements.find(e => e.id === id)
+    if (!element || element.entry?.method !== 'RAMP' || element.type !== 'datalink' || !element.tag) {
+      return rejectPicture(pic, 'Datalink has no OUT ramp entry configuration')
+    }
+    if (expected && element !== expected) return rejectPicture(pic, 'Datalink changed while entry was open; reopen data entry')
+    if (![1, -1].includes(direction) || !Number.isFinite(seconds) || seconds <= 0) {
+      return rejectPicture(pic, 'OUT ramp requires a Raise/Lower direction and a positive held duration')
+    }
+    const module = useStore.getState().modules[element.tag]
+    if (module?.type !== 'PID') return rejectPicture(pic, 'OUT ramp entry requires a PID module')
+    const next = module.out + direction * element.entry.rate * seconds
+    return useStore.getState().setOutput(element.tag, Math.max(0, Math.min(100, next)))
   },
 
   savePicture: (pic) => {

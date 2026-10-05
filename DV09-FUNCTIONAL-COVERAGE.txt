@@ -1,20 +1,19 @@
 BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 ==================================
 
-CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
+CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-05
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: atomic all-enrolled
-AO/PID/device/SFC controller Full transfer (Pass53).
-Implementation commit: 0dc6c8f, 2026-10-04T21:17:58-05:00.
-Previous milestone: 76e21aa, mixed AO/PID Full transfer (Pass52).
-This authorized release includes Pass51-53 plus dated audit/inventory/tests.
-Previously published: c65d49d, verified on GitHub main after the initial push;
-Pass42-50 and related TXT/ledger/docs were published. Final delivery of this
-release is separately verified after commit/push.
+DV-09 is NOT complete. Latest implemented milestone: OUT ramp data entry and a
+PipesAnim Tank/Pump/Valve connection (Pass54).
+Implementation: Pass54, local commit (hash recorded after commit below).
+Previous milestone: 0dc6c8f, atomic all-enrolled AO/PID/device/SFC controller
+Full transfer (Pass53), published 2026-10-04.
+Pass54 is local pending the user's explicit commit/push authorization for this
+session; the 2026-10-04 authorization covered Pass42-53 only.
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
-  VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
-  PARTIAL         58 - related behavior exists; exact workflow has gaps
+  VERIFIED_SUBSET   9 - bounded verified operations, not complete chapters
+  PARTIAL         57 - related behavior exists; exact workflow has gaps
   MISSING         37 - required executable workflow/model is absent
   BOUNDARY        19 - hardware/vendor/host behavior outside verified simulation
   CONTEXT          6 - framing/recap, not implementation requirements
@@ -22,14 +21,20 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:365 repository tests passed; typecheck, production build,
-edited-file diagnostics, audit validator and diff whitespace checks passed.
-Browser verified actual all-managed PhysicalNetworkDisplay fixture: five names/
-types; Cancel changed none; AO50%, PID OOS, devices passive, SFC READY/Offline.
-No SFC action on Download; explicit Online/Run then set PID SP80.
-Original96-module running plant/UI/security and saved browser storage restored.
+Last validation:362 repository tests run locally (361 pass); typecheck and
+production build passed. The one failure is the pre-existing local-only
+pdf_om.txt dependency in dv09-audit.test.cjs, not a regression from this pass.
+Browser verified in a temporary standalone preview of the unchanged renderer:
+OUT ramp rejected a CAS-mode PID, then raised/lowered FIC-101 OUT by exactly
+rate x held time once MAN; a connected Tank/Pump(P-101)/Pipe/Valve(FIC-101)
+picture recolored together on pump stop, with the valve actuator staying
+independent. Temporary preview config removed afterward; no application code,
+artwork or saved browser profile changed.
 
 Most recent delivered functionality:
+  - OUT ramp (Raise/Lower) data entry bound to PID1/OUT with a configured rate,
+    reusing faceplate MAN/ROUT-outside-LO/OOS and managed-Online gates.
+  - PipesAnim-style Tank/Pump/Pipe/Valve connection reusing shared flow_color.
   - FIC-102 PID_LOOP template and isolated Save/Download/Online lifecycle.
   - Picture SP/mode entry, active-alarm visibility and actual-mode indication.
   - Selected GAIN/RESET/RATE upload; unchecked-by-default download upload prompt.
@@ -50,7 +55,6 @@ Most recent delivered functionality:
   - Atomic Full across enrolled AO/PID/device/SFC with passive/reset guards.
 
 Remaining adjacent regulatory/picture requirements:
-  DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
   DV09-059 p258: native detail template/file parity; simulated workflow verified.
   DV09-060 pp259-264: upload is tuning-only; generic/native upload remains absent.
   DV09-061 p265: native Tune algorithm and full card/controller lifecycle parity.
@@ -2008,3 +2012,41 @@ Current totals8 VERIFIED_SUBSET/58 PARTIAL/37 MISSING/19 BOUNDARY/6 CONTEXT.
 The user explicitly requested commit and push of this implementation/audit;
 older push-pause notes are historical checkpoints, not the current instruction.
 Remote delivery is checked after the final commit/push and reported separately.
+
+PASS 54: OUT RAMP DATA ENTRY AND PIPESANIM TANK/PUMP/VALVE CONNECTION (pp256-257)
+---------------------------------------------------------------------------
+Line1 - OUT ramp: a new RAMP data-entry method binds only to a PID's literal
+  PID1/OUT path with a configured percent-per-second rate (0, 100].
+Line2 - Engine: rampOutput nudges the real OUT value per held tick and reuses
+  the faceplate's own setOutput MAN/ROUT-outside-LO/OOS and managed-Online
+  gates; it does not invent a separate write path or bypass any existing rule.
+Line3 - Bug found and fixed: pictureSignal previously resolved bare OUT but not
+  the literal PID1/OUT path the course specifies, so a configured OUT ramp
+  datalink showed "Unsupported numeric source" instead of the live value; the
+  fix adds the missing PID1/OUT case without changing bare-OUT behavior.
+Line4 - UI: Data Entry Expert gains an OUT Ramp option and Ramp Rate field;
+  Run mode shows a dialog with held Raise/Lower pushbuttons and Close.
+Line5 - PipesAnim: a Tank dynamo, a motor-bound Pump, Pipe segments and a
+  PID/VALVE-bound Valve share one flow_color table and AND conditions so the
+  whole connected run recolors together; this is the simulator-native
+  Pipe/Pump/Valve substitute for the course's literal PipesAnim connection
+  step, not the native DeltaV PipesAnim dynamo library or System Tree.
+Line6 - Tests: new engine regressions validate rate/path/module restrictions,
+  exact ramp/clamp amounts, the MAN/ROUT mode gate, Save/Load round-trip and a
+  real FIC-102 OUT ramp write plus its Offline-lifecycle rejection; a separate
+  regression connects Tank/Pump/Pipe/Valve with real MTR-102/XVSTAT-101 tags.
+Line7 - Browser: a temporary standalone preview of the unchanged renderer (not
+  committed) was opened in a real browser. OUT ramp on FIC-101 correctly
+  rejected while CAS, then raised/lowered OUT by exactly rate x held time once
+  MAN, clamping at 0/100%. A connected Tank/Pump(P-101)/Pipe/Valve(FIC-101)
+  picture recolored from Product-flow to No-flow together when P-101 was
+  stopped from its faceplate, while the valve's independent actuator stayed
+  Product-flow because FIC-101's applied OUT remained above zero.
+Boundary: native PipesAnim dynamo library/System Tree parity and measured
+physical valve travel remain out of scope and are not claimed.
+Result: DV09-058 moves PARTIAL -> VERIFIED_SUBSET. Current totals9
+VERIFIED_SUBSET/57 PARTIAL/37 MISSING/19 BOUNDARY/6 CONTEXT. 362 repository
+tests run locally (361 pass; the remaining failure is the pre-existing
+local-only pdf_om.txt dependency in dv09-audit.test.cjs). Typecheck and
+production build passed. This pass is a local commit; push requires the
+user's explicit renewed authorization for this session.

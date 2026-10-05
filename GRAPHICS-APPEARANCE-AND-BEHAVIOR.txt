@@ -1583,5 +1583,39 @@ DV-09 p266 opt-in shared custom-picture flow colors:
   source modules display diagnostics rather than inventing flow state.
 - One table edit updates every linked object across custom pictures. Save/Load
   shared tables separately from pictures; references do not embed stale colors.
-- Native System Tree/PipesAnim and separate valve-body/actuator color expressions
-  are not certified by this simulator-native subset.
+- Separate valve-body/actuator color expressions are supported (see p257 below).
+  Native System Tree and the complete native PipesAnim dynamo library are not
+  certified by this simulator-native subset.
+
+DV-09 p257 independent valve body/actuator animation:
+- A valve dynamo accepts a body flowAnimation and a separate actuator
+  flowAnimation; each resolves its own shared flow_color table and conditions.
+- Confirmed motor RUNNING AND sampled DI OPEN colors the body; applied PID/AO
+  OUT > 0 colors the actuator independently. Each reports its own Bad/error
+  state without affecting the other part.
+- Save/Load Picture preserves both independent links; editing the shared table
+  recolors both parts without copying colors into the saved element.
+
+DV-09 p256-257 OUT ramp data entry:
+- A datalink's Data Entry Expert offers OUT Ramp alongside Numeric Entry, Named
+  Set and Multiple-Item Select, restricted to a PID module's PID1/OUT path with
+  a configured percent-per-second Ramp Rate (greater than 0, at most 100).
+- Run mode shows Raise/Lower pushbuttons instead of a typed value. Holding a
+  button repeatedly nudges OUT at the configured rate until released; OUT
+  clamps at 0/100%. This matches the course's "data entry - ramp" control type,
+  which commands output continuously rather than accepting a typed number.
+- Ramp writes reuse the same PID output rule as the faceplate: the target mode
+  must be MAN/ROUT and the actual mode must be outside LO/OOS; a managed PID
+  must be Online. Cancel/Close does not change output; releasing a held button
+  stops the ramp immediately.
+
+DV-09 p257 PipesAnim Tank/Pump/Valve connection:
+- Tank, Pump, Pipe and Valve objects can be placed together and linked through
+  the same opt-in Shared Flow Color Animation described above: Pipe segments
+  between the Tank dynamo, a motor-bound Pump and a PID/VALVE-bound Valve use
+  AND conditions on the upstream motor/valve-status feedback so every connected
+  segment recolors together when flow starts or stops.
+- This is this simulator's native-custom-picture substitute for the course's
+  "Connect the TANK, PUMP and VALVES together using PipesAnim" step, not the
+  native DeltaV PipesAnim dynamo library; applied AO output is not measured
+  physical valve travel, and no baseline plant graphic geometry is changed.

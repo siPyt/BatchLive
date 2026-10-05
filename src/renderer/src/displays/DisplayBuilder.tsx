@@ -405,7 +405,9 @@ function Canvas({
         <NamedSetEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} /> :
         els.find(el => el.id === entryId)?.entry?.method === 'PID_MODE' ?
           <ModeEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} /> :
-          <NumericEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} />)}
+          els.find(el => el.id === entryId)?.entry?.method === 'RAMP' ?
+            <RampEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} /> :
+            <NumericEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} />)}
     </div>
   )
 }
@@ -517,11 +519,12 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
   const [path, setPath] = useState(el.path ?? el.param ?? 'PV')
   const [enabled, setEnabled] = useState(!!(el.entry || el.fill))
   const [flashWhenNotNormal, setFlashWhenNotNormal] = useState(el.flashWhenNotNormal ?? false)
-  const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET' | 'PID_MODE'>(el.entry?.method ?? 'NUMERIC')
+  const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET' | 'PID_MODE' | 'RAMP'>(el.entry?.method ?? 'NUMERIC')
   const settings = el.entry?.method === 'NUMERIC' ? el.entry : el.fill
   const [fetchLimits, setFetchLimits] = useState(settings?.fetchLimits ?? el.type === 'rectangle')
   const [low, setLow] = useState(String(settings?.low ?? 0))
   const [high, setHigh] = useState(String(settings?.high ?? 1000))
+  const [rate, setRate] = useState(String(el.entry?.method === 'RAMP' ? el.entry.rate : 5))
   const [vertical, setVertical] = useState(el.fill?.vertical ?? true)
   const [width, setWidth] = useState(String(el.width ?? 64))
   const [height, setHeight] = useState(String(el.height ?? 160))
@@ -548,14 +551,17 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
       onChange={e => setEnabled(e.target.checked)} />{rectangle ? 'Fill Percentage' : 'Data Entry'}</label>
     {!rectangle && <label className="bld-f">Entry Method<select aria-label="Picture entry method" value={method}
       onChange={e => {
-        const next = e.target.value as 'NUMERIC' | 'NAMED_SET' | 'PID_MODE'
+        const next = e.target.value as 'NUMERIC' | 'NAMED_SET' | 'PID_MODE' | 'RAMP'
         setMethod(next)
         if (next === 'PID_MODE') setPath('PID1/MODE.A_TARGET')
-        else if (method === 'PID_MODE') setPath('PID1/SP')
+        else if (next === 'RAMP') setPath('PID1/OUT')
+        else if (method === 'PID_MODE' || method === 'RAMP') setPath('PID1/SP')
       }}>
       <option value="NUMERIC">Numeric Entry</option><option value="NAMED_SET">Named Set</option>
       {(modules[el.tag ?? '']?.type === 'PID' || method === 'PID_MODE') &&
         <option value="PID_MODE">Multiple-Item Select (PID Target)</option>}
+      {(modules[el.tag ?? '']?.type === 'PID' || method === 'RAMP') &&
+        <option value="RAMP">OUT Ramp (Raise/Lower)</option>}
     </select></label>}
     {rectangle && <label className="bld-f bld-f-row"><input type="checkbox" checked={vertical}
       onChange={e => setVertical(e.target.checked)} />Vertical Direction</label>}
@@ -565,6 +571,9 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
       value={low} onChange={e => setLow(e.target.value)} /></label>
     <label className="bld-f">High Limit<input type="number" step="any" disabled={fetchLimits}
       value={high} onChange={e => setHigh(e.target.value)} /></label></>}
+    {!rectangle && method === 'RAMP' && <label className="bld-f">Ramp Rate (%/second)
+      <input aria-label="Ramp rate" type="number" step="any" min={0} max={100}
+        value={rate} onChange={e => setRate(e.target.value)} /></label>}
     {rectangle && <>
       <label className="bld-f">Width<input type="number" value={width} onChange={e => setWidth(e.target.value)} /></label>
       <label className="bld-f">Height<input type="number" value={height} onChange={e => setHeight(e.target.value)} /></label>
@@ -577,13 +586,16 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
         width: numeric(width), height: numeric(height), backgroundColor: background,
         fill: enabled ? { ...limits, vertical } : undefined
       } : { entry: enabled ? method === 'NAMED_SET' ? { method: 'NAMED_SET' } :
-        method === 'PID_MODE' ? { method: 'PID_MODE' } : { ...limits, method: 'NUMERIC' } : undefined,
+        method === 'PID_MODE' ? { method: 'PID_MODE' } :
+        method === 'RAMP' ? { method: 'RAMP', rate: numeric(rate) } : { ...limits, method: 'NUMERIC' } : undefined,
         flashWhenNotNormal: flashWhenNotNormal &&
           /^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(path.trim()) ? true : undefined }) })
     }}>Apply Expert</button>
     <p>Numeric entry supports PID1/SP and standalone AO Floating Point parameters. PID target selection uses MODE.A_TARGET and its configured permitted modes.</p>
     {!rectangle && <p>Named Set entry uses a saved-lifecycle SFC parameter such as MESSAGE.CV.
       Run reads deployed values; selectable states require Changed Setup Data on both controller and workstation.</p>}
+    {!rectangle && <p>OUT ramp entry targets PID1/OUT with Raise/Lower pushbuttons held at the configured
+      percent-per-second rate, not typed numeric entry; the PID must be MAN/ROUT and outside LO/OOS.</p>}
   </>
 }
 
@@ -641,6 +653,51 @@ function ModeEntryDialog({ picture, id, onClose }: { picture: string; id: string
           else setError('Mode was not applied; see the reported permission, lifecycle or permitted-mode error.')
         }}>Apply Mode</button>
       <button className="tbtn sm" onClick={onClose}>Cancel Entry</button>
+    </div>
+  </SimulatorDialog>
+}
+
+function RampEntryDialog({ picture, id, onClose }: { picture: string; id: string; onClose: () => void }): JSX.Element {
+  const el = usePictures(s => s.pictures[picture]?.elements.find(item => item.id === id))
+  const [expected] = useState(el)
+  const modules = useStore(s => s.modules)
+  const source = el ? pictureSignal(el, modules) : { error: 'Datalink removed' }
+  const [error, setError] = useState('')
+  const [holding, setHolding] = useState<1 | -1 | null>(null)
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const tickSeconds = 0.2
+  const stop = (): void => {
+    if (timer.current !== null) { clearInterval(timer.current); timer.current = null }
+    setHolding(null)
+  }
+  useEffect(() => stop, [])
+  const start = (direction: 1 | -1): void => {
+    stop()
+    setHolding(direction)
+    const nudge = (): void => {
+      if (!usePictures.getState().rampOutput(picture, id, direction, tickSeconds, expected)) {
+        setError('OUT was not ramped; see the reported permission, mode or lifecycle error.')
+        stop()
+      }
+    }
+    nudge()
+    timer.current = setInterval(nudge, tickSeconds * 1000)
+  }
+  const rate = el?.entry?.method === 'RAMP' ? el.entry.rate : 0
+  return <SimulatorDialog className="bld-entry-dialog" label="OUT Ramp Data Entry" onClose={() => { stop(); onClose() }}>
+    <h3>{el?.tag}/{el?.path}</h3>
+    {'error' in source ? <p role="alert">{source.error}</p> :
+      <p>Current OUT: {fmt(source.value, 1)} {source.unit}{source.bad ? ' (Bad)' : ''}
+        {holding ? ` — ${holding > 0 ? 'Raising' : 'Lowering'}…` : ''}</p>}
+    <p>Hold Raise or Lower to ramp the output at {rate}%/second; release to stop immediately.
+      The PID must be MAN/ROUT and outside LO/OOS.</p>
+    {error && <p role="alert">{error}</p>}
+    <div className="sfc-edit-row">
+      <button className="tbtn sm" disabled={'error' in source}
+        onMouseDown={() => start(-1)} onMouseUp={stop} onMouseLeave={stop}>▼ Lower</button>
+      <button className="tbtn sm" disabled={'error' in source}
+        onMouseDown={() => start(1)} onMouseUp={stop} onMouseLeave={stop}>▲ Raise</button>
+      <button className="tbtn sm" type="button" onClick={() => { stop(); onClose() }}>Close</button>
     </div>
   </SimulatorDialog>
 }

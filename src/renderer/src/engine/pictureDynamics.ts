@@ -34,6 +34,10 @@ function pictureModePath(path: string): 'target' | 'actual' | null {
   return null
 }
 
+function pictureOutPath(path: string): boolean {
+  return path.trim().toUpperCase().replace(/^PID1\//, '').replace(/\.(F_)?CV$/, '') === 'OUT'
+}
+
 export function pictureModeSignal(el: Pick<PicElement, 'tag' | 'path'>,
   modules: Record<string, AnyModule>): PictureModeSignalResult {
   const tag = el.tag ?? ''
@@ -75,6 +79,10 @@ export function pictureSignal(el: PicElement, modules: Record<string, AnyModule>
     parameter = 'PID1/SP'
     result = { value: m.sp, unit: m.unit, low: m.pvMin, high: m.pvMax,
       bad: m.pvBad || pidExecutionBad(m), parameter }
+  } else if (m.type === 'PID' && /^PID1\/OUT(?:\.(?:F_)?CV)?$/.test(path)) {
+    parameter = 'PID1/OUT'
+    result = { value: m.out, unit: '%', low: 0, high: 100,
+      bad: pidExecutionBad(m) || (m.io?.ao.bad ?? m.pvBad), parameter }
   } else if (parameter === 'AI1/PV' && m.type === 'PID') {
     result = { value: m.io?.ai.out ?? m.pv, unit: m.unit, low: m.pvMin, high: m.pvMax,
       bad: m.io?.ai.bad ?? m.pvBad }
@@ -144,6 +152,17 @@ export function pictureElementError(el: PicElement, modules: Record<string, AnyM
     if ('error' in source) return source.error
     return source.choices ? null : 'Only MODE.A_TARGET supports Multiple-Item Select entry'
   }
+  if (el.entry?.method === 'RAMP') {
+    const module = el.tag ? modules[el.tag] : undefined
+    if (!module || module.type !== 'PID' || !pictureOutPath(el.path ?? '')) {
+      return 'OUT ramp entry requires a PID PID1/OUT datalink'
+    }
+    if (el.fill) return 'OUT ramp entry does not support numeric fill animations'
+    if (!Number.isFinite(el.entry.rate) || el.entry.rate <= 0 || el.entry.rate > 100) {
+      return 'OUT ramp rate must be greater than 0 and at most 100 percent per second'
+    }
+    return null
+  }
   if (el.path !== undefined && pictureAlarmPath(el.path)) {
     const source = pictureAlarmSignal(el, modules, [])
     return 'error' in source ? source.error : null
@@ -209,7 +228,8 @@ function element(v: unknown): v is PicElement {
     (v.param === undefined || typeof v.param === 'string' && ['PV', 'SP', 'OUT', 'MODE', 'STATE'].includes(v.param)) &&
     (v.entry === undefined || object(v.entry) &&
       (v.entry.method === 'NAMED_SET' || v.entry.method === 'PID_MODE' ||
-        v.entry.method === 'NUMERIC' && limits(v.entry))) &&
+        v.entry.method === 'NUMERIC' && limits(v.entry) ||
+        v.entry.method === 'RAMP' && typeof v.entry.rate === 'number' && Number.isFinite(v.entry.rate))) &&
     (v.fill === undefined || object(v.fill) && typeof v.fill.vertical === 'boolean' && limits(v.fill))
 }
 export function parseSavedPicture(text: string, name: string, modules: Record<string, AnyModule>, context?: PictureNamedContext): Picture {

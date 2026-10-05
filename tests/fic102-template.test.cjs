@@ -659,10 +659,20 @@ test('p256 FIC-102 picture entry writes bounded SP and only permits configured P
   assert.equal(pictures.writeModeValue('TANK101', modeId, 'LO'), false)
   assert.equal(fic().mode, 'MAN', 'excluded and actual-only modes never change the target')
 
+  const outId = pictures.addElement('TANK101', { type: 'datalink', x: 24, y: 300,
+    tag: 'FIC-102', path: 'PID1/OUT', entry: { method: 'RAMP', rate: 10 } })
+  assert.ok(outId, global.window.alerts.at(-1))
+  assert.equal(fic().out, 50, 'course FIC-102 defaults OUT to 50%')
+  assert.equal(pictures.rampOutput('TANK101', outId, 1, 2.5), true)
+  assert.equal(fic().out, 75, 'OUT ramp entry raises the real FIC-102 output at the configured rate')
+  assert.equal(pictures.rampOutput('TANK101', outId, -1, 10), true)
+  assert.equal(fic().out, 0, 'OUT ramp clamps at the course FIC-102 0-100% range floor')
+
   assert.equal(pictures.savePicture('TANK101'), true)
   const saved = global.window.localStorage.getItem('batchlive.picture.v1.TANK101')
   const parsed = parseSavedPicture(saved, 'TANK101', useStore.getState().modules, useStore.getState())
   assert.deepEqual(parsed.elements.find(el => el.id === modeId).entry, { method: 'PID_MODE' })
+  assert.deepEqual(parsed.elements.find(el => el.id === outId).entry, { method: 'RAMP', rate: 10 })
   assert.equal(parsed.elements.find(el => el.id === actualId).flashWhenNotNormal, true)
   assert.equal(pictures.configureDynamics('TANK101', modeId, { entry: undefined }), true)
   assert.equal(pictures.loadPicture('TANK101'), true)
@@ -691,5 +701,6 @@ test('p256 FIC-102 picture entry writes bounded SP and only permits configured P
   const offlineSetpoint = fic().sp
   assert.equal(pictures.writeNumericValue('TANK101', spId, 60), false)
   assert.equal(pictures.writeModeValue('TANK101', modeId, 'AUTO'), false)
+  assert.equal(pictures.rampOutput('TANK101', outId, 1, 1), false)
   assert.equal(fic().sp, offlineSetpoint, 'picture writes cannot bypass the Offline lifecycle inhibit')
 }))

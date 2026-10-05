@@ -758,10 +758,14 @@ In the Display Builder, a FIC-102 `PID1/SP` datalink can use numeric entry
 bounded by its engineering range. `PID1/MODE.A_TARGET` supports a multiple-item
 selector constrained by `MODE.PERMITTED`; `MODE.A_ACTUAL` can be displayed
 read-only. An `ALARMS[1].A_LAALM` datalink is hidden until the module has an
-active simulator alarm. Writes use the same operator permission and PID
-lifecycle checks as the faceplate. The course's OUT ramp entry, separate
-valve-body/actuator animation and native PipesAnim remain incomplete; native
-alarm-index semantics are not claimed.
+active simulator alarm. A `PID1/OUT` datalink can instead use **OUT Ramp**
+entry: Raise/Lower pushbuttons held for a configured percent-per-second rate,
+not typed numeric entry, matching the course's ramp data-entry type. Writes use
+the same operator permission and PID lifecycle checks as the faceplate, and OUT
+ramp additionally requires MAN/ROUT target mode outside LO/OOS like native PID
+output entry. Separate valve-body/actuator animation is supported through
+Shared Flow Color Animation below. Native DeltaV alarm-index semantics are not
+claimed.
 
 ### Shared custom-picture flow colors
 
@@ -772,6 +776,10 @@ live, including links in other pictures; changing a table does not copy colors
 into individual objects. Existing plant graphics are not linked or recolored.
 Straight pipe segments support horizontal/vertical placement with X/Y and
 Width/Height; equipment dynamos reuse the approved shared silhouettes.
+Connecting a Tank Dynamo, a motor-bound Pump and a PID/VALVE-bound Valve with
+these shared-colored Pipe segments is this simulator's PipesAnim substitute for
+the course's "Connect the TANK, PUMP and VALVES together using PipesAnim" step;
+it is not the native DeltaV PipesAnim dynamo library or System Tree.
 
 Each animation combines 1-8 greater-than conditions with AND. `STATE` reads
 confirmed motor/valve feedback or DI/DO state; `AO1/OUT` reads the applied

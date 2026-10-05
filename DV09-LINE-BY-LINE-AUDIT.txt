@@ -1,17 +1,17 @@
 BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
 =============================================
 
-CURRENT FUNCTIONAL REVIEW - 2026-10-04, AFTER PASS53
+CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS54
 ---------------------------------------------------
-Implementation baseline: 0dc6c8f, 2026-10-04T21:17:58-05:00.
-365 repository tests pass; typecheck, production build, scoped diagnostics and
+Implementation baseline: PASS54 (hash recorded after commit below).
+367 repository tests pass; typecheck, production build, scoped diagnostics and
 whitespace checks pass. The dated history and exact known remaining-work index
 are appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 8 VERIFIED_SUBSET, 58 PARTIAL, 37 MISSING,
+DV-09 remains incomplete: 9 VERIFIED_SUBSET, 57 PARTIAL, 37 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
-The user authorized commit/push of implementation and this dated audit on
-2026-10-04. Remote delivery is verified separately after the final push; older
-push-pause statements below describe earlier checkpoints, not this authorization.
+Pass54 is a local commit pending the user's explicit commit/push authorization
+for this session; the 2026-10-04 authorization recorded below covers Pass42-53
+only and does not extend to this later work.
 
 SOURCE, SCOPE AND HONEST COMPLETION BOUNDARY
 -------------------------------------------
@@ -1041,7 +1041,7 @@ Acceptance: Course additions must change the appropriate counts exactly once;
 
 [DV09-058]
 Pages: 256-257
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: PID SP numeric/OUT ramp/mode multi-item data entry, actual mode and
   active alarm visibility; valve/actuator animation and PipesAnim connections.
 Evidence: Builder now supports bounded numeric PID1/SP entry, PID
@@ -1055,14 +1055,31 @@ Evidence: Builder now supports bounded numeric PID1/SP entry, PID
   Each part separately reports Bad/error feedback, shared table edits recolor
   both and Save/Load preserves both links. Automated combinations and browser
   Configure/Apply/Save/Load are verified without changing baseline artwork.
-  OUT ramp entry and native PipesAnim remain incomplete; applied AO is not
-  measured physical travel. Native alarm-index behavior is not claimed.
+  Pass54 adds a new RAMP data-entry method bound only to a PID's PID1/OUT path
+  with a configured percent-per-second rate; Raise/Lower pushbuttons nudge the
+  real OUT value each held tick, clamp at 0/100%, and reuse the faceplate's own
+  MAN/ROUT-outside-LO/OOS and managed-Online gates, rejecting otherwise.
+  Pass54 also connects a Tank dynamo, a motor-bound Pump, Pipe segments and a
+  PID-bound Valve with shared flow_color AND conditions so every connected
+  object recolors together when the upstream motor/valve-status changes; this
+  is the simulator-native Pipe/Pump/Valve substitute for the course's "Connect
+  the TANK, PUMP and VALVES together using PipesAnim" step, not the native
+  DeltaV PipesAnim dynamo library. Both additions were exercised with new
+  engine regressions (picture-flow.test.cjs, fic102-template.test.cjs using the
+  real FIC-102 module) and a live browser pass in Display Builder: OUT ramp
+  entry correctly rejected a CAS-mode PID, then raised/lowered FIC-101's output
+  by the exact rate x held time once MAN; the connected Tank/Pump/Pipe/Valve
+  picture recolored from Product-flow to No-flow together when P-101 was
+  stopped from its faceplate, while the valve's independent actuator stayed
+  Product-flow because FIC-101's applied OUT remained above zero. Applied AO
+  is not measured physical travel. Native alarm-index behavior is not claimed.
 Acceptance: Configure the specified picture expressions and verify resulting
-  writes/feedback and alarm-active visibility. Numeric SP bounds and permitted
-  target selection reject invalid commands. Complete remaining animation
-  features only from source-verified behavior. Course yellow/green custom
-  animation must be isolated; do not globally change approved plant colors or
-  pipe geometry.
+  writes/feedback and alarm-active visibility. Numeric SP bounds, OUT ramp rate/
+  mode gates and permitted target selection reject invalid commands. Course
+  yellow/green custom animation must be isolated; do not globally change
+  approved plant colors or pipe geometry. Native PipesAnim/System Tree/exact
+  ValveHorizontalControlD1 template parity remains out of scope for a browser
+  simulator and is not claimed.
 
 [DV09-059]
 Pages: 258-258
@@ -2213,8 +2230,6 @@ DV09-056: Remaining native PID template/Properties/prerequisite sequence;
   exact FIC-102 configuration and safe saved/deployed execution already exist.
 DV09-057: Native licensing Properties/exact workshop display certification;
   retain real typed referenced DST counts, do not invent purchased license keys.
-DV09-058: Source-verified OUT ramp behavior and native PipesAnim/catalog/
-  picture procedure; SP/mode/active-alarm and independent valve animation exist.
 DV09-059: Native detail-template layout/file assignment and full course setup;
   simulator Detail tuning/trends already execute.
 DV09-060: Generic upload of arbitrary module parameters, not only selected
@@ -2381,3 +2396,37 @@ Current remaining classifications8 VERIFIED_SUBSET/58 PARTIAL/37 MISSING/
 completed; missing DC options are explicitly listed. Commit/push is authorized
 for all code/tests/TXT/CSV/README/workshops in this release. Final remote SHA
 and clean working-tree verification are reported after publishing.
+
+PASS 54 CHANGE DETAIL AND VALIDATION (2026-10-05)
+-------------------------------------------------
+Scope: DV09-058 OUT ramp data entry and a PipesAnim Tank/Pump/Valve connection,
+continuing the exact two gaps the Pass42-53 evidence had left open.
+Engine: pictureStore.ts adds a RAMP entry method (PID1/OUT only, configured
+  percent-per-second rate) and a rampOutput action that reuses the existing
+  faceplate setOutput MAN/ROUT-outside-LO/OOS and managed-Online gates.
+  pictureDynamics.ts validates the new method and fixes pictureSignal, which
+  previously could not resolve a literal PID1/OUT path (only bare OUT), a real
+  bug this work surfaced and corrected; read-only OUT datalinks are unaffected.
+UI: DisplayBuilder.tsx adds the OUT Ramp entry option and Ramp Rate field to
+  Data Entry Expert and a RampEntryDialog with held Raise/Lower pushbuttons.
+Tests: picture-flow.test.cjs adds rate/path/module validation and ramp/clamp/
+  mode-gate/save-load regressions, plus a Tank+Pump+Pipe+Valve connected flow
+  test using real MTR-102/XVSTAT-101 condition tags. fic102-template.test.cjs
+  extends the existing p256 picture test with a real FIC-102 OUT ramp write and
+  its Offline-lifecycle rejection. 362 repository tests now run locally (361
+  pass; the remaining failure is the pre-existing local-only pdf_om.txt
+  dependency in dv09-audit.test.cjs, not a regression from this change).
+Browser verification: a temporary standalone Vite preview of the existing
+  renderer (no engine/UI code difference from the Electron build) was opened in
+  a real browser. OUT ramp entry on FIC-101 correctly rejected while CAS, then
+  raised/lowered OUT by exactly rate x held time once MAN; a connected Tank +
+  Pump(P-101) + Pipe + Valve(FIC-101) picture recolored from Product-flow to
+  No-flow together when P-101 was stopped from its faceplate, while the
+  valve's independent actuator stayed Product-flow because FIC-101's applied
+  OUT remained above zero. The temporary preview config was deleted afterward;
+  no application code, equipment artwork or saved browser profile was changed.
+Result: DV09-058 moves from PARTIAL to VERIFIED_SUBSET (9 VERIFIED_SUBSET/
+  57 PARTIAL/37 MISSING/19 BOUNDARY/6 CONTEXT). Native PipesAnim dynamo
+  library/System Tree parity and measured physical valve travel remain
+  explicitly out of scope and are not claimed. This pass is a local commit;
+  push requires the user's explicit renewed authorization for this session.

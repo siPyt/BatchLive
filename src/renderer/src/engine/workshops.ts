@@ -224,14 +224,16 @@ export const COURSE: WModule[] = [
       },
       {
         id: 'dv09-fic102-picture-entry',
-        title: 'FIC-102 Picture Setpoint and Mode Entry',
-        objective: 'Configure bounded PID1/SP numeric entry, a permitted-mode selector and active-alarm visibility from the p256 operator-picture exercise.',
-        note: 'Numeric setpoint, target-mode entry and simulator alarm-active visibility are executable. OUT ramp entry, valve/actuator animation and PipesAnim connections are not yet implemented; native alarm-index behavior is not claimed.',
+        title: 'FIC-102 Picture Setpoint, OUT Ramp, Mode Entry and PipesAnim',
+        objective: 'Configure bounded PID1/SP numeric entry, an OUT ramp pushbutton, a permitted-mode selector, active-alarm visibility and a connected Tank/Pump/Valve PipesAnim layout from the p256-257 operator-picture exercise.',
+        note: 'Numeric setpoint, OUT ramp, target-mode entry and simulator alarm-active visibility are executable, as are valve/actuator animation and a simulator-native Pipe/Pump/Valve PipesAnim substitute. Native DeltaV alarm-index behavior and the native PipesAnim dynamo library are not claimed.',
         steps: [
           { id: 'dv09-fic-pic-1', text: 'In Display Builder, open TANK101 and add a datalink for FIC-102. In Data Entry Expert set Source Path PID1/SP, enable Data Entry, choose Numeric Entry and Fetch Limits from Data Source, then Apply Expert.', goto: 'builder' },
           { id: 'dv09-fic-pic-2', text: 'Add another FIC-102 datalink. Enable Data Entry, choose Multiple-Item Select (PID Target), confirm Source Path PID1/MODE.A_TARGET, and Apply Expert. Add read-only datalinks at PID1/MODE.A_ACTUAL and ALARMS[1].A_LAALM.', goto: 'builder' },
+          { id: 'dv09-fic-pic-ramp', text: 'Add a third FIC-102 datalink. Enable Data Entry, choose OUT Ramp (Raise/Lower), confirm Source Path PID1/OUT, set a Ramp Rate and Apply Expert. In Run, set FIC-102 to MAN and hold Raise/Lower; confirm OUT moves continuously at the configured rate and clamps at 0/100%. AUTO target mode and Offline lifecycle rejects the ramp like native MAN/ROUT-only output entry.', goto: 'builder' },
           { id: 'dv09-fic-pic-3', text: 'Switch to Run. Enter a setpoint within the module engineering range and select a permitted target mode. Out-of-range values, modes outside MODE.PERMITTED, and writes while the managed PID is Offline must reject without changing runtime.', goto: 'builder' },
-          { id: 'dv09-fic-pic-4', text: 'Drive FIC-102 into and out of an enabled alarm threshold. The alarm datalink must appear only while a simulator alarm for FIC-102 is active. Cancel an open entry and confirm no write occurs. Follow Shared flow_color Picture Animation for separate body/actuator links. OUT ramp and native PipesAnim remain uncovered.' }
+          { id: 'dv09-fic-pic-4', text: 'Drive FIC-102 into and out of an enabled alarm threshold. The alarm datalink must appear only while a simulator alarm for FIC-102 is active. Cancel an open entry and confirm no write occurs. Follow Shared flow_color Picture Animation for separate body/actuator links.', goto: 'builder' },
+          { id: 'dv09-fic-pic-pipes', text: 'Add a Tank Dynamo, a Pump bound to the feed motor and straight Pipe segments connecting Tank -> Pump -> the FIC-102 Valve dynamo added above. Enable Shared Flow Color Animation on the pump, both pipe segments and the valve body using the same flow_color table and AND conditions on the motor running and valve-status open; keep the valve actuator link on applied OUT. Confirm every connected segment recolors together as a simulator-native PipesAnim substitute, not the native DeltaV PipesAnim dynamo library.', goto: 'builder' }
         ]
       },
       {

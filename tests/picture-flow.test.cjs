@@ -236,3 +236,86 @@ test('shared equipment defaults retain protected colors and geometry; custom ani
       'only the actuator geometry receives its independent color')
   }
 })
+
+test('p256 OUT ramp data entry is restricted to PID1/OUT, validates its rate and ramps/clamps MAN output', () => fixture(({ pictures }) => {
+  pictures.createPicture('FEED')
+  assert.equal(pictures.addElement('FEED', { type: 'datalink', x: 0, y: 0,
+    tag: 'FLOW', path: 'PID1/SP', entry: { method: 'RAMP', rate: 10 } }), null,
+    'OUT ramp entry is restricted to PID1/OUT, not SP')
+  assert.equal(pictures.addElement('FEED', { type: 'datalink', x: 0, y: 0,
+    tag: 'PUMP', path: 'PID1/OUT', entry: { method: 'RAMP', rate: 10 } }), null,
+    'OUT ramp entry requires a PID module, not a MOTOR')
+  assert.equal(pictures.addElement('FEED', { type: 'datalink', x: 0, y: 0,
+    tag: 'FLOW', path: 'PID1/OUT', entry: { method: 'RAMP', rate: 0 } }), null,
+    'OUT ramp rate must be greater than zero')
+  assert.equal(pictures.addElement('FEED', { type: 'datalink', x: 0, y: 0,
+    tag: 'FLOW', path: 'PID1/OUT', entry: { method: 'RAMP', rate: 101 } }), null,
+    'OUT ramp rate cannot exceed 100 percent per second')
+  const id = pictures.addElement('FEED', { type: 'datalink', x: 0, y: 0,
+    tag: 'FLOW', path: 'PID1/OUT', entry: { method: 'RAMP', rate: 10 } })
+  assert.ok(id, global.window.alerts.at(-1))
+
+  assert.equal(useStore.getState().setMode('FLOW', 'MAN'), true)
+  assert.equal(useStore.getState().modules.FLOW.out, 50, 'generic PID creation defaults OUT to 50%')
+  assert.equal(pictures.rampOutput('FEED', id, 1, 2.5), true)
+  assert.equal(useStore.getState().modules.FLOW.out, 75, 'raising for 2.5s at 10%/s increases OUT by 25%')
+  assert.equal(pictures.rampOutput('FEED', id, 1, 10), true)
+  assert.equal(useStore.getState().modules.FLOW.out, 100, 'ramp clamps at the OUT ceiling')
+  assert.equal(pictures.rampOutput('FEED', id, -1, 3), true)
+  assert.equal(useStore.getState().modules.FLOW.out, 70)
+  assert.equal(pictures.rampOutput('FEED', id, -1, 20), true)
+  assert.equal(useStore.getState().modules.FLOW.out, 0, 'ramp clamps at the OUT floor')
+
+  assert.equal(useStore.getState().setMode('FLOW', 'AUTO'), true)
+  assert.equal(pictures.rampOutput('FEED', id, 1, 1), false,
+    'OUT ramp requires MAN/ROUT like native PID output entry')
+  assert.equal(useStore.getState().modules.FLOW.out, 0)
+  assert.equal(useStore.getState().setMode('FLOW', 'MAN'), true)
+
+  assert.equal(pictures.rampOutput('FEED', id, 1, -1), false, 'OUT ramp requires a positive held duration')
+  assert.equal(pictures.rampOutput('FEED', 'missing', 1, 1), false, 'OUT ramp requires an existing RAMP datalink')
+
+  assert.equal(pictures.savePicture('FEED'), true)
+  assert.equal(pictures.loadPicture('FEED'), true)
+  assert.deepEqual(usePictures.getState().pictures.FEED.elements.find(el => el.id === id).entry,
+    { method: 'RAMP', rate: 10 })
+}))
+
+test('p257 PipesAnim connects a Tank dynamo, pump, pipe segments and FIC-102-style valve with shared flow color', () => fixture(({ pictures, tables }) => {
+  assert.equal(useStore.getState().createModule({ tag: 'MTR-102', type: 'MOTOR', area: 'TRAINING',
+    description: 'Tank101 feed pump' }), true)
+  assert.equal(useStore.getState().createModule({ tag: 'XVSTAT-101', type: 'DI', area: 'TRAINING',
+    description: 'Feed valve open status' }), true)
+  assert.equal(tables.applyTable({ name: 'flow_color', flowColor: '#ffff00', noFlowColor: '#008000' }), true)
+  pictures.createPicture('TANK101')
+  const body = { table: 'flow_color', conditions: [
+    { tag: 'MTR-102', path: 'STATE', greaterThan: 0 }, { tag: 'XVSTAT-101', path: 'STATE', greaterThan: 0 }
+  ] }
+  const actuator = { table: 'flow_color', conditions: [{ tag: 'FLOW', path: 'AO1/OUT', greaterThan: 0 }] }
+  const ids = {
+    tank: pictures.addElement('TANK101', { type: 'tank', x: 24, y: 40, tag: 'TANK-101' }),
+    pump: pictures.addElement('TANK101', { type: 'pump', x: 200, y: 40, tag: 'MTR-102', flowAnimation: body }),
+    inlet: pictures.addElement('TANK101', { type: 'pipe', x: 184, y: 70, width: 16, height: 12, flowAnimation: body }),
+    valve: pictures.addElement('TANK101', { type: 'valve', x: 340, y: 40, tag: 'FLOW',
+      flowAnimation: body, actuatorFlowAnimation: actuator }),
+    outlet: pictures.addElement('TANK101', { type: 'pipe', x: 360, y: 70, width: 120, height: 12, flowAnimation: body })
+  }
+  assert.ok(Object.values(ids).every(id => id), global.window.alerts.at(-1))
+
+  const color = key => pictureFlowColor(
+    usePictures.getState().pictures.TANK101.elements.find(el => el.id === ids[key]).flowAnimation,
+    useFlowColors.getState().tables, useStore.getState().modules)
+  const connected = ['pump', 'inlet', 'valve', 'outlet']
+  assert.ok(connected.every(key => color(key).color === '#008000'),
+    'pipes, pump and valve body start No-flow while the pump is stopped')
+  useStore.setState(s => ({ modules: { ...s.modules, 'MTR-102': { ...s.modules['MTR-102'], running: true },
+    'XVSTAT-101': { ...s.modules['XVSTAT-101'], state: true } } }))
+  assert.ok(connected.every(key => color(key).color === '#ffff00'),
+    'confirmed pump running and open valve status colors every connected pipe/pump/valve segment Product-flow')
+
+  assert.equal(pictures.savePicture('TANK101'), true)
+  assert.equal(pictures.loadPicture('TANK101'), true)
+  assert.ok(connected.every(key =>
+    usePictures.getState().pictures.TANK101.elements.find(el => el.id === ids[key]).flowAnimation.table === 'flow_color'),
+    'Save/Load preserves every connected PipesAnim link')
+}))
