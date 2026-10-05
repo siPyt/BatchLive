@@ -56,6 +56,108 @@ function fixture(run) {
   }
 }
 
+function mixedRegulatoryFixture(store) {
+  store.bindAnalogDst('FIC-102', 'input', 'FT-2')
+  store.bindAnalogDst('FIC-102', 'output', 'FY-2')
+  assert.equal(store.enablePidLifecycle('FIC-102'), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  assert.equal(store.configureTraditionalChannel('CTRL1/C02', 1, { dst: 'LEVEL-OUT', enabled: true }), true)
+  assert.equal(store.createModule({ tag: 'LEVEL-AO', type: 'AO', area: 'PLANT_AREA_A',
+    description: 'Mixed scope AO', unit: 'gal', pvMin: 0, pvMax: 1000 }), true)
+  assert.equal(store.bindAnalogDst('LEVEL-AO', 'output', 'LEVEL-OUT'), true)
+  assert.equal(store.addAoParameter('LEVEL-AO', 'CAS_SP', 500), true)
+  assert.equal(store.connectAoParameter('LEVEL-AO', 'CAS_SP'), true)
+  assert.equal(store.enableModuleLifecycle('LEVEL-AO'), true)
+  assert.equal(store.editModuleDraft('LEVEL-AO', { controllerTag: 'CTRL1', mode: 'CAS' }), true)
+  assert.equal(store.saveModuleConfiguration('LEVEL-AO'), true)
+}
+
+test('mixed controller AO/PID Full commits once, preserves saved data and keeps PID held Offline until explicit Online', () => fixture(store => {
+  mixedRegulatoryFixture(store)
+  const before = useStore.getState()
+  const savedText = window.localStorage.getItem(savedPidStorageKey('FIC-102'))
+  const review = { 'LEVEL-AO': before.moduleLifecycle['LEVEL-AO'].saved, 'FIC-102': before.pidLifecycle['FIC-102'].saved }
+  let writes = 0
+  const unsubscribe = useStore.subscribe((next, prev) => {
+    if (next.moduleLifecycle !== prev.moduleLifecycle || next.pidLifecycle !== prev.pidLifecycle) writes++
+  })
+  assert.equal(store.downloadControllerRegulatory('CTRL1', review), true)
+  unsubscribe()
+  const after = useStore.getState()
+  assert.equal(writes, 1)
+  assert.equal(after.rev, before.rev + 1)
+  assert.equal(after.pidLifecycle['FIC-102'].saved, before.pidLifecycle['FIC-102'].saved)
+  assert.equal(after.pidLifecycle['FIC-102'].draft, before.pidLifecycle['FIC-102'].draft)
+  assert.equal(after.moduleLifecycle['LEVEL-AO'].saved, before.moduleLifecycle['LEVEL-AO'].saved)
+  assert.equal(after.deviceLifecycle, before.deviceLifecycle)
+  assert.equal(after.sfcLifecycle, before.sfcLifecycle)
+  assert.equal(window.localStorage.getItem(savedPidStorageKey('FIC-102')), savedText)
+  assert.equal(fic().mode, 'OOS')
+  assert.equal(fic().downloaded, true)
+  assert.equal(fic().lifecycleOnline, false)
+  assert.equal(after.pidLifecycle['FIC-102'].online, false)
+  assert.equal(moduleDownloadStatus(after, 'FIC-102').status, 'MATCH')
+  assert.equal(moduleDownloadStatus(after, 'LEVEL-AO').status, 'MATCH')
+  store.setRunning(true)
+  store.tick(.1)
+  assert.equal(useStore.getState().modules['LEVEL-AO'].out, 50)
+  assert.equal(fic().actualMode, 'OOS')
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), true)
+  store.setTraditionalInput('FT-2', 60)
+  store.tick(.1); store.tick(.1)
+  assert.equal(fic().pv, 60)
+  assert.notEqual(fic().actualMode, 'OOS')
+  assert.equal(findDst(useStore.getState().hardware, 'FY-2').channel.value, fic().io.ao.out)
+}))
+
+test('mixed controller AO/PID Full refuses invalid PID after AO preparation without partially transferring AO', () => fixture(store => {
+  mixedRegulatoryFixture(store)
+  assert.equal(store.editPidLifecycle('FIC-102', { inputDst: '' }), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  const before = useStore.getState()
+  assert.equal(store.downloadControllerRegulatory('CTRL1'), false)
+  for (const key of ['modules', 'moduleLifecycle', 'pidLifecycle', 'hardware', 'rev']) {
+    assert.equal(useStore.getState()[key], before[key])
+  }
+  assert.equal(useStore.getState().modules['LEVEL-AO'].downloaded, false)
+  assert.equal(fic().downloaded, false)
+  assert.equal(store.editPidLifecycle('FIC-102', { inputDst: 'FT-2' }), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  assert.equal(store.downloadControllerRegulatory('CTRL1'), true)
+}))
+
+test('mixed controller AO/PID Full rejects stale scope/data, live PID, permission and lock; never uploads live tuning', () => fixture(store => {
+  mixedRegulatoryFixture(store)
+  const initial = useStore.getState()
+  const review = { 'LEVEL-AO': initial.moduleLifecycle['LEVEL-AO'].saved, 'FIC-102': initial.pidLifecycle['FIC-102'].saved }
+  assert.equal(store.downloadControllerRegulatory('CTRL1', { 'LEVEL-AO': review['LEVEL-AO'] }), false)
+  assert.equal(useStore.getState().modules, initial.modules)
+  store.savePidConfiguration('FIC-102')
+  const changed = useStore.getState()
+  assert.equal(store.downloadControllerRegulatory('CTRL1', review), false)
+  assert.equal(useStore.getState().pidLifecycle, changed.pidLifecycle)
+  useSecurity.setState({ currentUser: 'OperatorA' })
+  assert.equal(store.downloadControllerRegulatory('CTRL1'), false)
+  useSecurity.setState({ currentUser: 'admin', locked: true })
+  assert.equal(store.downloadControllerRegulatory('CTRL1'), false)
+  useSecurity.setState({ locked: false })
+  assert.equal(store.downloadControllerRegulatory('MISSING'), false)
+  assert.equal(useStore.getState().modules, initial.modules)
+  assert.equal(store.downloadControllerRegulatory('CTRL1'), true)
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), true)
+  assert.equal(store.setTuning('FIC-102', { gain: .9 }), true)
+  const online = useStore.getState()
+  assert.equal(store.downloadControllerRegulatory('CTRL1'), false)
+  assert.equal(useStore.getState().modules, online.modules)
+  assert.equal(useStore.getState().moduleLifecycle, online.moduleLifecycle)
+  assert.equal(store.setPidLifecycleOnline('FIC-102', false), true)
+  const stored = window.localStorage.getItem(savedPidStorageKey('FIC-102'))
+  assert.equal(store.downloadControllerRegulatory('CTRL1'), true)
+  assert.equal(fic().gain, .5)
+  assert.equal(window.localStorage.getItem(savedPidStorageKey('FIC-102')), stored)
+  assert.equal(useStore.getState().pidLifecycle['FIC-102'].saved.module.gain, .5)
+}))
+
 test('unchanged PID Save stays matched and permits Online without a redundant deployment; runtime tuning is not configured data', () => fixture(store => {
   store.bindAnalogDst('FIC-102', 'input', 'FT-2')
   store.bindAnalogDst('FIC-102', 'output', 'FY-2')

@@ -308,6 +308,15 @@ Existing transfer subsets: standalone AO Full/Partial is single-module scope;
   references/storage, invalid second-member isolation, scope/revision rejection,
   access and actual25/50% outputs. Browser actual PhysicalNetworkDisplay fixture
   button listed both AO names; Cancel left both undeployed, confirm yielded25/50%.
+  Pass52 adds explicit mixed managed-AO/PID_LOOP Full transfer. Every scoped AO
+  and clean Offline PID_LOOP validates before one commit; missing PID input
+  aborts AO too. PID remains downloaded Offline/OOS until explicit Go Online.
+  No live tuning upload/default rewrite. Existing individual PID deployment and
+  mixed transfer share the same safe runtime construction. Three regressions
+  cover single commit/storage/reference isolation, failing later PID, stale
+  scope/data, Online PID/key/lock rejection and actual Online I/O execution.
+  Browser actual mixed button listed AO/PID types; Cancel changed neither;
+  confirm produced AO50%, PID held OOS, then explicit Online produced PV60/AUTO.
 Gaps: whole-controller Total/Full transfer, card configuration download,
   whole-node/network status and remaining Setup scopes are not implemented.
   Single-module Full commands are not a native full-controller download.
@@ -392,6 +401,9 @@ Gaps: whole-controller download orchestration, native disk download log file,
   Pass50 controller-owned AO batch applies the same reference/target validation
   to every member before any transfer; confirmation explicitly lists module scope
   and exclusions. Cancel/any-member failure changes no module deployment.
+  Pass52 mixed regulatory confirmation names AO/PID types, requires clean saved
+  Offline PID and excludes generic upload/device/SFC/cards/Setup. Any failure
+  rejects the whole mixed batch without fake progress or status clearing.
 Acceptance: Failed/cancelled transfer must preserve last-good runtime and
   dirty status. Only successful transfer clears the relevant indicators.
 

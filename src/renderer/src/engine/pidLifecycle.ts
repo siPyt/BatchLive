@@ -123,6 +123,12 @@ export function pidDownloadError(configuration: PidConfiguration, hardware: Hard
     analogBindingError(hardware, module, 'output', configuration.outputDst))
 }
 
+export function deployedPid(configuration: PidConfiguration, runtime: PidModule): PidModule {
+  return { ...clonePidConfiguration(configuration).module, controllerTag: configuration.controllerTag,
+    downloaded: true, lifecycleOnline: false, mode: 'OOS', actualMode: 'OOS',
+    pv: runtime.pv, out: runtime.out, pvBad: true }
+}
+
 export function savedPidStorageKey(tag: string): string {
   return `batchlive.saved-pid-loop.v1.${tag}`
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useStore } from '../engine/store'
 import { controllerAoRecords, controllerDeployedAoRecords } from '../engine/moduleLifecycle'
+import { controllerRegulatoryRecords } from '../engine/controllerRegulatoryTransfer'
 import { useUi } from '../ui/uiStore'
 import { TraditionalIoPanel } from './TraditionalIoPanel'
 import {
@@ -321,6 +322,13 @@ function ControllerPanel({
             useStore.getState().downloadControllerAos(c.tag, reviewed)
           }
         }}>Full Download Managed AOs</button>
+        <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
+          const records = controllerRegulatoryRecords(useStore.getState(), c.tag)
+          const reviewed = Object.fromEntries(records.map(({ tag, record }) => [tag, record.saved]))
+          if (window.confirm(`Full Download managed regulatory modules on ${c.tag}: ${records.map(({ tag, kind }) => `${tag} (${kind})`).join(', ') || '(none)'}. All members must be saved and PID_LOOP Offline. AO running outputs use saved defaults; PID_LOOP remains held OOS until Go Online. Any failure or Cancel aborts every transfer. Live tuning is not uploaded. Devices/SFC, cards and Setup are excluded; this is not native Total Download.`)) {
+            useStore.getState().downloadControllerRegulatory(c.tag, reviewed)
+          }
+        }}>Full Download Managed AO/PID</button>
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
           const records = controllerDeployedAoRecords(useStore.getState().moduleLifecycle, c.tag)
           const reviewed = Object.fromEntries(records.map(([tag, record]) => [tag, record.lastGoodDownload]))

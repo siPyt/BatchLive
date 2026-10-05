@@ -569,6 +569,14 @@ access abort the entire batch. It refreshes each module's last-good snapshot and
 any opted-in AO restart memory, leaving saved defaults and other controllers/
 algorithms unchanged. This bounded controller-owned AO transfer is not native
 Total Download: PID/device/SFC, I/O-card configuration and Setup are excluded.
+The separate **Full Download Managed AO/PID** action includes enrolled AO and
+PID_LOOP modules assigned by saved/draft configuration. It validates the entire
+mixed scope before one atomic commit; a failing PID cannot partially download
+the preceding AO. PID_LOOP must be saved, clean and Offline. Download keeps it
+OOS with held output until explicit Go Online; saved tuning is applied without
+uploading live tuning or rewriting browser defaults. Confirmation rejects changed
+membership/saved objects and warns of both algorithm behaviors. Device/SFC,
+card configuration and Setup remain excluded; this is not native Total Download.
 Online shows runtime; offline edits do not alter the deployed module. Upload
 copies live values into a draft, requiring explicit Save before persistence.
 Cold restart restores selected values only when both deployed module and

@@ -35,11 +35,12 @@ import {
   type AoConfiguration, type AoDraftPatch, type AoLifecycle
 } from './moduleLifecycle'
 import {
-  changedPidTuningParameters, clonePidConfiguration, lifecyclePidModules, parseSavedPid,
+  changedPidTuningParameters, clonePidConfiguration, deployedPid, lifecyclePidModules, parseSavedPid,
   pidConfigurationError, pidDownloadError,
   pidLifecycleDirty, savedPidStorageKey, serializeSavedPid,
   type PidConfiguration, type PidLifecycle, type PidLifecyclePatch, type PidTuningParameter
 } from './pidLifecycle'
+import { prepareControllerRegulatoryTransfer, type RegulatoryReview } from './controllerRegulatoryTransfer'
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
@@ -163,6 +164,7 @@ interface StoreState extends PlantState {
   verifyAoDownload: (tag: string, scope: 'FULL' | 'PARTIAL') => boolean
   downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL', expected?: AoConfiguration) => boolean
   downloadControllerAos: (tag: string, expected?: Record<string, AoConfiguration | undefined>) => boolean
+  downloadControllerRegulatory: (tag: string, expected?: RegulatoryReview) => boolean
   resendLastGoodModuleDownload: (tag: string) => boolean
   resendControllerAoDownloads: (tag: string, expected?: Record<string, AoConfiguration | undefined>) => boolean
   updateControllerAoRestartMemory: (tag: string) => boolean
@@ -1960,6 +1962,16 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  downloadControllerRegulatory: (tag, expected) => {
+    if (!requireUnlockedKey('CAN_DOWNLOAD', `Full Download managed regulatory modules ${tag}`)) return false
+    const state = get()
+    const prepared = prepareControllerRegulatoryTransfer(state, tag, expected)
+    if ('error' in prepared) return rejectAo(get, tag, prepared.error)
+    set({ ...prepared.patch, rev: state.rev + 1 })
+    get().logEvent('CONFIGURE', tag, `FULL managed regulatory transfer committed atomically: ${prepared.tags.join(', ')}; AO uses saved defaults, PID_LOOP held Offline/OOS until Go Online; device/SFC/cards/Setup excluded; no tuning upload`)
+    return true
+  },
+
   updateControllerAoRestartMemory: tag => {
     if (!requireUnlockedKey('CAN_DOWNLOAD', `Update AO cold-restart memory ${tag}`)) return false
     const state = get()
@@ -2262,9 +2274,7 @@ export const useStore = create<StoreState>((set, get) => ({
         return rejectPid(get, tag, `PID_LOOP upload before download failed; last-good runtime retained: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
-    const deployed = { ...configuration.module, controllerTag: configuration.controllerTag,
-      downloaded: true, lifecycleOnline: false, mode: 'OOS' as const, actualMode: 'OOS' as const,
-      pv: runtime.pv, out: runtime.out, pvBad: true }
+    const deployed = deployedPid(configuration, runtime)
     set(s => ({
       modules: { ...s.modules, [tag]: deployed },
       hardware: { ...s.hardware, analogBindings: { ...s.hardware.analogBindings,

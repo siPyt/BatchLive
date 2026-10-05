@@ -3,9 +3,9 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: atomic controller-owned
-AO last-good replay (Pass51, LOCAL).
-Previous milestone: c65d49d, controller-owned AO Full batch (Pass50, PUSHED).
+DV-09 is NOT complete. Latest implemented milestone: atomic mixed controller
+AO/PID_LOOP Full transfer (Pass52, LOCAL).
+Previous milestone: 1133f38, controller-owned AO replay (Pass51, LOCAL).
 Last published functional milestone: c65d49d, verified on GitHub main after the
 user authorized push. Pass42-50 and all related TXT/ledger/docs were published.
 
@@ -19,11 +19,11 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:358 repository tests passed; typecheck, production build,
+Last validation:361 repository tests passed; typecheck, production build,
 edited-file diagnostics, audit validator and diff whitespace checks passed.
-Browser verified actual PhysicalNetworkDisplay replay fixture: confirmation
-listed two deployed AOs; Cancel retained70% each; replay restored25/50% outputs
-while both newer saved900 defaults and nominal deployments remained unchanged.
+Browser verified actual mixed PhysicalNetworkDisplay fixture: named AO/PID
+confirmation; Cancel changed neither; AO50%, PID downloaded/held OOS; explicit
+Online then produced PV60/AUTO with actual output49.67%.
 Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
@@ -43,6 +43,7 @@ Most recent delivered functionality:
     transfer-time target/access recheck and actual synchronous result stages.
   - Atomic controller-owned managed-AO Full batch with whole-scope validation.
   - Atomic deployed-controller AO last-good replay excluding newer database edits.
+  - Atomic mixed AO/PID_LOOP controller Full with PID held Offline until Online.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1916,3 +1917,36 @@ DV09-018 remains PARTIAL. Pass50 and prior milestones pushed as authorized;
 subsequent implementation is committed locally until next push instruction.
 Validation:358 full-suite tests, typecheck, production build, scoped diagnostics,
 audit validator and diff whitespace passed.
+
+PASS 52: ATOMIC MIXED CONTROLLER AO/PID_LOOP FULL (pp94,99-104)
+------------------------------------------------------------
+Line1 - Scope: enrolled managed AO and PID_LOOP saved/draft assignments; separate
+  mixed button names tag and type. Unmanaged algorithms are not silently included.
+Line2 - Preflight: shared AO Full validation and PID saved/clean/Offline checks,
+  actual controller/DST ownership, references and PID template validity.
+Line3 - Atomicity: prepare every member first. Missing PID input after valid AO
+  preparation still rejects all runtime/binding/deployment changes.
+Line4 - Confirmation: lists both types and warns AO defaults change outputs,
+  PID must be Offline and remains OOS; any failure or Cancel aborts entire batch.
+  Changed scope or saved object rejects rather than substitutes later edits.
+Line5 - PID preservation: shared deployedPid helper retains measured PV/held OUT,
+  applies saved tuning, downloaded=true/lifecycleOnline=false/OOS. Go Online
+  remains explicit and validates the deployed match/available target.
+Line6 - No upload: live tuning is never silently persisted or used instead of
+  saved defaults. Individual PID selected-upload workflow remains unchanged.
+Line7 - Commit: one state update/revision for both algorithms; saved/draft/store
+  text and device/SFC lifecycle references unchanged. Comparisons match only
+  after actual deployment.
+Line8 - Three engine tests added: single commit/isolation/execution, invalid
+  later PID prevents AO transfer, stale scope/data, Online PID/key/lock refusal
+  and configured0.5 replacing later live0.9 without browser storage rewrite.
+  Existing rendering regression also asserts the distinct mixed action.
+Line9 - Browser actual PhysicalNetworkDisplay temporary fixture, real React
+  button dispatch: warning listed MIX-AO(AO)/MIX-PID(PID_LOOP); Cancel retained
+  both state maps. Confirm plus scan produced AO50%, PID downloaded Offline/OOS.
+  Explicit Online and input60 produced PID PV60/AUTO/OUT49.67%.
+  Original96-module running plant/security/exact storage restored; root removed.
+Boundary: device/SFC/card/Setup transfer and native all-object Total Download
+remain open. This does not provide PID restart-memory/last-good replay.
+DV09-017/019 remain PARTIAL. Validation:361 repository tests, typecheck/build,
+scoped diagnostics, audit validator and diff whitespace passed.
