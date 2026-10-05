@@ -5,15 +5,13 @@ CURRENT RECOVERY / CONNECTED-PLANT MILESTONE
 - User requested an IMG_0616-style overview, then additive functional models
   of the photographed plant, preserving all existing work. User clarified
   that the simulator should ultimately operate as one whole plant system.
-- Plant Overview (revised after user feedback that three panels were only a
-  demonstration) is a whole-plant navigation page of gray IMG_0616-style unit
-  panels: feed, reactor, product, WFI, photographed WFI tanks/still,
-  autoclaves, lyophilizers, CIP skids, TCUs and shared utilities. Each panel
-  shows live quality-aware readings, confirmed device feedback, a level bar
-  (explicit BAD/missing text, never plausible fill) and navigation. Photo
-  areas not yet modeled are disabled reference-only buttons. Original Spatial
-  Plant Map remains accessible. The default pharma project (and New Project >
-  pharma) now installs the photographed units; blank projects do not.
+- Plant Overview was briefly expanded to a whole-plant panel page, then, at
+  the user's request, restored to the three-panel Feed / Reactor / WFI
+  overview with bordered navigation buttons to every other area (including
+  the Original Spatial Plant Map and the Photographed WFI Overview). The
+  expanded page's styles were removed; only the overview page was reverted.
+  The default pharma project (and New Project > pharma) still installs the
+  photographed units; blank projects do not.
 - A larger three-tank Photographed WFI Overview (Not In Use, WFI-LVL-CTRL,
   sanitation panels) remains as its own route.
 - A separate Photographed WFI Overview installs real N3/N1/N1BP sandbox

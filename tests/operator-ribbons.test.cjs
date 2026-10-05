@@ -104,7 +104,7 @@ test('blank projects show an explicit unconfigured picture rather than throwing'
   const before = store.useStore.getState()
   try {
     store.useStore.setState({ modules: {} })
-    assert.match(render(OverviewDisplay), /not configured/)
+    assert.match(render(OverviewDisplay), /Not configured/)
     assert.match(render(OverviewDisplay, { focusArea: 'REACTOR' }), /Reactor train modules are not configured/)
     assert.match(render(AreaDisplay, { area: 'WFI' }), /No modules configured in this area/)
     assert.equal(Object.keys(store.useStore.getState().modules).length, 0)
@@ -113,23 +113,19 @@ test('blank projects show an explicit unconfigured picture rather than throwing'
   }
 })
 
-test('IMG_0616-style overview navigates the whole plant, while area details retain the spatial canvas', () => {
+test('IMG_0616 overview is a fixed three-panel navigation screen, while area details retain the spatial canvas', () => {
   const html = render(OverviewDisplay)
   assert.match(html, /Plant Overview Navigation/)
+  assert.equal((html.match(/class="overview-vessel-panel"/g) || []).length, 3)
   assert.ok(!html.includes('dv-area-jumpbar'))
-  for (const label of ['Feed Tank and Supply', 'Reactor Train', 'Product / Header', 'WFI Tank and Loop', 'WFI Stills 1 and 2',
-    'N3 WFI Tank and Loop', 'N1 WFI Tank and Loop', 'N1BP WFI Tank and Loop', 'WFI Still', 'Autoclave 1', 'Autoclave 2',
-    'Lyophilizer 1', 'Lyophilizer 2', 'CIP Skid 1', 'CIP Skid 2', 'CIP Skid 3', 'TCU 1', 'TCU 2', 'TCU 3',
-    'Steam and Cooling', 'Original Spatial Plant Map', 'Photographed WFI Overview',
-    'Autoclaves', 'Lyophilizers', 'CIP Skids', 'Temperature Control Units']) {
+  assert.ok(html.includes('Original Spatial Plant Map'))
+  assert.ok(html.includes('Photographed WFI Overview'))
+  for (const label of ['Feed Tank and Supply', 'Reactor Train', 'WFI Tank and Loop',
+    'Product / Header', 'Autoclaves', 'Lyophilizers', 'CIP Skids', 'Temperature Control Units']) {
     assert.ok(html.includes(label), label)
   }
-  for (const tag of ['3T-8130', '3T-8140', '3WFI-8110', 'TK-101', 'TK-201', 'AC-1', 'LYO-2', 'CIP-3', 'TCU-3', 'SB-STEAM']) {
-    assert.ok(html.includes(tag), tag)
-  }
-  for (const label of ['PW Neutr.', '3SUR-3300', '3SUR-3200', 'Buffer Prep', '3CIP-3200', '3T-3300', '3T-3350']) {
-    assert.match(html, new RegExp(`aria-disabled="true"[^>]*>${label.replace('.', '\\.')}</button>`))
-  }
+  assert.ok(!html.includes('3T-8130'))
+  assert.ok(!html.includes('3T-8140'))
   assert.match(render(OverviewDisplay, { focusArea: 'REACTOR' }), /dv-area-jumpbar/)
 })
 
@@ -138,7 +134,6 @@ test('photographed overview and all unit pictures expose real modules, shared ut
   try {
     useStore.setState({ photoPlant: undefined })
     assert.match(render(PhotoPlantDisplay, { view: 'overview' }), /Add photographed WFI training units/)
-    assert.match(render(OverviewDisplay), /not installed in this project/)
     const addon = createPhotoPlant()
     useStore.setState({ photoPlant: addon.state, modules: { ...before.modules, ...addon.modules } })
     const html = render(PhotoPlantDisplay, { view: 'overview' })
@@ -155,7 +150,6 @@ test('photographed overview and all unit pictures expose real modules, shared ut
     assert.match(bad, /Level quality BAD/)
     assert.match(bad, /Incomplete model/)
     assert.match(bad, /3T-8140-TIC011: not configured/)
-    assert.match(render(OverviewDisplay), /3T-8140-TIC011: not configured/)
   } finally { useStore.setState(before, true) }
 })
 
@@ -165,15 +159,14 @@ test('overview summaries use live feedback and quality, with explicit missing mo
     useStore.setState({ modules: { ...before.modules,
       'P-401': { ...before.modules['P-401'], running: false, commanded: true },
       'AT-401': { ...before.modules['AT-401'], pv: 321, pvBad: true },
-      'LIC-401': { ...before.modules['LIC-401'], pvBad: true },
-      '3WFI-8110-COMP': { ...before.modules['3WFI-8110-COMP'], running: false, commanded: true }
+      'LIC-401': { ...before.modules['LIC-401'], pvBad: true }
     } })
     const html = render(OverviewDisplay)
-    assert.match(html, /aria-label="P-401: STOPPED\. Open faceplate"/)
-    assert.match(html, /aria-label="3WFI-8110-COMP: STOPPED\. Open faceplate"/)
+    assert.match(html, /P-401: STOPPED/)
     assert.match(html, /Level quality BAD/)
-    assert.ok(!html.includes('321.0'))
-    assert.match(html, /aria-label="AT-401: -\.-- uS\/cm/)
+    assert.ok(!html.includes('321.00'))
+    assert.match(html, /Open faceplate/)
+    assert.match(html, /role="button" tabindex="0"/)
     const modules = { ...before.modules }
     delete modules['AT-401']
     useStore.setState({ modules })
