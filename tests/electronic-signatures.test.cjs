@@ -9,11 +9,21 @@ require.extensions['.ts'] = (module, filename) => {
 }
 const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
+const { useSystem } = require('../src/renderer/src/engine/systemPreferences.ts')
 const {
   evaluateSignature, requiredSignature, signaturePolicyError, SIGNABLE_PARAMETERS, EMPTY_SIGNATURE_CONFIG
 } = require('../src/renderer/src/engine/electronicSignatures.ts')
 
 function fixture(run) {
+  const previous = useSystem.getState()
+  useSystem.setState({ features: { fieldbus: true, signaturePolicies: true } })
+  try {
+    fixtureBase(run)
+  } finally {
+    useSystem.setState(previous, true)
+  }
+}
+function fixtureBase(run) {
   const before = { store: useStore.getState(), security: useSecurity.getState(), window: global.window }
   const alerts = []
   global.window = { alert: (m) => alerts.push(m), confirm: () => true }

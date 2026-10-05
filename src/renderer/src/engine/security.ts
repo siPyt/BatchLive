@@ -256,6 +256,12 @@ function readWorkstation(): WorkstationConfig | null {
 }
 
 /** The store registers a resolver that finds the plant area of the module named in an action label. */
+/** The system-preferences store registers whether the database server is running. */
+let serverState: (() => 'RUNNING' | 'STOPPED') | undefined
+export function registerServerGate(provider: (() => 'RUNNING' | 'STOPPED') | undefined): void {
+  serverState = provider
+}
+
 let areaResolver: ((action: string) => string | undefined) | undefined
 export function registerAreaResolver(resolver: ((action: string) => string | undefined) | undefined): void {
   areaResolver = resolver
@@ -505,8 +511,13 @@ export const useSecurity = create<SecurityState>((set, get) => ({
       set({ lastDenied: `Access Denied — ${action} requires the ${LOCK_LABEL[effective]} key${moved}` })
       return false
     }
-    // DV09-079: writes to a module's parameters and fields also need the area key of the module's area.
     const kind = findSecurityTarget(lock, action)?.kind
+    // DV09-109: configuration and download need the database server; operator writes keep running without it.
+    if (kind === 'function' && (lock === 'CAN_CONFIGURE' || lock === 'CAN_DOWNLOAD') && serverState?.() === 'STOPPED') {
+      set({ lastDenied: `Access Denied — ${action} needs the database server, which is stopped; connect to the server first` })
+      return false
+    }
+    // DV09-079: writes to a module's parameters and fields also need the area key of the module's area.
     if (kind === 'parameter' || kind === 'field') {
       const area = areaResolver?.(action)
       if (area !== undefined && !get().hasAreaKey(area)) {

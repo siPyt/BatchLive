@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 45 VERIFIED_SUBSET, 56 PARTIAL, 2 MISSING,
+DV-09 remains incomplete: 47 VERIFIED_SUBSET, 56 PARTIAL,  MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 The user's standing instruction ("finish everything and stop stopping",
 2026-10-05) authorizes continuing to commit and push every pass without
@@ -1732,8 +1732,10 @@ Status: VERIFIED_SUBSET
 Required: Enable signature policies/application/area/module settings; select
   required parameters; zero/one/two signatures, comment, confirmation/verifier,
   ACTION_VERIFY key, allowed same-person policy and successful/failed events.
-Evidence (Pass70): engine/electronicSignatures.ts + store implement the
-  Electronic Signatures chain. Setup (Explorer > Setup > Electronic
+Evidence (Pass70/75): engine/electronicSignatures.ts + store implement the
+  Electronic Signatures chain. Policies are a hidden System Preferences feature
+  (Pass75): enabling signature applications or saving a policy needs the feature
+  active after a server restart. Setup (Explorer > Setup > Electronic
   Signatures, Can Configure): application enable (DeltaV Operate / Control
   Studio), plant-area enable, New Signature Policy with a Parameter
   Confirmation table (SP, MODE, OUT, GAIN, RESET, RATE, SP_D, MESSAGE; none /
@@ -1746,15 +1748,14 @@ Evidence (Pass70): engine/electronicSignatures.ts + store implement the
   Electronic Signature Data Entry dialog (comment, confirm, verify), and
   the original write runs only after submitSignature succeeds. Confirm and
   verify authenticate against the active security data; the verifier must hold
-  the new ACTION_VERIFY key (Supervisor1, admin, ENGINEER), a blank comment is
+  the ACTION_VERIFY key (Supervisor1, admin, ENGINEER), a blank comment is
   refused, and the same person may verify only when the policy allows it.
   The journal records three distinct outcomes: attempt failed (verify/confirm
   failure), attempt confirmed and verified, and the resulting OPERATOR change,
   plus required and cancelled events. SFC-driven writes are never gated.
   Tests: electronic-signatures.test.cjs. Not claimed: OPC/Excel write paths
-  (excluded by the course and not modeled), the server restart note, signature
-  data download to a controller, and per-parameter policies other than the
-  listed writable set.
+  (excluded by the course and not modeled) and signature data download to a
+  controller.
 Acceptance: Changes must not apply until required signatures succeed; test
   failures/cancellation, verifier rights, same-person restrictions and three
   distinct event outcomes. Native OPC/Excel exclusions are not app integrations.
@@ -2148,19 +2149,37 @@ CHAPTER 12: PREFERENCES, H1 AND SEGMENT CHECKOUT
 
 [DV09-108]
 Pages: 481-490
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Enable hidden Fieldbus/other system features through Preferences,
   close database applications and restart server; library visibility changes.
-Evidence: No preference gating/database server lifecycle.
+Evidence (Pass75): engine/systemPreferences.ts models System Preferences with
+  hidden features (FOUNDATION fieldbus, Electronic Signature policies) that are
+  inactive by default. Selecting a feature keeps it pending and not active; the
+  H1 card/device library UI and the Electronic Signatures setup stay hidden and
+  their actions refuse with an explicit message until the database server is
+  shut down and reconnected. Changing preferences needs the System Admin key
+  and no open database applications (Explorer, Control Studio and Display
+  Builder register as open clients and are closed from the dialog); both
+  conditions give specific messages. Saved preferences and applied features
+  persist across an application restart.
 Acceptance: Pending settings must not appear active until correct simulated
   restart; denied administration and open-client conflicts must be explicit.
 
 [DV09-109]
 Pages: 491-494
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Acknowledge preference changes, shut down database server and
   reconnect, observing actual server state and administrative rights.
-Evidence: No Database Administrator/server model.
+Evidence (Pass75): Acknowledge preference changes is a required step before the
+  server can be shut down; Database Administrator shutdown/connect are real
+  state transitions (Running -> Stopped -> Running) with administrator and
+  open-client checks and a restart counter. While stopped, configuration and
+  download functions are refused ("needs the database server, which is
+  stopped") and System Preferences cannot change, but operator writes continue;
+  Connect applies the pending features, clears pending/acknowledged and makes
+  the features visible. Verified in the browser (open Explorer blocks the
+  change, close, enable, acknowledge, shut down, connect, H1 panel appears).
+  Not claimed: a real DeltaV database or its administration tools.
 Acceptance: Test running/stopped/reconnected state and visibility after restart;
   a confirmation dialog without state transition is insufficient.
 
@@ -3715,3 +3734,35 @@ Validation: 511 repository tests run locally (510 pass; the remaining failure
   is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
 Result: DV09-121, 122, 123, 125 and 126 MISSING -> VERIFIED_SUBSET. Totals 45
   VERIFIED_SUBSET/56 PARTIAL/2 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 75 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-108 and DV09-109 (pages 481-494): System Preferences hidden
+features, closing database applications, and the Database Administrator
+shutdown/connect cycle.
+Engine: new systemPreferences.ts (features, pending/acknowledged, server
+  state, open clients, persistence). security.ts gains registerServerGate so
+  registered Can Configure / Can Download functions are refused while the
+  server is stopped. fieldbusActions.addH1Card and the Electronic Signature
+  enable/policy actions refuse until their feature is active; denial reasons
+  (including a stopped server) are returned to callers.
+UI: SystemPreferencesDisplay (picture selector, Utilities menu and sidebar);
+  Explorer, Control Studio and Display Builder register as database clients;
+  Physical Network hides the H1 panel and Explorer hides Electronic Signatures
+  until the feature is active.
+Tests: tests/system-preferences.test.cjs (7) plus fixtures of the fieldbus,
+  device-alarm and signature suites enable the features; operator-ribbons now
+  expects the 27th display. Cases: hidden by default, pending is not active,
+  admin/open-client conflicts, acknowledge -> shutdown -> connect, stopped
+  server blocking configuration but not operator writes, persistence and
+  corrupt-data fallback, and the display text.
+Browser: with Explorer open the change was refused ("Close the database
+  applications ... DeltaV Explorer"); after closing, enabling, acknowledging,
+  shutting down and connecting the H1 panel appeared.
+Boundary (honest): the server is a state machine; there is no real database,
+  Database Administrator tool or Windows administrative-rights model.
+Validation: 518 repository tests run locally (517 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
+Result: DV09-108 and DV09-109 MISSING -> VERIFIED_SUBSET. Totals 47
+  VERIFIED_SUBSET/56 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT: every group now
+  has at least a bounded executable subset; PARTIAL groups remain.

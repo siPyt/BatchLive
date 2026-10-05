@@ -7,6 +7,7 @@ import { useUi } from '../ui/uiStore'
 import { TraditionalIoPanel } from './TraditionalIoPanel'
 import { SerialIoPanel } from '../components/SerialIoPanel'
 import { H1Panel } from '../components/H1Panel'
+import { useSystem } from '../engine/systemPreferences'
 import {
   CHARM_TYPE_LABEL,
   controllerIsDown,
@@ -28,6 +29,7 @@ const ROLE_COLOR: Record<string, string> = {
 }
 
 export function PhysicalNetworkDisplay(): JSX.Element {
+  const fieldbusEnabled = useSystem((s) => s.features.fieldbus)
   const hardware = useStore((s) => s.hardware)
   const createController = useStore((s) => s.createController)
   const failController = useStore((s) => s.failController)
@@ -109,7 +111,7 @@ export function PhysicalNetworkDisplay(): JSX.Element {
           >
             <TraditionalIoPanel controllerTag={c.tag} />
             <SerialIoPanel controllerTag={c.tag} />
-            <H1Panel controllerTag={c.tag} />
+            {fieldbusEnabled ? <H1Panel controllerTag={c.tag} /> : <p className="traditional-note" data-fieldbus-hidden>FOUNDATION fieldbus is hidden. Enable it in System Preferences, then shut down and reconnect the database server.</p>}
             {c.carrierIds.map((carrierId) => {
               const carrier = hardware.carriers[carrierId]
               if (!carrier) return null

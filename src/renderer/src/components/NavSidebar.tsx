@@ -39,7 +39,7 @@ const ENGINEERING: NavNode[] = [
   { id: 'builder', label: 'Display Builder', ico: '▤' }
 ]
 
-const UTILITIES: NavNode[] = [{ id: 'users', label: 'User Manager', ico: '🔑' }]
+const UTILITIES: NavNode[] = [{ id: 'system', label: 'System Preferences', ico: '⚙' }, { id: 'users', label: 'User Manager', ico: '🔑' }]
 
 export function NavSidebar(): JSX.Element {
   const display = useUi((s) => s.display)

@@ -26,5 +26,6 @@ export const DISPLAY_NAVIGATION: { id: DisplayId; label: string; operator: boole
   { id: 'builder', label: 'Display Builder', operator: false },
   { id: 'workshops', label: 'DV-09 Workshops', operator: false },
   { id: 'users', label: 'User Manager', operator: false },
+  { id: 'system', label: 'System Preferences', operator: false },
   { id: 'hardware', label: 'Physical Network', operator: false }
 ]

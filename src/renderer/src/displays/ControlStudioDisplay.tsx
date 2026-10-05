@@ -1,3 +1,4 @@
+import { useDatabaseClient } from '../components/useDatabaseClient'
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../engine/store'
 import { isPidTargetMode, PID_TARGET_MODES, pidExecutionBad, pidModeFieldsError, pidNormalMode, pidPermittedModes } from '../engine/pidModes'
@@ -36,6 +37,7 @@ import type { ReactNode } from 'react'
 // CV shown is live-clickable, same as the faceplates.
 
 export function ControlStudioDisplay(): JSX.Element {
+  useDatabaseClient('DeltaV Control Studio')
   const studioTag = useUi((s) => s.studioTag)
   const runtimeModules = useStore((s) => s.modules)
   const moduleLifecycle = useStore(s => s.moduleLifecycle)

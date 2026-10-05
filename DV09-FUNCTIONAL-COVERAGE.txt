@@ -2556,3 +2556,14 @@ Line3 - FFDEV_FP faceplate with alarm states, priority/enable editors, Ack and
 Line4 - Banner: separate strict thresholds (process > 3, device > 7), saved and
   applied at start; the alarm list is unfiltered.
 Line5 - Tests: tests/device-alarms.test.cjs. Not claimed: native scripts/.grf.
+
+PASS 75: SYSTEM PREFERENCES AND DATABASE ADMINISTRATOR (pp481-494)
+-----------------------------------------------------------------------
+Line1 - Hidden features: FOUNDATION fieldbus and Electronic Signature policies
+  are off by default and refuse use with an explicit message.
+Line2 - Pending: a selection is not active; it needs the System Admin key, no
+  open database applications and an acknowledgement.
+Line3 - Server: shut down and connect are real transitions; the features and
+  their screens appear only after the restart; configuration and download are
+  unavailable while stopped, operator writes continue.
+Line4 - Tests: tests/system-preferences.test.cjs. Not a real DeltaV database.

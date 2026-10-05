@@ -26,6 +26,7 @@ import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } fr
 import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { reconcileDeviceAlarms } from './deviceAlarms'
+import { featureDisabledError, featureEnabled } from './systemPreferences'
 import {
   SERIAL_LIMITS,
   SERIAL_PORT_IDS,
@@ -470,6 +471,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setSignatureApplication: (patch) => {
     if (!requireUnlockedLock('CAN_CONFIGURE', 'Configure electronic signatures')) return false
+    if ((patch.operate || patch.controlStudio) && !featureEnabled('signaturePolicies')) {
+      get().logEvent('DIAGNOSTIC', 'ELECTRONIC SIGNATURES', featureDisabledError('signaturePolicies'))
+      window.alert(featureDisabledError('signaturePolicies'))
+      return false
+    }
     set((s) => ({ signature: { ...s.signature, ...patch } }))
     get().logEvent('CONFIGURE', 'ELECTRONIC SIGNATURES', `Application settings changed: ${JSON.stringify(patch)}`)
     return true
@@ -477,6 +483,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   saveSignaturePolicy: (policy) => {
     if (!requireUnlockedLock('CAN_CONFIGURE', 'Configure electronic signatures')) return 'Requires the Can Configure key'
+    if (!featureEnabled('signaturePolicies')) return featureDisabledError('signaturePolicies')
     const error = signaturePolicyError(policy)
     if (error) return error
     set((s) => ({ signature: { ...s.signature, policies: { ...s.signature.policies, [policy.name]: policy } } }))

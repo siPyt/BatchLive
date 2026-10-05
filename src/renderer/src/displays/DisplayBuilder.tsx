@@ -1,3 +1,4 @@
+import { useDatabaseClient } from '../components/useDatabaseClient'
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
@@ -36,6 +37,7 @@ function paramValue(m: AnyModule | undefined, param: PicParam): string {
 }
 
 export function DisplayBuilder(): JSX.Element {
+  useDatabaseClient('DeltaV Operate (Configure)')
   const pictures = usePictures((s) => s.pictures)
   const createPicture = usePictures((s) => s.createPicture)
   const deletePicture = usePictures((s) => s.deletePicture)

@@ -10,6 +10,7 @@ require.extensions['.ts'] = (module, filename) => {
 }
 const { useStore, sfcExpressionContext } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
+const { useSystem } = require('../src/renderer/src/engine/systemPreferences.ts')
 const { usePictures, pictureStorageKey } = require('../src/renderer/src/engine/pictureStore.ts')
 const { pictureNamedSignal } = require('../src/renderer/src/engine/pictureNamedSets.ts')
 const { pictureElementError, parseSavedPicture } = require('../src/renderer/src/engine/pictureDynamics.ts')
@@ -26,6 +27,15 @@ const courseSet = () => ({ name: 'NS-T101', description: '', entries: [
   { name: 'HIDDEN', value: 3, visible: false, userSelectable: true }
 ] })
 function fixture(run) {
+  const previous = useSystem.getState()
+  useSystem.setState({ features: { fieldbus: true, signaturePolicies: true } })
+  try {
+    fixtureBase(run)
+  } finally {
+    useSystem.setState(previous, true)
+  }
+}
+function fixtureBase(run) {
   const previous = { store: useStore.getState(), security: useSecurity.getState(), pictures: usePictures.getState(), window: global.window }
   const storage = new Map()
   const alerts = []

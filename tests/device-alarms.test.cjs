@@ -10,6 +10,7 @@ require.extensions['.ts'] = (module, filename) => {
 require.extensions['.tsx'] = require.extensions['.ts']
 const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
+const { useSystem } = require('../src/renderer/src/engine/systemPreferences.ts')
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const act = require('../src/renderer/src/engine/fieldbusActions.ts')
 const da = require('../src/renderer/src/engine/deviceAlarms.ts')
@@ -17,6 +18,15 @@ const { alarmCategory, alarmEligible } = require('../src/renderer/src/utils/form
 
 const CARD = 'CTRL1/C05'
 function fixture(run) {
+  const previous = useSystem.getState()
+  useSystem.setState({ features: { fieldbus: true, signaturePolicies: true } })
+  try {
+    fixtureBase(run)
+  } finally {
+    useSystem.setState(previous, true)
+  }
+}
+function fixtureBase(run) {
   const before = { store: useStore.getState(), security: useSecurity.getState(), ui: useUi.getState(), window: global.window }
   global.window = { alerts: [], alert(m) { this.alerts.push(m) }, localStorage: { getItem: () => null, setItem: () => {} } }
   try {

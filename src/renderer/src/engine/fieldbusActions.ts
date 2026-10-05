@@ -3,6 +3,7 @@ import { useSecurity, type LockType } from './security'
 import { controllerIsDown } from './hardware'
 import { usePictures } from './pictureStore'
 import { deviceAlarmRankError } from './deviceAlarms'
+import { featureDisabledError, featureEnabled } from './systemPreferences'
 import {
   FF_BLOCK_PARAMS,
   H1_LIMITS,
@@ -49,6 +50,11 @@ import {
 const fail = (cardId: string, message: string): string => {
   useStore.getState().logEvent('DIAGNOSTIC', cardId, `Fieldbus action rejected: ${message}`)
   return message
+}
+
+/** The reason the last permission check failed (a missing key, or a stopped database server). */
+function denial(fallback: string): string {
+  return useSecurity.getState().lastDenied ?? fallback
 }
 
 function allow(lock: LockType, action: string): boolean {
@@ -123,7 +129,8 @@ function findDevice(card: H1Card, tag: string): FfDevice | undefined {
 // --- H1 card and port -------------------------------------------------------
 
 export function addH1Card(controllerTag: string, slot: number, redundant: boolean): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card on ${controllerTag}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card on ${controllerTag}`)) return denial('Requires the Can Configure key')
+  if (!featureEnabled('fieldbus')) return fail(controllerTag, featureDisabledError('fieldbus'))
   const hw = useStore.getState().hardware
   if (!hw.controllers[controllerTag]) return fail(controllerTag, 'Controller does not exist')
   const occupied = [
@@ -140,7 +147,7 @@ export function addH1Card(controllerTag: string, slot: number, redundant: boolea
 }
 
 export function removeH1Card(cardId: string): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   const card = getCard(cardId)
   if (!card) return 'H1 card does not exist'
   const dsts = Object.values(useStore.getState().hardware.traditionalCards ?? {}).filter((c) => c.fieldbus?.cardId === cardId).flatMap((c) => c.channels.map((ch) => ch.dst))
@@ -158,7 +165,7 @@ export function removeH1Card(cardId: string): string | null {
 }
 
 export function configureH1Port(cardId: string, port: H1PortId, patch: Partial<Pick<H1PortConfig, 'enabled' | 'description' | 'requestedMacrocycleMs' | 'minCdSpacingMs'>>): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   const error = h1PortError(patch)
   if (error) return fail(cardId, error)
   return mutate(cardId, (card) => {
@@ -169,12 +176,12 @@ export function configureH1Port(cardId: string, port: H1PortId, patch: Partial<P
 }
 
 export function failH1Card(cardId: string, failed: boolean): string | null {
-  if (!allow('DIAGNOSTIC', `Configure H1 card ${cardId}`)) return 'Requires the Diagnostic key'
+  if (!allow('DIAGNOSTIC', `Configure H1 card ${cardId}`)) return denial('Requires the Diagnostic key')
   return mutate(cardId, (card) => { card.cardFailed = failed; return null })
 }
 
 export function downloadH1Card(cardId: string): string | null {
-  if (!allow('CAN_DOWNLOAD', `Download H1 card ${cardId}`)) return 'Requires the Can Download key'
+  if (!allow('CAN_DOWNLOAD', `Download H1 card ${cardId}`)) return denial('Requires the Can Download key')
   const card = getCard(cardId)
   if (!card) return 'H1 card does not exist'
   const controller = useStore.getState().hardware.controllers[card.controllerTag]
@@ -283,7 +290,7 @@ export function ffInventory(card: H1Card, port: H1PortId): FfInventoryRow[] {
 // --- configuration devices --------------------------------------------------
 
 export function addFfDevice(cardId: string, port: H1PortId, tag: string, address: number, catalogId: string, revision: number, ddRevision: number): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => {
     const p = card.ports[port]
     if (!p) return 'H1 port does not exist'
@@ -303,7 +310,7 @@ export function addFfDevice(cardId: string, port: H1PortId, tag: string, address
 }
 
 export function removeFfDevice(cardId: string, tag: string): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => {
     const device = findDevice(card, tag)
     if (!device) return `Device ${tag} does not exist`
@@ -318,7 +325,7 @@ export function removeFfDevice(cardId: string, tag: string): string | null {
 }
 
 export function commissionFfDevice(cardId: string, tag: string, deviceId: string, reason: string): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => {
     const device = findDevice(card, tag)
     if (!device) return `Device ${tag} does not exist`
@@ -343,7 +350,7 @@ export function commissionFfDevice(cardId: string, tag: string, deviceId: string
 }
 
 export function decommissionFfDevice(cardId: string, tag: string, reason: string): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => {
     const device = findDevice(card, tag)
     if (!device || device.state !== 'COMMISSIONED') return `Device ${tag} is not commissioned`
@@ -355,7 +362,7 @@ export function decommissionFfDevice(cardId: string, tag: string, reason: string
 }
 
 export function setFfMode(cardId: string, tag: string, target: string, mode: FfMode, reason: string): string | null {
-  if (!allow('CAN_CALIBRATE', `Configure field device ${tag}`)) return 'Requires the Can Calibrate key'
+  if (!allow('CAN_CALIBRATE', `Configure field device ${tag}`)) return denial('Requires the Can Calibrate key')
   if (!['AUTO', 'MAN', 'OOS'].includes(mode)) return fail(cardId, 'Mode must be Auto, Man or Out of Service')
   return mutate(cardId, (card) => {
     const device = findDevice(card, tag)
@@ -388,7 +395,7 @@ export function setFfMode(cardId: string, tag: string, target: string, mode: FfM
 }
 
 export function writeFfParam(cardId: string, tag: string, blockTag: string, name: string, value: FfParamValue, reason: string): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => {
     const device = findDevice(card, tag)
     if (!device) return `Device ${tag} does not exist`
@@ -407,7 +414,7 @@ export function writeFfParam(cardId: string, tag: string, blockTag: string, name
 }
 
 export function setFfWriteLock(cardId: string, tag: string, locked: boolean, reason: string): string | null {
-  if (!allow('CAN_CALIBRATE', `Configure field device ${tag}`)) return 'Requires the Can Calibrate key'
+  if (!allow('CAN_CALIBRATE', `Configure field device ${tag}`)) return denial('Requires the Can Calibrate key')
   return mutate(cardId, (card) => {
     const device = findDevice(card, tag)
     if (!device) return `Device ${tag} does not exist`
@@ -421,7 +428,7 @@ export function setFfWriteLock(cardId: string, tag: string, locked: boolean, rea
 }
 
 export function calibrateFfTransducer(cardId: string, tag: string, transducerTag: string, low: number, high: number, reason: string): string | null {
-  if (!allow('CAN_CALIBRATE', `Configure field device ${tag}`)) return 'Requires the Can Calibrate key'
+  if (!allow('CAN_CALIBRATE', `Configure field device ${tag}`)) return denial('Requires the Can Calibrate key')
   return mutate(cardId, (card) => {
     const device = findDevice(card, tag)
     if (!device) return `Device ${tag} does not exist`
@@ -442,7 +449,7 @@ export function calibrateFfTransducer(cardId: string, tag: string, transducerTag
 // --- blocks, rates and links ------------------------------------------------
 
 export function setFfBlockRate(cardId: string, tag: string, blockTag: string, moduleScanMs: number): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   const band = macrocycleBand(moduleScanMs)
   if (band === null) return fail(cardId, `A module scan of ${moduleScanMs} ms does not map to a macrocycle (500, 1000, 2000 or 4000 ms)`)
   return mutate(cardId, (card) => {
@@ -458,7 +465,7 @@ export function setFfBlockRate(cardId: string, tag: string, blockTag: string, mo
 }
 
 export function assignFfBlock(cardId: string, tag: string, blockTag: string, executesIn: 'DEVICE' | 'CARD'): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => {
     const device = findDevice(card, tag)
     const block = device?.blocks.find((b) => b.tag === blockTag)
@@ -472,7 +479,7 @@ export function assignFfBlock(cardId: string, tag: string, blockTag: string, exe
 }
 
 export function addFfLink(cardId: string, port: H1PortId, link: Omit<FfLink, 'id' | 'port'>): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => {
     const p = card.ports[port]
     if (!p) return 'H1 port does not exist'
@@ -491,7 +498,7 @@ export function addFfLink(cardId: string, port: H1PortId, link: Omit<FfLink, 'id
 }
 
 export function removeFfLink(cardId: string, port: H1PortId, id: string): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => {
     const p = card.ports[port]
     if (!p?.links.some((l) => l.id === id)) return 'Link does not exist'
@@ -533,7 +540,7 @@ export function compareFfDevices(left: CompareSource, right: CompareSource): { d
 
 /** Copy the selected differing values from `from` (current or historical, read-only) into the current configuration of `to`. */
 export function transferFfValues(from: CompareSource, to: { cardId: string; tag: string }, keys: string[], reason: string): string | null {
-  if (!allow('CAN_CALIBRATE', `Configure field device ${to.tag}`)) return 'Requires the Can Calibrate key'
+  if (!allow('CAN_CALIBRATE', `Configure field device ${to.tag}`)) return denial('Requires the Can Calibrate key')
   const source = resolveSnapshot(from)
   if (source.error) return source.error
   const target = resolveSnapshot({ cardId: to.cardId, tag: to.tag })
@@ -577,12 +584,12 @@ export function transferFfValues(from: CompareSource, to: { cardId: string; tag:
 
 /** Enable Device Alarms on the H1 card (controller): the prerequisite for every device alarm. */
 export function enableDeviceAlarms(cardId: string, enabled: boolean): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => { card.deviceAlarms = enabled; return null })
 }
 
 export function configureDeviceAlarm(cardId: string, tag: string, kind: DeviceAlarmKind, patch: { enabled?: boolean; rank?: number }): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   if (!DEVICE_ALARM_KINDS.includes(kind)) return fail(cardId, `Unknown device alarm ${String(kind)}`)
   if (patch.rank !== undefined) {
     const error = deviceAlarmRankError(patch.rank)
@@ -598,7 +605,7 @@ export function configureDeviceAlarm(cardId: string, tag: string, kind: DeviceAl
 
 /** The device's area comes from its controller's assigned area or from a chosen module. */
 export function setDeviceAlarmArea(cardId: string, tag: string, mode: 'CONTROLLER' | 'MODULE', module?: string): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   const modules = useStore.getState().modules
   if (mode === 'MODULE' && (!module || !modules[module])) return fail(cardId, 'Select an existing module to take the area from')
   return mutate(cardId, (card) => {
@@ -611,7 +618,7 @@ export function setDeviceAlarmArea(cardId: string, tag: string, mode: 'CONTROLLE
 }
 
 export function setControllerArea(controllerTag: string, area: string | null): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card on ${controllerTag}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card on ${controllerTag}`)) return denial('Requires the Can Configure key')
   const s = useStore.getState()
   if (!s.hardware.controllers[controllerTag]) return fail(controllerTag, 'Controller does not exist')
   if (area !== null && !s.areas.includes(area)) return fail(controllerTag, `Area ${area} does not exist`)
@@ -626,7 +633,7 @@ export function setControllerArea(controllerTag: string, area: string | null): s
 
 /** Repeat annunciation only where the device supports it. */
 export function setDeviceReannunciation(cardId: string, tag: string, enabled: boolean, seconds: number): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   return mutate(cardId, (card) => {
     const device = findDevice(card, tag)
     if (!device) return `Device ${tag} does not exist`
@@ -639,7 +646,7 @@ export function setDeviceReannunciation(cardId: string, tag: string, enabled: bo
 }
 
 export function setDevicePrimaryDisplay(cardId: string, tag: string, picture: string): string | null {
-  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   const name = picture.trim().toUpperCase()
   if (name && !usePictures.getState().pictures[name]) return fail(cardId, `Picture ${name} does not exist`)
   return mutate(cardId, (card) => {

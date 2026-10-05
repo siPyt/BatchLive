@@ -19,6 +19,8 @@ import { LicensingProperties } from '../components/LicensingProperties'
 import { SecurityPropertiesPanel } from '../components/SecurityPropertiesPanel'
 import { SignatureSetupPanel } from '../components/SignatureSetupPanel'
 import { ExportImportPanel } from '../components/ExportImportPanel'
+import { useDatabaseClient } from '../components/useDatabaseClient'
+import { useSystem } from '../engine/systemPreferences'
 import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 
@@ -73,6 +75,8 @@ function statusText(m: AnyModule): { text: string; color: string } {
 }
 
 export function ExplorerDisplay(): JSX.Element {
+  useDatabaseClient('DeltaV Explorer')
+  const signaturesEnabled = useSystem((s) => s.features.signaturePolicies)
   const modules = useStore((s) => s.modules)
   const sfcs = useStore(s => s.sfcs)
   const sfcLifecycles = useStore(s => s.sfcLifecycle)
@@ -263,10 +267,10 @@ export function ExplorerDisplay(): JSX.Element {
               onClick={() => setSetupView(view)}>
               <b>{label}</b>
             </div>)}
-          <div className={'exp-node exp-area' + (setupView === 'signatures' ? ' sel' : '')}
+          {signaturesEnabled && <div className={'exp-node exp-area' + (setupView === 'signatures' ? ' sel' : '')}
             onClick={() => setSetupView('signatures')}>
             <b>Electronic Signatures</b>
-          </div>
+          </div>}
           <div className={'exp-node exp-area' + (setupView === 'export' ? ' sel' : '')}
             onClick={() => setSetupView('export')}>
             <b>Export / Import</b>

@@ -193,6 +193,7 @@ export function TopBar(): JSX.Element {
           { label: '⚙ Batch Operator', onClick: () => navigate('batch') },
           { label: '▤ Display Builder', onClick: () => navigate('builder') },
           { label: '🔑 User Manager', onClick: () => navigate('users') },
+          { label: '⚙ System Preferences', onClick: () => navigate('system') },
           { label: '🎓 DV-09 Workshops', onClick: () => navigate('workshops') }
         ]}
       />

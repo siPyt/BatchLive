@@ -9,12 +9,22 @@ require.extensions['.ts'] = (module, filename) => {
 }
 const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
+const { useSystem } = require('../src/renderer/src/engine/systemPreferences.ts')
 const { findDst } = require('../src/renderer/src/engine/traditionalIo.ts')
 const ff = require('../src/renderer/src/engine/fieldbus.ts')
 const act = require('../src/renderer/src/engine/fieldbusActions.ts')
 
 const CARD = 'CTRL1/C05'
 function fixture(run) {
+  const previous = useSystem.getState()
+  useSystem.setState({ features: { fieldbus: true, signaturePolicies: true } })
+  try {
+    fixtureBase(run)
+  } finally {
+    useSystem.setState(previous, true)
+  }
+}
+function fixtureBase(run) {
   const before = { store: useStore.getState(), security: useSecurity.getState(), window: global.window }
   global.window = { alerts: [], alert(m) { this.alerts.push(m) }, localStorage: { getItem: () => null, setItem: () => {} } }
   try {

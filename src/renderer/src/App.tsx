@@ -24,6 +24,7 @@ import { SfcDisplay } from './displays/SfcDisplay'
 import { DisplayBuilder } from './displays/DisplayBuilder'
 import { WorkshopsDisplay } from './displays/WorkshopsDisplay'
 import { UserManagerDisplay } from './displays/UserManagerDisplay'
+import { SystemPreferencesDisplay } from './displays/SystemPreferencesDisplay'
 import { PhysicalNetworkDisplay } from './displays/PhysicalNetworkDisplay'
 
 export function App(): JSX.Element {
@@ -99,6 +100,7 @@ export function App(): JSX.Element {
           {display === 'builder' && <DisplayBuilder />}
           {display === 'workshops' && <WorkshopsDisplay />}
           {display === 'users' && <UserManagerDisplay />}
+          {display === 'system' && <SystemPreferencesDisplay />}
           {display === 'hardware' && <PhysicalNetworkDisplay />}
           <FaceplateHost />
         </div>
