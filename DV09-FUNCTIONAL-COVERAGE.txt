@@ -2319,5 +2319,34 @@ Result: DV09-046 MISSING -> VERIFIED_SUBSET. Current totals12 VERIFIED_SUBSET/
 (371 pass; pre-existing pdf_om.txt failure unrelated). Typecheck and
 production build both passed.
 
+PASS 62: DV09-047 CUSTOM ADVISORY — LEVEL+VALVE CONJUNCTION WITH STRICT DELAY
+-------------------------------------------------------------------------------
+Line1 - Engine: conditionDelayAlarms.ts adds a named two-condition conjunction
+  + strict elapsed-delay custom advisory, reusing fbCondition.ts's existing
+  expression evaluator for both conditions instead of a new parser. The
+  elapsed timer resets to zero the instant either condition clears, trips
+  only once elapsed strictly exceeds the configured delay (snapped for
+  floating-point drift using the same technique as sfcBlocks.ts's
+  executeSfcBlock), and can reactivate after any later reset.
+Line2 - Store: defineConditionDelayAlarm/deleteConditionDelayAlarm
+  (CAN_CONFIGURE) validate host/type/conditions/delay; the per-tick scan
+  steps every configured alarm and calls the existing reconcileAlarm (the
+  same mechanism SFC block alarms already use) with the bound custom type's
+  priority/label.
+Line3 - UI: ConditionDelayAlarmControls.tsx adds a "Condition Alarms" Setup
+  node with a live elapsed/state table and captured-message preview.
+Line4 - Tests: a real level(AI)+valve(DI) regression covers validation, the
+  strict threshold (19.9s/exactly 20.0s do not trip, the next scan does), the
+  captured message, reset-to-zero, reactivation and deletion.
+Line5 - Browser verification: defined a real type+condition alarm live,
+  watched it stay Normal, trip ACTIVE with the real captured message
+  "Level 59.5 % high with valve closed", and reset to Normal/elapsed 0.0 when
+  a condition was edited false; also confirmed the 16-char name cap rejects a
+  17-character name. Temporary objects deleted afterward.
+Result: DV09-047 PARTIAL -> VERIFIED_SUBSET. Current totals13 VERIFIED_SUBSET/
+56 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. 373 repository tests run locally
+(372 pass; pre-existing pdf_om.txt failure unrelated). Typecheck and
+production build both passed.
+
 Commit/push authorization for this pass follows the same 2026-10-05
 instruction already recorded for Pass54.

@@ -10,6 +10,7 @@ import { nextAreaName } from '../engine/areas'
 import { moduleNameError } from '../engine/naming'
 import { NamedSetControls } from '../components/NamedSetControls'
 import { CustomAlarmTypeControls } from '../components/CustomAlarmTypeControls'
+import { ConditionDelayAlarmControls } from '../components/ConditionDelayAlarmControls'
 import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
 import { sfcConfiguredMetadata } from '../engine/sfcLifecycle'
 import type { SfcDef } from '../engine/sfc'
@@ -76,6 +77,7 @@ export function ExplorerDisplay(): JSX.Element {
   const areas = useStore((s) => s.areas)
   const namedSets = useStore(s => s.namedSets.configured)
   const customAlarmTypes = useStore(s => s.customAlarmTypes.configured)
+  const conditionDelayAlarms = useStore(s => s.conditionDelayAlarms)
   const addArea = useStore((s) => s.createArea)
   const renameArea = useStore((s) => s.renameArea)
   const deleteModule = useStore((s) => s.deleteModule)
@@ -95,13 +97,15 @@ export function ExplorerDisplay(): JSX.Element {
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
-  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'licensing'>('modules')
+  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing'>('modules')
   const [selectedNamedSet, setSelectedNamedSet] = useState<string | null>(null)
   const [namedSetCreateRequest, setNamedSetCreateRequest] = useState(0)
   const [namedSetPropertiesRequest, setNamedSetPropertiesRequest] =
     useState<{ name: string; serial: number } | null>(null)
   const [selectedAlarmType, setSelectedAlarmType] = useState<string | null>(null)
   const [alarmTypeCreateRequest, setAlarmTypeCreateRequest] = useState(0)
+  const [selectedConditionAlarm, setSelectedConditionAlarm] = useState<string | null>(null)
+  const [conditionAlarmCreateRequest, setConditionAlarmCreateRequest] = useState(0)
   const [menu, setMenu] = useState<
     { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'sfc' | 'em' | 'namedSets' | 'namedSet'; target: string } | null
   >(null)
@@ -240,6 +244,15 @@ export function ExplorerDisplay(): JSX.Element {
             onClick={() => { setSetupView('alarmTypes'); setSelectedAlarmType(name) }}>
             <b>{name}</b>
           </div>)}
+          <div className={'exp-node exp-area' + (setupView === 'conditionAlarms' && !selectedConditionAlarm ? ' sel' : '')}
+            onClick={() => setSetupView('conditionAlarms')}>
+            <b>Condition Alarms</b>
+          </div>
+          {Object.keys(conditionDelayAlarms).map(name => <div key={name}
+            className={'exp-node exp-mod nested' + (setupView === 'conditionAlarms' && selectedConditionAlarm === name ? ' sel' : '')}
+            onClick={() => { setSetupView('conditionAlarms'); setSelectedConditionAlarm(name) }}>
+            <b>{name}</b>
+          </div>)}
         </>}
         <div className="exp-node exp-cell" onClick={() => toggle('PROPLUS')}>
           <span className="exp-caret">{open.PROPLUS === false ? '▸' : '▾'}</span><b>ProfessionalPLUS (simulated)</b>
@@ -359,6 +372,9 @@ export function ExplorerDisplay(): JSX.Element {
         ) : setupView === 'alarmTypes' ? (
           <CustomAlarmTypeControls selected={selectedAlarmType} onSelect={setSelectedAlarmType}
             createRequest={alarmTypeCreateRequest} onRequestsHandled={() => setAlarmTypeCreateRequest(0)} />
+        ) : setupView === 'conditionAlarms' ? (
+          <ConditionDelayAlarmControls selected={selectedConditionAlarm} onSelect={setSelectedConditionAlarm}
+            createRequest={conditionAlarmCreateRequest} onRequestsHandled={() => setConditionAlarmCreateRequest(0)} />
         ) : selectedSfc ? (
           <div className="exp-props">
             <div className="exp-props-head">

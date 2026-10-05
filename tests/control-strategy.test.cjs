@@ -42,6 +42,9 @@ const {
   MAX_CUSTOM_ALARM_TYPES, changedCustomAlarmTypeNames, customAlarmTypeDefError, customAlarmTypeNameError,
   substituteAlarmMessage
 } = require('../src/renderer/src/engine/customAlarmTypes.ts')
+const {
+  conditionDelayAlarmDefError, conditionDelayAlarmMessage
+} = require('../src/renderer/src/engine/conditionDelayAlarms.ts')
 
 function plant(splitRange = false) {
   const state = { ...buildInitialPlant(), hardware: makeDefaultHardware(), speed: 1 }
@@ -904,6 +907,75 @@ test('faceplate "Ack Alarm" acknowledges a module\'s own active alarm(s) directl
     live.forEach(a => store.ackAlarm(a.id))
     assert.deepEqual(moduleOwnUnacknowledgedAlarms('XVSTAT-101', useStore.getState().alarms), [])
     assert.equal(useStore.getState().alarms.find(a => a.moduleTag === 'XVSTAT-101').acknowledged, true)
+  })
+})
+
+test('DV09-047 custom advisory for level>900 AND valve-closed, strict 20s delay: conjunction, reset, reactivation, captured message', () => {
+  withAreaProject((store, alerts) => {
+    discreteCourseProject(store)
+    assert.equal(store.createModule({ tag: 'LI-101', type: 'AI', area: 'PLANT_AREA_A', description: 'Course tank level', pvMax: 1000 }), true)
+    assert.equal(store.bindAnalogDst('LI-101', 'input', 'LT-1'), true)
+    store.setTraditionalInput('LT-1', 950)
+    store.tick(0.1); store.tick(0.1)
+    assert.ok(useStore.getState().modules['LI-101'].pv > 900, `LI-101 PV was ${useStore.getState().modules['LI-101'].pv}`)
+    // XVSTAT-101 starts closed (state false) by default, matching "valve remains closed".
+    assert.equal(useStore.getState().modules['XVSTAT-101'].state, false)
+
+    assert.equal(store.defineCustomAlarmType('HI_VLV_CLOSED',
+      { priority: 'ADVISORY', messageTemplate: 'Level %P1 high with valve closed', p1Path: 'PV' }), true)
+    assert.equal(store.downloadCustomAlarmTypeSetup(), true)
+
+    const def = { hostTag: 'LI-101', customType: 'HI_VLV_CLOSED',
+      conditionA: "'//LI-101/AI1/PV' > 900", conditionB: "'//XVSTAT-101/DI1/PV_D' = 0", delaySeconds: 20 }
+    // Validation: bad name, nonexistent host, undeployed type, bad condition sources and nonpositive delay all rejected.
+    assert.match(conditionDelayAlarmDefError({ ...def, hostTag: 'NOPE' }, useStore.getState().modules, useStore.getState().customAlarmTypes.deployed), /does not exist/)
+    assert.match(conditionDelayAlarmDefError({ ...def, customType: 'NOPE' }, useStore.getState().modules, useStore.getState().customAlarmTypes.deployed), /not in the deployed/)
+    assert.match(conditionDelayAlarmDefError({ ...def, conditionA: "'//NOPE/AI1/PV' > 900" }, useStore.getState().modules, useStore.getState().customAlarmTypes.deployed), /Condition A/)
+    assert.match(conditionDelayAlarmDefError({ ...def, delaySeconds: 0 }, useStore.getState().modules, useStore.getState().customAlarmTypes.deployed), /positive/)
+    assert.equal(conditionDelayAlarmDefError(def, useStore.getState().modules, useStore.getState().customAlarmTypes.deployed), null)
+
+    assert.equal(store.defineConditionDelayAlarm('bad name', def), false)
+    assert.match(alerts.at(-1), /uppercase/)
+    assert.equal(store.defineConditionDelayAlarm('LVL_VLV_ADV', def), true)
+    assert.deepEqual(useStore.getState().conditionDelayAlarms.LVL_VLV_ADV, def)
+
+    // Strict elapsed threshold: 199 scans of 0.1s = 19.9s, one more = exactly 20.0s; neither trips (strictly > required).
+    for (let i = 0; i < 199; i++) store.tick(0.1)
+    assert.equal(useStore.getState().alarms.find(a => a.id === 'CONDALM.LVL_VLV_ADV'), undefined)
+    store.tick(0.1)
+    assert.equal(useStore.getState().alarms.find(a => a.id === 'CONDALM.LVL_VLV_ADV'), undefined,
+      'exactly 20.0s elapsed must not trip a STRICT >20s threshold')
+    store.tick(0.1)
+    const tripped = useStore.getState().alarms.find(a => a.id === 'CONDALM.LVL_VLV_ADV')
+    assert.ok(tripped, '20.1s elapsed strictly exceeds the 20s threshold')
+    assert.equal(tripped.active, true)
+    assert.equal(tripped.priority, 'ADVISORY')
+    assert.equal(tripped.label, 'LVL_VLV_ADV')
+
+    // Captured message: %P1 resolves LI-101's own live PV, never a fabricated number.
+    const message = conditionDelayAlarmMessage(def, useStore.getState().customAlarmTypes.deployed, useStore.getState().modules)
+    assert.match(message, /^Level \d+ high with valve closed$/)
+
+    // Reset when either condition clears: opening the valve immediately zeroes the elapsed timer and clears the alarm.
+    store.toggleDO('XV-101')
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['XVSTAT-101'].state, true, 'valve confirmed open')
+    assert.equal(useStore.getState().conditionDelayAlarmRuntime.LVL_VLV_ADV.elapsed, 0)
+    assert.equal(useStore.getState().alarms.find(a => a.id === 'CONDALM.LVL_VLV_ADV').active, false)
+
+    // Reactivation: re-closing the valve and waiting past the delay again trips a fresh occurrence.
+    store.toggleDO('XV-101')
+    store.tick(0.1); store.tick(0.1)
+    assert.equal(useStore.getState().modules['XVSTAT-101'].state, false, 'valve confirmed closed again')
+    for (let i = 0; i < 205; i++) store.tick(0.1)
+    assert.equal(useStore.getState().alarms.find(a => a.id === 'CONDALM.LVL_VLV_ADV').active, true)
+
+    // Deleting the definition removes both its configuration and any live occurrence.
+    assert.equal(store.deleteConditionDelayAlarm('LVL_VLV_ADV'), true)
+    assert.equal(useStore.getState().conditionDelayAlarms.LVL_VLV_ADV, undefined)
+    assert.equal(useStore.getState().alarms.find(a => a.id === 'CONDALM.LVL_VLV_ADV'), undefined)
+    assert.equal(store.deleteConditionDelayAlarm('LVL_VLV_ADV'), false)
+    assert.match(alerts.at(-1), /does not exist/)
   })
 })
 

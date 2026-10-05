@@ -22,7 +22,7 @@ import type {
   AnalogOutputPatch
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
-import { resetDeviceLock, stepPlant } from './simulate'
+import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { captureDevice, cloneDeviceConfiguration, deviceActive, deviceConfigurationError, deviceDirty, deviceDownloadError, deviceEditorModules, prepareDeviceTransfer,
   deviceOperatorError, parseDevice, savedDeviceKey, serializeDevice, type DeviceDraftPatch, type DeviceLifecycle } from './deviceLifecycle'
 import { materializeMotorStrategy, motorStrategyError, motorTemplateStrategy, ownedMotorBlock, strategyModules, type MotorBlockConfiguration } from './motorStrategy'
@@ -74,6 +74,9 @@ import {
   MAX_CUSTOM_ALARM_TYPES, changedCustomAlarmTypeNames, cloneCustomAlarmType, customAlarmTypeDefError,
   customAlarmTypeNameError, type CustomAlarmTypeDef, type CustomAlarmTypeState
 } from './customAlarmTypes'
+import {
+  conditionDelayAlarmDefError, stepConditionDelayAlarm, type ConditionDelayAlarmDef, type ConditionDelayAlarmRuntime
+} from './conditionDelayAlarms'
 import { makeDefaultEquipment, makeBlankEquipment, type EquipmentModule } from './equipment'
 import {
   makeDefaultHardware,
@@ -151,6 +154,13 @@ interface StoreState extends PlantState {
   defineCustomAlarmType: (name: string, def: CustomAlarmTypeDef) => boolean
   deleteCustomAlarmType: (name: string) => boolean
   downloadCustomAlarmTypeSetup: () => boolean
+  /** DV09-047: named two-condition conjunction + strict elapsed-delay alarms,
+   * bound to a deployed custom alarm type. conditionDelayAlarmRuntime is
+   * pure per-tick runtime state (elapsed timers), not saved configuration. */
+  conditionDelayAlarms: Record<string, ConditionDelayAlarmDef>
+  conditionDelayAlarmRuntime: Record<string, ConditionDelayAlarmRuntime>
+  defineConditionDelayAlarm: (name: string, def: ConditionDelayAlarmDef) => boolean
+  deleteConditionDelayAlarm: (name: string) => boolean
   sfcLifecycle: Record<string, SfcLifecycle>
   downloadStatusChecks: Record<string, DownloadStatusCheck>
   updateModuleDownloadStatus: (tag: string) => boolean
@@ -346,6 +356,8 @@ export const useStore = create<StoreState>((set, get) => ({
   deviceLifecycle: {},
   namedSets: { configured: {}, deployed: {} },
   customAlarmTypes: { configured: {}, deployed: {} },
+  conditionDelayAlarms: {},
+  conditionDelayAlarmRuntime: {},
   downloadStatusChecks: {},
   updateModuleDownloadStatus: tag => {
     if (!requireUnlockedKey('CAN_CONFIGURE', `Update Download Status ${tag}`)) return false
@@ -392,6 +404,20 @@ export const useStore = create<StoreState>((set, get) => ({
     const sfcs = { ...s.sfcs, ...executedSfcs, ...paused }
     const next = stepPlant({ ...s, modules: sfcModules }, dt)
     reconcileSfcAlarms(next.alarms, sfcs, next.time)
+    // DV09-047: step each configured two-condition + strict-delay custom alarm.
+    const conditionDelayAlarmRuntime: Record<string, ConditionDelayAlarmRuntime> = { ...s.conditionDelayAlarmRuntime }
+    for (const [name, def] of Object.entries(s.conditionDelayAlarms)) {
+      const { runtime, tripped } = stepConditionDelayAlarm(
+        s.conditionDelayAlarmRuntime[name] ?? { elapsed: 0 }, def, next.modules, dt * s.speed)
+      conditionDelayAlarmRuntime[name] = runtime
+      const type = s.customAlarmTypes.deployed[def.customType]
+      const host = next.modules[def.hostTag]
+      if (type && host) {
+        reconcileAlarm(next.alarms, def.hostTag, host.description,
+          { type: 'CUSTOM', label: name, priority: type.priority, enabled: true },
+          tripped, runtime.elapsed, 's', next.time, `CONDALM.${name}`, name)
+      }
+    }
     // Sample trend data.
     const trend = s.trend
     const last = trend[trend.length - 1]
@@ -479,6 +505,7 @@ export const useStore = create<StoreState>((set, get) => ({
       trend: newTrend,
       batch,
       sfcs,
+      conditionDelayAlarmRuntime,
       rev: s.rev + 1,
       hornSilenced: hasNewAlarm ? false : s.hornSilenced,
       eventLog: newEntries.length ? [...s.eventLog, ...newEntries].slice(-EVENT_LOG_MAX) : s.eventLog
@@ -2814,6 +2841,34 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  defineConditionDelayAlarm: (name, def) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Define condition-delay alarm ${name}`)) return false
+    const state = get()
+    const error = customAlarmTypeNameError(name) ?? conditionDelayAlarmDefError(def, state.modules, state.customAlarmTypes.deployed)
+    if (error) { get().logEvent('DIAGNOSTIC', name, error); window.alert(error); return false }
+    const conditionDelayAlarms = { ...state.conditionDelayAlarms, [name]: { ...def } }
+    set(s => ({ conditionDelayAlarms, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', name, `Condition-delay alarm defined: ${def.conditionA} AND ${def.conditionB} for >${def.delaySeconds}s`)
+    return true
+  },
+
+  deleteConditionDelayAlarm: (name) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Delete condition-delay alarm ${name}`)) return false
+    const state = get()
+    if (!Object.hasOwn(state.conditionDelayAlarms, name)) {
+      const error = `Condition-delay alarm ${name} does not exist`
+      get().logEvent('DIAGNOSTIC', name, error); window.alert(error); return false
+    }
+    const conditionDelayAlarms = { ...state.conditionDelayAlarms }
+    delete conditionDelayAlarms[name]
+    const conditionDelayAlarmRuntime = { ...state.conditionDelayAlarmRuntime }
+    delete conditionDelayAlarmRuntime[name]
+    const alarms = state.alarms.filter(a => a.id !== `CONDALM.${name}`)
+    set(s => ({ conditionDelayAlarms, conditionDelayAlarmRuntime, alarms, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', name, 'Condition-delay alarm deleted')
+    return true
+  },
+
   enableSfcLifecycle: name => {
     if (!requireUnlockedLock('CAN_CONFIGURE', `Enable saved SFC lifecycle ${name}`)) return false
     const state = get()
@@ -3115,6 +3170,8 @@ export const useStore = create<StoreState>((set, get) => ({
       deviceLifecycle: {},
       namedSets: { configured: {}, deployed: {} },
       customAlarmTypes: { configured: {}, deployed: {} },
+      conditionDelayAlarms: {},
+      conditionDelayAlarmRuntime: {},
       sfcLifecycle: {},
       downloadStatusChecks: {},
       rev: get().rev + 1

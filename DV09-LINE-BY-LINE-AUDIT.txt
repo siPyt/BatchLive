@@ -830,11 +830,31 @@ Acceptance: Test rank-sensitive visibility and acknowledgment/return-to-normal.
 
 [DV09-047]
 Pages: 213-215
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Custom advisory when level exceeds 900 and valve remains closed
   for over 20 seconds, with a custom word/type and condition delay.
-Evidence: FB logic/timers could compose related behavior; exact course alarm,
-  scenario and type administration are missing.
+Evidence (Pass62): conditionDelayAlarms.ts adds a named two-condition
+  conjunction + strict elapsed-delay alarm (both conditions use the existing
+  fbCondition.ts expression evaluator, e.g. "'//LI-101/AI1/PV' > 900" and
+  "'//XVSTAT-101/DI1/PV_D' = 0"), bound to a deployed Pass59 custom alarm
+  type for its word/priority/message. store.ts's defineConditionDelayAlarm/
+  deleteConditionDelayAlarm (CAN_CONFIGURE) validate host/type/conditions/
+  delay; the per-scan tick steps every configured alarm, resets its elapsed
+  timer to zero the instant either condition clears, trips only once elapsed
+  strictly exceeds the configured delay (snapped for floating-point drift,
+  same tolerance technique as sfcBlocks.ts's executeSfcBlock), and can
+  reactivate after any later reset. ConditionDelayAlarmControls.tsx
+  (ExplorerDisplay.tsx Setup tree, "Condition Alarms") provides full
+  Setup/Properties UI with a live elapsed/state readout and captured-message
+  preview. Verified live in a running browser session (not just unit tests):
+  a configured level+DI conjunction with a 2s delay correctly stayed Normal,
+  tripped ACTIVE with a real captured "Level 59.5 % high with valve closed"
+  message once elapsed exceeded 2s, and reset to Normal/elapsed 0.0 the
+  instant one condition was edited to no longer hold.
+Gaps (honest, not fixed this pass): exactly two AND'd conditions (not an
+  arbitrary N-condition/OR expression tree); conditions are restricted to
+  fbCondition.ts's AI1/PV and DI1/PV_D references, the same restriction that
+  expression type already has elsewhere in this codebase.
 Acceptance: Verify conjunction, strict elapsed threshold, reset when either
   condition clears, reactivation and captured message; not a constant checkbox.
 
@@ -2359,8 +2379,10 @@ DV09-045: Configured workstation Chronicle/SOE/subscriptions and durable
 DV09-046: Generic ALARMS[n] array visibility expert (today's Alarm Visibility
   checkbox is restricted to the single hardcoded ALARMS[1].A_LAALM datalink);
   rank/acknowledgment-sensitive visibility itself now exists (Pass61).
-DV09-047: Exact level>900 AND valve-closed for>20s advisory/custom type/message,
-  reset/reactivation/captured values, not just available composable timers.
+DV09-047: An arbitrary N-condition/OR expression tree (today's conjunction is
+  exactly two AND'd fbCondition.ts AI1/PV or DI1/PV_D references); the exact
+  conjunction+strict-delay+custom-type+reset/reactivation/captured-message
+  behavior itself now exists and is verified (Pass62).
 DV09-048: Editable DC bit0/bit1/don't-care/unavailable state masks.
 DV09-049: Full passive-on-timeout/confirmation/trip/SP-tracking DC options and
   native property sequence. Named Sets and independent descriptors now exist.
@@ -2860,3 +2882,47 @@ Validation: 372 repository tests run locally (371 pass; the remaining
 Result: DV09-046 MISSING -> VERIFIED_SUBSET. Current totals12 VERIFIED_SUBSET/
 57 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the
 next remaining group in a subsequent pass.
+
+PASS 62 CHANGE DETAIL AND VALIDATION (2026-10-05)
+--------------------------------------------------
+Scope: DV09-047, continuing the open-ended line-by-line continuation.
+Engine: conditionDelayAlarms.ts adds a named two-condition conjunction +
+  strict elapsed-delay custom advisory, reusing fbCondition.ts's existing
+  expression evaluator for both conditions (e.g. a level comparison and a
+  valve-closed DI check) rather than inventing a new parser. The elapsed
+  timer resets to zero the instant either condition clears, trips only once
+  elapsed strictly exceeds the configured delay, and can reactivate after any
+  later reset. A floating-point snapping tolerance (identical technique to
+  sfcBlocks.ts's executeSfcBlock) prevents 0.1s-scan accumulation drift from
+  tripping a fraction of a scan early at an exact threshold.
+Store: defineConditionDelayAlarm/deleteConditionDelayAlarm (CAN_CONFIGURE)
+  validate the host module, the deployed custom alarm type, both condition
+  expressions and a positive delay. The per-tick scan steps every configured
+  alarm and calls the existing reconcileAlarm (the same mechanism SFC block
+  alarms already use) with the bound custom type's priority/label, so
+  activation, RTN and acknowledgment semantics are identical to every other
+  alarm in the engine, not a parallel implementation.
+UI: ConditionDelayAlarmControls.tsx adds a "Condition Alarms" node under
+  ExplorerDisplay.tsx's Setup tree: a configured-alarm table with live
+  elapsed/state columns, a Properties dialog, and a captured-message preview.
+Tests: control-strategy.test.cjs adds a DV09-047 regression on a real
+  level(AI)+valve(DI) pair: validation (bad host/type/condition/delay),
+  the strict threshold (199 scans=19.9s and one more=exactly 20.0s do not
+  trip; the next scan does), the captured %P1 message, reset-to-zero the
+  instant the valve reopens, reactivation on a later qualifying period, and
+  deletion removing both configuration and any live occurrence.
+Browser verification: a temporary standalone Vite preview (not committed)
+  defined a real custom alarm type, downloaded it, then defined a condition
+  alarm on LIC-401 (level) + DI-501 (valve) with a 2s delay: stayed Normal
+  while the conjunction was false, correctly rejected a 17-character name
+  (the existing 16-char cap), tripped ACTIVE with the real message
+  "Level 59.5 % high with valve closed" once elapsed exceeded 2s (visible in
+  the Alarm Summary banner count and alarm list), and reset to Normal/
+  elapsed 0.0 the instant one condition was edited to no longer hold. The
+  temporary alarm/type were deleted afterward; dev server stopped.
+Validation: 373 repository tests run locally (372 pass; the remaining
+  failure is the pre-existing local-only pdf_om.txt dependency in
+  dv09-audit.test.cjs). Typecheck and the production build both passed.
+Result: DV09-047 PARTIAL -> VERIFIED_SUBSET. Current totals13 VERIFIED_SUBSET/
+56 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next
+remaining group in a subsequent pass.
