@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 60 VERIFIED_SUBSET, 43 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 61 VERIFIED_SUBSET, 42 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -141,11 +141,27 @@ Acceptance: Build explicit virtual device types and capability/resource
 
 [DV09-003]
 Pages: 37-50
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Distinguish engineering, operator Run/Configure, Explorer, Control
   Studio and diagnostics applications and launch the appropriate workflows.
-Evidence: TopBar navigation, EXPLORER, STUDIO, BUILDER and NETWORK provide
-  related views; native application launches and menus are not reproduced.
+Evidence (Pass90): TopBar navigation, Explorer, Control Studio, Display Builder
+  and Physical Network provide related views with real actions. Pass90 adds a
+  DeltaV Applications display (Utilities > DeltaV Applications) backed by
+  applications.ts that maps each course application to the BatchLive display
+  that executes it: Operate Run (overview/process pictures) versus Operate
+  Configure (Display Builder), Explorer, Control Studio, SFC, Diagnostics
+  (Physical Network), User Manager, System Preferences/Database
+  Administrator, Batch and Recipe Studio, Alarm List, history, Event Journal
+  and the workshops. Each entry states what it really does, what native
+  behaviour is not reproduced and the keys that gate its actions (shown as held
+  or not for the logged-on user). Four source-scan regressions guarantee that
+  every entry launches a real display, no engineering or diagnostic display is
+  uncatalogued, Run and Configure keys differ, every top-bar launch target and
+  Utilities item is a real, rendered and catalogued display, and no entry is
+  decorative; the browser listed the five role sections and launched Control
+  Studio.
+  Boundary: native application processes, Start-menu launches and Windows
+  desktop integration are not reproduced.
 Acceptance: Provide executable simulator equivalents with their real action
   semantics; document unsupported native actions instead of decorative menus.
 
@@ -4237,3 +4253,18 @@ Validation: 630 tests locally (629 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-013 PARTIAL -> VERIFIED_SUBSET. Totals 60 VERIFIED_SUBSET/
   43 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 90 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-003 application catalogue and launcher (pp37-50).
+Engine: new applications.ts (native application -> display, does, not-supported, keys).
+UI: ApplicationsDisplay, a new "DeltaV Applications" display id/navigation entry,
+  Utilities menu item and App routing.
+Tests: tests/applications.test.cjs (4) source-scan guards; the ribbon test's
+  display count updated to 28.
+Browser: five role sections shown; Open launched Control Studio.
+Boundary (honest): no native process launches or Start-menu integration.
+Validation: 634 tests locally (633 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-003 PARTIAL -> VERIFIED_SUBSET. Totals 61 VERIFIED_SUBSET/
+  42 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

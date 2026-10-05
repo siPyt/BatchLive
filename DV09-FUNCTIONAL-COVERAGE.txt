@@ -2662,3 +2662,8 @@ PASS 89: EQUIPMENT HIERARCHY (pp79-83)
 Line1 - Area > Process Cell > Unit > Equipment Module > Control Module, shown in Explorer and in a Setup panel.
 Line2 - Containment rules, per-area placement, rename cascade.
 Line3 - Unit behavior: Batch needs a complete hierarchy. Tests: hierarchy.test.cjs.
+
+PASS 90: DELTAV APPLICATIONS LAUNCHER (pp37-50)
+-----------------------------------------------------------------------
+Line1 - Each application launches its real display; Run and Configure are distinct.
+Line2 - Unsupported native behaviour is listed, not decorated. Tests: applications.test.cjs.

@@ -25,6 +25,7 @@ export type DisplayId =
   | 'workshops'
   | 'users'
   | 'system'
+  | 'applications'
   | 'hardware'
   | 'wfi'
   | 'autoclave'

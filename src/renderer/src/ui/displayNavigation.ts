@@ -27,5 +27,6 @@ export const DISPLAY_NAVIGATION: { id: DisplayId; label: string; operator: boole
   { id: 'workshops', label: 'DV-09 Workshops', operator: false },
   { id: 'users', label: 'User Manager', operator: false },
   { id: 'system', label: 'System Preferences', operator: false },
+  { id: 'applications', label: 'DeltaV Applications', operator: false },
   { id: 'hardware', label: 'Physical Network', operator: false }
 ]

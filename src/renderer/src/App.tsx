@@ -27,6 +27,7 @@ import { DisplayBuilder } from './displays/DisplayBuilder'
 import { WorkshopsDisplay } from './displays/WorkshopsDisplay'
 import { UserManagerDisplay } from './displays/UserManagerDisplay'
 import { SystemPreferencesDisplay } from './displays/SystemPreferencesDisplay'
+import { ApplicationsDisplay } from './displays/ApplicationsDisplay'
 import { PhysicalNetworkDisplay } from './displays/PhysicalNetworkDisplay'
 
 export function App(): JSX.Element {
@@ -103,6 +104,7 @@ export function App(): JSX.Element {
           {display === 'workshops' && <WorkshopsDisplay />}
           {display === 'users' && <UserManagerDisplay />}
           {display === 'system' && <SystemPreferencesDisplay />}
+          {display === 'applications' && <ApplicationsDisplay />}
           {display === 'hardware' && <PhysicalNetworkDisplay />}
           <FaceplateHost />
         </div>

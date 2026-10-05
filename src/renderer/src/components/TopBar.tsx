@@ -194,6 +194,7 @@ export function TopBar(): JSX.Element {
           { label: '▤ Display Builder', onClick: () => navigate('builder') },
           { label: '🔑 User Manager', onClick: () => navigate('users') },
           { label: '⚙ System Preferences', onClick: () => navigate('system') },
+          { label: '▣ DeltaV Applications', onClick: () => navigate('applications') },
           { label: '🎓 DV-09 Workshops', onClick: () => navigate('workshops') }
         ]}
       />
