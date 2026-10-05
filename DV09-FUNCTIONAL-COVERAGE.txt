@@ -2685,3 +2685,8 @@ Line2 - Log-only alarms are journaled event records. Tests: alarm-priorities.tes
 PASS 94: STATUS RECONCILIATION
 -----------------------------------------------------------------------
 DV09-016/024/032/034/036/037/068 are VERIFIED_SUBSET on existing evidence; gaps unchanged and recorded.
+
+PASS 95: MODBUS WORKSHOP FAILURE/SCALE/STATUS TESTS (pp405-410)
+-----------------------------------------------------------------------
+Line1 - Dead link: motor not running, PV Bad, loop leaves AUTO; recovery restores both.
+Line2 - INT16 quantization and dataset status verified. Tests: serial-modbus.test.cjs.

@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 72 VERIFIED_SUBSET, 31 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 74 VERIFIED_SUBSET, 29 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -2178,30 +2178,42 @@ Acceptance: Test corresponding 40001 and 00002 mappings, output/input direction,
 
 [DV09-092]
 Pages: 405-406
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: MTR-MODBUS from MTR-11 with dataset IO_IN/IO_OUT, assignment,
   save/download, bound pump dynamo and verified start/stop.
-Evidence (Pass72): a managed motor (MTR-MODBUS) bound IO_IN_1 = MTR-IN/R2 and
-  IO_OUT_1 = MTR-OUT/R2 is saved, downloaded (requires both serial DSTs to be
-  scanned Good) and brought Online; Start writes coil 00002 to the slave
-  memory, the slave dataset returns it as MTR-IN, the motor reports running,
-  and Stop clears both. Gaps: the test uses a plain managed motor instead of
-  the MTR-11 library template (whose interlock logic needs its course
-  strategy), and a pump dynamo was not exercised against this module.
+Evidence (Pass72 + Pass95): a managed motor (MTR-MODBUS) bound IO_IN_1 =
+  MTR-IN/R2 and IO_OUT_1 = MTR-OUT/R2 is saved, downloaded (requires both serial
+  DSTs to be scanned Good) and brought Online; Start writes coil 00002 to the
+  slave memory, the slave dataset returns it as MTR-IN, the motor reports
+  running, and Stop clears both. Pass95 adds the failure case: with the link
+  down the coil never returns, MTR-IN is Bad, the motor is not shown running
+  and reports the problem, and after recovery a new start is confirmed by the
+  returned coil. Running state therefore comes from the returned coil, not from
+  command-coloured animation.
+  Boundary: the test uses a plain managed motor instead of the MTR-11 library
+  template (whose interlock logic needs its course strategy), and a pump dynamo
+  was not exercised against this module.
 Acceptance: Command must change the mapped coil; returned coil must determine
   feedback and confirmation/fault behavior, not command-colored animation.
 
 [DV09-093]
 Pages: 407-410
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: FIC-MODBUS from PID_LOOP using FLOW-IN/FLOW-OUT R40001, assign/
   save/download, loop dynamo and closed-loop verification; serial recap.
-Evidence (Pass72): FIC-MODBUS (PID_LOOP) binds IO_IN = FLOW-IN/R40001 and
-  IO_OUT = FLOW-OUT/R40001, is saved, downloaded and Online. In MAN, OUT 40
+Evidence (Pass72 + Pass95): FIC-MODBUS (PID_LOOP) binds IO_IN = FLOW-IN/R40001
+  and IO_OUT = FLOW-OUT/R40001, is saved, downloaded and Online. In MAN, OUT 40
   lands in holding register 40001 and returns as the PV; in AUTO with SP 25
-  the loop settles within 2 units with a Good PV. Gap: no loop dynamo was
-  exercised against this module and the closed loop is the register echo,
-  not a modeled process.
+  the loop settles within 2 units with a Good PV. Pass95 adds the acceptance
+  tests: scale (INT16 registers carry whole numbers, so OUT 40.4/40.6 reach the
+  register as 40/41 and the PV is the quantized value), status (dataset status
+  Good on both ports while polling), failure (a dead link marks the PV and the
+  output dataset Bad, the loop leaves AUTO, nothing new reaches the register,
+  and control resumes with Good data after recovery) and tuning (gains 0.3 and
+  0.8 settle near SP; a gain above 1 on this one-scan echo plant is correctly
+  unstable).
+  Boundary: no loop dynamo was exercised and the closed loop is the register
+  echo, not a modeled process.
 Acceptance: Demonstrate actual register output/input loop with gain/scale/status
   and failure tests before claiming any Modbus workshop complete.
 
@@ -4360,3 +4372,14 @@ stays recorded in the group and none is claimed:
   DV09-068 separate command and feedback paths for valve, motor and PID target
     versus actual mode, SP/OUT and measured flow.
 Result: Totals 72 VERIFIED_SUBSET/31 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 95 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-092/093 Modbus workshops - the failure, scale, status and tuning tests the
+  acceptance lines asked for (pp405-410). Tests only; no engine change was needed.
+Tests: four regressions added to tests/serial-modbus.test.cjs (now 21): MTR-MODBUS
+  link failure and recovery; FIC-MODBUS dead link (PV Bad, loop leaves AUTO,
+  register held, recovery); INT16 quantization and dataset status; stable-gain tuning.
+Result: DV09-092 and DV09-093 PARTIAL -> VERIFIED_SUBSET (MTR-11 template and
+  dynamos remain boundaries). Totals 74 VERIFIED_SUBSET/29 PARTIAL/0 MISSING/
+  19 BOUNDARY/6 CONTEXT.

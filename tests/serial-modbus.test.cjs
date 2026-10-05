@@ -348,3 +348,102 @@ test('DV09-086 serial configuration requires the Can Configure key', () => fixtu
   assert.match(s.addSerialDevice(CARD, 'P01', 'DEV01', 1), /Can Configure/)
   assert.match(s.addSerialCard('CTRL1', 6), /Can Configure/)
 }))
+
+function buildModbusLoop(s) {
+  workshop(s)
+  run(s, 3)
+  assert.equal(s.createModule({ tag: 'FIC-MODBUS', type: 'PID', templateId: 'PID_LOOP', area: 'PLANT_AREA_A', description: 'MODBUS loop' }), true)
+  assert.equal(s.bindAnalogDst('FIC-MODBUS', 'input', 'FLOW-IN/R40001'), true)
+  assert.equal(s.bindAnalogDst('FIC-MODBUS', 'output', 'FLOW-OUT/R40001'), true)
+  assert.equal(s.enablePidLifecycle('FIC-MODBUS'), true)
+  assert.equal(s.savePidConfiguration('FIC-MODBUS'), true)
+  assert.equal(s.downloadPidModule('FIC-MODBUS'), true)
+  assert.equal(s.setPidLifecycleOnline('FIC-MODBUS', true), true)
+  useStore.setState({ running: true })
+}
+const setSlavePort = (enabled) => {
+  const c = JSON.parse(JSON.stringify(card()))
+  c.deployed.ports.P02.enabled = enabled
+  useStore.setState((st) => ({ hardware: { ...st.hardware, serialCards: { ...st.hardware.serialCards, [CARD]: c } } }))
+}
+
+test('DV09-093 failure: a dead Modbus link marks the loop PV Bad and holds control; recovery restores Good data and control', () => fixture((s) => {
+  buildModbusLoop(s)
+  s.setSetpoint('FIC-MODBUS', 25)
+  s.setMode('FIC-MODBUS', 'AUTO')
+  run(s, 60)
+  const settled = useStore.getState().modules['FIC-MODBUS']
+  assert.ok(Math.abs(settled.pv - 25) < 2 && !settled.pvBad)
+  const heldOut = card().runtime.memory.P02['1']['HOLDING_REGISTERS:0']
+  setSlavePort(false)
+  run(s, 6)
+  const bad = useStore.getState().modules['FIC-MODBUS']
+  assert.equal(bad.pvBad, true, 'the register read is Bad, so the loop PV is Bad')
+  assert.notEqual(bad.actualMode, 'AUTO', 'an AUTO loop with a Bad PV does not keep calculating from it')
+  assert.equal(dst('FLOW-IN/R40001').channel.bad, true)
+  assert.equal(dst('FLOW-OUT/R40001').channel.bad, true, 'the output dataset is Bad too')
+  assert.equal(card().runtime.memory.P02['1']['HOLDING_REGISTERS:0'], heldOut, 'nothing new reaches the PLC register while the link is down')
+  setSlavePort(true)
+  run(s, 90)
+  const healed = useStore.getState().modules['FIC-MODBUS']
+  assert.equal(healed.pvBad, false)
+  assert.equal(healed.actualMode, 'AUTO')
+  assert.ok(Math.abs(healed.pv - 25) < 2, `control resumes after the link returns, PV=${healed.pv}`)
+}))
+
+test('DV09-093 scale and status: INT16 registers carry whole numbers, so the PV is the quantized OUT; the dataset status is Good while polling', () => fixture((s) => {
+  buildModbusLoop(s)
+  s.setMode('FIC-MODBUS', 'MAN')
+  run(s, 0.5)
+  for (const [out, register] of [[40.4, 40], [40.6, 41], [0, 0], [100, 100]]) {
+    s.setOutput('FIC-MODBUS', out)
+    run(s, 3)
+    assert.equal(card().runtime.memory.P02['1']['HOLDING_REGISTERS:0'], register, `OUT ${out} -> register ${register}`)
+    assert.equal(useStore.getState().modules['FIC-MODBUS'].pv, register, 'the PV is read back from the register')
+  }
+  assert.deepEqual(['DS01', 'DS02'].map((n) => card().runtime.ports.P01.status[`P01/DEV01/${n}`]), ['GOOD', 'GOOD'])
+  assert.deepEqual(['DS01', 'DS02'].map((n) => card().runtime.ports.P02.status[`P02/DEV01/${n}`]), ['GOOD', 'GOOD'])
+}))
+
+test('DV09-093 tuning: the register-echo loop settles near SP for different gains', () => fixture((s) => {
+  buildModbusLoop(s)
+  for (const gain of [0.3, 0.8]) {
+    s.setMode('FIC-MODBUS', 'MAN')
+    s.setOutput('FIC-MODBUS', 10)
+    run(s, 2)
+    assert.equal(s.setTuning('FIC-MODBUS', { gain }), true, `tuning gain ${gain}`)
+    s.setSetpoint('FIC-MODBUS', 60)
+    s.setMode('FIC-MODBUS', 'AUTO')
+    run(s, 90)
+    const loop = useStore.getState().modules['FIC-MODBUS']
+    assert.ok(Math.abs(loop.pv - 60) < 3, `gain ${gain} settles near 60, PV=${loop.pv}`)
+    assert.equal(loop.pvBad, false)
+  }
+}))
+
+test('DV09-092 failure: a dead link means the coil never returns, so the motor is not shown running and the device faults after its confirm time', () => fixture((s) => {
+  workshop(s)
+  run(s, 3)
+  assert.equal(s.createModule({ tag: 'MTR-MODBUS', type: 'MOTOR', area: 'PLANT_AREA_A', description: 'Pump on Modbus coils' }), true)
+  assert.equal(s.enableDeviceLifecycle('MTR-MODBUS'), true)
+  assert.equal(s.editDeviceDraft('MTR-MODBUS', { controllerTag: 'CTRL1', inputDst: 'MTR-IN/R2', outputDst: 'MTR-OUT/R2', resetRequired: false }), true)
+  assert.equal(s.saveDeviceConfiguration('MTR-MODBUS'), true)
+  assert.equal(s.downloadDeviceConfiguration('MTR-MODBUS'), true)
+  assert.equal(s.setDeviceOnline('MTR-MODBUS', true), true)
+  run(s, 2)
+  setSlavePort(false)
+  run(s, 6)
+  s.startMotor('MTR-MODBUS')
+  run(s, 12)
+  const m = useStore.getState().modules['MTR-MODBUS']
+  assert.equal(m.running, false, 'no returned coil, no running indication')
+  assert.equal(dst('MTR-IN/R2').channel.bad, true)
+  assert.ok(m.ioInputBad || m.ioOutputBad || m.fault || /FAILED|BAD/i.test(String(m.dcState)), `the motor reports the problem (dcState ${m.dcState})`)
+  setSlavePort(true)
+  run(s, 6)
+  s.stopMotor('MTR-MODBUS')
+  run(s, 3)
+  s.startMotor('MTR-MODBUS')
+  run(s, 6)
+  assert.equal(useStore.getState().modules['MTR-MODBUS'].running, true, 'after recovery a new start is confirmed by the returned coil')
+}))
