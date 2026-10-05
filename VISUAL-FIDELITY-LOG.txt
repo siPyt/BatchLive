@@ -1,5 +1,47 @@
 BATCHLIVE VISUAL FIDELITY LOG
 ==============================
+CURRENT RECOVERY / CONNECTED-PLANT MILESTONE
+-----------------------------------------
+- User requested an IMG_0616-style overview, then additive functional models
+  of the photographed plant, preserving all existing work. User clarified
+  that the simulator should ultimately operate as one whole plant system.
+- Plant Overview now uses three fixed live summary panels and bordered
+  navigation buttons. Existing Feed/Reactor/WFI readings are not duplicated
+  into fictitious tanks. Original Spatial Plant Map remains accessible.
+- A separate Photographed WFI Overview installs real N3/N1/N1BP sandbox
+  storage loops and a coupled 3WFI-8110 training still, using original shared
+  mechanical symbols, real faceplates and confirmed device feedback.
+- Installation preserves existing modules/process/batch/exercises/hardware.
+  It explicitly enables shared steam/cooling and conserved N1-to-legacy-WFI
+  receiver/CIP supply, instead of leaving the new displays disconnected.
+- Steam loss constrains reactor, autoclave, WFI and CIP heat. Cooling loss
+  constrains loop coolers and TCU/LYO chilling. TCUs retain electric heat.
+  New tank quality mixes into legacy WFI instruments and existing diversion
+  controls. Shared utility and equipment modules use existing alarms/trends.
+- Tank sanitation requires continuous hot circulation; invalid/overridden
+  temperature control aborts without overwriting its setpoint. Start/cancel
+  actions are permission checked; cycle transitions are journaled.
+- Bad/missing tank instrumentation is explicitly identified, not drawn as
+  plausible good level. Missing/wrong-type add-on modules flag an incomplete
+  model. Legacy WFI reference-only navigation is not silently repurposed.
+- This is a first connected expansion, NOT the entire photographed plant.
+  PW neutralization, SUR-3300/3200, Buffer Prep, CIP-3200 and tanks 3300/3350
+  still require photo inventory, models and real interconnections.
+- Capacities/rates/control assumptions and startup instructions are in
+  README.md. The legacy receiver is an extra sandbox buffer, not a second
+  physical site N1 tank. Expansion state is current-project runtime state;
+  no project-save/restart persistence is claimed.
+- Typecheck, production build and 21 focused regressions passed, including
+  cold-to-distillation startup through ordinary PID/device execution,
+  explicit startup reset, speed and input-state immutability. Production
+  Electron verified all existing process navigation, original spatial map,
+  add-on installation and five new routes, real oil-pump confirmation,
+  sanitation start/cancel and narrow-window navigation reachability.
+- Final full suite: 408 tests, 407 passing; the only failure is the existing
+  dv09-audit dependency on missing local pdf_om.txt. Typecheck/build pass.
+  Both overview pages fit the measured 1280x672 desktop viewport; narrower
+  windows scroll to reachable navigation without horizontal clipping.
+
 Purpose: a dedicated, separate running log for the "make it look exactly
 like real DeltaV" visual initiative, kept apart from the DV09-xxx
 functional audit files (DV09-LINE-BY-LINE-AUDIT.txt /

@@ -13,6 +13,7 @@ import type {
   FbInputRef
 } from './types'
 import { CUSTOM_PHYSICS_TAGS } from './plant'
+import { PHOTO_TAGS, COUPLED_LEGACY_TAGS, STEAM_USERS, COOLING_USERS, photoMeasurements, stepPhotoPlant } from './photoPlant'
 import { ownedMotorBlock, strategyModules } from './motorStrategy'
 import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue, resetConditionTiming } from './fb'
 import { evaluateConditionExpression } from './fbCondition'
@@ -1001,6 +1002,7 @@ export function stepPlant(
       module.state = module.commanded
     }
     else if (module.type === 'AI' && !boundInput(tag) &&
+        !(prev.photoPlant && (PHOTO_TAGS.has(tag) || COUPLED_LEGACY_TAGS.has(tag))) &&
         !(hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) && !module.pvBad) {
       const span = module.pvMax - module.pvMin || 1
       const mid = module.pvMin + span / 2
@@ -1036,7 +1038,8 @@ export function stepPlant(
 
     // --- Reactor temperature: steam heats, cold feed + losses cool -------
     const temperatureCommand = appliedPidOutput(tic)
-    const steamHeat = (temperatureCommand / 100) * 2.4
+    const steamHeat = (temperatureCommand / 100) * 2.4 *
+      (prev.photoPlant ? clamp(prev.photoPlant.utilities.steamPressure / 4, 0, 1) : 1)
     const cooling = 0.012 * (proc.reactorTemp - 25) + proc.feedFlow * 0.004
     proc.reactorTemp += (steamHeat - cooling) * dt
     proc.reactorTemp = clamp(proc.reactorTemp + noise(0.05), 0, 200)
@@ -1066,16 +1069,45 @@ export function stepPlant(
 
   // --- Generic simulation for operator-created modules -----------------
   for (const tag of Object.keys(modules)) {
+    if (prev.photoPlant && (PHOTO_TAGS.has(tag) || COUPLED_LEGACY_TAGS.has(tag))) continue
     if (hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) continue
     const gm = modules[tag]
     if (gm.type === 'PID' && !boundInput(tag)) {
       const output = appliedPidOutput(gm)
       const gspan = gm.pvMax - gm.pvMin || 1
       // Self-regulating first-order process: PV rises with controller output.
-      const target = gm.pvMin + (output / 100) * gspan
+      let target = gm.pvMin + (output / 100) * gspan
+      if (prev.photoPlant) {
+        const ambient = clamp(gm.unit === 'degC' ? 25 : 0, gm.pvMin, gm.pvMax)
+        if (STEAM_USERS.has(tag)) {
+          const factor = target >= ambient ? clamp(prev.photoPlant.utilities.steamPressure / 4, 0, 1) : 1
+          target = ambient + (target - ambient) * factor
+        }
+        if (COOLING_USERS[tag]) {
+          const pump = modules[COOLING_USERS[tag]]
+          const circulating = pump?.type === 'MOTOR' && pump.running && pump.downloaded !== false &&
+            !pump.fault && !pump.locked && !pump.interlock && !pump.ioInputBad && !pump.ioOutputBad
+          const heater = modules[`HS-${tag.slice(-3)}`]
+          const heating = gm.area !== 'TCU' || gm.unit !== 'degC' ||
+            heater?.type === 'DO' && heater.state && !heater.ioBad && heater.mode !== 'OOS'
+          const factor = !circulating ? 0 : target < ambient ? prev.photoPlant.utilities.coolingAvailability : heating ? 1 : 0
+          target = ambient + (target - ambient) * factor
+          if (gm.unit === 'm3/h') target = circulating ? target * prev.photoPlant.utilities.coolingAvailability : 0
+        }
+      }
       const raw = pidIo(gm).ai.raw
       samplePidInput(gm, clamp(raw + (target - raw) * clamp(dt / 4, 0, 1) +
         noise(gspan * 0.0015), gm.pvMin, gm.pvMax), badPvTags.has(tag))
+    }
+  }
+
+  const photoPlant = prev.photoPlant ? stepPhotoPlant(prev.photoPlant, modules, dt) : undefined
+  if (photoPlant) {
+    for (const [tag, value] of Object.entries(photoMeasurements(photoPlant))) {
+      if (boundInput(tag)) continue
+      const module = modules[tag]
+      if (module?.type === 'PID') samplePidInput(module, value, badPvTags.has(tag))
+      else if (module?.type === 'AI' && !module.pvBad) module.pv = value
     }
   }
 
@@ -1136,6 +1168,7 @@ export function stepPlant(
     modules,
     alarms,
     process: proc,
+    photoPlant,
     hardware
   }
 }

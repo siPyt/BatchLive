@@ -4,6 +4,22 @@ Recorded: 2026-10-03
 Scope: Plant graphics, equipment GEMs/dynamos, palette, piping, captions,
        live equipment states, and related Control Studio presentation.
 
+ADDITIVE OVERVIEW / CONNECTED TRAINING EXTENSION
+----------------------------------------------
+Plant Overview follows IMG_0616's fixed summary/navigation structure.
+Existing spatial geometry remains reachable as Original Spatial Plant Map
+and focused Feed/Reactor/Product pictures. Do not remove those routes.
+Photographed WFI Overview separately adds N3/N1/N1BP and a still. Keep
+the existing plant, modules, exercises, hardware, branding and palette.
+Installation explicitly enables documented shared utility/water coupling;
+without it, the previous standalone process response remains unchanged.
+Use confirmed feedback and quality-aware live instrumentation throughout.
+Bad/missing level instruments must not show a plausible good tank fill.
+All new physical rates, capacities and sanitation logic are sandbox
+approximations, not validated site engineering/GMP procedures. Existing
+reference-only WFI navigation remains distinguishable from actual new
+training routes. The full photographed plant is still being expanded.
+
 READ THIS BEFORE CHANGING GRAPHICS
 ---------------------------------
 This file records the user's requirements and the current implemented

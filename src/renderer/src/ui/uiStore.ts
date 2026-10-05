@@ -4,6 +4,12 @@ import { resolvePictureTarget, usePictures } from '../engine/pictureStore'
 
 export type DisplayId =
   | 'overview'
+  | 'plant-map'
+  | 'photo-overview'
+  | 'photo-n3'
+  | 'photo-n1'
+  | 'photo-n1bp'
+  | 'photo-still'
   | 'feed'
   | 'reactor'
   | 'product'

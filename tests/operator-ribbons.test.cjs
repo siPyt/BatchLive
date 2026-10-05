@@ -20,6 +20,8 @@ const { DISPLAY_NAVIGATION } = require('../src/renderer/src/ui/displayNavigation
 const { TopBar } = require('../src/renderer/src/components/TopBar.tsx')
 const { AreaDisplay } = require('../src/renderer/src/displays/AreaDisplay.tsx')
 const { OverviewDisplay } = require('../src/renderer/src/displays/OverviewDisplay.tsx')
+const { PhotoPlantDisplay } = require('../src/renderer/src/displays/PhotoPlantDisplay.tsx')
+const { createPhotoPlant } = require('../src/renderer/src/engine/photoPlant.ts')
 const { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } = require('../src/renderer/src/displays/PharmaDiagrams.tsx')
 const { ClassicSanitaryValve, ClassicNavButton } = require('../src/renderer/src/components/ClassicGraphics.tsx')
 const { App } = require('../src/renderer/src/App.tsx')
@@ -43,7 +45,7 @@ test('three ribbon bands expose every display and preserve the excluded branding
     'Back', 'Forward', 'Up to Plant Overview', 'Home display', 'Search displays and modules']) {
     assert.ok(html.includes(`aria-label="${label}"`), label)
   }
-  assert.equal(new Set(DISPLAY_NAVIGATION.map(display => display.id)).size, 20)
+  assert.equal(new Set(DISPLAY_NAVIGATION.map(display => display.id)).size, 26)
   for (const display of DISPLAY_NAVIGATION) assert.ok(html.includes(`value="${display.id}"`), display.id)
   assert.match(html, /class="brand-name">BatchLive<\/span>/)
   assert.match(html, /class="brand-credit">Charles R\. Freeman, software engineer<\/span>/)
@@ -102,11 +104,73 @@ test('blank projects show an explicit unconfigured picture rather than throwing'
   const before = store.useStore.getState()
   try {
     store.useStore.setState({ modules: {} })
-    assert.match(render(OverviewDisplay), /Reactor train modules are not configured/)
+    assert.match(render(OverviewDisplay), /Not configured/)
+    assert.match(render(OverviewDisplay, { focusArea: 'REACTOR' }), /Reactor train modules are not configured/)
     assert.match(render(AreaDisplay, { area: 'WFI' }), /No modules configured in this area/)
     assert.equal(Object.keys(store.useStore.getState().modules).length, 0)
   } finally {
     store.useStore.setState(before, true)
+  }
+})
+
+test('IMG_0616 overview is a fixed three-panel navigation screen, while area details retain the spatial canvas', () => {
+  const html = render(OverviewDisplay)
+  assert.match(html, /Plant Overview Navigation/)
+  assert.equal((html.match(/class="overview-vessel-panel"/g) || []).length, 3)
+  assert.ok(!html.includes('dv-area-jumpbar'))
+  assert.ok(html.includes('Original Spatial Plant Map'))
+  assert.ok(html.includes('Photographed WFI Overview'))
+  for (const label of ['Feed Tank and Supply', 'Reactor Train', 'WFI Tank and Loop',
+    'Product / Header', 'Autoclaves', 'Lyophilizers', 'CIP Skids', 'Temperature Control Units']) {
+    assert.ok(html.includes(label), label)
+  }
+  assert.ok(!html.includes('3T-8130'))
+  assert.ok(!html.includes('3T-8140'))
+  assert.match(render(OverviewDisplay, { focusArea: 'REACTOR' }), /dv-area-jumpbar/)
+})
+
+test('photographed overview and all unit pictures expose real modules, shared utilities and bad/missing instrumentation', () => {
+  const before = useStore.getState()
+  try {
+    useStore.setState({ photoPlant: undefined })
+    assert.match(render(PhotoPlantDisplay, { view: 'overview' }), /Add photographed WFI training units/)
+    const addon = createPhotoPlant()
+    useStore.setState({ photoPlant: addon.state, modules: { ...before.modules, ...addon.modules } })
+    const html = render(PhotoPlantDisplay, { view: 'overview' })
+    assert.equal((html.match(/class="overview-vessel-panel"/g) || []).length, 3)
+    for (const label of ['3T-8130', '3T-8120', '3T-8140', 'SB-STEAM', 'SB-COOLING']) assert.ok(html.includes(label), label)
+    for (const view of ['n3', 'n1', 'n1bp', 'still']) assert.match(render(PhotoPlantDisplay, { view }), /<svg/)
+    const modules = { ...useStore.getState().modules,
+      '3T-8130-LIC005': { ...addon.modules['3T-8130-LIC005'], pvBad: true } }
+    delete modules['3T-8140-TIC011']
+    useStore.setState({ modules })
+    const bad = render(PhotoPlantDisplay, { view: 'overview' })
+    assert.match(bad, /Level quality BAD/)
+    assert.match(bad, /Incomplete model/)
+    assert.match(bad, /3T-8140-TIC011: not configured/)
+  } finally { useStore.setState(before, true) }
+})
+
+test('overview summaries use live feedback and quality, with explicit missing modules', () => {
+  const before = useStore.getState()
+  try {
+    useStore.setState({ modules: { ...before.modules,
+      'P-401': { ...before.modules['P-401'], running: false, commanded: true },
+      'AT-401': { ...before.modules['AT-401'], pv: 321, pvBad: true },
+      'LIC-401': { ...before.modules['LIC-401'], pvBad: true }
+    } })
+    const html = render(OverviewDisplay)
+    assert.match(html, /P-401: STOPPED/)
+    assert.match(html, /Level quality BAD/)
+    assert.ok(!html.includes('321.00'))
+    assert.match(html, /Open faceplate/)
+    assert.match(html, /role="button" tabindex="0"/)
+    const modules = { ...before.modules }
+    delete modules['AT-401']
+    useStore.setState({ modules })
+    assert.match(render(OverviewDisplay), /AT-401: not configured/)
+  } finally {
+    useStore.setState(before, true)
   }
 })
 

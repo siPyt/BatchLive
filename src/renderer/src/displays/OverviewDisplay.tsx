@@ -20,6 +20,7 @@ import { DeltaVCanvas, type DeltaVCanvasHandle } from '../components/DeltaVCanva
 import { durationString } from '../utils/format'
 import type { PidModule, MotorModule, ValveModule } from '../engine/types'
 import { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } from './PharmaDiagrams'
+import { PlantNavigationOverview } from './PlantNavigationOverview'
 
 /** World-space origins for each plant area on the one shared coordinate
  * plane — a DCS spatial canvas, not stacked HTML page sections. */
@@ -34,6 +35,10 @@ const AREAS = {
 } as const
 
 export function OverviewDisplay({ focusArea }: { focusArea?: 'FEED' | 'REACTOR' | 'PRODUCT' } = {}): JSX.Element {
+  return focusArea ? <SpatialProcessDisplay focusArea={focusArea} /> : <PlantNavigationOverview />
+}
+
+export function SpatialProcessDisplay({ focusArea }: { focusArea?: 'FEED' | 'REACTOR' | 'PRODUCT' } = {}): JSX.Element {
   const modules = useStore((s) => s.modules)
   const proc = useStore((s) => s.process)
   const batch = useStore((s) => s.batch)

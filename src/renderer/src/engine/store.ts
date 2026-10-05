@@ -22,6 +22,7 @@ import type {
   AnalogOutputPatch
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
+import { createPhotoPlant, PHOTO_AREA, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { captureDevice, cloneDeviceConfiguration, deviceActive, deviceConfigurationError, deviceDirty, deviceDownloadError, deviceEditorModules, prepareDeviceTransfer,
   deviceOperatorError, parseDevice, savedDeviceKey, serializeDevice, type DeviceDraftPatch, type DeviceLifecycle } from './deviceLifecycle'
@@ -46,7 +47,7 @@ import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
 import { conditionSourceError } from './fbCondition'
-import { isPidTargetMode, pidTargetAllowed } from './pidModes'
+import { isPidTargetMode, pidTargetAllowed, pidExecutionBad } from './pidModes'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from './deviceDescriptors'
 import { deviceSourceError, resetConditionTiming } from './fb'
 import {
@@ -120,6 +121,9 @@ export function sfcExpressionContext(state: StoreState, name: string, online = f
 }
 
 interface StoreState extends PlantState {
+  addPhotoPlant: () => boolean
+  startPhotoTankSanitation: (id: PhotoTankId) => boolean
+  cancelPhotoTankSanitation: (id: PhotoTankId) => boolean
   trend: TrendPoint[]
   rev: number
   /** Alarm & Event Journal: 21 CFR Part 11 style audit trail of alarms + operator actions. */
@@ -336,6 +340,64 @@ function makeDefaultSfcs(): Record<string, SfcDef> {
 
 export const useStore = create<StoreState>((set, get) => ({
   ...initial,
+  addPhotoPlant: () => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', 'Add photographed WFI training units')) return false
+    const state = get()
+    if (state.photoPlant) return rejectSfc(get, 'PHOTO-PLANT', 'Photographed WFI training units are already installed')
+    const addon = createPhotoPlant()
+    const legacyLevel = state.modules['LIC-401']
+    if (legacyLevel?.type === 'PID') addon.state.utilities.legacyWfiLiters = Math.max(0, Math.min(100, legacyLevel.pv)) * 70
+    const conductivity = state.modules['AT-401']
+    const toc = state.modules['AT-402']
+    const temperature = state.modules['TI-402']
+    if (conductivity?.type === 'AI') addon.state.utilities.legacyConductivity = conductivity.pv
+    if (toc?.type === 'AI') addon.state.utilities.legacyToc = toc.pv
+    if (temperature?.type === 'AI') addon.state.utilities.legacyTemperature = temperature.pv
+    const conflicts = Object.keys(addon.modules).filter(tag => state.modules[tag])
+    if (conflicts.length) return rejectSfc(get, 'PHOTO-PLANT', `Cannot add photographed units; existing tags would be overwritten: ${conflicts.join(', ')}`)
+    set({ modules: { ...state.modules, ...addon.modules }, photoPlant: addon.state,
+      areas: state.areas.includes(PHOTO_AREA) ? state.areas : [...state.areas, PHOTO_AREA], rev: state.rev + 1 })
+    get().logEvent('CONFIGURE', 'PHOTO-PLANT', 'Added coupled N3/N1/N1BP WFI tanks, still and shared steam/cooling utilities; N1 feeds legacy WFI storage and CIP supplies; existing modules/process preserved, integrated training physics enabled')
+    return true
+  },
+  startPhotoTankSanitation: id => {
+    if (!requireUnlockedLock('CONTROL', `Start sandbox sanitation ${id}`)) return false
+    const state = get()
+    const config = PHOTO_TANKS.find(tank => tank.id === id)
+    if (!state.photoPlant || !config) return rejectSfc(get, 'PHOTO-PLANT', 'Install photographed WFI units before requesting sanitation')
+    const tag = `${config.prefix}-TIC011`
+    const loop = state.modules[tag]
+    const pump = state.modules[`${config.prefix}-XC002`]
+    if (loop?.type !== 'PID' || pump?.type !== 'MOTOR') return rejectSfc(get, tag, 'Sanitation requires the configured temperature loop and recirculation pump')
+    if (state.pidLifecycle[tag] || state.deviceLifecycle[pump.tag]) return rejectSfc(get, tag, 'Sanitation shortcut is unavailable for lifecycle-managed modules; use their deployed controls')
+    if (loop.pvBad || pidExecutionBad(loop) || loop.downloaded === false || loop.mode === 'OOS' ||
+        loop.actualMode === 'LO' || !pidTargetAllowed(loop, 'AUTO') ||
+        pump.downloaded === false || pump.fault || pump.interlock || pump.locked || pump.ioInputBad || pump.ioOutputBad)
+      return rejectSfc(get, tag, 'Restore deployed, permitted AUTO temperature control and healthy available pump controls before sanitation')
+    if (state.photoPlant.tanks[id].sanitation !== 'IDLE') return rejectSfc(get, tag, 'A sanitation cycle is already active')
+    set({ photoPlant: startPhotoSanitation(state.photoPlant, id),
+      modules: { ...state.modules, [tag]: { ...loop, mode: 'AUTO', sp: 85 },
+        [pump.tag]: { ...pump, commanded: true } } })
+    get().logEvent('OPERATOR', config.prefix, 'Sandbox sanitation requested: heat to 80 degC, continuous 600-second soak, then cool to 30 degC; not a validated GMP cycle')
+    return true
+  },
+  cancelPhotoTankSanitation: id => {
+    if (!requireUnlockedLock('CONTROL', `Cancel sandbox sanitation ${id}`)) return false
+    const state = get()
+    const config = PHOTO_TANKS.find(tank => tank.id === id)
+    if (!state.photoPlant || !config || state.photoPlant.tanks[id].sanitation === 'IDLE')
+      return rejectSfc(get, 'PHOTO-PLANT', 'No active or aborted sanitation cycle to cancel')
+    const tag = `${config.prefix}-TIC011`
+    const loop = state.modules[tag]
+    if (loop?.type !== 'PID' || state.pidLifecycle[tag] || loop.downloaded === false || loop.mode !== 'AUTO' ||
+        loop.actualMode === 'LO' || pidExecutionBad(loop) || loop.pvBad)
+      return rejectSfc(get, tag, 'Restore editable AUTO temperature control before cancelling sanitation; manage deployed/overridden controls through their faceplates')
+    set({ photoPlant: { ...state.photoPlant, tanks: { ...state.photoPlant.tanks,
+      [id]: { ...state.photoPlant.tanks[id], sanitation: 'IDLE', soakSeconds: 0 } } },
+      modules: { ...state.modules, [tag]: { ...loop, sp: 25 } } })
+    get().logEvent('OPERATOR', config.prefix, 'Sandbox sanitation cancelled; temperature target 25 degC; recirculation pump remains under operator control')
+    return true
+  },
   trend: [],
   rev: 0,
   eventLog: [],
@@ -407,7 +469,17 @@ export const useStore = create<StoreState>((set, get) => ({
     const setsBySfc = Object.fromEntries(Object.keys(runnable).map(name => [name, sfcExpressionContext(s, name, true).sets]))
     const { modules: sfcModules, sfcs: executedSfcs } = advanceSfcs({ ...s, sfcs: runnable }, cmdModules, dt * s.speed, setsBySfc)
     const sfcs = { ...s.sfcs, ...executedSfcs, ...paused }
-    const next = stepPlant({ ...s, modules: sfcModules }, dt)
+    let photoPlant = s.photoPlant
+    if (photoPlant) {
+      for (const tank of PHOTO_TANKS) {
+        if (photoPlant.tanks[tank.id].sanitation !== 'IDLE' && photoPlant.tanks[tank.id].sanitation !== 'ABORTED' &&
+            (s.pidLifecycle[`${tank.prefix}-TIC011`] || s.deviceLifecycle[`${tank.prefix}-XC002`])) {
+          photoPlant = { ...photoPlant, tanks: { ...photoPlant.tanks,
+            [tank.id]: { ...photoPlant.tanks[tank.id], sanitation: 'ABORTED', soakSeconds: 0 } } }
+        }
+      }
+    }
+    const next = stepPlant({ ...s, photoPlant, modules: sfcModules }, dt)
     reconcileSfcAlarms(next.alarms, sfcs, next.time)
     // DV09-047: step each configured two-condition + strict-delay custom alarm.
     const conditionDelayAlarmRuntime: Record<string, ConditionDelayAlarmRuntime> = { ...s.conditionDelayAlarmRuntime }
@@ -451,6 +523,16 @@ export const useStore = create<StoreState>((set, get) => ({
     // Journal every alarm transition: newly active alarms and returns-to-normal.
     const nextById = new Map(next.alarms.map((a) => [a.id, a]))
     const newEntries: EventLogEntry[] = [...sfcDiagnostics]
+    if (s.photoPlant && next.photoPlant) {
+      for (const tank of PHOTO_TANKS) {
+        const stage = next.photoPlant.tanks[tank.id].sanitation
+        if (stage !== s.photoPlant.tanks[tank.id].sanitation) newEntries.push({
+          id: `${tank.prefix}-sanitation-${next.time}`, time: next.time, category: 'DIAGNOSTIC',
+          tag: tank.prefix, user: 'SYSTEM', description: `Sandbox sanitation changed to ${stage}${stage === 'ABORTED'
+            ? ': temperature control unavailable or overridden; no automatic setpoint written, restore control and cancel/reset the cycle' : ''}`
+        })
+      }
+    }
     const nextSignals = strategyModules(next.modules)
     const previousSignals = strategyModules(s.modules)
     for (const [tag, m] of Object.entries(nextSignals)) {
@@ -3194,6 +3276,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const base = kind === 'blank' ? buildBlankPlant() : buildInitialPlant()
     set({
       ...base,
+      photoPlant: undefined,
       trend: [],
       eventLog: [],
       batch: makeBatch(),

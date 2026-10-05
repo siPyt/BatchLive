@@ -9,6 +9,8 @@ interface NavNode {
 
 const DISPLAYS: NavNode[] = [
   { id: 'overview', label: 'Plant Overview', ico: '▣' },
+  { id: 'plant-map', label: 'Original Spatial Map', ico: '▣' },
+  { id: 'photo-overview', label: 'Photographed WFI Plant', ico: '▣' },
   { id: 'feed', label: 'Feed System', ico: '◉' },
   { id: 'reactor', label: 'Reactor', ico: '⬡' },
   { id: 'product', label: 'Product / Header', ico: '◈' }

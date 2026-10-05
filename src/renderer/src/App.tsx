@@ -10,7 +10,8 @@ import { FlexLockOverlay } from './components/FlexLockOverlay'
 import { AccessDeniedToast } from './components/AccessDeniedToast'
 import { AlarmAudio } from './components/AlarmAudio'
 import { FaceplateHost } from './faceplates/FaceplateHost'
-import { OverviewDisplay } from './displays/OverviewDisplay'
+import { OverviewDisplay, SpatialProcessDisplay } from './displays/OverviewDisplay'
+import { PhotoPlantDisplay } from './displays/PhotoPlantDisplay'
 import { AreaDisplay } from './displays/AreaDisplay'
 import { AlarmSummary } from './displays/AlarmSummary'
 import { EventJournalDisplay } from './displays/EventJournalDisplay'
@@ -73,6 +74,12 @@ export function App(): JSX.Element {
         {navigationOpen && <NavSidebar />}
         <div className="main-area">
           {display === 'overview' && <OverviewDisplay key={processViewRevision} />}
+          {display === 'plant-map' && <SpatialProcessDisplay key={processViewRevision} />}
+          {display === 'photo-overview' && <PhotoPlantDisplay view="overview" />}
+          {display === 'photo-n3' && <PhotoPlantDisplay view="n3" />}
+          {display === 'photo-n1' && <PhotoPlantDisplay view="n1" />}
+          {display === 'photo-n1bp' && <PhotoPlantDisplay view="n1bp" />}
+          {display === 'photo-still' && <PhotoPlantDisplay view="still" />}
           {display === 'feed' && <AreaDisplay key={`feed-${processViewRevision}`} area="FEED" />}
           {display === 'reactor' && <AreaDisplay key={`reactor-${processViewRevision}`} area="REACTOR" />}
           {display === 'product' && <AreaDisplay key={`product-${processViewRevision}`} area="PRODUCT" />}

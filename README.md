@@ -16,7 +16,8 @@ An offline **operator HMI sandbox** that recreates the look and feel of an Emers
 - **Classic equipment symbols** — compact centrifugal pumps, blue-framed isolation valves, unboxed hand valves and dome-actuated control valves based on the WFI reference display. Running/open equipment is green; stopped/closed equipment is black. Pump/isolation-valve feedback and applied analog actuation drive the colors, not unapplied commands. WFI reference captions are aliases for the simulator's existing modules; tooltips identify the underlying tag. Unbound valves are reference-only symbols, not simulated controls.
 - **Historian trends** — multi-pen real-time charts with selectable pens and time windows.
 - **Operator ribbons** — three gray icon/navigation bands based on IMG_0602, with display/module search, Back/Forward/Up/Home, a complete picture selector, and the alarm banner below the working area. BatchLive branding is preserved. Sidebar/favorites and area module directories remain available on demand; run/hold and speed controls still operate the same simulator.
-- **Main displays** — full-width process graphics rather than module-card dashboards. Feed/reactor/product views focus the existing spatial plant canvas; pharma pictures fit the available working area. Incomplete pictures identify missing required modules instead of rendering blank. Reset Graphic View resets only the picture camera/layout, not live modules, process state, or open faceplates. WFI Still reference-navigation tiles are explicitly unmodeled; they do not pretend to open a simulated still unit.
+- **Main displays** — an IMG_0616-style fixed navigation overview, plus full-width process graphics rather than module-card dashboards. Feed/reactor/product views focus the existing spatial plant canvas; the original whole-plant canvas remains available as Original Spatial Plant Map. Incomplete pictures identify missing required modules instead of rendering blank. Reset Graphic View resets only the picture camera/layout, not live modules, process state, or open faceplates. Legacy WFI reference-only navigation remains distinct from the new photographed WFI training routes.
+- **Connected photographed WFI expansion** — opt-in N3/N1/N1BP tank loops and WFI still, with shared steam/cooling effects on the existing reactor/pharma units, conserved N1-to-existing-WFI storage transfer, and a common WFI supply for the three CIP skids. Installation adds to the existing plant without replacing modules or resetting exercises. This is the first expansion milestone, not a completed model of every photographed area.
 - **Engineering icons** — shared SVG Control Module, Equipment Module and function-block icons in Explorer, Control Studio hierarchy/palette, and diagram headers, based on IMG_0440. Equipment Modules retain an explicit EM identifier; unsupported reference composites are not fabricated.
 - **Control Studio presentation** — reference-style gray block frames with name-left/icon-right headers and real input/output terminals. Grouped Home/Diagram/View ribbons provide faceplates, Explorer properties, alarms, supported history views, pane toggles, and 50–150% diagram zoom. Unsupported clipboard/download commands are explicitly disabled. Layout and connections remain in diagram coordinates at every zoom level.
 - **Executable control strategies** — actual AI → PID → AO stages, with separately selectable blocks, qualified PV/OUT references, manual I/O, limits, faults, and back-calculation. TIC-401/TIC-411 additionally execute PID → SPLTR → two independent AOs with real feedback paths and configured feedforward references. The splitter implements coordinate curves, CAS/AUTO/OOS, AUTO SP rates, lock hysteresis, downstream balancing, and direction-aware limits based on the local function-block reference.
@@ -71,6 +72,70 @@ Run the focused engine regressions with `npm run test:control`, then
 is maintained in [GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt](GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt).
 Visual milestones and unresolved reference-only/modeling gaps are recorded
 separately in [VISUAL-FIDELITY-LOG.txt](VISUAL-FIDELITY-LOG.txt).
+
+## Connected whole-plant training expansion
+
+Open **Photographed WFI Overview** from Plant Overview or the picture selector.
+As an unlocked user with configuration permission, select **Add photographed WFI
+training units**. This explicitly enables the integrated model in the current
+project: existing modules, faceplates, SFCs, batch state and hardware are retained;
+shared supply constraints now affect their process response. Without installation,
+the previous standalone simulation behavior is unchanged. New Project clears the
+expansion. The expansion is runtime state, not a saved project/restart guarantee.
+
+The connected paths currently implemented are:
+
+- Shared steam header → photographed still/tank heating, reactor heat, legacy WFI
+  heating, autoclave heat/positive pressure, and CIP heating.
+- Shared cooling → photographed loop coolers and legacy TCU/lyophilizer chilling.
+  TCUs retain electric heating; they are not represented as steam heaters.
+- WFI still → three independently controlled storage tanks.
+- N1 distribution → retained legacy WFI storage receiver → all three CIP skids.
+  Distribution pump/return-valve and CIP pump/supply-valve feedback gate delivery.
+  Concurrent demands share available water; empty storage cannot provide flow.
+  Received conductivity/TOC are mixed into the existing WFI quality instruments,
+  so the existing out-of-spec divert strategy remains connected.
+
+Use **SB-STEAM** and **SB-COOLING** faceplates on any photographed display to
+stop/fault the shared supplies. Their live pressure/availability indicators also
+appear in the standard trend/alarm system. Utility loss affects dependent process
+values; it does not magically stop every device or override existing SFC logic.
+The original reactor material feed/product balance is retained, not relabeled as
+WFI. Hardware-bound/manual inputs still take precedence over simulated readings.
+
+For still startup, open its real equipment faceplates: start the oil pump, wait
+for adequate oil pressure, then reset/start the compressor. Open feed isolation;
+the heating and level controllers supply their applied outputs. Open delivery
+isolation and start the distillate pump; open each destination's fill valve.
+Tank recirculation and distribution are separately commanded. Commands do not
+substitute for confirmed running/open feedback.
+
+Tank sanitation heats toward an 85°C target, requires 600 continuous simulated
+seconds at ≥80°C with circulation, then requests a 25°C target and completes at
+≤30°C. Losing heat/circulation resets the soak. Invalid, OOS, tracking or overridden
+temperature control aborts the shortcut rather than overwriting operator control.
+Lifecycle-managed controllers/devices must use their deployed controls instead.
+Cancel/reset sanitation requests 25°C and leaves the pump under operator control.
+Run/Hold and the simulation speed apply to the coupled model and its timers.
+
+**Sandbox assumptions:** each storage tank and the retained legacy receiver are
+7000 L, still feed/distillate capacities are 1000/500 L, maximum production is
+0.8 L/s, aggregate still delivery is 2 L/s, tank distribution is 0.35 L/s,
+and drain flow is 1.5 L/s. The feed boundary supplies assumed available clean
+water; distillate conductivity is assumed 0.3 µS/cm. Steam and cooling have
+simplified finite-response availability models, not site utility engineering.
+The retained legacy receiver is an extra training buffer, not a claim that the
+photographed site contains two physical N1 tanks. Sandbox module suffixes are
+not a certified one-to-one mapping to every photographed tag.
+
+PW neutralization, SUR-3300/3200, Buffer Prep, CIP-3200 and tanks 3300/3350 still
+need photographed-area models and explicit interconnections. Existing pharma
+physics remains simplified; utility coupling does not certify all site recipes,
+phase arbitration, sterilization, GMP procedures or piping. This expansion is
+being built toward one connected whole plant, not claimed complete already.
+
+Run `node --test tests/photo-plant.test.cjs tests/operator-ribbons.test.cjs` for
+the coupled-system, preservation, quality, interlock and navigation regressions.
 
 Run `npm run test:sfc` for SFC qualifier timing regressions against the original
 DV-09 timing-chart image. SFCs and batch phases share independent action lifetime

@@ -627,6 +627,7 @@ export interface TrendPoint {
 }
 
 export interface PlantState {
+  photoPlant?: import('./photoPlant').PhotoPlantState
   time: number
   running: boolean
   speed: number // sim speed multiplier

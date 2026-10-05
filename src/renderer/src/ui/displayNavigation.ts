@@ -2,6 +2,12 @@ import type { DisplayId } from './uiStore'
 
 export const DISPLAY_NAVIGATION: { id: DisplayId; label: string; operator: boolean }[] = [
   { id: 'overview', label: 'Plant Overview', operator: true },
+  { id: 'plant-map', label: 'Original Spatial Plant Map', operator: true },
+  { id: 'photo-overview', label: 'Photographed WFI Overview', operator: true },
+  { id: 'photo-n3', label: 'N3 WFI Tank and Loop (Sandbox)', operator: true },
+  { id: 'photo-n1', label: 'N1 WFI Tank and Loop (Sandbox)', operator: true },
+  { id: 'photo-n1bp', label: 'N1BP WFI Tank and Loop (Sandbox)', operator: true },
+  { id: 'photo-still', label: 'WFI Still (Sandbox)', operator: true },
   { id: 'feed', label: 'Feed System', operator: true },
   { id: 'reactor', label: 'Reactor', operator: true },
   { id: 'product', label: 'Product / Header', operator: true },
