@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 50 VERIFIED_SUBSET, 53 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 51 VERIFIED_SUBSET, 52 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -1697,20 +1697,25 @@ Acceptance: Effective permission checks must follow the assigned specific
 
 [DV09-076]
 Pages: 313-322
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: User create/delete/general/advanced account status/password settings,
   group membership and individual key grants.
-Evidence (Pass67): User Manager now has per-user Account (Advanced) status:
-  Account disabled and Must change password at next logon, enforced by
-  login()/loginStatus() (a disabled or expired account cannot log on and the
-  FlexLock overlay shows the reason and a Change Password and Log On flow via
-  changePassword(), which rejects wrong current, blank and unchanged
-  passwords). Users can join and leave groups from the user form and keys are
-  shown as direct versus inherited. addUser, deleteUser, setUserLocks,
-  setUserAreas and every new account/group mutation now require the System
-  Admin key inside the security store, not only on the screen. A user cannot
-  disable their own account. Still absent: full account expiry dates,
-  password complexity/aging policy and Windows account integration.
+Evidence (Pass67 + Pass80): User Manager has real account state: disabled and
+  must-change-password at next logon (FlexLock change flow), group membership
+  with direct versus inherited keys, per-user keys and area keys, and every
+  mutation requires the System Admin key inside the security store; a user
+  cannot disable or expire their own account.
+  Pass80 adds passwordPolicy.ts and workstation password rules (System Admin):
+  minimum length 1-64, upper/lower/digit/symbol classes, no user name,
+  maximum age 0-999 days and history 0-24, enforced when a user is created,
+  changed or administrator-reset and at logon (an aged password forces the
+  same change flow). History stores salted SHA-256 fingerprints, never
+  passwords. Per-user Account expires (date; refused from that instant, also
+  by authenticate for signatures), Password never expires, administrator Reset
+  password (forces a change) and an aging countdown are in User Manager.
+  Eight regressions cover boundaries, classes, history window, aging, expiry
+  and authorization. Boundary: no Windows/domain account integration, lockout
+  counters or real credential storage - passwords stay in the browser session.
 Acceptance: Add real membership/account state, validation and authorization
   at mutation boundaries, not only a restricted screen.
 
@@ -3902,3 +3907,24 @@ Validation: 548 tests locally (547 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-021 stays PARTIAL with the scan/order gap closed. Totals unchanged
   at 50 VERIFIED_SUBSET/53 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 80 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-076 password policy, aging and account expiry (pp313-322).
+Engine: new passwordPolicy.ts (rules, fingerprints, aging, expiry) and hash.ts
+  (SHA-256 extracted from eventChronicle, which re-exports it); security.ts
+  gains passwordPolicy, setPasswordPolicy, resetPassword, setAccountExpiry,
+  accountState(), user fields passwordChangedAt/passwordHistory/
+  passwordNeverExpires/accountExpires, and policy enforcement in addUser,
+  changePassword, login, loginStatus and authenticate (new 'expired' status).
+UI: AccountPolicyPanel (policy editor, per-user expiry/never-expires/reset) in
+  User Manager; FlexLock shows the expired-account message.
+Tests: tests/password-policy.test.cjs (8).
+Browser: policy panel and per-user controls render; a weak reset shows the exact
+  rule violations and is refused.
+Boundary (honest): no Windows/domain integration, no lockout counters, history
+  and aging use the browser clock; passwords are not persisted or encrypted.
+Validation: 556 tests locally (555 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-076 PARTIAL -> VERIFIED_SUBSET. Totals 51 VERIFIED_SUBSET/
+  52 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

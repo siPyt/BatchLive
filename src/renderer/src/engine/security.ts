@@ -1,5 +1,9 @@
 import { create } from 'zustand'
 import { findSecurityTarget, SECURITY_TARGETS } from './securityTargets'
+import {
+  accountExpired, appendHistory, defaultPasswordPolicy, passwordExpired, passwordFingerprint, passwordPolicyError,
+  passwordPolicyMessage, passwordViolations, type PasswordPolicy
+} from './passwordPolicy'
 
 // ---------------------------------------------------------------------------
 // DeltaV Security: Locks & Keys, Users, FlexLock.
@@ -100,6 +104,14 @@ export interface DvUser {
   disabled?: boolean
   /** DV09-076 Advanced tab: password status. The user must pick a new password at next logon. */
   mustChangePassword?: boolean
+  /** DV09-076: epoch ms the password was last set; undefined = unknown (never treated as aged). */
+  passwordChangedAt?: number
+  /** SHA-256 fingerprints of previous passwords (never the passwords themselves), oldest first. */
+  passwordHistory?: string[]
+  /** DV09-076: the password is exempt from the maximum-age rule. */
+  passwordNeverExpires?: boolean
+  /** DV09-076: epoch ms from which the account can no longer log on; undefined = never expires. */
+  accountExpires?: number
 }
 
 /** DV09-077: a named group. Members inherit the group's keys (and, when the
@@ -146,6 +158,19 @@ export interface WorkstationConfig {
 
 export const WORKSTATION_STORAGE_KEY = 'batchlive.workstation.security'
 
+/** Logon state of an account at a moment in time: disabled, expired, or a password that must be replaced. */
+export function accountState(user: DvUser, policy: PasswordPolicy, now: number): 'ok' | 'disabled' | 'expired' | 'must-change' {
+  if (user.disabled) return 'disabled'
+  if (accountExpired(user.accountExpires, now)) return 'expired'
+  if (user.mustChangePassword || passwordExpired(policy, user.passwordChangedAt, user.passwordNeverExpires, now)) return 'must-change'
+  return 'ok'
+}
+
+function applyPassword(user: DvUser, password: string, forceChange: boolean): DvUser {
+  return { ...user, password, mustChangePassword: forceChange, passwordChangedAt: Date.now(),
+    passwordHistory: appendHistory(user.passwordHistory, passwordFingerprint(user.name, user.password)) }
+}
+
 interface SecurityState {
   users: DvUser[]
   groups: DvGroup[]
@@ -160,7 +185,7 @@ interface SecurityState {
   lastDenied: string | null
   login: (name: string, password: string) => boolean
   /** Why a logon would succeed or fail, without side effects. */
-  loginStatus: (name: string, password: string) => 'ok' | 'bad' | 'disabled' | 'must-change' | 'not-downloaded'
+  loginStatus: (name: string, password: string) => 'ok' | 'bad' | 'disabled' | 'expired' | 'must-change' | 'not-downloaded'
   /** DV09-080: check a user name and password without logging on; returns that user's effective keys. */
   authenticate: (name: string, password: string) => { ok: true; user: string; locks: LockType[] } | { ok: false; reason: string }
   /** DV09-079: copy the configured users, groups and lock assignments to this workstation. */
@@ -174,7 +199,14 @@ interface SecurityState {
   /** DV09-044: set this user's area write keys; undefined restores unrestricted (all areas). */
   setUserAreas: (name: string, areas: string[] | undefined) => void
   /** DV09-076 Advanced tab. Each returns an error message, or null on success. */
-  setUserStatus: (name: string, patch: { disabled?: boolean; mustChangePassword?: boolean }) => string | null
+  setUserStatus: (name: string, patch: { disabled?: boolean; mustChangePassword?: boolean; passwordNeverExpires?: boolean }) => string | null
+  /** DV09-076: the account stops accepting logons from this epoch ms; null removes the expiry. */
+  setAccountExpiry: (name: string, expires: number | null) => string | null
+  /** DV09-076: workstation-wide password rules, applied when passwords are set or changed and at logon. */
+  passwordPolicy: PasswordPolicy
+  setPasswordPolicy: (patch: Partial<PasswordPolicy>) => string | null
+  /** Administrator reset: sets a policy-compliant password and forces a change at next logon. */
+  resetPassword: (name: string, newPassword: string) => string | null
   setUserFullName: (name: string, fullName: string) => string | null
   changePassword: (name: string, oldPassword: string, newPassword: string) => string | null
   /** DV09-075: reassign (or, with undefined, restore) the lock a parameter/field/function carries. */
@@ -271,6 +303,7 @@ export const useSecurity = create<SecurityState>((set, get) => ({
   users: DEFAULT_USERS,
   groups: DEFAULT_GROUPS,
   workstation: null,
+  passwordPolicy: defaultPasswordPolicy(),
   lockAssignments: {},
   currentUser: 'admin',
   locked: false,
@@ -284,11 +317,16 @@ export const useSecurity = create<SecurityState>((set, get) => ({
       }
       return false
     }
-    if (u.disabled) {
+    const state = accountState(u, get().passwordPolicy, Date.now())
+    if (state === 'disabled') {
       set({ lastDenied: `Access Denied — account ${u.name} is disabled` })
       return false
     }
-    if (u.mustChangePassword) {
+    if (state === 'expired') {
+      set({ lastDenied: `Access Denied — account ${u.name} expired` })
+      return false
+    }
+    if (state === 'must-change') {
       set({ lastDenied: `Access Denied — ${u.name} must change the password before logging on` })
       return false
     }
@@ -302,8 +340,7 @@ export const useSecurity = create<SecurityState>((set, get) => ({
       const live = get().users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
       return get().workstation && live && live.password === password ? 'not-downloaded' : 'bad'
     }
-    if (u.disabled) return 'disabled'
-    return u.mustChangePassword ? 'must-change' : 'ok'
+    return accountState(u, get().passwordPolicy, Date.now())
   },
 
   lockWorkstation: () => set({ locked: true }),
@@ -311,7 +348,12 @@ export const useSecurity = create<SecurityState>((set, get) => ({
   addUser: (u) => {
     if (!get().requireLock('SYSTEM_ADMIN', `Create user ${u.name}`)) return false
     if (!u.name.trim() || get().users.some((x) => x.name.toLowerCase() === u.name.toLowerCase())) return false
-    set((s) => ({ users: [...s.users, u] }))
+    const rejected = passwordPolicyMessage(passwordViolations(get().passwordPolicy, u.name, u.password))
+    if (rejected) {
+      set({ lastDenied: `Access Denied — ${rejected}` })
+      return false
+    }
+    set((s) => ({ users: [...s.users, { ...u, passwordChangedAt: u.passwordChangedAt ?? Date.now() }] }))
     return true
   },
 
@@ -358,9 +400,39 @@ export const useSecurity = create<SecurityState>((set, get) => ({
     if (u.password !== oldPassword) return 'The current password is incorrect'
     if (!newPassword) return 'The new password cannot be blank'
     if (newPassword === oldPassword) return 'The new password must differ from the current password'
+    const violation = passwordPolicyMessage(passwordViolations(get().passwordPolicy, name, newPassword, u.passwordHistory))
+    if (violation) return violation
     set((s) => ({
-      users: s.users.map((x) => (x.name === name ? { ...x, password: newPassword, mustChangePassword: false } : x))
+      users: s.users.map((x) => (x.name === name ? applyPassword(x, newPassword, false) : x))
     }))
+    return null
+  },
+
+  resetPassword: (name, newPassword) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Reset password of ${name}`)) return 'Requires the System Admin key'
+    const u = get().users.find((x) => x.name === name)
+    if (!u) return `User ${name} does not exist`
+    const violation = passwordPolicyMessage(passwordViolations(get().passwordPolicy, name, newPassword, u.passwordHistory))
+    if (violation) return violation
+    set((s) => ({ users: s.users.map((x) => (x.name === name ? applyPassword(x, newPassword, true) : x)) }))
+    return null
+  },
+
+  setAccountExpiry: (name, expires) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Set account expiry of ${name}`)) return 'Requires the System Admin key'
+    if (!get().users.some((x) => x.name === name)) return `User ${name} does not exist`
+    if (expires !== null && (!Number.isFinite(expires) || expires <= 0)) return 'The expiry must be a valid date'
+    if (expires !== null && name === get().currentUser && expires <= Date.now()) return 'The logged-on user cannot expire their own account'
+    set((s) => ({ users: s.users.map((x) => (x.name === name ? { ...x, accountExpires: expires ?? undefined } : x)) }))
+    return null
+  },
+
+  setPasswordPolicy: (patch) => {
+    if (!get().requireLock('SYSTEM_ADMIN', 'Set password policy')) return 'Requires the System Admin key'
+    const next = { ...get().passwordPolicy, ...patch }
+    const error = passwordPolicyError(next)
+    if (error) return error
+    set({ passwordPolicy: next })
     return null
   },
 
@@ -439,8 +511,10 @@ export const useSecurity = create<SecurityState>((set, get) => ({
     const active = activeConfig(get())
     const u = active.users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
     if (!u || u.password !== password) return { ok: false, reason: 'Name or password is incorrect' }
-    if (u.disabled) return { ok: false, reason: 'The account is disabled' }
-    if (u.mustChangePassword) return { ok: false, reason: 'The password must be changed first' }
+    const state = accountState(u, get().passwordPolicy, Date.now())
+    if (state === 'disabled') return { ok: false, reason: 'The account is disabled' }
+    if (state === 'expired') return { ok: false, reason: 'The account has expired' }
+    if (state === 'must-change') return { ok: false, reason: 'The password must be changed first' }
     return { ok: true, user: u.name, locks: effectiveLocks(u, active.groups) }
   },
 

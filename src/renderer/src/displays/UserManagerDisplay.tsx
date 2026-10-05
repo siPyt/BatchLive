@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PasswordPolicyEditor, UserAccountPolicy } from '../components/AccountPolicyPanel'
 import { useStore } from '../engine/store'
 import {
   useSecurity,
@@ -63,6 +64,7 @@ export function UserManagerDisplay(): JSX.Element {
         </span>
       </div>
 
+      <PasswordPolicyEditor />
       <div className="toolbar-row">
         <span style={{ color: 'var(--dv-text-dim)', fontSize: 12 }}>
           Users &amp; Groups — a user holds their own keys plus every key of each group they belong to. Use "Lock Workstation" in the top bar to switch users.
@@ -253,6 +255,7 @@ function UserDetail({
         />
         <b style={{ color: 'var(--dv-text)', minWidth: 190 }}>Must change password at next logon</b>
       </label>
+      <UserAccountPolicy user={user} canAdmin={canAdmin} />
       <div className="fp-row" style={{ marginTop: 4 }}>
         <span className="fp-label">Groups</span>
       </div>

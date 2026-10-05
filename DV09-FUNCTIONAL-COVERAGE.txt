@@ -2601,3 +2601,10 @@ Line1 - Each module has a scan multiple 1-255 (x1 s) and optional manual order.
 Line2 - Scheduled algorithms run only when due and integrate over elapsed time.
 Line3 - Explicit order makes a consumer read the previous scan value.
 Line4 - Per-block scheduling and export remain gaps. Tests: module-scheduling.test.cjs.
+
+PASS 80: PASSWORD POLICY, AGING AND ACCOUNT EXPIRY (pp313-322)
+-----------------------------------------------------------------------
+Line1 - Policy: length, classes, user name, max age, history (fingerprints only).
+Line2 - Enforced on create/change/reset and at logon; aged password forces change.
+Line3 - Account expiry date refuses logon/authentication; never-expires; reset.
+Line4 - No Windows/domain, lockout or persistence. Tests: password-policy.test.cjs.
