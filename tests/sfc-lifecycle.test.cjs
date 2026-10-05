@@ -12,7 +12,8 @@ const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const {
-  savedSfcKey, sfcDraftDirty, sfcNeedsDownload, sfcEditorDefinition, parseSavedSfc, serializeSavedSfc
+  savedSfcKey, sfcDraftDirty, sfcNeedsDownload, sfcEditorDefinition, parseSavedSfc, serializeSavedSfc,
+  sfcConfiguredMetadata
 } = require('../src/renderer/src/engine/sfcLifecycle.ts')
 const NAME = 'LIFE-TEST'
 function steps(value = 50) {
@@ -138,6 +139,125 @@ test('Explorer SFC opening selects the requested chart, rejects missing targets 
     assert.equal(useUi.getState().selectedTag, null)
     assert.equal(store.createSfc('LEGACY-SFC', 'FEED'), true)
     assert.equal(useStore.getState().sfcLifecycle['LEGACY-SFC'], undefined)
+  })
+})
+
+test('SFC description and equipment membership survive creation Properties Save Load and Download without early runtime changes', () => {
+  withProject((store, storage) => {
+    store.createEquipmentModule('FEED_TEST', 'Feed equipment', 'FEED')
+    assert.equal(store.createSfc('META-SFC', 'FEED', {
+      managed: true, description: 'Tank startup', equipmentModule: 'FEED_TEST'
+    }), true)
+    const record = () => useStore.getState().sfcLifecycle['META-SFC']
+    const runtime = () => useStore.getState().sfcs['META-SFC']
+    assert.deepEqual([runtime().description, record().draft.description, record().draft.equipmentModule],
+      ['Tank startup', 'Tank startup', 'FEED_TEST'])
+    store.setSfcSteps('META-SFC', steps())
+    const originalRuntime = runtime()
+    const before = record().draft
+    assert.equal(store.configureSfcProperties('META-SFC', {
+      description: 'Tank startup and shutdown', equipmentModule: undefined, controllerTag: 'CTLR-01'
+    }, before), true)
+    assert.equal(runtime(), originalRuntime, 'property commit does not rewrite undeployed runtime')
+    assert.deepEqual(sfcConfiguredMetadata(runtime(), record()), {
+      area: 'FEED', description: 'Tank startup and shutdown', equipmentModule: undefined
+    })
+    assert.equal(sfcEditorDefinition(runtime(), record()).description, 'Tank startup and shutdown')
+    assert.equal(store.saveSfc('META-SFC'), true)
+    const saved = record().saved
+    assert.equal(JSON.parse(storage.get(savedSfcKey('META-SFC'))).configuration.description, saved.description)
+    assert.equal(store.configureSfcProperties('META-SFC', { description: 'Unsaved', equipmentModule: 'FEED_TEST' }), true)
+    assert.equal(store.loadSavedSfc('META-SFC'), true)
+    assert.equal(record().draft.description, saved.description)
+    assert.equal(record().draft.equipmentModule, undefined)
+    assert.equal(runtime(), originalRuntime)
+    assert.equal(store.downloadSavedSfc('META-SFC'), true)
+    assert.equal(runtime().description, saved.description)
+    assert.equal(runtime().equipmentModule, undefined)
+    assert.equal(runtime().status, 'READY')
+    assert.equal(runtime().actionStates && Object.keys(runtime().actionStates).length, 0)
+    assert.notEqual(record().draft, record().saved)
+    assert.notEqual(record().saved, record().deployed)
+    assert.equal(store.configureSfcProperties('META-SFC', { description: 'Next deployment', equipmentModule: 'FEED_TEST' }), true)
+    assert.equal(runtime().description, saved.description)
+    assert.equal(sfcConfiguredMetadata(runtime(), record()).description, 'Next deployment')
+    assert.equal(store.saveSfc('META-SFC'), true)
+    assert.equal(store.downloadSavedSfc('META-SFC'), true)
+    assert.equal(runtime().equipmentModule, 'FEED_TEST')
+    assert.equal(store.setSfcOnline('META-SFC', true), true)
+    assert.equal(sfcEditorDefinition(runtime(), record()).description, 'Next deployment')
+  })
+})
+
+test('SFC property commits reject stale invalid cross-area running Online locked and denied edits atomically', () => {
+  withProject(store => {
+    store.createEquipmentModule('FEED_TEST', 'Feed equipment', 'FEED')
+    store.createEquipmentModule('REACT_TEST', 'Reactor equipment', 'REACTOR')
+    const initial = lifecycle().draft
+    assert.equal(store.configureSfcProperties(NAME, { description: 'Saved description', equipmentModule: 'FEED_TEST' }, initial), true)
+    const good = lifecycle().draft
+    for (const patch of [
+      { controllerTag: 'NO_CONTROLLER', description: 'Must not apply' },
+      { equipmentModule: 'MISSING' }, { equipmentModule: 'REACT_TEST' },
+      { equipmentModule: '' }, { description: null }, { controllerTag: undefined }, { name: 'RENAMED' }
+    ]) {
+      assert.equal(store.configureSfcProperties(NAME, patch, good), false)
+      assert.equal(lifecycle().draft, good)
+    }
+    assert.equal(store.configureSfcProperties(NAME, { description: 'Stale overwrite' }, initial), false)
+    assert.equal(lifecycle().draft, good)
+    useSecurity.setState({ locked: true })
+    assert.equal(store.configureSfcProperties(NAME, { description: 'Locked' }, good), false)
+    useSecurity.setState({ locked: false, currentUser: 'Supervisor1' })
+    assert.equal(store.configureSfcProperties(NAME, { description: 'Denied' }, good), false)
+    useSecurity.setState({ currentUser: 'admin' })
+    deploy(store)
+    const online = lifecycle().draft
+    assert.equal(store.configureSfcProperties(NAME, { description: 'Online' }, online), false)
+    store.sfcCommand(NAME, 'run')
+    assert.equal(store.setSfcOnline(NAME, false), true)
+    assert.equal(store.configureSfcProperties(NAME, { description: 'Running' }, online), false)
+    assert.equal(lifecycle().draft, online)
+    assert.equal(store.createSfc('INVALID_META', 'FEED', { managed: true, equipmentModule: 'REACT_TEST' }), false)
+    assert.equal(useStore.getState().sfcs.INVALID_META, undefined)
+    assert.equal(useStore.getState().sfcLifecycle.INVALID_META, undefined)
+  })
+})
+
+test('saved SFC metadata schema remains backward compatible and equipment deletion or bad reload cannot replace deployment', () => {
+  withProject((store, storage) => {
+    const legacy = { name: NAME, area: 'FEED', controllerTag: 'CTLR-01', steps: steps() }
+    assert.equal(parseSavedSfc(serializeSavedSfc(legacy), useStore.getState().modules).error, undefined)
+    for (const metadata of [{ description: 42 }, { equipmentModule: null }, { equipmentModule: 'BAD/NAME' }]) {
+      assert.ok(parseSavedSfc(JSON.stringify({ version: 1, configuration: { ...legacy, ...metadata } }),
+        useStore.getState().modules).error)
+    }
+    store.createEquipmentModule('FEED_TEST', 'Feed equipment', 'FEED')
+    store.configureSfcProperties(NAME, { equipmentModule: 'FEED_TEST', description: 'Description before deletion' })
+    deploy(store)
+    assert.equal(store.setSfcOnline(NAME, false), true)
+    const deployed = lifecycle().deployed
+    const runtime = useStore.getState().sfcs[NAME]
+    const savedText = storage.get(savedSfcKey(NAME))
+    store.deleteEquipmentModule('FEED_TEST')
+    assert.equal(lifecycle().draft.equipmentModule, undefined)
+    assert.equal(lifecycle().deployed, deployed, 'deleted project equipment does not rewrite deployed configuration')
+    assert.equal(useStore.getState().sfcs[NAME], runtime)
+    assert.equal(sfcDraftDirty(lifecycle()), true)
+    assert.equal(store.loadSavedSfc(NAME), false, 'old persisted equipment reference is unavailable')
+    assert.equal(lifecycle().draft.equipmentModule, undefined)
+    assert.equal(lifecycle().deployed, deployed)
+    assert.equal(storage.get(savedSfcKey(NAME)), savedText, 'a rejected Load cannot rewrite saved storage')
+    assert.equal(store.saveSfc(NAME), true)
+    assert.equal(store.downloadSavedSfc(NAME), true)
+    assert.equal(useStore.getState().sfcs[NAME].equipmentModule, undefined)
+    assert.equal(useStore.getState().sfcs[NAME].description, 'Description before deletion')
+    store.createEquipmentModule('FEED_TEST', 'Feed equipment', 'FEED')
+    store.configureSfcProperties(NAME, { equipmentModule: 'FEED_TEST' })
+    store.renameArea('FEED', 'FEED_RENAMED')
+    assert.deepEqual([lifecycle().draft.area, useStore.getState().equipment.FEED_TEST.area],
+      ['FEED_RENAMED', 'FEED_RENAMED'])
+    assert.equal(store.saveSfc(NAME), true)
   })
 })
 

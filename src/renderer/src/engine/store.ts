@@ -59,7 +59,8 @@ import {
 } from './sfcParameters'
 import {
   cloneSfcConfiguration, parseSavedSfc, savedSfcKey, serializeSavedSfc,
-  sfcConfigurationError, sfcDraftDirty, sfcEditorDefinition, type SfcLifecycle, type SfcConfiguration
+  sfcConfigurationError, sfcDraftDirty, sfcEditorDefinition, sfcMetadataError,
+  type SfcLifecycle, type SfcConfiguration, type SfcModuleProperties
 } from './sfcLifecycle'
 import {
   NAMED_SETS_STORAGE_KEY, changedNamedSets, cloneNamedSet, namedSetError, namedSetTargetKey,
@@ -138,6 +139,7 @@ interface StoreState extends PlantState {
   sfcLifecycle: Record<string, SfcLifecycle>
   enableSfcLifecycle: (name: string) => boolean
   configureSfcController: (name: string, controllerTag: string, expected?: SfcConfiguration) => boolean
+  configureSfcProperties: (name: string, patch: Partial<SfcModuleProperties>, expected?: SfcConfiguration) => boolean
   saveSfc: (name: string) => boolean
   loadSavedSfc: (name: string) => boolean
   downloadSavedSfc: (name: string, expected?: SfcConfiguration) => boolean
@@ -263,7 +265,9 @@ interface StoreState extends PlantState {
   deleteEquipmentModule: (tag: string) => void
   /** Assign (or clear, with null) a Control Module's Equipment Module. */
   setModuleEquipment: (moduleTag: string, emTag: string | null) => void
-  createSfc: (name: string, area: string, options?: { managed: boolean }) => boolean
+  createSfc: (name: string, area: string, options?: {
+    managed: boolean; description?: string; equipmentModule?: string
+  }) => boolean
   deleteSfc: (name: string) => void
   setSfcSteps: (name: string, steps: SfcStep[]) => void
   checkSfc: (name: string) => string | null
@@ -2432,7 +2436,12 @@ export const useStore = create<StoreState>((set, get) => ({
       for (const k of Object.keys(modules)) {
         if (modules[k].equipmentModule === tag) modules[k] = { ...modules[k], equipmentModule: undefined }
       }
-      return { equipment, modules, rev: s.rev + 1 }
+      const sfcs = Object.fromEntries(Object.entries(s.sfcs).map(([name, chart]) =>
+        [name, !s.sfcLifecycle[name] && chart.equipmentModule === tag ? { ...chart, equipmentModule: undefined } : chart]))
+      const sfcLifecycle = Object.fromEntries(Object.entries(s.sfcLifecycle).map(([name, record]) =>
+        [name, record.draft.equipmentModule === tag ? { ...record,
+          draft: { ...record.draft, equipmentModule: undefined } } : record]))
+      return { equipment, modules, sfcs, sfcLifecycle, rev: s.rev + 1 }
     })
     get().logEvent('CONFIGURE', tag, 'Equipment Module deleted')
   },
@@ -2451,10 +2460,12 @@ export const useStore = create<StoreState>((set, get) => ({
     const state = get()
     const error = moduleNameError(key) ??
       (state.sfcs[key] || state.modules[key] ? `Module ${key} already exists` :
-        !state.areas.includes(area) ? `Area ${area} does not exist` : null)
+        !state.areas.includes(area) ? `Area ${area} does not exist` : null) ??
+      sfcMetadataError({ area, description: options?.description, equipmentModule: options?.equipmentModule }, state.equipment)
     if (error) return rejectSfc(get, key, `SFC creation rejected: ${error}`)
-    const sfc: SfcDef = { name: key, area, steps: [], status: 'READY', active: 0, elapsed: 0 }
-    const draft = cloneSfcConfiguration({ name: key, area, controllerTag: '', steps: [] })
+    const metadata = { description: options?.description, equipmentModule: options?.equipmentModule }
+    const sfc: SfcDef = { name: key, area, ...metadata, steps: [], status: 'READY', active: 0, elapsed: 0 }
+    const draft = cloneSfcConfiguration({ name: key, area, ...metadata, controllerTag: '', steps: [] })
     set(s => ({ sfcs: { ...s.sfcs, [key]: sfc },
       sfcLifecycle: options?.managed ? { ...s.sfcLifecycle, [key]: { draft, online: false } } : s.sfcLifecycle,
       rev: s.rev + 1 }))
@@ -2561,6 +2572,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return rejectSfc(get, name, 'Reset an unmanaged SFC before enabling Save/Download lifecycle')
     }
     const draft = cloneSfcConfiguration({ name, area: sfc.area, controllerTag: '', steps: sfc.steps, ...cloneSfcBlocks(sfc),
+      description: sfc.description, equipmentModule: sfc.equipmentModule,
       ...(sfc.parameters ? { parameters: sfc.parameters } : {}) })
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { draft, online: false } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', name, 'Saved SFC lifecycle enabled; Save and Download required before execution')
@@ -2568,17 +2580,27 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   configureSfcController: (name, controllerTag, expected) => {
-    if (!requireUnlockedLock('CAN_CONFIGURE', `Assign SFC controller ${name}`)) return false
+    return get().configureSfcProperties(name, { controllerTag }, expected)
+  },
+
+  configureSfcProperties: (name, patch, expected) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure SFC Module Properties ${name}`)) return false
     const state = get()
     const lifecycle = state.sfcLifecycle[name]
     if (expected && lifecycle?.draft !== expected) return rejectSfc(get, name, 'SFC configuration changed while Module Properties was open; reopen Properties')
     if (!lifecycle || lifecycle.online || state.sfcs[name]?.status === 'RUNNING' || state.sfcs[name]?.status === 'HELD') {
-      return rejectSfc(get, name, 'Reset and go Offline before assigning the configured SFC controller')
+      return rejectSfc(get, name, 'Reset and go Offline before changing SFC Module Properties')
     }
-    if (controllerTag && !state.hardware.controllers[controllerTag]) return rejectSfc(get, name, 'Configured target controller does not exist')
+    const draft = { ...lifecycle.draft, ...patch }
+    const error = Object.keys(patch).some(key => !['controllerTag', 'description', 'equipmentModule'].includes(key))
+      ? 'Unsupported SFC Module Property' : typeof draft.controllerTag !== 'string' ||
+        draft.controllerTag && !Object.hasOwn(state.hardware.controllers, draft.controllerTag)
+        ? 'Configured target controller does not exist' : sfcMetadataError(draft, state.equipment)
+    if (error) return rejectSfc(get, name, error)
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { ...lifecycle,
-      draft: { ...lifecycle.draft, controllerTag } } }, rev: s.rev + 1 }))
-    get().logEvent('CONFIGURE', name, `SFC configured controller: ${controllerTag || '(unassigned)'}`)
+      draft: cloneSfcConfiguration(draft) } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', name,
+      `SFC Module Properties: controller=${draft.controllerTag || '(unassigned)'}, description=${draft.description ?? ''}, Equipment Module=${draft.equipmentModule ?? '(unassigned)'}`)
     return true
   },
 
@@ -2587,7 +2609,8 @@ export const useStore = create<StoreState>((set, get) => ({
     const state = get()
     const lifecycle = state.sfcLifecycle[name]
     if (!lifecycle || lifecycle.online) return rejectSfc(get, name, 'Go Offline to save the configured SFC')
-    const error = sfcConfigurationError(lifecycle.draft, state.modules, state.namedSets.configured) ??
+    const error = sfcMetadataError(lifecycle.draft, state.equipment) ??
+      sfcConfigurationError(lifecycle.draft, state.modules, state.namedSets.configured) ??
       (!state.areas.includes(lifecycle.draft.area) ? 'Configured SFC area no longer exists' : null)
     if (error) return rejectSfc(get, name, error)
     const saved = cloneSfcConfiguration(lifecycle.draft)
@@ -2616,6 +2639,8 @@ export const useStore = create<StoreState>((set, get) => ({
       return rejectSfc(get, name, 'Saved SFC name/area does not match the current project')
     }
     const saved = { ...parsed.configuration, area: runtime.area }
+    const metadataError = sfcMetadataError(saved, state.equipment)
+    if (metadataError) return rejectSfc(get, name, metadataError)
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { ...lifecycle,
       draft: cloneSfcConfiguration(saved), saved } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', name, 'Saved SFC loaded into offline configuration; deployed algorithm unchanged')
@@ -2635,13 +2660,15 @@ export const useStore = create<StoreState>((set, get) => ({
     if (sfcDraftDirty(lifecycle)) return rejectSfc(get, name, 'Save current SFC edits before downloading')
     const saved = lifecycle.saved
     const controller = state.hardware.controllers[saved.controllerTag]
-    const error = sfcConfigurationError(saved, state.modules, controllerNamedSets(state.namedSets, saved.controllerTag)) ??
+    const error = sfcMetadataError(saved, state.equipment) ??
+      sfcConfigurationError(saved, state.modules, controllerNamedSets(state.namedSets, saved.controllerTag)) ??
       (!state.areas.includes(saved.area) ? 'Saved SFC area no longer exists' :
         !controller || controllerIsDown(controller) ? 'Assign an available commissioned controller and Save before downloading' : null)
     if (error) return rejectSfc(get, name, error)
     const deployed = cloneSfcConfiguration(saved)
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { ...lifecycle, deployed } },
       sfcs: { ...s.sfcs, [name]: { name, area: deployed.area, steps: cloneSfcConfiguration(deployed).steps,
+        description: deployed.description, equipmentModule: deployed.equipmentModule,
         ...cloneSfcBlocks(deployed), blockStates: {},
         status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined,
         parameters: cloneSfcParameters(deployed.parameters) } }, rev: s.rev + 1 }))

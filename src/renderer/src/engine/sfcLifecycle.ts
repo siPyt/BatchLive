@@ -9,9 +9,26 @@ import { cloneSfcBlocks, parseSfcBlocks, sfcBlockConfigurationError, type SfcBlo
 export interface SfcConfiguration extends SfcBlockConfiguration {
   name: string
   area: string
+  description?: string
+  equipmentModule?: string
   controllerTag: string
   steps: SfcStep[]
   parameters?: SfcParameters
+}
+
+export type SfcModuleProperties = Pick<SfcConfiguration, 'controllerTag' | 'description' | 'equipmentModule'>
+
+export function sfcMetadataError(configuration: Pick<SfcConfiguration, 'area' | 'description' | 'equipmentModule'>,
+  equipment?: Record<string, { area: string }>): string | null {
+  if (configuration.description !== undefined && typeof configuration.description !== 'string') {
+    return 'SFC description must be text'
+  }
+  const tag = configuration.equipmentModule
+  if (tag !== undefined && (typeof tag !== 'string' || moduleNameError(tag))) {
+    return 'SFC equipment membership requires a valid Equipment Module name'
+  }
+  return tag && equipment && (!Object.hasOwn(equipment, tag) || equipment[tag].area !== configuration.area)
+    ? 'SFC Equipment Module must exist in the same area' : null
 }
 
 export interface SfcLifecycle {
@@ -22,7 +39,11 @@ export interface SfcLifecycle {
 }
 
 export function cloneSfcConfiguration(configuration: SfcConfiguration): SfcConfiguration {
-  return { ...configuration, ...cloneSfcBlocks(configuration), ...(configuration.parameters ? { parameters: cloneSfcParameters(configuration.parameters) } : {}),
+  const { description, equipmentModule, ...base } = configuration
+  return { ...base,
+    ...(description === undefined ? {} : { description }),
+    ...(equipmentModule === undefined ? {} : { equipmentModule }),
+    ...cloneSfcBlocks(configuration), ...(configuration.parameters ? { parameters: cloneSfcParameters(configuration.parameters) } : {}),
     steps: configuration.steps.map(step => ({
     ...step, ...(step.alternatives ? { alternatives: step.alternatives.map(route => ({ ...route, condition: { ...route.condition } })) } : {}),
     ...(step.parallelNextSteps ? { parallelNextSteps: [...step.parallelNextSteps] } : {}),
@@ -36,6 +57,7 @@ export function cloneSfcConfiguration(configuration: SfcConfiguration): SfcConfi
 export function sfcConfigurationError(configuration: SfcConfiguration, modules: Record<string, AnyModule>,
   sets: Record<string, NamedSetDefinition> = {}): string | null {
   return moduleNameError(configuration.name) ??
+    sfcMetadataError(configuration) ??
     sfcBlockConfigurationError(configuration) ??
     sfcParameterError(configuration.parameters, sets) ??
     (!configuration.steps.length ? 'SFC requires at least one step' : sfcStepsError(configuration.steps, modules,
@@ -43,17 +65,26 @@ export function sfcConfigurationError(configuration: SfcConfiguration, modules: 
 }
 
 export function sfcDraftDirty(lifecycle: SfcLifecycle): boolean {
-  return !lifecycle.saved || JSON.stringify(lifecycle.draft) !== JSON.stringify(lifecycle.saved)
+  return !lifecycle.saved || JSON.stringify(cloneSfcConfiguration(lifecycle.draft)) !==
+    JSON.stringify(cloneSfcConfiguration(lifecycle.saved))
 }
 
 export function sfcNeedsDownload(lifecycle: SfcLifecycle): boolean {
-  return !!lifecycle.saved && JSON.stringify(lifecycle.saved) !== JSON.stringify(lifecycle.deployed)
+  return !!lifecycle.saved && (!lifecycle.deployed || JSON.stringify(cloneSfcConfiguration(lifecycle.saved)) !==
+    JSON.stringify(cloneSfcConfiguration(lifecycle.deployed)))
+}
+
+export function sfcConfiguredMetadata(runtime: SfcDef, lifecycle?: SfcLifecycle):
+  Pick<SfcDef, 'area' | 'description' | 'equipmentModule'> {
+  const source = lifecycle?.draft ?? runtime
+  return { area: source.area, description: source.description, equipmentModule: source.equipmentModule }
 }
 
 export function sfcEditorDefinition(runtime: SfcDef, lifecycle?: SfcLifecycle): SfcDef {
   return !lifecycle || lifecycle.online ? runtime : { ...runtime,
     ...cloneSfcBlocks(lifecycle.draft), blocks: lifecycle.draft.blocks, alarmTypes: lifecycle.draft.alarmTypes, alarms: lifecycle.draft.alarms,
     area: lifecycle.draft.area, steps: lifecycle.draft.steps,
+    description: lifecycle.draft.description, equipmentModule: lifecycle.draft.equipmentModule,
     parameters: lifecycle.draft.parameters,
     status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined, blockStates: {} }
 }
@@ -121,6 +152,14 @@ export function parseSavedSfc(text: string, modules: Record<string, AnyModule>, 
     !Array.isArray(value.steps) || !value.steps.every(step)) return { error: 'Malformed saved SFC configuration' }
   const configuration: SfcConfiguration = {
     name: value.name, area: value.area, controllerTag: value.controllerTag, steps: value.steps
+  }
+  if (value.description !== undefined) {
+    if (typeof value.description !== 'string') return { error: 'Malformed saved SFC description' }
+    configuration.description = value.description
+  }
+  if (value.equipmentModule !== undefined) {
+    if (typeof value.equipmentModule !== 'string') return { error: 'Malformed saved SFC equipment membership' }
+    configuration.equipmentModule = value.equipmentModule
   }
   const blocks = parseSfcBlocks(value)
   if (!blocks) return { error: 'Malformed saved SFC function blocks, alarm types or alarms' }

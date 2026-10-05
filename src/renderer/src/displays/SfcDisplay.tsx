@@ -130,6 +130,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
       <div className="sfc-toolbar">
         <span className="sfc-title">{sfc.name}</span>
         <span className="sfc-area">{sfc.area}</span>
+        {sfc.description && <span className="sfc-area" title={sfc.description}>{sfc.description}</span>}
         <span className="sfc-status" style={{ background: STATUS_COLOR[sfc.status] }}>
           {sfc.status}
         </span>

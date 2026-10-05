@@ -40,7 +40,8 @@ groups below and DV09-FUNCTIONAL-COVERAGE.txt. An opt-in standalone AO saved/
 download/restart subset now exists; general controller/download parity is absent.
 Push authorization is separate from audit completion. The user authorized
 publishing the accumulated local milestones on 2026-10-04; this does not change
-any implementation status or certify whole-course completion.
+any implementation status or certify whole-course completion. The user's later
+instruction pauses further pushes until explicit renewed authorization.
 
 STATUS DEFINITIONS
 ------------------
@@ -994,8 +995,9 @@ Evidence: A custom-picture MODE.A_ACTUAL datalink can be configured to hide
   updates all linked objects. AND conditions use confirmed state or explicit
   numeric thresholds; Bad feedback is neutral/Bad, missing dependencies report
   diagnostics. Tables and picture links save/load separately in this browser.
-  Native System Tree, PipesAnim and separate ValveHorizontalControlD1
-  body/actuator animation remain incomplete; applied AO is not measured travel.
+  Pass42 adds independent custom valve-body/actuator links and quality.
+  Native System Tree, PipesAnim and exact ValveHorizontalControlD1 template
+  parity remain incomplete; applied AO is not measured travel.
 Acceptance: Verify AUTO/normal is hidden and a differing actual mode flashes
   red; return to normal and verify it hides. One flow_color table edit must
   update all linked custom objects. Preserve baseline equipment styling.
@@ -1176,7 +1178,16 @@ Evidence: Generic structured motor/valve/SP/out transitions and supported
   full native New/template workflow and restart/nonvolatile restoration remain
   missing. New Control Module FBD/SFC choice, guarded atomic Offline creation
   and Explorer area-row properties/opening are now verified subsets; native
-  SFC description/equipment membership and Save As remain unsupported.
+  Pass44 adds SFC Description and same-area Equipment Module membership at
+  Explorer creation and isolated Module Properties, with configured hierarchy,
+  Save/Load and deployment propagation. Invalid references, stale dialogs,
+  unauthorized/locked and Online/active writes reject atomically. Metadata
+  edits do not rewrite the deployed/runtime chart before Download. Equipment
+  deletion clears draft membership without rewriting deployed snapshots;
+  persisted missing references reject Load. Optional-field compatibility is
+  tested with legacy files. Browser creation, Cancel/OK, nested hierarchy/count,
+  Save/Download, stale rejection, Load and FlexLock verified. Save As remains
+  unsupported; native graph/template/restart gaps above still prevent completion.
 Acceptance: Execute each state in the exact dependency order with real
   feedback; failed confirmation must hold the appropriate transition.
 

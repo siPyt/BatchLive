@@ -10,6 +10,8 @@ import { nextAreaName } from '../engine/areas'
 import { moduleNameError } from '../engine/naming'
 import { NamedSetControls } from '../components/NamedSetControls'
 import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
+import { sfcConfiguredMetadata } from '../engine/sfcLifecycle'
+import type { SfcDef } from '../engine/sfc'
 import { LicensingProperties } from '../components/LicensingProperties'
 
 // DeltaV Explorer-style system hierarchy:
@@ -65,6 +67,7 @@ function statusText(m: AnyModule): { text: string; color: string } {
 export function ExplorerDisplay(): JSX.Element {
   const modules = useStore((s) => s.modules)
   const sfcs = useStore(s => s.sfcs)
+  const sfcLifecycles = useStore(s => s.sfcLifecycle)
   const alarms = useStore((s) => s.alarms)
   const equipment = useStore((s) => s.equipment)
   const areas = useStore((s) => s.areas)
@@ -159,6 +162,21 @@ export function ExplorerDisplay(): JSX.Element {
     )
   }
 
+  const renderSfcRow = (sfc: SfcDef, nested = false): JSX.Element => <div key={sfc.name}
+    className={'exp-node exp-mod' + (nested ? ' nested' : '') + (selectedTag === sfc.name ? ' sel' : '')}
+    data-sfc-module={sfc.name} data-equipment-module={sfc.equipmentModule}
+    onClick={() => { setSetupView('modules'); select(sfc.name) }}
+    onDoubleClick={() => openSfc(sfc.name)}
+    onContextMenu={event => {
+      event.preventDefault(); setSetupView('modules'); select(sfc.name)
+      setMenu({ x: event.clientX, y: event.clientY, kind: 'sfc', target: sfc.name })
+    }}>
+    <span className="exp-caret" /><ModuleIcon kind="control" />
+    <span className="exp-badge">SFC</span><b className="exp-tag">{sfc.name}</b>
+    <span className="exp-desc">{sfc.description}</span>
+    <span className="exp-status">{sfc.status}</span>
+  </div>
+
   return (
     <div className="display explorer">
       <div className="explorer-tree">
@@ -230,7 +248,11 @@ export function ExplorerDisplay(): JSX.Element {
           areas.map((area) => {
             const mods = list.filter((m) => m.area === area)
             const ems = Object.values(equipment).filter((em) => em.area === area)
-            const areaSfcs = Object.values(sfcs).filter(sfc => sfc.area === area)
+            const areaSfcs = Object.values(sfcs).map(sfc => ({
+              ...sfc, ...sfcConfiguredMetadata(sfc, sfcLifecycles[sfc.name])
+            })).filter(sfc => sfc.area === area)
+            const unassignedSfcs = areaSfcs.filter(sfc => !sfc.equipmentModule ||
+              !equipment[sfc.equipmentModule] || equipment[sfc.equipmentModule].area !== area)
             const unassigned = mods.filter((m) => !m.equipmentModule || !equipment[m.equipmentModule])
             return (
               <div key={area}>
@@ -268,6 +290,7 @@ export function ExplorerDisplay(): JSX.Element {
                     {ems.map((em) => {
                       const emKey = `EM:${em.tag}`
                       const emMods = mods.filter((m) => m.equipmentModule === em.tag)
+                      const emSfcs = areaSfcs.filter(sfc => sfc.equipmentModule === em.tag)
                       return (
                         <div key={em.tag}>
                           <div
@@ -282,36 +305,28 @@ export function ExplorerDisplay(): JSX.Element {
                             <ModuleIcon kind="equipment" />
                             {em.tag}
                             <span className="exp-sub">
-                              {em.description} · {emMods.length} modules
+                              {em.description} · {emMods.length + emSfcs.length} modules
                             </span>
                           </div>
-                          {open[emKey] && emMods.map((m) => renderModuleRow(m, true))}
+                          {open[emKey] && <>
+                            {emMods.map((m) => renderModuleRow(m, true))}
+                            {emSfcs.map(sfc => renderSfcRow(sfc, true))}
+                          </>}
                         </div>
                       )
                     })}
-                    {unassigned.length > 0 && (
+                    {(unassigned.length > 0 || unassignedSfcs.length > 0) && (
                       <div>
                         <div className="exp-node exp-em unassigned">
                           <span className="exp-caret">▾</span>
                           <ModuleIcon kind="unassigned" />
                           (Unassigned)
-                          <span className="exp-sub">{unassigned.length} modules</span>
+                          <span className="exp-sub">{unassigned.length + unassignedSfcs.length} modules</span>
                         </div>
                         {unassigned.map((m) => renderModuleRow(m, true))}
+                        {unassignedSfcs.map(sfc => renderSfcRow(sfc, true))}
                       </div>
                     )}
-                    {areaSfcs.map(sfc => <div key={sfc.name}
-                      className={'exp-node exp-mod' + (selectedTag === sfc.name ? ' sel' : '')}
-                      onClick={() => { setSetupView('modules'); select(sfc.name) }}
-                      onDoubleClick={() => openSfc(sfc.name)}
-                      onContextMenu={event => {
-                        event.preventDefault(); setSetupView('modules'); select(sfc.name)
-                        setMenu({ x: event.clientX, y: event.clientY, kind: 'sfc', target: sfc.name })
-                      }}>
-                      <span className="exp-caret" /><ModuleIcon kind="control" />
-                      <span className="exp-badge">SFC</span><b className="exp-tag">{sfc.name}</b>
-                      <span className="exp-status">{sfc.status}</span>
-                    </div>)}
                   </>
                 )}
               </div>
@@ -677,7 +692,9 @@ function NewModuleForm({
   const submit = (): void => {
     if (!valid) return
     if (algorithm === 'SFC') {
-      if (!useStore.getState().createSfc(normTag, area, { managed: true })) return
+      if (!useStore.getState().createSfc(normTag, area, {
+        managed: true, description: description.trim() || normTag, equipmentModule: em || undefined
+      })) return
       onDone()
       useUi.getState().openSfc(normTag)
       return
@@ -814,10 +831,10 @@ function NewModuleForm({
           </select>
         </label>
       )}
-      {algorithm === 'FBD' && <label>
+      <label>
         Description
-        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" />
-      </label>}
+        <input aria-label="New module description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" />
+      </label>
       <label>
         Area
         <select
@@ -831,9 +848,9 @@ function NewModuleForm({
           {areas.map(name => <option key={name}>{name}</option>)}
         </select>
       </label>
-      {algorithm === 'FBD' && <label>
+      <label>
         Equipment Module
-        <select value={em} onChange={(e) => setEm(e.target.value)}>
+        <select aria-label="New module Equipment Module" value={em} onChange={(e) => setEm(e.target.value)}>
           <option value="">(Unassigned)</option>
           {emsInArea.map((e) => (
             <option key={e.tag} value={e.tag}>
@@ -841,9 +858,10 @@ function NewModuleForm({
             </option>
           ))}
         </select>
-      </label>}
+      </label>
       {algorithm === 'SFC' && <p className="traditional-note">Creates an empty Offline SFC in the selected area; Save and Download are required before execution.
-        Native templates, SFC description/equipment membership, palette and restart workflows are not yet implemented.</p>}
+        Description and Equipment Module membership are saved configuration; edits do not execute actions.
+        Native templates, palette and restart workflows are not yet implemented.</p>}
       {analog && (
         <div className="exp-newmod-range">
           <label>

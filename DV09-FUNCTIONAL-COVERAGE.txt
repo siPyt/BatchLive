@@ -3,10 +3,10 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: simulator process
-Test / Review / Update tuning (Pass43, LOCAL; pushes paused by user).
-Previous milestone: 96e3cde, independent valve body/actuator animation (Pass42,
-LOCAL). Last published functional milestone: da59138, PID Detail/trends (Pass41).
+DV-09 is NOT complete. Latest implemented milestone: SFC module description
+and equipment membership (Pass44, LOCAL; pushes paused by user).
+Previous milestone: 5bfed46, simulator process Test/Review/Update (Pass43, LOCAL).
+Last published functional milestone: da59138, PID Detail/trends (Pass41).
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
   VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
@@ -18,10 +18,11 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:333 repository tests passed; focused picture/PID regressions,
+Last validation:336 repository tests passed;27 focused SFC regressions,
 typecheck, production build, editor diagnostics and audit validation passed.
-Browser verified filtered output-driven Test response, reviewed0.7/2.5/0 Update,
-stale-review rejection and recovery, and restored original96-module plant/UI.
+Browser verified SFC metadata creation, Properties Cancel/OK, equipment hierarchy
+and counts, Save/Download, stale rejection, Load and FlexLock discard.
+Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
   - FIC-102 PID_LOOP template and isolated Save/Download/Online lifecycle.
@@ -31,6 +32,7 @@ Most recent delivered functionality:
   - PID Detail online tuning, fractional RESET and dynamic PID PV/SP/OUT trends.
   - Independent valve body and actuator colors/quality in opt-in custom pictures.
   - Measured simulator process Test, reviewed manual tuning Update and stale guards.
+  - SFC description/equipment membership through Properties, persistence and deployment.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1616,3 +1618,38 @@ tuning0.7/2.5/0, rejected changed-tuning stale review, then retested/updated.
 Original96-module running plant/UI/security restored; no fixture persistence.
 DV09-061 remains PARTIAL for native algorithm and full card/controller parity.
 Local checkpoint only: no push without renewed user authorization.
+
+PASS 44: SFC MODULE DESCRIPTION AND EQUIPMENT MEMBERSHIP
+--------------------------------------------------------
+Scope: closes the module-metadata gap recorded under DV09-070, without claiming
+native New/template, graph palette, Save As or restart parity.
+Line1 - Explorer New SFC: Description and Equipment Module are now exposed and
+  retained. Same-area equipment membership is validated before atomic creation.
+Line2 - Module Properties: Controller, Description and Equipment Module use one
+  isolated dialog draft. OK validates/applies all; Cancel/Escape discard all.
+Line3 - Write guards: Online, Running/Held, stale configuration, wrong-area or
+  missing equipment/controller, unsupported properties, denied keys and locked
+  workstation reject without partial configuration changes.
+Line4 - Configured/runtime separation: metadata edits affect only the configured
+  draft. Offline editor and Explorer show configured metadata; deployed/runtime
+  retain previous metadata until explicit saved Download.
+Line5 - Save: metadata persists in the browser with no execution or deployment.
+Line6 - Load: validated saved metadata returns to the offline draft; old files
+  without optional metadata remain compatible. Invalid types/references preserve
+  last-good draft/storage/deployment.
+Line7 - Download: copies saved metadata into independent deployed/runtime copies,
+  leaving the chart READY and no equipment actions executed.
+Line8 - Explorer: assigned SFCs appear beneath their Equipment Module, descriptions
+  are visible and group module counts include them; unassigned SFCs remain reachable.
+Line9 - Equipment deletion/area rename: deletion clears configured membership,
+  leaving managed deployment untouched. A missing persisted reference rejects
+  Load. Area rename carries the SFC and equipment area together.
+Line10 - Regression: optional-field clone normalization and dirty comparisons
+  preserve legacy saved-schema roundtrips; unchanged metadata must not falsely
+  require another Save after Save.
+Verification:336 full-suite tests;27 focused SFC lifecycle/Properties/MESSAGE
+tests; typecheck/build and edited-file diagnostics. Browser checks covered
+creation from actual form, Cancel/OK, configured-versus-runtime description,
+nested equipment count1, Save/Download READY, stale rejection, Load and locked
+dialog discard. Original96-module running plant/UI/security restored and fixture
+saved storage removed. Checkpoint is local only; no push authorization.

@@ -69,6 +69,8 @@ export type SfcStatus = 'READY' | 'RUNNING' | 'HELD' | 'COMPLETE'
 export interface SfcDef extends SfcBlockConfiguration {
   name: string
   area: string
+  description?: string
+  equipmentModule?: string
   steps: SfcStep[]
   status: SfcStatus
   active: number

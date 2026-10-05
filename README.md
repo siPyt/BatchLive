@@ -326,12 +326,18 @@ that exact chart. The default Function Block Diagram option retains existing
 PID/AI/AO/MOTOR/VALVE/DI/DO/FB creation. Names are validated and shared between
 FBD modules and SFCs; duplicates, missing areas, denied keys and FlexLock reject
 creation without partial algorithms. Cancel does not create an object.
-This is the supported algorithm-choice subset, not native dialog/template,
-SFC description/equipment-membership or Save As parity.
+SFC creation also preserves **Description** and **Equipment Module** membership.
+The selected equipment must exist in the same area. Explorer displays configured
+descriptions and nests assigned SFCs under their equipment group; counts include
+both FBD and SFC modules. This remains a supported algorithm-choice/metadata
+subset, not native dialog/template or Save As parity.
 
 Reset an existing sample SFC and choose **Use Save/Download lifecycle** to opt it into isolated
 configured, saved and deployed linear algorithms. **Module Properties**
-assigns its configured controller; **Save** validates/persists browser
+assigns its configured controller, description and same-area equipment membership
+in one isolated draft. OK applies all fields atomically; Cancel/Escape discard
+them. Stale, missing/wrong-area, unauthorized, locked, Online and active-chart
+edits reject. **Save** validates/persists browser
 configuration without changing execution. **Download...** confirms transfer
 to an available commissioned target and leaves the SFC READY without executing
 actions. **Go Online** displays/operates the deployed chart; **Go Offline**

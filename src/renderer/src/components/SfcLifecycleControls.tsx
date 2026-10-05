@@ -42,6 +42,10 @@ export function SfcLifecycleControls({ name }: { name: string }): JSX.Element {
       {' '}Deployed status: {lifecycle.deployed ? runtimeStatus : '(not downloaded)'}.
       {' '}Offline edits and Save do not execute or replace the deployed algorithm. Reset before editing,
       loading or downloading; Online commands operate the deployed version only.</p>
+    <p>Configured description: {lifecycle.draft.description || '(none)'}.
+      {' '}Equipment Module: {lifecycle.draft.equipmentModule || '(unassigned)'}.
+      {' '}Deployed description: {lifecycle.deployed?.description || '(none)'}.
+      {' '}Deployed Equipment Module: {lifecycle.deployed?.equipmentModule || '(unassigned)'}.</p>
     <p>This is the simulated SFC/browser-save subset, including return/selective routes and independent parallel legs with all-predecessor joins.
       Explorer New Control Module supports FBD/SFC algorithm selection; native dialog/template, graph palette/layout and nested/selective parallel legs,
       arbitrary parameter types and controller restart/nonvolatile restoration remain unsupported.
@@ -68,11 +72,26 @@ function SfcModuleProperties({ configuration, onClose }: {
   configuration: SfcConfiguration; onClose: () => void
 }): JSX.Element {
   const controllers = useStore(s => s.hardware.controllers)
+  const equipment = useStore(s => s.equipment)
   const [target, setTarget] = useState(configuration.controllerTag)
+  const [description, setDescription] = useState(configuration.description ?? '')
+  const [equipmentModule, setEquipmentModule] = useState(configuration.equipmentModule ?? '')
   const [error, setError] = useState('')
   return <SimulatorDialog className="module-download-dialog" label={`Module Properties: ${configuration.name}`} onClose={onClose}>
     <h3>Module Properties: {configuration.name}</h3>
     <p>Algorithm Type: Sequential Function Chart</p><p>Area: {configuration.area}</p>
+    <label className="bld-f">Description
+      <input aria-label="SFC description" value={description} onChange={event => setDescription(event.target.value)} />
+    </label>
+    <label className="bld-f">Equipment Module
+      <select aria-label="SFC Equipment Module" value={equipmentModule} onChange={event => setEquipmentModule(event.target.value)}>
+        <option value="">(Unassigned)</option>
+        {equipmentModule && (!equipment[equipmentModule] || equipment[equipmentModule].area !== configuration.area) &&
+          <option value={equipmentModule}>{equipmentModule} (missing or wrong area)</option>}
+        {Object.values(equipment).filter(item => item.area === configuration.area)
+          .map(item => <option key={item.tag}>{item.tag}</option>)}
+      </select>
+    </label>
     <label>Controller<select aria-label="SFC configured controller" value={target} onChange={e => setTarget(e.target.value)}>
       <option value="">(unassigned)</option>
       {target && !controllers[target] && <option value={target}>{target} (missing)</option>}
@@ -81,8 +100,10 @@ function SfcModuleProperties({ configuration, onClose }: {
     {error && <p role="alert">{error}</p>}
     <div className="sfc-edit-row">
       <button className="tbtn sm" onClick={() => {
-        if (useStore.getState().configureSfcController(configuration.name, target, configuration)) onClose()
-        else setError('Controller assignment was not applied. See the reported staleness, target or permission error.')
+        if (useStore.getState().configureSfcProperties(configuration.name, {
+          controllerTag: target, description, equipmentModule: equipmentModule || undefined
+        }, configuration)) onClose()
+        else setError('Module Properties were not applied. See the reported staleness, target, equipment or permission error.')
       }}>OK</button>
       <button className="tbtn sm" onClick={onClose}>Cancel</button>
     </div>
