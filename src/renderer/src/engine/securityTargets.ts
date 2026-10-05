@@ -83,6 +83,7 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
     /^(Set cascade source|Configure feedforward|Wire command source) |^Configure .+ (analog strategy|splitter)$|^Wire .+ CAS_IN$/),
   t('function', 'fn-controller-create', 'Create a controller', 'SYSTEM_ADMIN', /^Create controller /),
   t('function', 'fn-controller-config', 'Configure or decommission a controller', 'CAN_CONFIGURE', /^(Configure|Decommission) controller /),
+  t('function', 'fn-licensing', 'Load or remove license files and the System ID Key', 'SYSTEM_ADMIN', /^(Load|Remove) license file |^(Insert|Remove) System ID Key$/),
   t('function', 'fn-controller-placeholder', 'Create or delete a Control Network placeholder', 'CAN_CONFIGURE', /^(Create|Delete) controller placeholder /),
   t('function', 'fn-controller-commission', 'Commission a controller', 'CAN_DOWNLOAD', /^Commission controller /),
   t('function', 'fn-controller-diagnostics', 'Controller fail, restore, identify, auto-sense and power', 'DIAGNOSTIC',

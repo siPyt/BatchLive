@@ -2644,3 +2644,9 @@ PASS 86: DO OUTPUT OPTIONS (pp84-86)
 -----------------------------------------------------------------------
 Line1 - DO channels: Latching, Momentary (fixed pulse per rising edge) or Continuous pulse (50% duty).
 Line2 - Applies to module and device writers; follows simulated time. Tests: do-output-options.test.cjs.
+
+PASS 87: DST LICENSING, SYSTEM ID KEY AND SUBSTITUTION (pp238-242)
+-----------------------------------------------------------------------
+Line1 - License files must match the System ID Key number; capacities per DST type.
+Line2 - AO licenses cover AI shortfall; key removal and shortfall refuse downloads.
+Line3 - Unlicensed until a file is loaded. Tests: licensing.test.cjs.

@@ -294,6 +294,12 @@ export function registerServerGate(provider: (() => 'RUNNING' | 'STOPPED') | und
   serverState = provider
 }
 
+/** Licensing registers why a configuration download is refused (missing System ID Key, DST shortfall), or null. */
+let downloadGate: ((action: string) => string | null) | undefined
+export function registerDownloadGate(provider: ((action: string) => string | null) | undefined): void {
+  downloadGate = provider
+}
+
 let areaResolver: ((action: string) => string | undefined) | undefined
 export function registerAreaResolver(resolver: ((action: string) => string | undefined) | undefined): void {
   areaResolver = resolver
@@ -590,6 +596,13 @@ export const useSecurity = create<SecurityState>((set, get) => ({
     if (kind === 'function' && (lock === 'CAN_CONFIGURE' || lock === 'CAN_DOWNLOAD') && serverState?.() === 'STOPPED') {
       set({ lastDenied: `Access Denied — ${action} needs the database server, which is stopped; connect to the server first` })
       return false
+    }
+    if (kind === 'function' && lock === 'CAN_DOWNLOAD') {
+      const refusal = downloadGate?.(action)
+      if (refusal) {
+        set({ lastDenied: `Access Denied — ${action}: ${refusal}` })
+        return false
+      }
     }
     // DV09-079: writes to a module's parameters and fields also need the area key of the module's area.
     if (kind === 'parameter' || kind === 'field') {

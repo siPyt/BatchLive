@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 57 VERIFIED_SUBSET, 46 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 58 VERIFIED_SUBSET, 45 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -1239,24 +1239,31 @@ CHAPTER 6: REGULATORY CONTROL
 
 [DV09-054]
 Pages: 238-242
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Determine DST licenses/usage by type, assignment/substitution and
   system identity/keys.
-Evidence: Pass33 adds actual read-only Explorer ProfessionalPLUS (simulated)
-  -> Licensing Properties, with AI/AO/DI/DO referenced/enabled/configured/
-  unused counts and module/port/channel/controller detail. Distinct actual
-  live/deployed physical signals are counted, not every module or unused
-  named channel. Shared readers/internal FB references do not duplicate
-  allocation. Disabled/pulled/failed-controller references remain allocated;
-  enabled/installed counts are separate. Implicit legacy CHARM signals
-  count by physical type; no fictitious native DST names are invented.
-  Wrong/missing/duplicate/unresolved graph data displays explicit incomplete
-  report diagnostics, not successful0 usage. Report never mutates state.
-  Seven regressions and actual UI before/after/shared navigation/disabled/
-  incomplete report checks pass;309 tests/typecheck/build validation.
-  License capacity, substitution allocation/enforcement, license files and
-  physical System ID keys are not implemented. AO-to-AI substitution is
-  recorded from p241, not generalized into an unverified hierarchy.
+Evidence (Pass33 + Pass87): Explorer ProfessionalPLUS (simulated) > Licensing
+  Properties counts actual referenced/enabled DSTs per type (AI/AO/DI/DO) from
+  live and deployed bindings with module/port/channel/controller detail, no
+  allocation for unused named channels, shared readers or internal references,
+  and explicit incomplete-report diagnostics.
+  Pass87 adds licensing.ts: a simulated System ID Key (number 4217, installable
+  or removable) and license files that must match its number, with validated
+  per-type capacities (0-100000) summed across files. The report compares
+  usage with capacity per type, applies the course's substitution example (spare
+  AO licenses cover AI usage; no other substitution is assumed) and shows
+  substituted/shortfall counts and spare AO. With no file loaded the training
+  system is unlicensed and nothing is enforced; once a file is loaded, a missing
+  key refuses every configuration download (through a download gate in the
+  security store) and a DST shortfall refuses module, serial-card and H1-card
+  downloads, naming the type and numbers. Loading/removing files and the key
+  need System Admin and persist in the browser profile. Eight regressions cover
+  capacity math, substitution limits, file validation, persistence, locks,
+  usage and both enforcement paths; the browser showed the mismatch message,
+  the licensed status and the key-removed state.
+  Boundary: no real license files or USB System ID Key, no drag-and-drop
+  assignment of licenses to nodes, no workstation licensing classes; this is
+  not a vendor-licensed download approval.
 Acceptance: Count real referenced/enabled DSTs by type before/after module
   creation and report resource boundaries; real license keys remain external.
 
@@ -4137,3 +4144,21 @@ Validation: 601 tests locally (600 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-014 PARTIAL -> VERIFIED_SUBSET. Totals 57 VERIFIED_SUBSET/
   46 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 87 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-054 DST licensing, System ID Key and substitution (pp238-242, course 6-5..6-9).
+Engine: new licensing.ts (key, files, capacity, AO-for-AI substitution, download
+  refusal); security.ts gains registerDownloadGate used by requireLock for
+  CAN_DOWNLOAD function targets; registry target fn-licensing (System Admin);
+  App imports licensing so the gate is registered at start-up.
+UI: License manager inside Explorer Licensing Properties (key, files, capacity
+  table with substituted/shortfall).
+Tests: tests/licensing.test.cjs (8).
+Browser: mismatched file rejected, matching file enforced, key removal shown.
+Boundary (honest): no real license/USB key/node assignment drag-drop/workstation
+  licensing classes; substitution limited to the manual's AO-for-AI example.
+Validation: 609 tests locally (608 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-054 PARTIAL -> VERIFIED_SUBSET. Totals 58 VERIFIED_SUBSET/
+  45 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
