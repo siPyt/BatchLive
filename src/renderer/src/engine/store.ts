@@ -58,7 +58,7 @@ import {
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { cloneSfcBlocks, reconcileSfcAlarms, sfcBlockConfigurationError, type SfcBlockConfiguration } from './sfcBlocks'
-import { requireUnlockedKey, useSecurity } from './security'
+import { registerAreaResolver, requireUnlockedKey, useSecurity } from './security'
 import { ALARM_FIELD_LOCK, alarmFieldWriteError, parseAlarmFieldPath } from './alarmFields'
 import { compareModuleDownload, type DownloadStatusCheck } from './downloadStatus'
 import {
@@ -3352,3 +3352,13 @@ function mutateModule(
   fn(clone)
   set((st) => ({ modules: { ...st.modules, [tag]: clone }, rev: st.rev + 1 }))
 }
+
+// DV09-079: lets the security store find the plant area of the module an action targets.
+registerAreaResolver((action) => {
+  const modules = useStore.getState().modules
+  for (const token of action.match(/[A-Za-z0-9_-]+/g) ?? []) {
+    const area = modules[token]?.area
+    if (area !== undefined) return area
+  }
+  return undefined
+})

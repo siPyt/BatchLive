@@ -42,6 +42,8 @@ export function FlexLockOverlay(): JSX.Element | null {
       finish()
     } else if (status === 'disabled') {
       setError('This account is disabled.')
+    } else if (status === 'not-downloaded') {
+      setError('This user has not been downloaded to this workstation yet.')
     } else if (status === 'must-change') {
       setMustChange(true)
       setError('Your password has expired. Enter a new password.')

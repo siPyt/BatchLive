@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 18 VERIFIED_SUBSET, 55 PARTIAL, 30 MISSING,
+DV-09 remains incomplete: 19 VERIFIED_SUBSET, 54 PARTIAL, 30 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 The user's standing instruction ("finish everything and stop stopping",
 2026-10-05) authorizes continuing to commit and push every pass without
@@ -1703,11 +1703,26 @@ Acceptance: A virtual training-only desktop must explicitly disclose its scope;
 
 [DV09-079]
 Pages: 331-333
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: OperatorA can operate only PLANT_AREA_A; Supervisor1 has sitewide
   tuning and download; download workstation and verify after full logoff.
-Evidence: Named users exist, but OperatorA's keys are global, not area-limited.
-  No workstation download/Windows logoff workflow.
+Evidence (Pass69): the Defining Users workshop is now executable. Area write
+  keys are enforced at every parameter/field write: requireLock() resolves the
+  plant area of the module named in the action (store registers
+  registerAreaResolver) and denies a user whose effective area keys lack it,
+  with "requires the area key for <area>". Function-level actions (configure,
+  download) and untargeted actions (acknowledge) are governed by their lock,
+  not area. Supervisor1 stays sitewide (tuning, download); an operator without
+  Tuning is denied even in the right area. Group area keys extend a restricted
+  user at once and removal revokes at once. Download Workstation (Can Download
+  key) copies users, groups and lock assignments to the workstation; until the
+  first download the live configuration applies, afterwards logon and key
+  checks use the downloaded copy, so a user created or re-keyed afterwards
+  cannot log on / is not active until the next download; the downloaded copy
+  persists across an application restart. FlexLock shows "not downloaded".
+  Tests: security-area-writes.test.cjs. Boundary: logging off Windows/XP is
+  DV09-078; the default OperatorA account is left unrestricted so existing
+  exercises keep working, and an administrator restricts it to an area.
 Acceptance: Test correct-area allowed/wrong-area denied writes and alarms,
   tuning denial for operator, inherited grants and virtual workstation reload.
 
@@ -3296,3 +3311,26 @@ Validation: 438 repository tests run locally (437 pass; the remaining failure
 Result: DV09-075 MISSING -> VERIFIED_SUBSET; DV09-074 stays PARTIAL with
   narrower evidence. Current totals 18 VERIFIED_SUBSET/55 PARTIAL/30 MISSING/
   19 BOUNDARY/6 CONTEXT.
+
+PASS 69 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-079 (Defining Users workshop, pages 331-335): OperatorA area-only
+operation, Supervisor1 sitewide tuning/download, download workstation and
+verify after logoff.
+Engine: security.ts requireLock() adds the area-key check for parameter and
+  field targets via registerAreaResolver (registered by store.ts, which maps
+  the first module tag in the action label to its area). WorkstationConfig,
+  downloadWorkstation(), workstationPending(), activeConfig() make logon, hasLock,
+  hasAreaKey and lockFor read the downloaded copy once a download exists, and
+  the copy is persisted to localStorage and restored when security.ts loads.
+UI: User Manager has a Download Workstation button and a status line (not yet
+  downloaded / pending / up to date). FlexLock reports a not-downloaded user.
+Tests: tests/security-area-writes.test.cjs (8 tests): right-area allowed and
+  wrong-area denied for startMotor with the denial text; sitewide Supervisor1;
+  Tuning denial; group area keys grant and revoke; functions and untargeted
+  acknowledge unaffected; download semantics; Can Download requirement;
+  restart restore.
+Validation: 446 repository tests run locally (445 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency). Typecheck passed.
+Result: DV09-079 PARTIAL -> VERIFIED_SUBSET. Current totals are the Status
+  line recount in the header. Scope boundary: real Windows logoff is DV09-078.

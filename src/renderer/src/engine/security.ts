@@ -132,9 +132,20 @@ export function groupsOf(user: string, groups: DvGroup[]): string[] {
   return groups.filter((g) => g.members.includes(user)).map((g) => g.name)
 }
 
+/** DV09-079: the security data this workstation was last downloaded with. Until the first download the live configuration is used. */
+export interface WorkstationConfig {
+  users: DvUser[]
+  groups: DvGroup[]
+  lockAssignments: Record<string, LockType>
+  downloadedAt: number
+}
+
+export const WORKSTATION_STORAGE_KEY = 'batchlive.workstation.security'
+
 interface SecurityState {
   users: DvUser[]
   groups: DvGroup[]
+  workstation: WorkstationConfig | null
   /** DV09-075: Security Properties lock reassignments keyed by SecurityTarget id; absent = the default lock. */
   lockAssignments: Record<string, LockType>
   /** name of the currently logged-on user. */
@@ -145,7 +156,11 @@ interface SecurityState {
   lastDenied: string | null
   login: (name: string, password: string) => boolean
   /** Why a logon would succeed or fail, without side effects. */
-  loginStatus: (name: string, password: string) => 'ok' | 'bad' | 'disabled' | 'must-change'
+  loginStatus: (name: string, password: string) => 'ok' | 'bad' | 'disabled' | 'must-change' | 'not-downloaded'
+  /** DV09-079: copy the configured users, groups and lock assignments to this workstation. */
+  downloadWorkstation: () => string | null
+  /** True while the configured security data differs from what this workstation holds. */
+  workstationPending: () => boolean
   lockWorkstation: () => void
   addUser: (u: DvUser) => boolean
   deleteUser: (name: string) => void
@@ -205,17 +220,58 @@ const DEFAULT_GROUPS: DvGroup[] = [
   }
 ]
 
+function activeConfig(s: Pick<SecurityState, 'users' | 'groups' | 'lockAssignments' | 'workstation'>): {
+  users: DvUser[]
+  groups: DvGroup[]
+  lockAssignments: Record<string, LockType>
+} {
+  return s.workstation ?? s
+}
+
+function persistWorkstation(config: WorkstationConfig): void {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(WORKSTATION_STORAGE_KEY, JSON.stringify(config))
+  } catch {
+    // storage unavailable: the download still applies for this session
+  }
+}
+
+function readWorkstation(): WorkstationConfig | null {
+  try {
+    if (typeof localStorage === 'undefined') return null
+    const raw = localStorage.getItem(WORKSTATION_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<WorkstationConfig>
+    if (!Array.isArray(parsed.users) || !Array.isArray(parsed.groups) || typeof parsed.lockAssignments !== 'object' || !parsed.lockAssignments) return null
+    return parsed as WorkstationConfig
+  } catch {
+    return null
+  }
+}
+
+/** The store registers a resolver that finds the plant area of the module named in an action label. */
+let areaResolver: ((action: string) => string | undefined) | undefined
+export function registerAreaResolver(resolver: ((action: string) => string | undefined) | undefined): void {
+  areaResolver = resolver
+}
+
 export const useSecurity = create<SecurityState>((set, get) => ({
   users: DEFAULT_USERS,
   groups: DEFAULT_GROUPS,
+  workstation: null,
   lockAssignments: {},
   currentUser: 'admin',
   locked: false,
   lastDenied: null,
 
   login: (name, password) => {
-    const u = get().users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
-    if (!u || u.password !== password) return false
+    const u = activeConfig(get()).users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
+    if (!u || u.password !== password) {
+      if (get().workstation && get().users.some((x) => x.name.toLowerCase() === name.trim().toLowerCase() && x.password === password)) {
+        set({ lastDenied: `Access Denied — ${name.trim()} is not downloaded to this workstation yet` })
+      }
+      return false
+    }
     if (u.disabled) {
       set({ lastDenied: `Access Denied — account ${u.name} is disabled` })
       return false
@@ -229,8 +285,11 @@ export const useSecurity = create<SecurityState>((set, get) => ({
   },
 
   loginStatus: (name, password) => {
-    const u = get().users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
-    if (!u || u.password !== password) return 'bad'
+    const u = activeConfig(get()).users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
+    if (!u || u.password !== password) {
+      const live = get().users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
+      return get().workstation && live && live.password === password ? 'not-downloaded' : 'bad'
+    }
     if (u.disabled) return 'disabled'
     return u.mustChangePassword ? 'must-change' : 'ok'
   },
@@ -364,17 +423,43 @@ export const useSecurity = create<SecurityState>((set, get) => ({
     return null
   },
 
+  downloadWorkstation: () => {
+    if (!get().requireLock('CAN_DOWNLOAD', 'Download workstation security')) return 'Requires the Can Download key'
+    const s = get()
+    const config: WorkstationConfig = {
+      users: JSON.parse(JSON.stringify(s.users)) as DvUser[],
+      groups: JSON.parse(JSON.stringify(s.groups)) as DvGroup[],
+      lockAssignments: { ...s.lockAssignments },
+      downloadedAt: Date.now()
+    }
+    set({ workstation: config })
+    persistWorkstation(config)
+    return null
+  },
+
+  workstationPending: () => {
+    const s = get()
+    if (!s.workstation) return true
+    const ws = s.workstation
+    return (
+      JSON.stringify([s.users, s.groups, s.lockAssignments]) !==
+      JSON.stringify([ws.users, ws.groups, ws.lockAssignments])
+    )
+  },
+
   hasLock: (lock) => {
     const s = get()
-    const u = s.users.find((x) => x.name === s.currentUser)
-    return effectiveLocks(u, s.groups).includes(lock)
+    const active = activeConfig(s)
+    const u = active.users.find((x) => x.name === s.currentUser)
+    return effectiveLocks(u, active.groups).includes(lock)
   },
 
   hasAreaKey: (area) => {
     const s = get()
-    const u = s.users.find((x) => x.name === s.currentUser)
+    const active = activeConfig(s)
+    const u = active.users.find((x) => x.name === s.currentUser)
     if (!u) return true
-    const areas = effectiveAreas(u, s.groups)
+    const areas = effectiveAreas(u, active.groups)
     if (!areas) return true
     return area !== undefined && areas.includes(area)
   },
@@ -395,15 +480,26 @@ export const useSecurity = create<SecurityState>((set, get) => ({
 
   lockFor: (lock, action) => {
     const target = findSecurityTarget(lock, action)
-    return (target && get().lockAssignments[target.id]) || lock
+    return (target && activeConfig(get()).lockAssignments[target.id]) || lock
   },
 
   requireLock: (lock, action) => {
     const effective = get().lockFor(lock, action)
-    if (get().hasLock(effective)) return true
-    const moved = effective !== lock ? ` (reassigned from ${LOCK_LABEL[lock]})` : ''
-    set({ lastDenied: `Access Denied — ${action} requires the ${LOCK_LABEL[effective]} key${moved}` })
-    return false
+    if (!get().hasLock(effective)) {
+      const moved = effective !== lock ? ` (reassigned from ${LOCK_LABEL[lock]})` : ''
+      set({ lastDenied: `Access Denied — ${action} requires the ${LOCK_LABEL[effective]} key${moved}` })
+      return false
+    }
+    // DV09-079: writes to a module's parameters and fields also need the area key of the module's area.
+    const kind = findSecurityTarget(lock, action)?.kind
+    if (kind === 'parameter' || kind === 'field') {
+      const area = areaResolver?.(action)
+      if (area !== undefined && !get().hasAreaKey(area)) {
+        set({ lastDenied: `Access Denied — ${action} requires the area key for ${area}` })
+        return false
+      }
+    }
+    return true
   },
 
   clearDenied: () => set({ lastDenied: null })
@@ -415,4 +511,15 @@ export function requireUnlockedKey(lock: LockType, action: string): boolean {
     return false
   }
   return useSecurity.getState().requireLock(lock, action)
+}
+
+// A downloaded workstation survives an application restart, like a real DeltaV workstation.
+const savedWorkstation = readWorkstation()
+if (savedWorkstation) {
+  useSecurity.setState({
+    users: savedWorkstation.users,
+    groups: savedWorkstation.groups,
+    lockAssignments: savedWorkstation.lockAssignments,
+    workstation: savedWorkstation
+  })
 }

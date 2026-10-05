@@ -2480,3 +2480,13 @@ Line3 - Proof: a source scan maps all literal permission checks to exactly one
   allowed after Control -> Tuning, and restore reverts.
 Line4 - Not claimed: persistence of assignments, native controller download of
   security data, Build Recipes/Can Calibrate operations.
+
+PASS 69: AREA-ONLY OPERATION, SITEWIDE TUNING AND WORKSTATION DOWNLOAD (pp331-335)
+-----------------------------------------------------------------------
+Line1 - Area enforcement: an operator limited to FEED can start FEED modules
+  and is denied DRYING modules with a message naming the area.
+Line2 - Supervisor1: sitewide tuning and download; an operator without Tuning
+  is denied. Group area keys apply and revoke immediately.
+Line3 - Download Workstation: new users and key changes take effect for logon
+  only after the download; the downloaded set survives an app restart.
+Line4 - Tests: tests/security-area-writes.test.cjs.

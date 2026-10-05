@@ -37,6 +37,9 @@ export function UserManagerDisplay(): JSX.Element {
   const setGroupLocks = useSecurity((s) => s.setGroupLocks)
   const setGroupAreas = useSecurity((s) => s.setGroupAreas)
   const hasLock = useSecurity((s) => s.hasLock)
+  const workstation = useSecurity((s) => s.workstation)
+  const pending = useSecurity((s) => s.workstationPending())
+  const downloadWorkstation = useSecurity((s) => s.downloadWorkstation)
   const modules = useStore((s) => s.modules)
   const [creating, setCreating] = useState(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
@@ -71,6 +74,21 @@ export function UserManagerDisplay(): JSX.Element {
         <button className="tbtn sm" disabled={!canAdmin} onClick={() => setCreatingGroup((v) => !v)}>
           {creatingGroup ? '✕ Cancel' : '＋ New Group'}
         </button>
+        <button
+          className="tbtn sm"
+          disabled={!hasLock('CAN_DOWNLOAD')}
+          title="Copy the configured users, groups and lock assignments to this workstation"
+          onClick={() => report(downloadWorkstation())}
+        >
+          Download Workstation
+        </button>
+      </div>
+      <div style={{ fontSize: 11, padding: '2px 10px', color: 'var(--dv-text-mute)' }} data-workstation-status>
+        {workstation === null
+          ? 'Workstation: not yet downloaded — configuration changes apply immediately.'
+          : pending
+            ? `Workstation: last downloaded ${new Date(workstation.downloadedAt).toLocaleString()} — configuration changes are pending a download.`
+            : `Workstation: up to date (downloaded ${new Date(workstation.downloadedAt).toLocaleString()}).`}
       </div>
       {message && (
         <div className="exp-newmod-err" role="alert" onClick={() => setMessage(null)}>
