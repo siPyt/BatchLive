@@ -577,6 +577,16 @@ OOS with held output until explicit Go Online; saved tuning is applied without
 uploading live tuning or rewriting browser defaults. Confirmation rejects changed
 membership/saved objects and warns of both algorithm behaviors. Device/SFC,
 card configuration and Setup remain excluded; this is not native Total Download.
+**Full Download Managed Modules** extends this atomic scope to saved MOTOR,
+VALVE and SFC lifecycles on the controller. Every module is prepared before one
+commit. A running/open device, nonpassive or Bad channel, missing deployed Named
+Set, dirty draft, Online/running/held SFC or changed confirmation scope aborts
+the entire batch. Devices retain their individual download behavior: passive,
+downloaded and requiring external confirmation. SFCs remain READY/Offline with
+no actions executed. PID stays OOS until Online; AO uses saved defaults. These
+shared preparation helpers also serve individual device/SFC downloads. Native
+Total Download, unmanaged AI/DI/DO/FB algorithms, card configuration, Setup,
+licensing, generic upload and Fieldbus are still outside this bounded command.
 Online shows runtime; offline edits do not alter the deployed module. Upload
 copies live values into a draft, requiring explicit Save before persistence.
 Cold restart restores selected values only when both deployed module and

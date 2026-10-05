@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useStore } from '../engine/store'
 import { controllerAoRecords, controllerDeployedAoRecords } from '../engine/moduleLifecycle'
 import { controllerRegulatoryRecords } from '../engine/controllerRegulatoryTransfer'
+import { controllerManagedRecords } from '../engine/controllerModuleTransfer'
 import { useUi } from '../ui/uiStore'
 import { TraditionalIoPanel } from './TraditionalIoPanel'
 import {
@@ -329,6 +330,13 @@ function ControllerPanel({
             useStore.getState().downloadControllerRegulatory(c.tag, reviewed)
           }
         }}>Full Download Managed AO/PID</button>
+        <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
+          const records = controllerManagedRecords(useStore.getState(), c.tag)
+          const reviewed = Object.fromEntries(records.map(({ tag, saved }) => [tag, saved]))
+          if (window.confirm(`Full Download managed modules on ${c.tag}: ${records.map(({ tag, kind }) => `${tag} (${kind})`).join(', ') || '(none)'}. All drafts must be saved. PID/SFC must be Offline; devices stopped/closed with passive Good channels. AO uses saved defaults, PID stays OOS until Online, devices await confirmation and SFC stays READY without executing actions. Cancel or any member failure aborts the entire batch. Cards/Setup/unmanaged algorithms are excluded; this is not native Total Download.`)) {
+            useStore.getState().downloadControllerManagedModules(c.tag, reviewed)
+          }
+        }}>Full Download Managed Modules</button>
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
           const records = controllerDeployedAoRecords(useStore.getState().moduleLifecycle, c.tag)
           const reviewed = Object.fromEntries(records.map(([tag, record]) => [tag, record.lastGoodDownload]))

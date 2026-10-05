@@ -3,9 +3,9 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: atomic mixed controller
-AO/PID_LOOP Full transfer (Pass52, LOCAL).
-Previous milestone: 1133f38, controller-owned AO replay (Pass51, LOCAL).
+DV-09 is NOT complete. Latest implemented milestone: atomic all-enrolled
+AO/PID/device/SFC controller Full transfer (Pass53).
+Previous milestone: 76e21aa, mixed AO/PID Full transfer (Pass52).
 Last published functional milestone: c65d49d, verified on GitHub main after the
 user authorized push. Pass42-50 and all related TXT/ledger/docs were published.
 
@@ -19,11 +19,11 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:361 repository tests passed; typecheck, production build,
+Last validation:364 repository tests passed; typecheck, production build,
 edited-file diagnostics, audit validator and diff whitespace checks passed.
-Browser verified actual mixed PhysicalNetworkDisplay fixture: named AO/PID
-confirmation; Cancel changed neither; AO50%, PID downloaded/held OOS; explicit
-Online then produced PV60/AUTO with actual output49.67%.
+Browser verified actual all-managed PhysicalNetworkDisplay fixture: five names/
+types; Cancel changed none; AO50%, PID OOS, devices passive, SFC READY/Offline.
+No SFC action on Download; explicit Online/Run then set PID SP80.
 Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
@@ -44,6 +44,7 @@ Most recent delivered functionality:
   - Atomic controller-owned managed-AO Full batch with whole-scope validation.
   - Atomic deployed-controller AO last-good replay excluding newer database edits.
   - Atomic mixed AO/PID_LOOP controller Full with PID held Offline until Online.
+  - Atomic Full across enrolled AO/PID/device/SFC with passive/reset guards.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1950,3 +1951,34 @@ Boundary: device/SFC/card/Setup transfer and native all-object Total Download
 remain open. This does not provide PID restart-memory/last-good replay.
 DV09-017/019 remain PARTIAL. Validation:361 repository tests, typecheck/build,
 scoped diagnostics, audit validator and diff whitespace passed.
+
+PASS 53: ATOMIC FULL FOR ALL ENROLLED MODULE FAMILIES (pp94,99-104)
+----------------------------------------------------------------
+Line1 - Scope: all enrolled AO/PID_LOOP/MOTOR/VALVE/SFC saved/draft assignments
+  on the selected controller. Named caution lists every tag/type.
+Line2 - Shared preparation: individual and batch devices/SFC use the same pure
+  validation/construction, preserving existing safety and operator boundaries.
+Line3 - Device guards: stopped/closed, valid saved options/owned strategy/sources,
+  deployed descriptor Named Set, enabled/scanned Good DI/DO and passive channels.
+Line4 - SFC guards: saved/clean, reset/Offline, valid steps/references/parameters/
+  blocks/metadata/area/equipment and commissioned available controller.
+Line5 - Atomicity: every family prepares before one set/revision. A later device
+  or SFC failure cannot deploy an earlier valid AO/PID.
+Line6 - Success: AO configured defaults; PID downloaded/held OOS; devices passive
+  awaiting external confirmation; SFC READY/Offline with no action execution.
+Line7 - Staleness/access: exact named confirmation scope/saved objects, key/
+  FlexLock and target availability rechecked; Cancel/failure changes no deployment.
+Line8 - Three new regressions cover all-family single commit/storage/reference
+  isolation and actual Online/SFC/device feedback, active/nonpassive device,
+  held/Online/dirty SFC, stale scope/access/down target and device/SFC-only batch.
+  Existing rendering regression checks the new distinct command too.
+Line9 - Browser mounted actual PhysicalNetworkDisplay in temporary fixture and
+  dispatched the real React command. Warning listed AO/PID/MOTOR/VALVE/SFC.
+  Cancel retained runtime/lifecycle references. Confirm + scan: AO50%, PID OOS/
+  Offline, motor stopped, valve closed, SFC READY/Offline, PID SP50 unchanged.
+  Explicit PID/SFC Online and Run then executed the real action to PID SP80.
+  Original96-module running plant/security/exact storage restored; root removed.
+Boundary: not native Total Download; unmanaged algorithms, card/Setup, generic
+upload, licensing, Fieldbus and persistent controller scripts remain open.
+DV09-017/019 remain PARTIAL. Validation:364 repository tests, typecheck/build,
+scoped diagnostics and whitespace passed; final dated audit/inventory follows.

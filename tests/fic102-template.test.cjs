@@ -72,6 +72,131 @@ function mixedRegulatoryFixture(store) {
   assert.equal(store.saveModuleConfiguration('LEVEL-AO'), true)
 }
 
+function allManagedFixture(store) {
+  mixedRegulatoryFixture(store)
+  for (const [slot, type] of [[3, 'DI'], [4, 'DO']]) {
+    assert.equal(store.addTraditionalCard('CTRL1', slot, type), true)
+    for (let channel = 1; channel <= 2; channel++) {
+      assert.equal(store.configureTraditionalChannel(`CTRL1/C0${slot}`, channel,
+        { dst: `${type}-${channel}`, enabled: true }), true)
+    }
+  }
+  for (const [tag, type, channel] of [['MIX-MTR', 'MOTOR', 1], ['MIX-XV', 'VALVE', 2]]) {
+    assert.equal(store.createModule({ tag, type, area: 'PLANT_AREA_A', description: 'Managed scope fixture' }), true)
+    assert.equal(store.enableDeviceLifecycle(tag), true)
+    assert.equal(store.editDeviceDraft(tag, { controllerTag: 'CTRL1', inputDst: `DI-${channel}`,
+      outputDst: `DO-${channel}`, resetRequired: false }), true)
+    assert.equal(store.saveDeviceConfiguration(tag), true)
+  }
+  assert.equal(store.createSfc('MIX-SFC', 'PLANT_AREA_A', { managed: true }), true)
+  store.setSfcSteps('MIX-SFC', [{ id: 'first', name: 'FIRST',
+    actions: [{ kind: 'sp', tag: 'FIC-102', value: 80, qualifier: 'N' }],
+    transition: { kind: 'timer', seconds: 10 } }])
+  assert.equal(store.configureSfcController('MIX-SFC', 'CTRL1'), true)
+  assert.equal(store.saveSfc('MIX-SFC'), true)
+  store.setRunning(true)
+  store.tick(.1)
+}
+
+test('managed controller Full commits AO/PID/motor/valve/SFC once with safe execution boundaries and no implicit SFC actions', () => fixture(store => {
+  allManagedFixture(store)
+  const before = useStore.getState()
+  const review = { 'LEVEL-AO': before.moduleLifecycle['LEVEL-AO'].saved, 'FIC-102': before.pidLifecycle['FIC-102'].saved,
+    'MIX-MTR': before.deviceLifecycle['MIX-MTR'].saved, 'MIX-XV': before.deviceLifecycle['MIX-XV'].saved,
+    'MIX-SFC': before.sfcLifecycle['MIX-SFC'].saved }
+  const pidStorage = window.localStorage.getItem(savedPidStorageKey('FIC-102'))
+  let commits = 0
+  const unsubscribe = useStore.subscribe((next, prev) => { if (next.modules !== prev.modules) commits++ })
+  assert.equal(store.downloadControllerManagedModules('CTRL1', review), true)
+  unsubscribe()
+  const after = useStore.getState()
+  assert.equal(commits, 1)
+  assert.equal(after.rev, before.rev + 1)
+  assert.equal(after.modules['FIC-102'].sp, before.modules['FIC-102'].sp)
+  assert.equal(after.sfcs['MIX-SFC'].status, 'READY')
+  assert.equal(after.sfcLifecycle['MIX-SFC'].online, false)
+  assert.equal(after.pidLifecycle['FIC-102'].online, false)
+  assert.equal(after.modules['FIC-102'].mode, 'OOS')
+  for (const [tag, map] of Object.entries({ 'LEVEL-AO': 'moduleLifecycle', 'FIC-102': 'pidLifecycle',
+    'MIX-MTR': 'deviceLifecycle', 'MIX-XV': 'deviceLifecycle', 'MIX-SFC': 'sfcLifecycle' })) {
+    assert.equal(after[map][tag].saved, before[map][tag].saved)
+    assert.equal(after[map][tag].draft, before[map][tag].draft)
+    assert.equal(moduleDownloadStatus(after, tag).status, 'MATCH')
+  }
+  assert.equal(after.namedSets, before.namedSets)
+  assert.equal(window.localStorage.getItem(savedPidStorageKey('FIC-102')), pidStorage)
+  store.tick(.1)
+  assert.equal(useStore.getState().modules['LEVEL-AO'].out, 50)
+  assert.equal(useStore.getState().modules['MIX-MTR'].running, false)
+  assert.equal(useStore.getState().modules['MIX-XV'].open, false)
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), true)
+  assert.equal(store.setSfcOnline('MIX-SFC', true), true)
+  store.sfcCommand('MIX-SFC', 'run')
+  store.tick(.1)
+  assert.equal(fic().sp, 80)
+  store.startMotor('MIX-MTR')
+  store.tick(.1)
+  assert.equal(findDst(useStore.getState().hardware, 'DO-1').channel.value, 1)
+  assert.equal(useStore.getState().modules['MIX-MTR'].running, false)
+  assert.equal(store.setTraditionalInput('DI-1', 1), true)
+  store.tick(.1)
+  assert.equal(useStore.getState().modules['MIX-MTR'].running, true)
+}))
+
+test('managed controller Full rejects active/passive-channel device failures and late SFC failures without partial regulatory transfer', () => fixture(store => {
+  allManagedFixture(store)
+  const base = useStore.getState()
+  const unchanged = () => {
+    const before = useStore.getState()
+    assert.equal(store.downloadControllerManagedModules('CTRL1'), false)
+    for (const key of ['modules', 'hardware', 'sfcs', 'moduleLifecycle', 'pidLifecycle', 'deviceLifecycle', 'sfcLifecycle', 'rev']) {
+      assert.equal(useStore.getState()[key], before[key])
+    }
+  }
+  useStore.setState({ modules: { ...base.modules, 'MIX-MTR': { ...base.modules['MIX-MTR'], running: true } } })
+  unchanged()
+  useStore.setState({ modules: base.modules })
+  store.setTraditionalInput('DI-1', 1)
+  unchanged()
+  store.setTraditionalInput('DI-1', 0)
+  const passive = useStore.getState()
+  useStore.setState({ sfcs: { ...passive.sfcs, 'MIX-SFC': { ...passive.sfcs['MIX-SFC'], status: 'HELD' } } })
+  unchanged()
+  useStore.setState({ sfcs: passive.sfcs, sfcLifecycle: { ...passive.sfcLifecycle,
+    'MIX-SFC': { ...passive.sfcLifecycle['MIX-SFC'], online: true } } })
+  unchanged()
+  useStore.setState({ sfcLifecycle: passive.sfcLifecycle })
+  store.setSfcSteps('MIX-SFC', [{ id: 'first', name: 'Changed',
+    actions: [], transition: { kind: 'timer', seconds: 20 } }])
+  unchanged()
+  assert.equal(useStore.getState().modules['LEVEL-AO'].downloaded, false)
+  assert.equal(useStore.getState().modules['FIC-102'].downloaded, false)
+  assert.equal(useStore.getState().deviceLifecycle['MIX-MTR'].deployed, undefined)
+}))
+
+test('managed controller Full rejects stale complete scope, denied/locked/down targets and supports device/SFC-only controller batches', () => fixture(store => {
+  allManagedFixture(store)
+  const before = useStore.getState()
+  assert.equal(store.downloadControllerManagedModules('CTRL1', { 'MIX-SFC': before.sfcLifecycle['MIX-SFC'].saved }), false)
+  useSecurity.setState({ currentUser: 'OperatorA' })
+  assert.equal(store.downloadControllerManagedModules('CTRL1'), false)
+  useSecurity.setState({ currentUser: 'admin', locked: true })
+  assert.equal(store.downloadControllerManagedModules('CTRL1'), false)
+  useSecurity.setState({ locked: false })
+  assert.equal(store.downloadControllerManagedModules('MISSING'), false)
+  useStore.setState({ hardware: { ...before.hardware, controllers: { ...before.hardware.controllers,
+    CTRL1: { ...before.hardware.controllers.CTRL1, primary: 'FAILED', secondary: 'FAILED' } } } })
+  assert.equal(store.downloadControllerManagedModules('CTRL1'), false)
+  assert.equal(useStore.getState().modules, before.modules)
+  assert.equal(useStore.getState().deviceLifecycle, before.deviceLifecycle)
+  useStore.setState({ hardware: before.hardware, moduleLifecycle: {}, pidLifecycle: {} })
+  assert.equal(store.downloadControllerManagedModules('CTRL1'), true)
+  assert.equal(useStore.getState().modules['LEVEL-AO'], before.modules['LEVEL-AO'])
+  assert.equal(useStore.getState().modules['FIC-102'], before.modules['FIC-102'])
+  assert.equal(useStore.getState().modules['MIX-MTR'].downloaded, true)
+  assert.equal(useStore.getState().sfcs['MIX-SFC'].status, 'READY')
+}))
+
 test('mixed controller AO/PID Full commits once, preserves saved data and keeps PID held Offline until explicit Online', () => fixture(store => {
   mixedRegulatoryFixture(store)
   const before = useStore.getState()

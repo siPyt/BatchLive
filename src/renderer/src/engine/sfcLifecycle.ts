@@ -5,6 +5,10 @@ import type { AnyModule } from './types'
 import { cloneSfcParameters, sfcParameterError, type SfcParameters } from './sfcParameters'
 import type { NamedSetDefinition } from './namedSets'
 import { cloneSfcBlocks, parseSfcBlocks, sfcBlockConfigurationError, type SfcBlockConfiguration } from './sfcBlocks'
+import type { HardwareState } from './hardware'
+import { controllerIsDown } from './hardware'
+import type { NamedSetState } from './namedSets'
+import { controllerNamedSets } from './sfcParameters'
 
 export interface SfcConfiguration extends SfcBlockConfiguration {
   name: string
@@ -67,6 +71,32 @@ export function sfcConfigurationError(configuration: SfcConfiguration, modules: 
 export function sfcDraftDirty(lifecycle: SfcLifecycle): boolean {
   return !lifecycle.saved || JSON.stringify(cloneSfcConfiguration(lifecycle.draft)) !==
     JSON.stringify(cloneSfcConfiguration(lifecycle.saved))
+}
+
+export function prepareSfcTransfer(lifecycle: SfcLifecycle | undefined, runtime: SfcDef | undefined,
+  state: { hardware: HardwareState; modules: Record<string, AnyModule>; namedSets: NamedSetState;
+    areas: string[]; equipment: Record<string, { area: string }> }, expected?: SfcConfiguration):
+  { error: string } | { configuration: SfcConfiguration; runtime: SfcDef } {
+  if (!lifecycle?.saved || !runtime) return { error: 'Save the SFC before downloading' }
+  if (expected && expected !== lifecycle.saved) return { error: 'Saved SFC changed during confirmation; reopen Download' }
+  if (lifecycle.online || runtime.status === 'RUNNING' || runtime.status === 'HELD') {
+    return { error: 'Reset and go Offline before replacing the deployed SFC' }
+  }
+  if (sfcDraftDirty(lifecycle)) return { error: 'Save current SFC edits before downloading' }
+  const saved = lifecycle.saved
+  const controller = state.hardware.controllers[saved.controllerTag]
+  const error = sfcMetadataError(saved, state.equipment) ??
+    sfcConfigurationError(saved, state.modules, controllerNamedSets(state.namedSets, saved.controllerTag)) ??
+    (!state.areas.includes(saved.area) ? 'Saved SFC area no longer exists' :
+      !controller || !controller.commissioned || controllerIsDown(controller) ?
+        'Assign an available commissioned controller and Save before downloading' : null)
+  if (error) return { error }
+  const configuration = cloneSfcConfiguration(saved)
+  return { configuration, runtime: { name: configuration.name, area: configuration.area,
+    steps: cloneSfcConfiguration(configuration).steps, description: configuration.description,
+    equipmentModule: configuration.equipmentModule, ...cloneSfcBlocks(configuration), blockStates: {},
+    status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined,
+    parameters: cloneSfcParameters(configuration.parameters) } }
 }
 
 export function sfcNeedsDownload(lifecycle: SfcLifecycle): boolean {

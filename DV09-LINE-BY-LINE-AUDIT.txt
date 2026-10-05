@@ -317,6 +317,19 @@ Existing transfer subsets: standalone AO Full/Partial is single-module scope;
   scope/data, Online PID/key/lock rejection and actual Online I/O execution.
   Browser actual mixed button listed AO/PID types; Cancel changed neither;
   confirm produced AO50%, PID held OOS, then explicit Online produced PV60/AUTO.
+  Pass53 extends the named atomic batch to all four enrolled lifecycle families:
+  AO/PID_LOOP/MOTOR/VALVE/SFC. Device and SFC individual/batch transfers share
+  pure validation and construction helpers. Devices must be passive with Good
+  passive DI/DO and valid deployed descriptor Named Sets; SFC must be clean,
+  reset and Offline with validated references/metadata/controller. A later
+  failure aborts every earlier prepared algorithm. Successful devices await
+  external feedback; PID held OOS; SFC READY/Offline, no implicit actions.
+  Three new engine regressions plus existing rendering check cover one commit,
+  isolation, active/nonpassive device and held/Online/dirty SFC rejection, stale
+  scope/access/down target and device/SFC-only scope. Browser actual command
+  named all five modules; Cancel changed none; confirm yielded AO50%, PID OOS,
+  motor stopped, valve closed and SFC READY with unchanged PID SP50. Explicit
+  Online/Run then executed the SFC action to SP80. Original fixture state restored.
 Gaps: whole-controller Total/Full transfer, card configuration download,
   whole-node/network status and remaining Setup scopes are not implemented.
   Single-module Full commands are not a native full-controller download.
@@ -404,6 +417,9 @@ Gaps: whole-controller download orchestration, native disk download log file,
   Pass52 mixed regulatory confirmation names AO/PID types, requires clean saved
   Offline PID and excludes generic upload/device/SFC/cards/Setup. Any failure
   rejects the whole mixed batch without fake progress or status clearing.
+  Pass53 applies whole-scope preflight and named caution/abort to enrolled
+  AO/PID/device/SFC. It does not download card/Setup/unmanaged/Fieldbus objects
+  or implement native asynchronous controller stages/log files.
 Acceptance: Failed/cancelled transfer must preserve last-good runtime and
   dirty status. Only successful transfer clears the relevant indicators.
 

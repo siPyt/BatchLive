@@ -95,6 +95,29 @@ export function deviceDownloadError(c: DeviceConfiguration, modules: Record<stri
       (deviceChannelSignal(hw, c.inputDst, 'DI').bad || deviceChannelSignal(hw, c.outputDst, 'DO').bad ? 'Both device channels must be enabled and scanned Good' :
         input.channel.value !== 0 || output.channel.value !== 0 ? 'Confirm both physical channels passive before downloading' : null))
 }
+export function prepareDeviceTransfer(record: DeviceLifecycle | undefined, tag: string,
+  modules: Record<string, AnyModule>, hardware: HardwareState, namedSets: NamedSetState):
+  { error: string } | { configuration: DeviceConfiguration; module: MotorModule | ValveModule } {
+  const m = modules[tag]
+  if (!record?.saved || deviceDirty(record) || !m || (m.type !== 'MOTOR' && m.type !== 'VALVE')) {
+    return { error: 'Save the current device draft before downloading' }
+  }
+  if (deviceActive(m)) return { error: 'Stop/close and confirm the device before downloading' }
+  const error = deviceDownloadError(record.saved, modules, hardware, namedSets)
+  if (error) return { error: `Device download failed; last-good runtime retained: ${error}` }
+  const c = record.saved
+  const module = { ...m, permissiveRequired: c.permissiveRequired,
+    interlockInverted: c.interlockInverted, descriptors: c.descriptors ? { ...c.descriptors } : undefined,
+    resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec, interlockSource: c.interlockSource,
+    permissiveSource: c.permissiveSource, commandSource: c.commandSource, controllerTag: c.controllerTag,
+    downloaded: true, ioInputBad: true, ioOutputBad: true, outputCommand: false, travelTimer: 0,
+    interlock: c.interlockSource ? true : m.interlock, permissiveOk: c.permissiveSource ? false : m.permissiveOk }
+  if (module.type === 'MOTOR' && c.strategy) {
+    module.templateId = 'MTR-11_ILOCK'
+    module.ownedBlocks = materializeMotorStrategy(tag, m.area, c.strategy)
+  }
+  return { configuration: c, module }
+}
 export function deviceOperatorError(m: MotorModule | ValveModule, hw: HardwareState): string | null {
   if (m.downloaded === undefined) return null
   if (!m.downloaded) return 'Save and download the device before commanding it active'

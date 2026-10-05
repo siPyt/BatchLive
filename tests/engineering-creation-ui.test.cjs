@@ -66,6 +66,7 @@ test('Physical Network offers explicit managed-AO Full scope separately from res
   const markup = renderToStaticMarkup(React.createElement(PhysicalNetworkDisplay))
   assert.match(markup, />Full Download Managed AOs<\/button>/)
   assert.match(markup, />Full Download Managed AO\/PID<\/button>/)
+  assert.match(markup, />Full Download Managed Modules<\/button>/)
   assert.match(markup, />Re-send Last Good Managed AOs<\/button>/)
   assert.match(markup, />Update AO Cold Restart Memory<\/button>/)
   assert.equal(useStore.getState(), before)

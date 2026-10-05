@@ -23,7 +23,7 @@ import type {
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { resetDeviceLock, stepPlant } from './simulate'
-import { captureDevice, cloneDeviceConfiguration, deviceActive, deviceConfigurationError, deviceDirty, deviceDownloadError, deviceEditorModules,
+import { captureDevice, cloneDeviceConfiguration, deviceActive, deviceConfigurationError, deviceDirty, deviceDownloadError, deviceEditorModules, prepareDeviceTransfer,
   deviceOperatorError, parseDevice, savedDeviceKey, serializeDevice, type DeviceDraftPatch, type DeviceLifecycle } from './deviceLifecycle'
 import { materializeMotorStrategy, motorStrategyError, motorTemplateStrategy, ownedMotorBlock, strategyModules, type MotorBlockConfiguration } from './motorStrategy'
 import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './analogStrategy'
@@ -41,6 +41,7 @@ import {
   type PidConfiguration, type PidLifecycle, type PidLifecyclePatch, type PidTuningParameter
 } from './pidLifecycle'
 import { prepareControllerRegulatoryTransfer, type RegulatoryReview } from './controllerRegulatoryTransfer'
+import { prepareControllerModuleTransfer, type ManagedReview } from './controllerModuleTransfer'
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
@@ -62,7 +63,7 @@ import {
 } from './sfcParameters'
 import {
   cloneSfcConfiguration, parseSavedSfc, savedSfcKey, serializeSavedSfc,
-  sfcConfigurationError, sfcDraftDirty, sfcEditorDefinition, sfcMetadataError,
+  sfcConfigurationError, sfcDraftDirty, sfcEditorDefinition, sfcMetadataError, prepareSfcTransfer,
   type SfcLifecycle, type SfcConfiguration, type SfcModuleProperties
 } from './sfcLifecycle'
 import {
@@ -165,6 +166,7 @@ interface StoreState extends PlantState {
   downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL', expected?: AoConfiguration) => boolean
   downloadControllerAos: (tag: string, expected?: Record<string, AoConfiguration | undefined>) => boolean
   downloadControllerRegulatory: (tag: string, expected?: RegulatoryReview) => boolean
+  downloadControllerManagedModules: (tag: string, expected?: ManagedReview) => boolean
   resendLastGoodModuleDownload: (tag: string) => boolean
   resendControllerAoDownloads: (tag: string, expected?: Record<string, AoConfiguration | undefined>) => boolean
   updateControllerAoRestartMemory: (tag: string) => boolean
@@ -1721,25 +1723,10 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!requireUnlockedLock('CAN_DOWNLOAD', `Full download device ${tag}`)) return false
     const state = get()
     const record = state.deviceLifecycle[tag]
-    const m = state.modules[tag]
-    if (!record?.saved || deviceDirty(record) || !m || (m.type !== 'MOTOR' && m.type !== 'VALVE')) {
-      return rejectSfc(get, tag, 'Save the current device draft before downloading')
-    }
-    if (deviceActive(m)) return rejectSfc(get, tag, 'Stop/close and confirm the device before downloading')
-    const error = deviceDownloadError(record.saved, state.modules, state.hardware, state.namedSets)
-    if (error) return rejectSfc(get, tag, `Device download failed; last-good runtime retained: ${error}`)
-    const c = record.saved
-    const deployedModule = { ...m, permissiveRequired: c.permissiveRequired,
-      interlockInverted: c.interlockInverted,
-      descriptors: c.descriptors ? { ...c.descriptors } : undefined,
-      resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec, interlockSource: c.interlockSource,
-      permissiveSource: c.permissiveSource, commandSource: c.commandSource, controllerTag: c.controllerTag,
-      downloaded: true, ioInputBad: true, ioOutputBad: true, outputCommand: false, travelTimer: 0,
-      interlock: c.interlockSource ? true : m.interlock, permissiveOk: c.permissiveSource ? false : m.permissiveOk }
-    if (deployedModule.type === 'MOTOR' && c.strategy) {
-      deployedModule.templateId = 'MTR-11_ILOCK'
-      deployedModule.ownedBlocks = materializeMotorStrategy(tag, m.area, c.strategy)
-    }
+    const prepared = prepareDeviceTransfer(record, tag, state.modules, state.hardware, state.namedSets)
+    if ('error' in prepared) return rejectSfc(get, tag, prepared.error)
+    if (!record) return rejectSfc(get, tag, 'Managed device lifecycle no longer exists')
+    const { configuration: c, module: deployedModule } = prepared
     set(s => ({ modules: { ...s.modules, [tag]: deployedModule },
     hardware: { ...s.hardware, deviceBindings: { ...s.hardware.deviceBindings, [tag]: { input: c.inputDst, output: c.outputDst } } },
     deviceLifecycle: { ...s.deviceLifecycle, [tag]: { ...record, deployed: cloneDeviceConfiguration(c), deployedRevision: record.savedRevision, online: true } },
@@ -1969,6 +1956,16 @@ export const useStore = create<StoreState>((set, get) => ({
     if ('error' in prepared) return rejectAo(get, tag, prepared.error)
     set({ ...prepared.patch, rev: state.rev + 1 })
     get().logEvent('CONFIGURE', tag, `FULL managed regulatory transfer committed atomically: ${prepared.tags.join(', ')}; AO uses saved defaults, PID_LOOP held Offline/OOS until Go Online; device/SFC/cards/Setup excluded; no tuning upload`)
+    return true
+  },
+
+  downloadControllerManagedModules: (tag, expected) => {
+    if (!requireUnlockedKey('CAN_DOWNLOAD', `Full Download managed modules ${tag}`)) return false
+    const state = get()
+    const prepared = prepareControllerModuleTransfer(state, tag, expected)
+    if ('error' in prepared) return rejectSfc(get, tag, prepared.error)
+    set({ ...prepared.patch, rev: state.rev + 1 })
+    get().logEvent('CONFIGURE', tag, `FULL managed-module transfer committed atomically: ${prepared.tags.join(', ')}; AO saved defaults, PID Offline/OOS, devices passive awaiting confirmation, SFC READY/Offline; cards/Setup/unmanaged algorithms excluded`)
     return true
   },
 
@@ -2810,27 +2807,13 @@ export const useStore = create<StoreState>((set, get) => ({
     const state = get()
     const lifecycle = state.sfcLifecycle[name]
     const runtime = state.sfcs[name]
-    if (!lifecycle?.saved || !runtime) return rejectSfc(get, name, 'Save the SFC before downloading')
-    if (expected && expected !== lifecycle.saved) return rejectSfc(get, name, 'Saved SFC changed during confirmation; reopen Download')
-    if (lifecycle.online || runtime.status === 'RUNNING' || runtime.status === 'HELD') {
-      return rejectSfc(get, name, 'Reset and go Offline before replacing the deployed SFC')
-    }
-    if (sfcDraftDirty(lifecycle)) return rejectSfc(get, name, 'Save current SFC edits before downloading')
-    const saved = lifecycle.saved
-    const controller = state.hardware.controllers[saved.controllerTag]
-    const error = sfcMetadataError(saved, state.equipment) ??
-      sfcConfigurationError(saved, state.modules, controllerNamedSets(state.namedSets, saved.controllerTag)) ??
-      (!state.areas.includes(saved.area) ? 'Saved SFC area no longer exists' :
-        !controller || controllerIsDown(controller) ? 'Assign an available commissioned controller and Save before downloading' : null)
-    if (error) return rejectSfc(get, name, error)
-    const deployed = cloneSfcConfiguration(saved)
+    const prepared = prepareSfcTransfer(lifecycle, runtime, state, expected)
+    if ('error' in prepared) return rejectSfc(get, name, prepared.error)
+    if (!lifecycle) return rejectSfc(get, name, 'Managed SFC lifecycle no longer exists')
+    const { configuration: deployed } = prepared
     set(s => ({ sfcLifecycle: { ...s.sfcLifecycle, [name]: { ...lifecycle, deployed } },
-      sfcs: { ...s.sfcs, [name]: { name, area: deployed.area, steps: cloneSfcConfiguration(deployed).steps,
-        description: deployed.description, equipmentModule: deployed.equipmentModule,
-        ...cloneSfcBlocks(deployed), blockStates: {},
-        status: 'READY', active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined,
-        parameters: cloneSfcParameters(deployed.parameters) } }, rev: s.rev + 1 }))
-    get().logEvent('CONFIGURE', name, `Saved SFC downloaded to ${saved.controllerTag}; READY, no actions executed`)
+      sfcs: { ...s.sfcs, [name]: prepared.runtime }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', name, `Saved SFC downloaded to ${deployed.controllerTag}; READY, no actions executed`)
     return true
   },
 
