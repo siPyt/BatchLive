@@ -2650,3 +2650,9 @@ PASS 87: DST LICENSING, SYSTEM ID KEY AND SUBSTITUTION (pp238-242)
 Line1 - License files must match the System ID Key number; capacities per DST type.
 Line2 - AO licenses cover AI shortfall; key removal and shortfall refuse downloads.
 Line3 - Unlicensed until a file is loaded. Tests: licensing.test.cjs.
+
+PASS 88: RCAS / ROUT REMOTE HOST (pp243-249)
+-----------------------------------------------------------------------
+Line1 - RCAS follows RCAS_IN, ROUT follows ROUT_IN, both from a simulated external program.
+Line2 - Stale/Bad/no data sheds RCAS to AUTO and ROUT to MAN; timeout configurable.
+Line3 - No OPC; panel stands in for the host. Tests: remote-host.test.cjs.

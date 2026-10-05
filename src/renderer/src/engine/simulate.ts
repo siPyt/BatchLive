@@ -18,6 +18,7 @@ import { PHOTO_TAGS, COUPLED_LEGACY_TAGS, STEAM_USERS, COOLING_USERS, photoMeasu
 import { ownedMotorBlock, strategyModules } from './motorStrategy'
 import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue, resetConditionTiming } from './fb'
 import { applyExecutionOrder, decideScan, pruneScheduling } from './moduleScheduling'
+import { ageRemoteHost, hostSignalFresh, remoteHostOf } from './remoteHost'
 import { evaluateConditionExpression } from './fbCondition'
 import { advanceControllers, computeBadTags, controllerIsDown, type HardwareState } from './hardware'
 import {
@@ -56,11 +57,15 @@ const DERIV_ALPHA = 0.125
  */
 function resolveActualMode(m: PidModule, modules: Record<string, AnyModule>): PidModule['actualMode'] {
   if (m.mode === 'OOS') return 'OOS'
+  const host = remoteHostOf(m)
+  // Remote modes need fresh Good data from the external program; otherwise RCAS sheds to AUTO and ROUT to MAN.
+  if (m.mode === 'RCAS' && !hostSignalFresh(host.rcasIn, host.timeoutSec)) return 'AUTO'
+  if (m.mode === 'ROUT') return hostSignalFresh(host.routIn, host.timeoutSec) ? 'ROUT' : 'MAN'
   const source = m.casSource ? modules[m.casSource] : undefined
-  if ((m.mode === 'CAS' || m.mode === 'RCAS') && source?.type === 'PID' && pidExecutionBad(source)) return 'AUTO'
-  if ((m.mode === 'CAS' || m.mode === 'RCAS') && source?.type === 'AO' && source.bad) return 'AUTO'
-  if ((m.mode === 'CAS' || m.mode === 'RCAS') && !m.casHealthy) return 'AUTO'
-  if (m.mode === 'MAN' || m.mode === 'ROUT') return m.mode
+  if (m.mode === 'CAS' && source?.type === 'PID' && pidExecutionBad(source)) return 'AUTO'
+  if (m.mode === 'CAS' && source?.type === 'AO' && source.bad) return 'AUTO'
+  if (m.mode === 'CAS' && !m.casHealthy) return 'AUTO'
+  if (m.mode === 'MAN') return m.mode
   const child = findCascadeChild(modules, m.tag)
   if (child && child.actualMode !== 'CAS' && child.actualMode !== 'RCAS') return 'IMAN'
   return m.mode
@@ -148,6 +153,7 @@ function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, d
   resolvePidInput(m, modules)
   const io = pidIo(m)
   const previousMode = m.actualMode
+  if (m.remote) m.remote = ageRemoteHost(m.remote, dt)
   m.trackError = undefined
   m.ffError = undefined
   m.actualMode = resolveActualMode(m, modules)
@@ -160,7 +166,9 @@ function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, d
       m._integral = m.out
     }
   }
-  if ((m.actualMode === 'CAS' || m.actualMode === 'RCAS') && m.casSource) {
+  if (m.actualMode === 'RCAS') m.sp = clamp(remoteHostOf(m).rcasIn.value, m.pvMin, m.pvMax)
+  if (m.actualMode === 'ROUT') m.out = clamp(remoteHostOf(m).routIn.value, 0, 100)
+  if (m.actualMode === 'CAS' && m.casSource) {
     const src = modules[m.casSource]
     if (src) m.sp = clamp(src.type === 'PID' || src.type === 'AO'
       ? m.pvMin + (src.out / 100) * (m.pvMax - m.pvMin) : readModuleValue(src), m.pvMin, m.pvMax)

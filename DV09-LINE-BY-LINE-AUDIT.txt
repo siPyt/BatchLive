@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 58 VERIFIED_SUBSET, 45 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 59 VERIFIED_SUBSET, 44 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -1269,18 +1269,32 @@ Acceptance: Count real referenced/enabled DSTs by type before/after module
 
 [DV09-055]
 Pages: 243-249
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Distinguish MAN/AUTO/CAS/IMAN/OOS/LO/RCAS/ROUT and target, actual,
   normal and permitted modes, named-set bitmasks and remote-host paths.
-Evidence: PID OOS stops calculation and reports Bad independently of AI1.
-  Qualified tracking reports actual LO without changing target; removal
-  returns bumplessly. Missing/Bad trigger/value holds and diagnoses.
-  Native course target/actual numeric codes parse and persist in SFCs.
-  LO is actual-only; OOS/LO output override and locked mode changes reject.
-  MODE.NORMAL is stored/read-only to the algorithm; MODE.PERMITTED filters
-  target selection and rejects operator/SFC requests. MODE.ISAN exposes
-  actual-equals-normal. Arbitrary native state-mask editing remains absent.
-  RCAS reuses CAS, not remote-host protocol.
+Evidence (earlier passes + Pass88): PID OOS stops calculation and reports Bad
+  independently of AI1; qualified tracking reports actual LO without changing
+  the target and returns bumplessly; Bad/missing trigger or value holds and
+  diagnoses; the native target/actual numeric codes (OOS 1, IMAN 2, MAN 8,
+  AUTO 16, CAS 48/32, RCAS 80/64, ROUT 144/128) parse and persist in SFCs;
+  LO is actual-only; OOS/LO output override and locked mode changes reject;
+  MODE.NORMAL is stored and read-only to the algorithm, MODE.PERMITTED filters
+  target selection (operator and SFC), MODE.ISAN exposes actual-equals-normal.
+  Pass88 replaces the old "RCAS reuses CAS" approximation with the remote host
+  path from the course text (remoteHost.ts): RCAS takes its setpoint from RCAS_IN
+  and ROUT its output from ROUT_IN, written by a simulated external control
+  program. Host data must be Good and no older than a configurable timeout
+  (1-3600 s, default 10); with no data, Bad data or stale data RCAS sheds to
+  AUTO and ROUT to MAN holding the last output, and a new write returns them.
+  RCAS_IN is range-checked to the PV range and ROUT_IN to 0-100 %. RCAS no
+  longer needs a cascade source, CAS is unchanged, writes need the Control key
+  (timeout: Can Configure) and are journaled, and Explorer shows a Remote Host
+  panel for every PID. Nine regressions cover freshness, ranges, ageing,
+  both modes end to end, shedding and recovery, keys and the earlier mode matrix
+  (updated so RCAS/ROUT supply host data).
+  Boundary: no OPC or network host (the panel stands in for it); no SHED_OPT
+  options beyond the normal shed/return; arbitrary native state-mask editing
+  remains absent.
 Acceptance: Test each mode and transition, normal/permitted fields, remote
   inputs/timeouts and initialization; do not label approximate CAS as RCAS.
 
@@ -4162,3 +4176,21 @@ Validation: 609 tests locally (608 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-054 PARTIAL -> VERIFIED_SUBSET. Totals 58 VERIFIED_SUBSET/
   45 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 88 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-055 RCAS/ROUT remote host path and timeouts (pp243-249, course 6-10).
+Engine: new remoteHost.ts; simulate.ts resolves RCAS/ROUT from fresh host data
+  (sheds to AUTO/MAN otherwise), applies RCAS_IN as SP and ROUT_IN as OUT, ages
+  host data by simulated time; pidLifecycle/Control Studio no longer demand a
+  cascade source for RCAS; store gains writeRemoteHost and setRemoteHostTimeout
+  with registry targets fn-remote-host (Control) and fn-remote-host-timeout.
+UI: RemoteHostPanel under every PID in Explorer.
+Tests: tests/remote-host.test.cjs (9); tests/pid-modes.test.cjs mode matrix
+  updated so RCAS/ROUT supply host data and verify the shed.
+Browser: RCAS_IN 180 written (Good, value 180); ROUT_IN 150 rejected as out of range.
+Boundary (honest): no OPC/network host; normal shed only; no native state-mask editing.
+Validation: 618 tests locally (617 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-055 PARTIAL -> VERIFIED_SUBSET. Totals 59 VERIFIED_SUBSET/
+  44 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

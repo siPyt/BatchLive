@@ -30,6 +30,7 @@ import { commissionPropertiesErrors, controllerReferenceCount, placeholderErrors
 import { useSimulator, validateScale } from './simulatorSession'
 import { coldRestartDecision, type ColdRestartDecision } from './coldRestart'
 import { DEFAULT_RECIPE_NAME, defaultRecipe, recipeErrors, resolveRecipe, type Recipe } from './recipes'
+import { hostTimeoutError, hostWriteError, markHostBad, remoteHostOf, writeHostSignal, type HostInput } from './remoteHost'
 import { isDefaultSchedule, validateExecutionOrder, validateScanMultiple, type ModuleScheduling } from './moduleScheduling'
 import { featureDisabledError, featureEnabled } from './systemPreferences'
 import {
@@ -379,6 +380,9 @@ interface StoreState extends PlantState {
   /** Choose the recipe the next batch runs (Batch Operate key), only while the batch is READY. */
   selectRecipe: (name: string) => string | null
   moduleScheduling: ModuleScheduling
+  /** DV09-055: an external control program writes RCAS_IN (setpoint, EU) or ROUT_IN (output, %); null marks it Bad. Returns an error or null. */
+  writeRemoteHost: (tag: string, input: HostInput, value: number | null) => string | null
+  setRemoteHostTimeout: (tag: string, seconds: number) => string | null
   /** Set a module's scan multiple (1-255 x 1 s) and/or manual execution order; null order restores automatic order. */
   setModuleSchedule: (tag: string, change: { multiple?: number; order?: number | null }) => boolean
   tick: (dt: number) => void
@@ -1867,6 +1871,37 @@ export const useStore = create<StoreState>((set, get) => ({
     if (error) { get().logEvent('DIAGNOSTIC', 'SIMULATOR', `Time scale rejected: ${error}`); return }
     set({ speed })
     get().logEvent('OPERATOR', 'SIMULATOR', `Time scale set to ${speed}x`)
+  },
+  writeRemoteHost: (tag, input, value) => {
+    if (!useSecurity.getState().requireLock('CONTROL', `Write ${tag} remote host input`)) return 'Requires the Control key'
+    const state = get()
+    const module = state.modules[tag]
+    const error = !module || module.type !== 'PID' ? `PID module ${tag} does not exist` :
+      value === null ? null : hostWriteError(module, input, value)
+    if (error || !module || module.type !== 'PID') {
+      const message = error ?? `PID module ${tag} does not exist`
+      get().logEvent('DIAGNOSTIC', tag, `Remote host write rejected: ${message}`)
+      return message
+    }
+    const remote = remoteHostOf(module)
+    const next = value === null ? markHostBad(remote, input) : writeHostSignal(remote, input, value)
+    set({ modules: { ...state.modules, [tag]: { ...module, remote: next } }, rev: state.rev + 1 })
+    get().logEvent('OPERATOR', tag, value === null ? `Remote host marked ${input} Bad` : `Remote host wrote ${input} = ${value}`)
+    return null
+  },
+  setRemoteHostTimeout: (tag, seconds) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${tag} remote host timeout`)) return 'Requires the Can Configure key'
+    const state = get()
+    const module = state.modules[tag]
+    const error = !module || module.type !== 'PID' ? `PID module ${tag} does not exist` : hostTimeoutError(seconds)
+    if (error || !module || module.type !== 'PID') {
+      const message = error ?? `PID module ${tag} does not exist`
+      get().logEvent('DIAGNOSTIC', tag, `Remote host timeout rejected: ${message}`)
+      return message
+    }
+    set({ modules: { ...state.modules, [tag]: { ...module, remote: { ...remoteHostOf(module), timeoutSec: seconds } } }, rev: state.rev + 1 })
+    get().logEvent('CONFIGURE', tag, `Remote host timeout ${seconds} s`)
+    return null
   },
   moduleScheduling: {},
   setModuleSchedule: (tag, change) => {

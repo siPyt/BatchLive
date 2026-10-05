@@ -8,6 +8,7 @@ import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engin
 import { ModuleIcon } from '../components/EngineeringIcons'
 import { ModuleDisplayControls } from '../components/ModuleDisplayControls'
 import { ModuleScanControls } from '../components/ModuleScanControls'
+import { RemoteHostPanel } from '../components/RemoteHostPanel'
 import { nextAreaName } from '../engine/areas'
 import { moduleNameError } from '../engine/naming'
 import { NamedSetControls } from '../components/NamedSetControls'
@@ -664,6 +665,7 @@ function ModuleProperties({
       </table>
       <ModuleDisplayControls tag={m.tag} />
       <ModuleScanControls tag={m.tag} />
+      {m.type === 'PID' && <RemoteHostPanel tag={m.tag} />}
       <div className="exp-props-alarms">
         <div className="exp-props-subhead">Configured Alarms</div>
         {m.alarms.length === 0 ? (

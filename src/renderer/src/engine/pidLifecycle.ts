@@ -90,7 +90,7 @@ export function pidConfigurationError(configuration: PidConfiguration): string |
       !m.permittedModes.includes(m.normalMode)) {
     return 'PID_LOOP mode fields are invalid'
   }
-  if ((m.mode === 'CAS' || m.mode === 'RCAS') && !m.casSource) {
+  if (m.mode === 'CAS' && !m.casSource) {
     return 'Configured cascade mode requires a cascade source'
   }
   if (!m.io || !isPidIo(m.io) || m.io.ao2 || m.io.splitter || m.io.actuation === 'HEAT_COOL') {

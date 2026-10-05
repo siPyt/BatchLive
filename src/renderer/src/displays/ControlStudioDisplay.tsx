@@ -310,7 +310,7 @@ function ParameterView({ module: m, selectedBlock }: {
                       if (isPidTargetMode(event.target.value)) setMode(m.tag, event.target.value)
                     }}>
                       {pidPermittedModes(m).map(mode => <option key={mode} value={mode}
-                        disabled={(mode === 'CAS' || mode === 'RCAS') && !m.casSource}>{mode}</option>)}
+                        disabled={mode === 'CAS' && !m.casSource}>{mode}</option>)}
                     </select>
                   ) : r.edit ? (
                     <ParamStepper step={r.edit.step} decimals={r.edit.decimals} value={r.edit.raw} onChange={r.edit.onChange} />

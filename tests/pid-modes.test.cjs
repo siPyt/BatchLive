@@ -86,17 +86,26 @@ test('LO is actual-only and releases to each existing target including cascade f
     state.modules[TAG].mode = target
     state.modules[TAG].casSource = 'TI-101'
     state.modules[TAG].casHealthy = true
+    // RCAS/ROUT take their data from the external host (DV09-055), not from the cascade source.
+    const fresh = { value: 50, good: true, ageSec: 0 }
+    state.modules[TAG].remote = { rcasIn: { ...fresh }, routIn: { ...fresh }, timeoutSec: 10 }
     state = step(state)
     assert.equal(state.modules[TAG].mode, target)
     assert.equal(state.modules[TAG].actualMode, 'LO')
     state.modules.TRACK.state = false
     state = step(state)
     assert.equal(state.modules[TAG].actualMode, target)
-    if (target === 'CAS' || target === 'RCAS') {
+    if (target === 'CAS') {
       state.modules[TAG].casHealthy = false
       state = step(state)
       assert.equal(state.modules[TAG].mode, target)
       assert.equal(state.modules[TAG].actualMode, 'AUTO')
+    }
+    if (target === 'RCAS' || target === 'ROUT') {
+      state.modules[TAG].remote = { ...state.modules[TAG].remote, rcasIn: { ...fresh, good: false }, routIn: { ...fresh, good: false } }
+      state = step(state)
+      assert.equal(state.modules[TAG].mode, target)
+      assert.equal(state.modules[TAG].actualMode, target === 'RCAS' ? 'AUTO' : 'MAN')
     }
   }
 })

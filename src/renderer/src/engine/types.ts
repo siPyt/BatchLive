@@ -122,6 +122,8 @@ export interface PidModule extends ModuleDisplayProperties {
   /** Requested targets not in MODE.PERMITTED are rejected before they are applied. */
   permittedModes?: PidTargetMode[]
   trackError?: string
+  /** DV09-055: RCAS_IN / ROUT_IN written by a simulated external control program. */
+  remote?: import('./remoteHost').RemoteHost
   ffError?: string
   pv: number
   sp: number
