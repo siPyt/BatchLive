@@ -16,6 +16,7 @@ import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
 import { sfcConfiguredMetadata } from '../engine/sfcLifecycle'
 import type { SfcDef } from '../engine/sfc'
 import { LicensingProperties } from '../components/LicensingProperties'
+import { SecurityPropertiesPanel } from '../components/SecurityPropertiesPanel'
 import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 
@@ -98,7 +99,7 @@ export function ExplorerDisplay(): JSX.Element {
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
-  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing'>('modules')
+  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing' | 'securityParameter' | 'securityField' | 'securityFunction'>('modules')
   const [selectedNamedSet, setSelectedNamedSet] = useState<string | null>(null)
   const [namedSetCreateRequest, setNamedSetCreateRequest] = useState(0)
   const [namedSetPropertiesRequest, setNamedSetPropertiesRequest] =
@@ -254,6 +255,12 @@ export function ExplorerDisplay(): JSX.Element {
             onClick={() => { setSetupView('conditionAlarms'); setSelectedConditionAlarm(name) }}>
             <b>{name}</b>
           </div>)}
+          <div className="exp-node exp-area"><b>Security</b></div>
+          {([['securityParameter', 'Parameter Security'], ['securityField', 'Field Security'], ['securityFunction', 'Function Security']] as const).map(([view, label]) =>
+            <div key={view} className={'exp-node exp-mod nested' + (setupView === view ? ' sel' : '')}
+              onClick={() => setSetupView(view)}>
+              <b>{label}</b>
+            </div>)}
         </>}
         <div className="exp-node exp-cell" onClick={() => toggle('PROPLUS')}>
           <span className="exp-caret">{open.PROPLUS === false ? '▸' : '▾'}</span><b>ProfessionalPLUS (simulated)</b>
@@ -366,7 +373,13 @@ export function ExplorerDisplay(): JSX.Element {
       </div>
 
       <div className="explorer-detail">
-        {setupView === 'licensing' ? <LicensingProperties /> : setupView === 'namedSets' ? (
+        {setupView === 'licensing' ? <LicensingProperties /> : setupView === 'securityParameter' ? (
+          <SecurityPropertiesPanel kind="parameter" />
+        ) : setupView === 'securityField' ? (
+          <SecurityPropertiesPanel kind="field" />
+        ) : setupView === 'securityFunction' ? (
+          <SecurityPropertiesPanel kind="function" />
+        ) : setupView === 'namedSets' ? (
           <NamedSetControls selected={selectedNamedSet} onSelect={setSelectedNamedSet}
             createRequest={namedSetCreateRequest} propertiesRequest={namedSetPropertiesRequest}
             onRequestsHandled={() => { setNamedSetCreateRequest(0); setNamedSetPropertiesRequest(null) }} />

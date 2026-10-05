@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 17 VERIFIED_SUBSET, 55 PARTIAL, 31 MISSING,
+DV-09 remains incomplete: 18 VERIFIED_SUBSET, 55 PARTIAL, 30 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 The user's standing instruction ("finish everything and stop stopping",
 2026-10-05) authorizes continuing to commit and push every pass without
@@ -1618,17 +1618,36 @@ Status: PARTIAL
 Required: Locks/keys for control, restricted control, tuning, system records,
   diagnostics, alarms, UserLock01-10, batch operate, recipes, calibration,
   configuration, download and administration.
-Evidence: SECURITY has a finite sitewide lock set. Custom locks and several
-  corresponding operations are absent; a download key does not enable download.
+Evidence (Pass68): SECURITY now carries a typed lock registry: the twelve
+  named locks plus UserLock01-UserLock10 (USER_LOCKS, labelled "User Lock nn"),
+  all assignable to users, groups and secured items, and held by the admin and
+  ENGINEER accounts. Gaps that remain honest: Build Recipes (no Recipe Studio)
+  and Can Calibrate (no AMS calibration workflow) have no executable
+  operation to gate, so they are keys without a corresponding feature.
 Acceptance: Implement a typed configurable lock registry and test each target
   operation; do not advertise unsupported rights as executable capabilities.
 
 [DV09-075]
 Pages: 307-312
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Reassign writable parameter, field and function locks in Security
   Properties rather than applying one coarse permission per screen.
-Evidence: STORE uses hardcoded requireLock calls; no configurable assignments.
+Evidence (Pass68): engine/securityTargets.ts is the Security Properties
+  registry: 80+ named secured items, each tagged parameter (SP, MODE, OUT,
+  tuning, device commands, alarm limits), field (ALM[type].ENAB/PRIAD/MACK,
+  interlock/permissive overrides, FB BYPASS/ARM_TRAP/RESET_IN, acknowledge,
+  shelve) or function (configure, download, diagnostics, batch, SFC, pictures).
+  Every requireLock call passes its default lock and action label, and
+  requireLock() now resolves the effective lock through lockAssignments, so a
+  reassignment is honoured at every write entry point. A source-scanning
+  regression proves every literal requireLock/requireUnlockedKey/
+  requireUnlockedLock call in the app maps to exactly one target and that
+  every target maps to at least one real call site. setTargetLock requires
+  System Admin, validates ids and locks, and assigning the default lock clears
+  the override. Explorer > Setup > Security has Parameter/Field/Function
+  Security panels with a lock dropdown and Restore default per row. The denial
+  message names the reassigned key. Reassignments are runtime state and are
+  not persisted with a project. Tests: security-targets.test.cjs.
 Acceptance: Effective permission checks must follow the assigned specific
   parameter/field/function lock across every write entry point.
 
@@ -3244,4 +3263,36 @@ Validation: 431 repository tests run locally (430 pass; the remaining failure
   Typecheck passed.
 Result: DV09-077 MISSING -> VERIFIED_SUBSET; DV09-076 stays PARTIAL with
   narrower evidence. Current totals 17 VERIFIED_SUBSET/55 PARTIAL/31 MISSING/
+  19 BOUNDARY/6 CONTEXT.
+
+PASS 68 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-075 (Parameter, Field and Function Security lock reassignment,
+pages 307-312) and the lock-registry part of DV09-074.
+Engine: security.ts adds UserLock01-10 to LockType/ALL_LOCKS/LOCK_LABEL/
+  LOCK_HINT, lockAssignments, lockFor(lock, action), setTargetLock(id, lock)
+  and routes requireLock through the effective lock. securityTargets.ts is
+  the registry (kind, label, default lock, action pattern).
+UI: SecurityPropertiesPanel.tsx shows one table per kind (Parameter/Field/
+  Function Security) under Explorer > Setup > Security.
+Tests: tests/security-targets.test.cjs (7 tests): typed registry; source
+  scan that every secured call site is registered exactly once and every
+  target is exercised; alarm-field path matching; end-to-end SP write
+  reassigned Control -> Tuning (operator denied with a message naming the
+  reassignment, Supervisor allowed, restore reverts); a User Lock 03 function
+  opened through group-inherited keys while unrelated functions keep their
+  lock; admin-only reassignment with validation; per-lock families (PID Tune
+  Test Tuning half versus Control half).
+Browser: Explorer > Setup > Security > Parameter Security rendered 16
+  parameters, changing SP to Tuning showed Restore default, Function Security
+  rendered 36 rows; User Manager showed Operate group members/keys and the
+  user's Account/Groups forms.
+Boundary (honest): lock assignments are not persisted or downloaded to a
+  controller node; the native per-parameter list is longer than this app's
+  writable set, which is limited to what the simulator can actually write.
+Validation: 438 repository tests run locally (437 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency in dv09-audit.test.cjs).
+  Typecheck and production build passed.
+Result: DV09-075 MISSING -> VERIFIED_SUBSET; DV09-074 stays PARTIAL with
+  narrower evidence. Current totals 18 VERIFIED_SUBSET/55 PARTIAL/30 MISSING/
   19 BOUNDARY/6 CONTEXT.

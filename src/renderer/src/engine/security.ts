@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { findSecurityTarget, SECURITY_TARGETS } from './securityTargets'
 
 // ---------------------------------------------------------------------------
 // DeltaV Security: Locks & Keys, Users, FlexLock.
@@ -20,6 +21,14 @@ export type LockType =
   | 'CAN_CONFIGURE'
   | 'CAN_DOWNLOAD'
   | 'SYSTEM_ADMIN'
+  | UserLockType
+
+export type UserLockNumber = '01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10'
+export type UserLockType = `USER_LOCK_${UserLockNumber}`
+
+export const USER_LOCKS: UserLockType[] = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10'].map(
+  (n) => `USER_LOCK_${n}` as UserLockType
+)
 
 export const ALL_LOCKS: LockType[] = [
   'CONTROL',
@@ -33,8 +42,14 @@ export const ALL_LOCKS: LockType[] = [
   'CAN_CALIBRATE',
   'CAN_CONFIGURE',
   'CAN_DOWNLOAD',
-  'SYSTEM_ADMIN'
+  'SYSTEM_ADMIN',
+  ...USER_LOCKS
 ]
+
+const USER_LOCK_LABELS = Object.fromEntries(USER_LOCKS.map((l) => [l, `User Lock ${l.slice(-2)}`])) as Record<UserLockType, string>
+const USER_LOCK_HINTS = Object.fromEntries(
+  USER_LOCKS.map((l) => [l, 'Customized security scheme: assign it to a parameter, field or function in Security Properties'])
+) as Record<UserLockType, string>
 
 export const LOCK_LABEL: Record<LockType, string> = {
   CONTROL: 'Control',
@@ -48,7 +63,8 @@ export const LOCK_LABEL: Record<LockType, string> = {
   CAN_CALIBRATE: 'Can Calibrate',
   CAN_CONFIGURE: 'Can Configure',
   CAN_DOWNLOAD: 'Can Download',
-  SYSTEM_ADMIN: 'System Admin'
+  SYSTEM_ADMIN: 'System Admin',
+  ...USER_LOCK_LABELS
 }
 
 export const LOCK_HINT: Record<LockType, string> = {
@@ -63,7 +79,8 @@ export const LOCK_HINT: Record<LockType, string> = {
   CAN_CALIBRATE: 'AMS device configuration and calibration',
   CAN_CONFIGURE: 'Change the configuration database (new/delete modules)',
   CAN_DOWNLOAD: 'Download configurations to nodes',
-  SYSTEM_ADMIN: 'Database administration: create, copy, rename'
+  SYSTEM_ADMIN: 'Database administration: create, copy, rename',
+  ...USER_LOCK_HINTS
 }
 
 export interface DvUser {
@@ -118,6 +135,8 @@ export function groupsOf(user: string, groups: DvGroup[]): string[] {
 interface SecurityState {
   users: DvUser[]
   groups: DvGroup[]
+  /** DV09-075: Security Properties lock reassignments keyed by SecurityTarget id; absent = the default lock. */
+  lockAssignments: Record<string, LockType>
   /** name of the currently logged-on user. */
   currentUser: string
   /** FlexLock engaged — blocks the UI until a valid log on. */
@@ -137,6 +156,10 @@ interface SecurityState {
   setUserStatus: (name: string, patch: { disabled?: boolean; mustChangePassword?: boolean }) => string | null
   setUserFullName: (name: string, fullName: string) => string | null
   changePassword: (name: string, oldPassword: string, newPassword: string) => string | null
+  /** DV09-075: reassign (or, with undefined, restore) the lock a parameter/field/function carries. */
+  setTargetLock: (targetId: string, lock: LockType | undefined) => string | null
+  /** The lock currently required for an operation: its reassignment, else its default. */
+  lockFor: (lock: LockType, action: string) => LockType
   /** DV09-077 groups. Each returns an error message, or null on success. */
   createGroup: (name: string, description: string) => string | null
   updateGroup: (name: string, patch: { newName?: string; description?: string }) => string | null
@@ -185,6 +208,7 @@ const DEFAULT_GROUPS: DvGroup[] = [
 export const useSecurity = create<SecurityState>((set, get) => ({
   users: DEFAULT_USERS,
   groups: DEFAULT_GROUPS,
+  lockAssignments: {},
   currentUser: 'admin',
   locked: false,
   lastDenied: null,
@@ -355,9 +379,30 @@ export const useSecurity = create<SecurityState>((set, get) => ({
     return area !== undefined && areas.includes(area)
   },
 
+  setTargetLock: (targetId, lock) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Change Security Properties ${targetId}`)) return 'Requires the System Admin key'
+    if (!SECURITY_TARGETS.some((x) => x.id === targetId)) return `Unknown secured item ${targetId}`
+    if (lock !== undefined && !ALL_LOCKS.includes(lock)) return `Unknown lock ${String(lock)}`
+    set((s) => {
+      const next = { ...s.lockAssignments }
+      const target = SECURITY_TARGETS.find((x) => x.id === targetId)
+      if (lock === undefined || lock === target?.defaultLock) delete next[targetId]
+      else next[targetId] = lock
+      return { lockAssignments: next }
+    })
+    return null
+  },
+
+  lockFor: (lock, action) => {
+    const target = findSecurityTarget(lock, action)
+    return (target && get().lockAssignments[target.id]) || lock
+  },
+
   requireLock: (lock, action) => {
-    if (get().hasLock(lock)) return true
-    set({ lastDenied: `Access Denied — ${action} requires the ${LOCK_LABEL[lock]} key` })
+    const effective = get().lockFor(lock, action)
+    if (get().hasLock(effective)) return true
+    const moved = effective !== lock ? ` (reassigned from ${LOCK_LABEL[lock]})` : ''
+    set({ lastDenied: `Access Denied — ${action} requires the ${LOCK_LABEL[effective]} key${moved}` })
     return false
   },
 

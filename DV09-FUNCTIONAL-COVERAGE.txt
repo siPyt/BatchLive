@@ -2466,3 +2466,17 @@ Line4 - Authorization: every user/group mutation requires System Admin inside
   the store, so no screen is needed to be safe.
 Line5 - Tests: tests/security-groups.test.cjs. Not claimed: password aging
   policy, Windows accounts, per-parameter lock reassignment (DV09-075).
+
+PASS 68: PARAMETER/FIELD/FUNCTION SECURITY LOCK REASSIGNMENT (pp307-312)
+-----------------------------------------------------------------------
+Line1 - Registry: every secured operation (parameter, field or function) has a
+  default lock and can be reassigned by a System Admin in Explorer > Setup >
+  Security. User Lock 01-10 are assignable like any other key.
+Line2 - Enforcement: requireLock resolves the reassigned lock, so SP, MODE,
+  tuning, alarm fields, configure, download, diagnostics and the rest follow
+  the assignment with no per-screen code.
+Line3 - Proof: a source scan maps all literal permission checks to exactly one
+  registry item; an end-to-end SP test shows operator denied / supervisor
+  allowed after Control -> Tuning, and restore reverts.
+Line4 - Not claimed: persistence of assignments, native controller download of
+  security data, Build Recipes/Can Calibrate operations.
