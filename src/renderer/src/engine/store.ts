@@ -26,6 +26,7 @@ import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } fr
 import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { reconcileDeviceAlarms } from './deviceAlarms'
+import { useSimulator, validateScale } from './simulatorSession'
 import { featureDisabledError, featureEnabled } from './systemPreferences'
 import {
   SERIAL_LIMITS,
@@ -355,6 +356,8 @@ interface StoreState extends PlantState {
   unshelveAlarm: (id: string) => void
   setRunning: (r: boolean) => void
   setSpeed: (s: number) => void
+  /** Restore the local simulation to its initial process conditions and put it on hold. */
+  initializeSimulation: () => boolean
   tick: (dt: number) => void
   batchCommand: (cmd: BatchCommand) => void
   /** Edit a phase's logic (requires Can Configure), mirroring setSfcSteps. */
@@ -381,6 +384,9 @@ interface StoreState extends PlantState {
 }
 
 const initial = installPhotoPlant(buildInitialPlant()).plant
+
+/** Process conditions Initialize Simulation returns to; replaced when File > New loads a different baseline. */
+let simulationBaseline = { process: { ...initial.process }, photoPlant: initial.photoPlant }
 
 /** Seeds every built-in SFC: reactor startup, both autoclaves, both lyos, all 3 CIP skids. */
 function makeDefaultSfcs(): Record<string, SfcDef> {
@@ -1756,7 +1762,34 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setRunning: (r) => set({ running: r }),
-  setSpeed: (speed) => set({ speed }),
+  setSpeed: (speed) => {
+    const error = validateScale(speed)
+    if (error) { get().logEvent('DIAGNOSTIC', 'SIMULATOR', `Time scale rejected: ${error}`); return }
+    set({ speed })
+    get().logEvent('OPERATOR', 'SIMULATOR', `Time scale set to ${speed}x`)
+  },
+  initializeSimulation: () => {
+    if (!requireUnlockedLock('CONTROL', 'Initialize simulation')) return false
+    const state = get()
+    const modules: Record<string, AnyModule> = {}
+    for (const [tag, module] of Object.entries(state.modules))
+      modules[tag] = module.type === 'PID' ? { ...module, _integral: 0, _prevPv: module.pv, _dFilt: 0 } : module
+    set({
+      running: false,
+      process: { ...simulationBaseline.process },
+      photoPlant: state.photoPlant ? simulationBaseline.photoPlant ?? state.photoPlant : state.photoPlant,
+      modules,
+      alarms: [],
+      trend: [],
+      batch: makeBatch(),
+      sfcs: Object.fromEntries(Object.entries(state.sfcs).map(([name, sfc]) => [name, { ...sfc, parameters: resetSfcBooleanActions(sfc),
+        status: 'READY' as const, active: 0, elapsed: 0, actionStates: {}, activeSteps: undefined, joinArrivals: undefined, blockStates: {} }])),
+      rev: state.rev + 1
+    })
+    useSimulator.getState().recordInitialized(get().time, useSecurity.getState().currentUser)
+    get().logEvent('OPERATOR', 'SIMULATOR', 'Simulation initialized: process reservoirs returned to initial conditions, PID integrators cleared, alarms/trend/batch/SFC runtime reset, simulation on hold')
+    return true
+  },
 
   batchCommand: (cmd) => {
     if (!useSecurity.getState().requireLock('BATCH_OPERATE', 'Batch command')) return
@@ -3644,6 +3677,7 @@ export const useStore = create<StoreState>((set, get) => ({
   newProject: (kind) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `New Project (${kind})`)) return
     const base = kind === 'blank' ? buildBlankPlant() : installPhotoPlant(buildInitialPlant()).plant
+    simulationBaseline = { process: { ...base.process }, photoPlant: kind === 'blank' ? undefined : base.photoPlant }
     set({
       ...base,
       photoPlant: kind === 'blank' ? undefined : base.photoPlant,

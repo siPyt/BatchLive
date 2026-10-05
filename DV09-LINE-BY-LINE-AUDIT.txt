@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 49 VERIFIED_SUBSET, 54 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 50 VERIFIED_SUBSET, 53 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -1807,11 +1807,22 @@ Acceptance: A future station-profile model must enforce actual capability
 
 [DV09-082]
 Pages: 350-352
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Training/development simulation, initialize/coordinate execution,
   faster/slower time, continuous/batch testing and single-/multi-node options.
-Evidence: Simulation engine, run/hold/speed and batch operate execute locally.
-  No genuine DeltaV Simulate licenses, OPC or networked PPN/PSN/ASN/PRO nodes.
+Evidence (Pass78): engine/simulatorSession.ts and the Local simulator panel on
+  System Preferences. Initialize Simulation (CONTROL lock, confirmed) returns
+  the process reservoirs to the project's initial conditions (pharma plant or
+  blank), clears PID integrators, alarms, trend, batch and SFC runtime, holds
+  the simulation and logs who/when (persisted). Time scale accepts 0.1x-20x with
+  validation and a diagnostic for rejects, the top bar adds a custom value, the
+  panel shows set versus achieved scale, and tests prove simulated time advances
+  exactly dt x scale. Node mode (single with a node under test / multi) and test
+  mode (continuous / batch) persist and drive readiness checks (no executing
+  node, missing node, undownloaded modules, no SFC for batch). A permanent
+  disclosure states this is one local loop, not DeltaV Simulate: no Simulate
+  licenses, no OPC, no networked PPN/PSN/ASN/PRO nodes; node mode scopes
+  readiness only and does not isolate execution.
 Acceptance: Clearly distinguish BatchLive's local simulator from vendor
   Simulate; verify initialization and time scaling without claiming networks.
 
@@ -3839,3 +3850,24 @@ Validation: 531 repository tests run locally (530 pass; the remaining failure
   is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
 Result: DV09-045 PARTIAL -> VERIFIED_SUBSET. Totals 49 VERIFIED_SUBSET/
   54 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 78 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-082 simulator initialization, time scaling, node/test mode (pp350-352).
+Engine: simulatorSession.ts (scale limits/validation, persisted node and test
+  mode, node status, readiness, achieved-scale calculation, disclosure text);
+  store.initializeSimulation and validated setSpeed; fn-simulator-init registered
+  as a CONTROL function target; File > New updates the initialization baseline.
+UI: SimulatorPanel on System Preferences; top-bar speed select shows custom values.
+Tests: tests/simulator-session.test.cjs (9): scale validation and rejection,
+  exact dt x scale time advance, achieved scale, initialize reset and hold,
+  lock refusal leaving state unchanged, blank-project baseline, persistence and
+  single-node validation, readiness cases, disclosure.
+Browser: out-of-range 50x showed the validation message; 3x applied; Initialize
+  asked for confirmation, then reported initialized with a last-initialized stamp.
+Boundary (honest): not DeltaV Simulate; no licenses/OPC/networked nodes; node
+  mode scopes readiness only; module-level dynamic values other than PID
+  integrators are recomputed by the next scan rather than restored.
+Validation: 540 tests locally (539 pass; only pdf_om.txt-dependent audit fails).
+Result: DV09-082 PARTIAL -> VERIFIED_SUBSET. Totals 50 VERIFIED_SUBSET/
+  53 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

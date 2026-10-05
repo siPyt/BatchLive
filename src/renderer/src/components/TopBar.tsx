@@ -202,7 +202,7 @@ export function TopBar(): JSX.Element {
           title="Run / hold the process simulation">{running ? '❚❚ Running' : '▶ Hold'}</button>
         <select className="select-dark" value={speed} onChange={e => setSpeed(Number(e.target.value))} aria-label="Simulation speed">
           <option value={0.5}>0.5×</option><option value={1}>1×</option><option value={2}>2×</option>
-          <option value={5}>5×</option><option value={10}>10×</option>
+          <option value={5}>5×</option><option value={10}>10×</option>{![0.5, 1, 2, 5, 10].includes(speed) && <option value={speed}>{speed}×</option>}
         </select>
       </div>
       <div className="operator-ribbon navigation-ribbon" role="toolbar" aria-label="Picture navigation">

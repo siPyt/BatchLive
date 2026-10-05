@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSystem, FEATURE_LABEL, SYSTEM_FEATURES, type SystemFeature } from '../engine/systemPreferences'
 import { useSecurity } from '../engine/security'
+import { SimulatorPanel } from '../components/SimulatorPanel'
 
 /** DV09-108/109: System Preferences (hidden features) and the Database Administrator (shut down / connect the server). */
 export function SystemPreferencesDisplay(): JSX.Element {
@@ -91,6 +92,7 @@ export function SystemPreferencesDisplay(): JSX.Element {
       <button className="tbtn sm" disabled={!isAdmin || serverState !== 'STOPPED'} onClick={() => setMessage(connect())}>
         Connect to server
       </button>
+      <SimulatorPanel />
     </div>
   )
 }

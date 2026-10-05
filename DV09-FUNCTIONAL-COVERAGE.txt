@@ -2586,3 +2586,11 @@ Line2 - Archive: subscribed events persist with simulation and wall-clock time,
   survive a restart and are hash-chained; Verify archive detects tampering.
 Line3 - Not a compliant archive; training use only.
 Line4 - Tests: tests/event-chronicle.test.cjs.
+
+PASS 78: SIMULATOR INITIALIZE / TIME SCALE / MODES (pp350-352)
+-----------------------------------------------------------------------
+Line1 - Initialize returns process conditions and runtime to initial and holds.
+Line2 - Time scale 0.1x-20x validated; simulated time advances dt x scale.
+Line3 - Node and test mode persist and drive readiness; disclosure says this is
+  not DeltaV Simulate and not networked.
+Line4 - Tests: tests/simulator-session.test.cjs.
