@@ -1144,10 +1144,25 @@ Evidence: Traditional AI channel has separate configured/deployed filter times.
   review, and guarded online Update. A filtered FY-2 -> FT-2 simulator tieback
   regression and browser checks measure the output-driven response; stale
   configuration/tuning invalidates review. Update does not save defaults and
-  rejects unavailable deployed controllers. Test does not invent automatic
-  tuning recommendations or change mode. Operator output writes remain after
-  cancellation/close and are explicitly labeled. Full card/controller lifecycle
-  and native DeltaV Tune identification/recommendation remain outside this subset.
+  rejects unavailable deployed controllers. Operator output writes remain after
+  cancellation/close and are explicitly labeled. Pass56 adds a calculated
+  open-loop reaction-curve (two-point/Ziegler-Nichols) tuning suggestion
+  computed directly from the recorded samples: process gain from the measured
+  PV/output change, apparent dead time and time constant from the 10%/63.2%
+  response points, then the classic Kc=0.9*(T/(K*L)), Ti=L/0.3 PI rule. It is
+  surfaced as a reviewable "Suggested Tuning" with a "Use Suggested Values"
+  button that pre-fills the existing editable GAIN/RESET/RATE fields; it does
+  not auto-apply, and RATE always suggests 0 (PI-only). Two new regressions
+  hand-verify the formula against a synthetic first-order step response with
+  closed-form expected dead time/time constant, and confirm clear errors
+  (not fabricated numbers) for a collapsed-window or zero-net-change response.
+  A full browser pass built FIC-102 end-to-end (PID_LOOP template, FT-2/FY-2
+  traditional AI/AO cards, a 20s simulated input filter) and used Test/Review:
+  the suggestion rendered sensible GAIN/RESET values from the real recorded
+  curve, Use Suggested Values pre-filled the candidate fields, and Update
+  Tuning applied them to the online runtime. Full card/controller lifecycle
+  and native DeltaV Tune system identification/recommendation accuracy remain
+  outside this subset; this calculation is not claimed to match native Tune.
 Acceptance: Model/test a filtered course input and explicit tuning experiment,
   review and application. Real DeltaV Tune is a vendor-software boundary.
 
@@ -2248,8 +2263,9 @@ DV09-059: Native detail-template layout/file assignment and full course setup;
 DV09-060: Generic upload for arbitrary module/parameter types beyond PID
   tuning and now-selective AO parameters; add a download-time differs/select
   prompt for AO matching the existing PID_LOOP DOWNLOAD-mode behavior.
-DV09-061: Whole-card transfer/lifecycle and native Tune algorithm/procedure;
-  configured2.6s filter and measured simulator Test/Review/Update already exist.
+DV09-061: Whole-card transfer/lifecycle and native Tune system-identification
+  parity; configured2.6s filter, measured Test/Review/Update and a calculated
+  open-loop reaction-curve tuning suggestion already exist.
 DV09-062: Remaining native System Tree/full dynamo catalog/exact picture
   workshop; shared custom flow_color and flashing nonnormal ISAN already work.
 
@@ -2487,3 +2503,50 @@ Result: DV09-060 remains PARTIAL; it is not a generic mechanism for every
   37 MISSING/19 BOUNDARY/6 CONTEXT since no group's Status line changed.
   Commit/push authorization for this pass follows the same 2026-10-05
   instruction already recorded for Pass54.
+
+PASS 56 CHANGE DETAIL AND VALIDATION (2026-10-05)
+-------------------------------------------------
+Scope: DV09-061, continuing the user's "entire DV09, line by line" instruction
+to the next flagged remaining-adjacent item: a calculated tuning suggestion for
+the simulator's PID Tune Test/Review/Update workflow.
+Engine: pidTuneTest.ts adds suggestPidTuning(samples, module), reusing
+  analyzePidTuneTest's own validation. It computes process gain from the
+  measured PV/output change (converted through pvMin/pvMax to percent),
+  locates the 10%/63.2% response points to derive an apparent dead time and
+  time constant (the standard two-point reaction-curve method), then applies
+  the classic Ziegler-Nichols open-loop PI rule: Kc=0.9*(T/(K*L)), Ti=L/0.3,
+  RATE always 0 (PI-only, matching the course's own GAIN/RESET/RATE=0
+  examples). Degenerate inputs (zero net process gain, a collapsed dead-time/
+  time-constant window) return a clear error instead of a fabricated number.
+UI: PidTuneTestPanel.tsx shows "Suggested tuning (calculated open-loop
+  reaction-curve estimate, not native DeltaV Tune)" with a "Use Suggested
+  Values" button that pre-fills the existing editable GAIN/RESET/RATE fields;
+  it does not auto-apply, and the operator can still edit every value before
+  Update Tuning. The panel's disclaimer text was corrected from "no automatic
+  tuning algorithm is claimed" to accurately describe what is now offered and
+  what remains unclaimed (native DeltaV Tune system identification).
+Tests: fic102-template.test.cjs adds two regressions: a synthetic first-order
+  step response with a closed-form expected dead time/time constant/Kc/Ti
+  (hand-calculated via the exponential step-response formula) verifies the
+  implementation within a quantization-aware tolerance and confirms RATE=0;
+  a second regression confirms clear, non-fabricated errors for a collapsed
+  dead-time/time-constant window and a nonmonotonic zero-net-change response.
+  365 repository tests run locally (364 pass; the one failure is the
+  pre-existing local-only pdf_om.txt dependency).
+Browser verification: a temporary standalone Vite preview (not committed)
+  created FIC-102 end-to-end from the PID_LOOP (DV-09) template, added
+  FT-2/FY-2 traditional AI/AO cards with a simulated tieback, configured and
+  downloaded a 20s input filter, bound AI1.IO_IN/AO1.IO_OUT, went Online in
+  MAN, stepped applied output 20%->50%, and recorded ~215 simulated seconds.
+  Review rendered a calculated Suggested Tuning from the real recorded curve;
+  Use Suggested Values pre-filled the candidate fields; Update Tuning applied
+  them to the online GAIN/RESET. The temporary preview config and course
+  modules/cards were discarded afterward; no committed project data changed.
+Boundary: full native card/controller download lifecycle and native DeltaV
+Tune system-identification accuracy remain out of scope and are not claimed.
+Result: DV09-061 Evidence updated to record the suggestion; status remains
+PARTIAL (whole-card transfer/lifecycle and true native Tune parity are still
+absent). Classifications unchanged at 9 VERIFIED_SUBSET/57 PARTIAL/37 MISSING/
+19 BOUNDARY/6 CONTEXT since no group's Status line changed. Typecheck and
+production build passed. Commit/push authorization for this pass follows the
+same 2026-10-05 instruction already recorded for Pass54.

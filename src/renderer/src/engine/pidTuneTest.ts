@@ -54,3 +54,45 @@ export function analyzePidTuneTest(samples: PidTuneSample[]):
   if (pvSpan < 0.001) return { error: 'No measurable PV response was observed; verify the input/process before Update' }
   return { duration, pvSpan, pvChange: last.pv - first.pv, outputChange }
 }
+
+export interface PidTuningSuggestion { gain: number; reset: number; rate: number }
+
+/**
+ * Calculated open-loop (process reaction curve, two-point / Ziegler-Nichols)
+ * tuning estimate from a recorded test. This is a transparent simulator
+ * calculation from the captured samples, not native DeltaV Tune system
+ * identification; review every suggested value before Update Tuning.
+ */
+export function suggestPidTuning(samples: PidTuneSample[],
+  module: { pvMin: number; pvMax: number }): PidTuningSuggestion | { error: string } {
+  const result = analyzePidTuneTest(samples)
+  if ('error' in result) return result
+  const first = samples[0]
+  const last = samples.at(-1)!
+  const span = module.pvMax - module.pvMin || 1
+  const processGain = (result.pvChange / span * 100) / result.outputChange
+  if (!Number.isFinite(processGain) || processGain === 0) {
+    return { error: 'Suggested tuning requires a finite, nonzero calculated process gain' }
+  }
+  const totalChange = last.pv - first.pv
+  const direction = totalChange >= 0 ? 1 : -1
+  const reached = (fraction: number): PidTuneSample | undefined => {
+    const target = first.pv + direction * Math.abs(totalChange) * fraction
+    return samples.find(sample => direction > 0 ? sample.pv >= target : sample.pv <= target)
+  }
+  const onset = reached(0.1)
+  const rise = reached(0.632)
+  if (!onset || !rise) {
+    return { error: 'Suggested tuning could not locate the response onset/63% point; extend the test duration' }
+  }
+  const deadTime = (onset.time - first.time) / 1000
+  const timeConstant = (rise.time - first.time) / 1000 - deadTime
+  if (deadTime <= 0 || timeConstant <= 0) {
+    return { error: 'Suggested tuning requires a measurable dead time and time constant; extend the test or increase the output step' }
+  }
+  // Ziegler-Nichols open-loop reaction-curve PI rule: Kc = 0.9*(T/(K*L)), Ti = L/0.3.
+  const gain = 0.9 * (timeConstant / (Math.abs(processGain) * deadTime))
+  const reset = deadTime / 0.3
+  const round = (value: number): number => Math.round(value * 1000) / 1000
+  return { gain: round(gain), reset: round(reset), rate: 0 }
+}

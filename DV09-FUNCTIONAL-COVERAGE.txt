@@ -3,11 +3,11 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-05
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: selective AO parameter
-upload generalizing the PID_LOOP tuning-upload pattern (Pass55).
-Implementation: a583253, 2026-10-05, selective AO upload (Pass55).
-Previous milestone: a68483a, OUT ramp/PipesAnim connection (Pass54), 2026-10-05.
-The user authorized commit and push of Pass54/55 on 2026-10-05, separate from
+DV-09 is NOT complete. Latest implemented milestone: a calculated open-loop
+reaction-curve tuning suggestion for the simulator PID Tune Test (Pass56).
+Implementation: Pass56, local commit (hash recorded after commit below).
+Previous milestone: a583253, selective AO parameter upload (Pass55), 2026-10-05.
+The user authorized commit and push of Pass54-56 on 2026-10-05, separate from
 the 2026-10-04 authorization that covered Pass42-53 only.
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
@@ -20,16 +20,19 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:363 repository tests run locally (362 pass); typecheck and
+Last validation:365 repository tests run locally (364 pass); typecheck and
 production build passed. The one failure is the pre-existing local-only
 pdf_om.txt dependency in dv09-audit.test.cjs, not a regression from this pass.
-Browser verified in a temporary standalone preview of the unchanged renderer:
-a real AO module's Upload Selected Parameters wrote only the checked CAS_SP
-value (500 -> 777) into the offline draft while CONFIGURED MODE/SP stayed at
-their prior draft values; a repeat call reported no differing values. Temporary
-preview config and the test module were removed/discarded afterward.
+Browser verified in a temporary standalone preview: a real FIC-102 built from
+the PID_LOOP template with FT-2/FY-2 traditional cards and a 20s input filter
+recorded a MAN output step; Review rendered a calculated Suggested Tuning,
+Use Suggested Values pre-filled GAIN/RESET, and Update Tuning applied them.
+Temporary preview config and course modules/cards were discarded afterward.
 
 Most recent delivered functionality:
+  - Calculated open-loop reaction-curve (two-point/Ziegler-Nichols) tuning
+    suggestion for the PID Tune Test, with a reviewable "Use Suggested Values"
+    pre-fill; native DeltaV Tune system identification is not replicated.
   - Upload Selected Parameters for standalone AO modules: selective, none-safe,
     Save-still-required upload of chosen Floating Point parameters into the
     offline draft, generalizing the PID_LOOP selected-tuning-upload pattern.
@@ -59,7 +62,8 @@ Remaining adjacent regulatory/picture requirements:
   DV09-059 p258: native detail template/file parity; simulated workflow verified.
   DV09-060 pp259-264: AO upload is now selective too, but still not generic for
     every module/parameter type and still lacks a download-time differs prompt.
-  DV09-061 p265: native Tune algorithm and full card/controller lifecycle parity.
+  DV09-061 p265: a calculated tuning suggestion now exists, but full native
+    Tune system-identification parity and whole-card/controller lifecycle do not.
   DV09-062 pp266-267: native System Tree/full course dynamo parity remains partial.
 Broader open requirements include general controller/module download/restart
 lifecycles, remaining SFC/native mode behavior and image-only manual workflows.
@@ -2090,3 +2094,37 @@ locally (362 pass; the one failure is the pre-existing local-only pdf_om.txt
 dependency). Typecheck and production build passed. Commit/push authorization
 for this pass follows the same 2026-10-05 instruction already recorded for
 Pass54.
+
+PASS 56: CALCULATED REACTION-CURVE TUNING SUGGESTION FOR PID TUNE TEST (p265)
+---------------------------------------------------------------------------
+Line1 - Scope: the next item in the user's "entire DV09, line by line"
+  instruction. Adds a calculated tuning suggestion to the existing simulator
+  PID Tune Test/Review/Update workflow, narrowing DV09-061's native-Tune gap.
+Line2 - Engine: suggestPidTuning computes process gain from the measured PV/
+  output change, locates the 10%/63.2% response points for an apparent dead
+  time/time constant (two-point reaction-curve method), and applies the
+  classic Ziegler-Nichols open-loop PI rule (Kc=0.9*(T/(K*L)), Ti=L/0.3,
+  RATE always0, PI-only). Degenerate inputs report a clear error, never a
+  fabricated number.
+Line3 - UI: "Suggested tuning (calculated open-loop reaction-curve estimate,
+  not native DeltaV Tune)" with a "Use Suggested Values" button pre-filling
+  the existing editable GAIN/RESET/RATE fields; it does not auto-apply.
+Line4 - Tests: a synthetic first-order step response with closed-form expected
+  dead time/time constant/Kc/Ti hand-verifies the formula; a second test
+  confirms clear errors (not fabricated values) for a collapsed window and a
+  nonmonotonic zero-net-change response.
+Line5 - Browser: built FIC-102 end-to-end from the PID_LOOP template with real
+  FT-2/FY-2 traditional cards, a20s input filter and a simulated tieback;
+  recorded a MAN output step20%->50% over~215 simulated seconds; Review
+  rendered the calculated suggestion, Use Suggested Values pre-filled the
+  fields, and Update Tuning applied them to the online GAIN/RESET. Preview
+  config and course modules/cards were discarded; no committed data changed.
+Boundary: full native card/controller download lifecycle and native DeltaV
+Tune system-identification accuracy remain out of scope and are not claimed.
+Result: DV09-061 Evidence updated; status remains PARTIAL (whole-card transfer
+and true native Tune parity are still absent). Classification totals unchanged
+at9 VERIFIED_SUBSET/57 PARTIAL/37 MISSING/19 BOUNDARY/6 CONTEXT. 365 repository
+tests run locally (364 pass; the one failure is the pre-existing local-only
+pdf_om.txt dependency). Typecheck and production build passed. Commit/push
+authorization for this pass follows the same 2026-10-05 instruction already
+recorded for Pass54.

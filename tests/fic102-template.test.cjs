@@ -17,7 +17,7 @@ const { usePictures } = require('../src/renderer/src/engine/pictureStore.ts')
 const { pictureAlarmSignal, pictureModeSignal, pictureSignal, parseSavedPicture } = require('../src/renderer/src/engine/pictureDynamics.ts')
 const { lifecyclePidModules, savedPidStorageKey } = require('../src/renderer/src/engine/pidLifecycle.ts')
 const { moduleTrendPens, availableTrendPens } = require('../src/renderer/src/engine/trendPens.ts')
-const { analyzePidTuneTest, pidTuneSample, pidTuneSignature } = require('../src/renderer/src/engine/pidTuneTest.ts')
+const { analyzePidTuneTest, pidTuneSample, pidTuneSignature, suggestPidTuning } = require('../src/renderer/src/engine/pidTuneTest.ts')
 const { moduleDownloadStatus } = require('../src/renderer/src/engine/downloadStatus.ts')
 
 function fic() { return useStore.getState().modules['FIC-102'] }
@@ -616,6 +616,49 @@ test('process Test review rejects short, absent, non-finite and unresponsive cap
     { ...sample(0), appliedOut: 100 }, { ...sample(5000), appliedOut: 99.9, pv: 51 },
     { ...sample(10_000), appliedOut: 99.9, pv: 52 }
   ]), false, 'an exact 0.1% downward step must not fail because of floating-point subtraction')
+})
+
+test('suggestPidTuning calculates an open-loop reaction-curve PI estimate from a synthetic first-order response', () => {
+  // Pure first-order step response (no real dead time); the two-point (10%/63.2%)
+  // method derives an apparent dead time/time constant whose exact values are
+  // known in closed form, letting this hand-calculation verify the formula.
+  const tau = 40 // seconds
+  const pv0 = 20
+  const deltaPv = 10
+  const outBefore = 30
+  const outAfter = 50
+  const dtMs = 100
+  const totalMs = 240_000 // 6*tau: response is >99.7% settled, truncation negligible
+  const samples = []
+  for (let t = 0; t <= totalMs; t += dtMs) {
+    const pv = pv0 + deltaPv * (1 - Math.exp(-(t / 1000) / tau))
+    samples.push({ time: t, pv, requestedOut: outAfter, appliedOut: t === 0 ? outBefore : outAfter })
+  }
+  const module = { pvMin: 0, pvMax: 100 }
+  const suggestion = suggestPidTuning(samples, module)
+  assert.equal('error' in suggestion, false, suggestion.error)
+  const expectedDeadTime = -Math.log(0.9) * tau // ~4.214s
+  const expectedTimeConstant = tau - expectedDeadTime // ~35.786s
+  const expectedGain = 0.9 * (expectedTimeConstant / (0.5 * expectedDeadTime)) // ~15.28
+  const expectedReset = expectedDeadTime / 0.3 // ~14.05
+  assert.ok(Math.abs(suggestion.gain - expectedGain) < 1,
+    `gain ${suggestion.gain} should be near the hand-calculated ${expectedGain.toFixed(2)}`)
+  assert.ok(Math.abs(suggestion.reset - expectedReset) < 1,
+    `reset ${suggestion.reset} should be near the hand-calculated ${expectedReset.toFixed(2)}`)
+  assert.equal(suggestion.rate, 0, 'the PI-only reaction-curve rule suggests no derivative action')
+})
+
+test('suggestPidTuning reports a clear error instead of fabricating a value when the response cannot be measured', () => {
+  const sample = (time, pv, appliedOut) => ({ time, pv, requestedOut: appliedOut, appliedOut })
+  const module = { pvMin: 0, pvMax: 100 }
+  // Both thresholds land on the same sample, collapsing the dead time/time constant window.
+  assert.match(suggestPidTuning([sample(0, 50, 30), sample(5000, 50.002, 50), sample(10_000, 50.002, 50)],
+    module).error, /dead time and time constant/)
+  // A nonmonotonic response that returns to its starting value has zero net process gain.
+  assert.match(suggestPidTuning([sample(0, 50, 30), sample(5000, 50.01, 50), sample(10_000, 50, 50)],
+    module).error, /process gain/)
+  // Too few/invalid samples reuse analyzePidTuneTest's own rejection.
+  assert.match(suggestPidTuning([], module).error, /three/)
 })
 
 test('p256 FIC-102 picture entry writes bounded SP and only permits configured PID target modes', () => fixture(store => {

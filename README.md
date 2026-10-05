@@ -715,10 +715,20 @@ Changed tuning/configuration/bindings/filter or Bad feedback invalidates the tes
 
 Review the measured response, enter your own new GAIN/RESET/RATE and **Update
 Tuning**. Update is online-only; save defaults through explicit parameter upload.
-No native autotuning recommendation/identification algorithm is implemented.
 Manual output writes are operator commands and remain after Cancel/Close;
 return output/mode explicitly through the faceplate. Test does not change mode
 automatically, and cancellation does not update tuning.
+
+Review also shows a **Suggested Tuning** calculated directly from the recorded
+samples: process gain from the measured PV/output change, an apparent dead
+time/time constant from the standard 10%/63.2% reaction-curve points, and the
+classic Ziegler-Nichols open-loop PI rule (`Kc = 0.9*(T/(K*L))`, `Ti = L/0.3`,
+`RATE` always 0). **Use Suggested Values** pre-fills the editable GAIN/RESET/
+RATE fields; it does not apply them automatically, and every value can still be
+reviewed or changed before Update Tuning. A collapsed response window or zero
+net process gain reports a clear error rather than a fabricated number. This is
+a transparent simulator calculation, not native DeltaV Tune system
+identification, and is not claimed to match its proprietary algorithm.
 
 Custom Builder valves also offer an independent **Actuator Color Animation**.
 Use body AND conditions for confirmed pump running plus sampled valve-open

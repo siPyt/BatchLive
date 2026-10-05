@@ -3,7 +3,7 @@ import { useStore } from '../engine/store'
 import { requireUnlockedKey } from '../engine/security'
 import { controllerIsDown } from '../engine/hardware'
 import { findDst } from '../engine/traditionalIo'
-import { analyzePidTuneTest, pidTuneSample, pidTuneSignature, type PidTuneSample } from '../engine/pidTuneTest'
+import { analyzePidTuneTest, pidTuneSample, pidTuneSignature, suggestPidTuning, type PidTuneSample } from '../engine/pidTuneTest'
 
 type Phase = 'ready' | 'recording' | 'review' | 'updated' | 'invalid'
 
@@ -38,6 +38,7 @@ export function PidTuneTestPanel({ tag, onBack }: { tag: string; onBack: () => v
     unavailable ? 'Process Test requires an Online PID with an available deployed controller' :
     'error' in live ? live.error : null
   const result = analyzePidTuneTest(samples)
+  const suggestion = module?.type === 'PID' ? suggestPidTuning(samples, module) : { error: 'PID module no longer exists' }
 
   const reject = (message: string): void => {
     setStatus(message)
@@ -73,8 +74,10 @@ export function PidTuneTestPanel({ tag, onBack }: { tag: string; onBack: () => v
 
   return <section aria-label={`${tag} Simulator Tune Test`}>
     <b>Simulator Tune: Test / Review / Update</b>
-    <p>Records a real simulated PV/applied-output response. No automatic tuning
-      algorithm is claimed. First select MAN and confirm good feedback. Test
+    <p>Records a real simulated PV/applied-output response. A calculated
+      open-loop reaction-curve tuning suggestion is offered as a reviewable
+      starting point; native DeltaV Tune system identification is not
+      replicated or claimed. First select MAN and confirm good feedback. Test
       requires at least 10 simulated seconds, a 0.1% applied output step and a
       measurable PV response. Split-range and overridden output are not supported.</p>
     <p>Manual output writes below are operator commands, not temporary overrides.
@@ -133,6 +136,13 @@ export function PidTuneTestPanel({ tag, onBack }: { tag: string; onBack: () => v
     {phase === 'review' && !('error' in result) && <>
       <p>Observed: PV change {result.pvChange.toFixed(3)}, PV span {result.pvSpan.toFixed(3)};
         applied output change {result.outputChange.toFixed(2)}% over {result.duration.toFixed(1)}s.</p>
+      {'error' in suggestion ? <p>Suggested tuning unavailable: {suggestion.error}</p> : <p>
+        Suggested tuning (calculated open-loop reaction-curve estimate, not native DeltaV Tune):
+        GAIN {suggestion.gain}, RESET {suggestion.reset}s/repeat, RATE {suggestion.rate}s.{' '}
+        <button className="tbtn sm" type="button" onClick={() => setCandidate({
+          gain: String(suggestion.gain), reset: String(suggestion.reset), rate: String(suggestion.rate)
+        })}>Use Suggested Values</button>
+      </p>}
       {(['gain', 'reset', 'rate'] as const).map(parameter => <label className="bld-f" key={parameter}>{parameter.toUpperCase()}
         <input aria-label={`Tune candidate ${parameter}`} type="number" min={0} step={0.1}
           value={candidate[parameter]} onChange={event => setCandidate(current => ({
