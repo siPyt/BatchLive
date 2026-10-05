@@ -65,6 +65,7 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
   // Secured functions
   t('function', 'fn-batch', 'Batch operate command', 'BATCH_OPERATE', /^Batch command$/),
   t('function', 'fn-signature-config', 'Electronic signature policies, areas and modules', 'CAN_CONFIGURE', /^Configure electronic signatures$/),
+  t('function', 'fn-export-import', 'Export and import configuration', 'CAN_CONFIGURE', /^(Export|Import) configuration$/),
   t('function', 'fn-sfc-command', 'SFC command', 'BATCH_OPERATE', /^SFC command /),
   t('function', 'fn-sanitation', 'Start and cancel sanitation', 'CONTROL', /^(Start|Cancel) sanitation /),
   t('function', 'fn-flow-colors', 'Shared flow color tables', 'CAN_CONFIGURE', /flow color table/),

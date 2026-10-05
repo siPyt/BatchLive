@@ -2505,3 +2505,14 @@ Line3 - Journal: failed attempt, confirmed-and-verified attempt, cancellation
 Line4 - SFC: MESSAGE startup under a policy keeps the chart waiting until
   approved; denied verification and cancel write nothing.
 Line5 - Tests: electronic-signatures.test.cjs, electronic-signatures-sfc.test.cjs.
+
+PASS 71: DELTAV EXPORT WORKSHOP (pp355-361)
+-----------------------------------------------------------------------
+Line1 - Export: Physical Network, Control Strategies, selected Named Sets
+  (NS-T101, phase_failures) and selected operator pictures each save to a
+  validated BatchLive package through the save dialog.
+Line2 - Import: a file chooser imports a package after validating structure and
+  references; a bad file changes nothing and is journaled.
+Line3 - Round trips are tested for all four kinds; imports respect Can Configure
+  and reset lifecycle records; Named Sets arrive configured, not deployed.
+Line4 - Tests: tests/project-export.test.cjs. Not native .fhx/.grf.

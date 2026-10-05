@@ -18,6 +18,7 @@ import type { SfcDef } from '../engine/sfc'
 import { LicensingProperties } from '../components/LicensingProperties'
 import { SecurityPropertiesPanel } from '../components/SecurityPropertiesPanel'
 import { SignatureSetupPanel } from '../components/SignatureSetupPanel'
+import { ExportImportPanel } from '../components/ExportImportPanel'
 import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 
@@ -100,7 +101,7 @@ export function ExplorerDisplay(): JSX.Element {
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
-  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing' | 'securityParameter' | 'securityField' | 'securityFunction' | 'signatures'>('modules')
+  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing' | 'securityParameter' | 'securityField' | 'securityFunction' | 'signatures' | 'export'>('modules')
   const [selectedNamedSet, setSelectedNamedSet] = useState<string | null>(null)
   const [namedSetCreateRequest, setNamedSetCreateRequest] = useState(0)
   const [namedSetPropertiesRequest, setNamedSetPropertiesRequest] =
@@ -266,6 +267,10 @@ export function ExplorerDisplay(): JSX.Element {
             onClick={() => setSetupView('signatures')}>
             <b>Electronic Signatures</b>
           </div>
+          <div className={'exp-node exp-area' + (setupView === 'export' ? ' sel' : '')}
+            onClick={() => setSetupView('export')}>
+            <b>Export / Import</b>
+          </div>
         </>}
         <div className="exp-node exp-cell" onClick={() => toggle('PROPLUS')}>
           <span className="exp-caret">{open.PROPLUS === false ? '▸' : '▾'}</span><b>ProfessionalPLUS (simulated)</b>
@@ -378,7 +383,9 @@ export function ExplorerDisplay(): JSX.Element {
       </div>
 
       <div className="explorer-detail">
-        {setupView === 'licensing' ? <LicensingProperties /> : setupView === 'signatures' ? (
+        {setupView === 'licensing' ? <LicensingProperties /> : setupView === 'export' ? (
+          <ExportImportPanel initialNamedSet={selectedNamedSet} />
+        ) : setupView === 'signatures' ? (
           <SignatureSetupPanel />
         ) : setupView === 'securityParameter' ? (
           <SecurityPropertiesPanel kind="parameter" />
@@ -429,11 +436,13 @@ export function ExplorerDisplay(): JSX.Element {
                 setNamedSetPropertiesRequest(previous => ({ name: menu.target, serial: (previous?.serial ?? 0) + 1 }))
                 setMenu(null)
               }}>Properties...</button>
+              <button className="ctx-item" onClick={() => { setSetupView('export'); setMenu(null) }}>Export...</button>
             </>
           ) : menu.kind === 'strategies' ? (
             <>
               <div className="ctx-label">Control Strategies</div>
               <button className="ctx-item" onClick={newArea}>New Area</button>
+              <button className="ctx-item" onClick={() => { setSetupView('export'); setMenu(null) }}>Export...</button>
             </>
           ) : menu.kind === 'area' ? (
             <>

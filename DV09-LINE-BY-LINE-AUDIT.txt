@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 21 VERIFIED_SUBSET, 54 PARTIAL, 28 MISSING,
+DV-09 remains incomplete: 22 VERIFIED_SUBSET, 54 PARTIAL, 27 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 The user's standing instruction ("finish everything and stop stopping",
 2026-10-05) authorizes continuing to commit and push every pass without
@@ -1792,11 +1792,29 @@ Acceptance: Build explicit virtual workflows if desired; do not masquerade
 
 [DV09-084]
 Pages: 355-361
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Export Physical Network, Control Strategies, NS-T101 and phase
   failure named sets, and save/copy operator pictures to removable media.
-Evidence: No project export/import or persistent native configuration/picture
-  files. Progress checkmarks in localStorage are unrelated to project backup.
+Evidence (Pass71): engine/projectExport.ts + projectTransfer.ts implement the
+  Export workshop with a simulator-native, versioned "batchlive-export"
+  package (NOT native .fhx/.grf). Export kinds: Physical Network (controllers,
+  carriers, baseplates, cards, bindings), Control Strategies (areas, modules,
+  equipment, SFCs, phases), named Named Sets (NS-T101, phase_failures chosen
+  individually) and named operator pictures. Explorer > Setup > Export /
+  Import (also reachable from the Control Strategies and Named Set context
+  menus) saves a file through the browser save dialog (the removable-media
+  step) and imports one through a file chooser. Every package is validated
+  before anything is applied: JSON, format, version, kind, completeness;
+  Physical Network referential integrity (controller/carrier/baseplate
+  links, 8 channels, CHARM types); Control Strategies tag/area/type
+  consistency; Named Sets through parseNamedSets (duplicate values/names);
+  pictures through parseSavedPicture. A rejected import changes nothing and
+  is journaled. Imports reset saved/deployed lifecycle records, import Named
+  Sets into the configured set only (Changed Setup Data still required) and
+  require the Can Configure key (both export and import). Round trips are
+  proven for all four kinds. Tests: project-export.test.cjs. Not claimed:
+  native DeltaV export formats or interoperability, export of historian data,
+  users/security, or electronic-signature policies.
 Acceptance: Simulator-native export must round-trip hardware, strategy,
   named sets and pictures with validation. Native .fhx/.grf interoperability
   must not be claimed without format implementation and genuine evidence.
@@ -3397,3 +3415,27 @@ Validation: 458 repository tests run locally (457 pass; the remaining failure
 Result: DV09-080 MISSING -> VERIFIED_SUBSET; DV09-085 MISSING ->
   VERIFIED_SUBSET. Totals 21 VERIFIED_SUBSET/54 PARTIAL/28 MISSING/19 BOUNDARY/
   6 CONTEXT.
+
+PASS 71 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-084 (Export workshop, pages 355-361): Physical Network, Control
+Strategies, NS-T101 and phase_failures Named Sets, and operator pictures.
+Engine: new projectExport.ts (package type, build/parse, validators) and
+  projectTransfer.ts (exportConfiguration/importConfiguration against the
+  real store, Named Set storage and picture store). securityTargets.ts adds
+  the fn-export-import function (Can Configure).
+UI: ExportImportPanel under Explorer > Setup > Export / Import, plus Export...
+  items on the Control Strategies and Named Set context menus.
+Tests: tests/project-export.test.cjs (8): four round trips through a blank
+  project (hardware, strategies, Named Sets, pictures), 12+ tampered/
+  malformed package rejections with no state change, Can Configure denial,
+  validator sanity, and a source scan that no component selector allocates a
+  fresh array (found and fixed React #185 in the new panel during browser
+  verification).
+Browser: the Export / Import panel rendered and Export Physical Network
+  reported "Physical Network exported to PhysicalNetwork.batchlive-export.json"
+  (the integrated browser does not expose the download event).
+Validation: 466 repository tests run locally (465 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
+Result: DV09-084 MISSING -> VERIFIED_SUBSET. Totals are the recount in the
+  header.
