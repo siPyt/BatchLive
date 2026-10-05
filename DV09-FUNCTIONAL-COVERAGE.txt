@@ -2627,3 +2627,9 @@ PASS 83: CONTROLLER INDICATORS AND IDENTIFY (pp53-56)
 Line1 - Decommissioned: Power ON, Error flashes 1 s, Active/Standby OFF, yellow random.
 Line2 - Identify: Power ON, all other LEDs flash 1 s; closing the dialog stops it.
 Line3 - Only the selected controller identifies. Tests: controller-leds.test.cjs.
+
+PASS 84: CONTEXTUAL HELP AND WORKSHOP VERIFICATION (pp66-67)
+-----------------------------------------------------------------------
+Line1 - What's This help per controller control with live prerequisites.
+Line2 - Commissioning workshop steps verified from state and the journal.
+Line3 - Dialog choice (No to auto-sense) stays manual. Tests: controller-help.test.cjs.

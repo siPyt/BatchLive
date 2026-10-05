@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 54 VERIFIED_SUBSET, 49 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 55 VERIFIED_SUBSET, 48 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -240,11 +240,27 @@ Acceptance: Test just below/at/above the window, zero and maximum, power
 
 [DV09-010]
 Pages: 66-67
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Use contextual help and execute identify, redundancy, commission,
   auto-sense and five-minute cold-restart exercise.
-Evidence: Those simulated lifecycle actions are tested and verified live;
-  What's This help, native dialog sequence and traditional cards are missing.
+Evidence (Pass84): the simulated lifecycle actions (Identify, redundancy,
+  commission, auto-sense, decommission, power loss/restore and the five-minute
+  cold restart) remain regression-tested. contextHelp.ts adds "What's This?"
+  help to each Physical Network controller control: a plain-language
+  explanation citing the course page, plus live prerequisites (powered,
+  decommissioned/commissioned/running, and the Diagnostic, Can Configure and
+  Can Download keys) shown as met or unmet from current state and the logged-on
+  user. workshopChecks.ts verifies the "Commissioning the Controller" workshop
+  against real state and the event journal for one controller: created or
+  decommissioned, Identify started then stopped, commissioned with a redundant
+  control network and an address, auto-sensed after commissioning, and cold
+  restart saved as 5 minutes; the Workshops display shows Verified / Not yet
+  with the reason, while the "answer No to auto-sense" dialog choice stays
+  Manual because it cannot be observed. Six regressions cover help content,
+  prerequisite logic, stepwise verification, per-controller ordering and the
+  empty case.
+  Boundary: help is a popover per control, not the native What's This pointer
+  mode; the native dialog sequence and Windows logon steps are not reproduced.
 Acceptance: Preserve lifecycle regressions; add contextual help and exact
   prerequisites before marking the complete exercise done.
 
@@ -4026,3 +4042,20 @@ Validation: 577 tests locally (576 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-005 PARTIAL -> VERIFIED_SUBSET. Totals 54 VERIFIED_SUBSET/
   49 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 84 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-010 contextual help and exact prerequisites for the commissioning exercise (pp66-67).
+Engine: contextHelp.ts (help entries and prerequisite evaluation) and
+  workshopChecks.ts (evidence-based verification of dv09-commissioning).
+UI: WhatsThis popovers on the Physical Network controls; Workshops display shows
+  Verified/Not yet/Manual per step for that workshop.
+Tests: tests/controller-help.test.cjs (6).
+Browser: the Cold Restart help opened with the p62-65 text; the workshop showed
+  Not yet with specific reasons.
+Boundary (honest): popover help, not native What's This pointer mode; native
+  dialog sequence and Windows logon not reproduced; the No-to-auto-sense choice is manual.
+Validation: 583 tests locally (582 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-010 PARTIAL -> VERIFIED_SUBSET. Totals 55 VERIFIED_SUBSET/
+  48 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

@@ -9,6 +9,7 @@ import { SerialIoPanel } from '../components/SerialIoPanel'
 import { H1Panel } from '../components/H1Panel'
 import { useSystem } from '../engine/systemPreferences'
 import { ControllerLedStrip, IdentifyDialog } from '../components/ControllerIndicators'
+import { WhatsThis } from '../components/WhatsThis'
 import {
   COLD_RESTART_MODE_LABEL, coldRestartFromSelectors, coldRestartMode, describeColdRestart, splitColdRestart,
   type ColdRestartMode, type ColdRestartParts
@@ -336,6 +337,7 @@ function ControllerPanel({
         <button className="tbtn sm" disabled={c.powerDownAt !== null} onClick={identify}>
           {c.identified ? 'Stop Identify' : 'Identify'}
         </button>
+        <WhatsThis topic="identify" controller={c} />
         {c.commissioned ? (
           <button className="tbtn sm" disabled={down || c.powerDownAt !== null} onClick={decommission}>
             Decommission
@@ -345,7 +347,9 @@ function ControllerPanel({
             Commission
           </button>
         )}
+        <WhatsThis topic={c.commissioned ? 'decommission' : 'commission'} controller={c} />
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={autoSense}>Auto-sense I/O</button>
+        <WhatsThis topic="autoSense" controller={c} />
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
           const records = controllerAoRecords(useStore.getState().moduleLifecycle, c.tag)
           const reviewed = Object.fromEntries(records.map(([tag, record]) => [tag, record.saved]))
@@ -380,6 +384,7 @@ function ControllerPanel({
           }
         }}>Update AO Cold Restart Memory</button>
         <button className="tbtn sm" disabled={!c.commissioned || down || c.powerDownAt !== null} onClick={powerLoss}>Power Loss</button>
+        <WhatsThis topic={c.powerDownAt !== null ? 'restorePower' : 'powerLoss'} controller={c} />
         {c.powerDownAt !== null ? (
           <button className="tbtn sm" onClick={restorePowerNow}>Restore Power</button>
         ) : (
@@ -409,7 +414,7 @@ function ControllerPanel({
       </div>
       <div className="hardware-controller-settings">
         <label className="hardware-setting-check">
-          Redundant controller
+          Redundant controller <WhatsThis topic="redundant" controller={c} />
           <input
             type="checkbox"
             checked={settings.redundant}
@@ -417,7 +422,7 @@ function ControllerPanel({
           />
         </label>
         <label className="hardware-setting-check">
-          Redundant control network
+          Redundant control network <WhatsThis topic="networkRedundant" controller={c} />
           <input
             type="checkbox"
             checked={settings.networkRedundant}
@@ -425,7 +430,7 @@ function ControllerPanel({
           />
         </label>
         <label>
-          Cold Restart
+          Cold Restart <WhatsThis topic="coldRestart" controller={c} />
           <select aria-label="Cold restart mode" value={crMode} onChange={(e) => updateColdRestart(e.target.value as ColdRestartMode, crParts)}>
             {(Object.keys(COLD_RESTART_MODE_LABEL) as ColdRestartMode[]).map((m) => <option key={m} value={m}>{COLD_RESTART_MODE_LABEL[m]}</option>)}
           </select>
@@ -443,6 +448,7 @@ function ControllerPanel({
             Last power return: {c.lastRestoration.outageMinutes.toFixed(2)} min — {c.lastRestoration.coldRestart ? 'cold restart' : 'no cold restart'} ({c.lastRestoration.reason})
           </span>
         )}        <button className="tbtn sm" disabled={down && c.commissioned} onClick={applySettings}>Apply Properties</button>
+        <WhatsThis topic="applyProperties" controller={c} />
         {c.lastAutoSense ? (
           <span className="hardware-autosense-result">
             Last scan {new Date(c.lastAutoSense.scannedAt).toLocaleTimeString()} · {c.lastAutoSense.carriersScanned} carriers ·{' '}

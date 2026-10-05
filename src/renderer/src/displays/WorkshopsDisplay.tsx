@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useUi, type DisplayId } from '../ui/uiStore'
 import { useProgress } from '../engine/progressStore'
 import { COURSE, type Workshop } from '../engine/workshops'
+import { useStore } from '../engine/store'
+import { checkCommissioningWorkshop, COMMISSIONING_STEP_IDS, type StepCheck } from '../engine/workshopChecks'
 
 function stepIds(w: Workshop): string[] {
   return w.steps.map((s) => s.id)
@@ -80,6 +82,10 @@ function WorkshopPanel({
   const done = useProgress((s) => s.done)
   const toggle = useProgress((s) => s.toggle)
   const reset = useProgress((s) => s.reset)
+  const controllers = useStore((s) => s.hardware.controllers)
+  const eventLog = useStore((s) => s.eventLog)
+  const checked = w.id === 'dv09-commissioning' ? checkCommissioningWorkshop(controllers, eventLog) : null
+  const verdictFor = (id: string): StepCheck | undefined => (checked && (COMMISSIONING_STEP_IDS as readonly string[]).includes(id) ? checked.steps.find((s) => s.id === id) : undefined)
 
   return (
     <div className="ws-panel">
@@ -91,6 +97,11 @@ function WorkshopPanel({
       </div>
       <p className="ws-objective">{w.objective}</p>
       {w.note && <div className="ws-note">{w.note}</div>}
+      {checked && (
+        <div className="ws-note" role="status">
+          Steps below are checked against the simulator{checked.controller ? ' for controller ' + checked.controller : ''}: Verified comes from real state and the event journal; Manual steps cannot be observed.
+        </div>
+      )}
       <ol className="ws-steps">
         {w.steps.map((st) => (
           <li key={st.id} className={'ws-step' + (done[st.id] ? ' done' : '')}>
@@ -98,6 +109,12 @@ function WorkshopPanel({
               {done[st.id] ? '✓' : ''}
             </button>
             <span className="ws-step-text">{st.text}</span>
+            {verdictFor(st.id) && (
+              <span className="ws-verdict" data-verdict={verdictFor(st.id)!.verdict} title={verdictFor(st.id)!.detail}
+                style={{ marginLeft: 8, fontSize: 11, whiteSpace: 'nowrap', color: verdictFor(st.id)!.verdict === 'verified' ? '#37d36b' : 'var(--dv-text-mute)' }}>
+                {verdictFor(st.id)!.verdict === 'verified' ? '✓ Verified' : verdictFor(st.id)!.verdict === 'manual' ? 'Manual' : 'Not yet'} — {verdictFor(st.id)!.detail}
+              </span>
+            )}
             {st.goto && (
               <button className="tbtn sm" onClick={() => onNavigate(st.goto!)}>
                 Open ↗
