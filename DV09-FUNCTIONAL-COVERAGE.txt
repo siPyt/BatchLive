@@ -2681,3 +2681,7 @@ PASS 93: ALARM PRIORITIES AND LOG-ONLY LEVEL (pp179-180)
 -----------------------------------------------------------------------
 Line1 - Priority values 4-15, log-only 3; auto-acknowledge new/inactive; banner collapses by module/unit; wave on/off.
 Line2 - Log-only alarms are journaled event records. Tests: alarm-priorities.test.cjs.
+
+PASS 94: STATUS RECONCILIATION
+-----------------------------------------------------------------------
+DV09-016/024/032/034/036/037/068 are VERIFIED_SUBSET on existing evidence; gaps unchanged and recorded.

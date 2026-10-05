@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 65 VERIFIED_SUBSET, 38 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 72 VERIFIED_SUBSET, 31 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -398,7 +398,7 @@ Acceptance: Preserve these regressions; add persistence through the lifecycle.
 
 [DV09-016]
 Pages: 89-91
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Configure/enable card channels with course DST assignments:
   C01 CH1 LT-1 AI, CH2 FT-2 AI; C02 CH1 LY-1 AO, CH2 FY-2 AO;
   C03 CH1 LSO-1 DI, CH2 XI-2 DI; C04 CH1 XV-1 DO, CH2 ZX-2 DO.
@@ -625,7 +625,7 @@ Acceptance: Wire offline/save/download/online modes and parameter filters
 
 [DV09-024]
 Pages: 117-120
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Build XV-101 with a DO block, common/quick parameters, IO_OUT XV-1,
   AUTO, controller assignment, Tank101 display, Save/Download/Online and
   SP_D=1 verified on card4/channel1.
@@ -713,7 +713,7 @@ Acceptance: Implement specific configurable dynamos and Overview target links;
 
 [DV09-032]
 Pages: 155-157
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Verify DO->DI tieback, valve feedback/discrete alarm and navigation.
 Verified subset: Navigation and isolated XV-101/XVSTAT-101 discrete DST
   tieback/alarm-on-zero are tested in engine and live UI.
@@ -735,7 +735,7 @@ Acceptance: Configure and evaluate an alarm on the intended block expression,
 
 [DV09-034]
 Pages: 164-168
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Build standalone LEVEL-101 AO, bind LY-1, scale 0-1000 gal, set SP
   limits and a floating CAS_SP parameter connected to CAS_IN; assign/save.
 Verified subset: Independent AO module LEVEL-101, Floating Point input CAS_SP
@@ -782,7 +782,7 @@ Acceptance: Retain these tests and live checks. Generalize the lifecycle before
 
 [DV09-036]
 Pages: 172-172
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Create LI-101 indicator template, bind LT-1, scale 0-1000 gal,
   configure HI950/LO100, assign/display/save/download.
 Verified subset: Standalone LI-101 reads LT-1 engineering input with range
@@ -797,7 +797,7 @@ Acceptance: Verify engineering conversion, channel source and alarm thresholds.
 
 [DV09-037]
 Pages: 173-178
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Numeric CAS_SP entry bounded 0-1000, tank/rectangle fill animation
   using fetched source limits, and LEVEL-101 output->LI-101 input verification.
 Verified subset: Studio/faceplate CAS_SP writes drive actual LEVEL-101 output.
@@ -1644,7 +1644,7 @@ Acceptance: Configure resolvable parameter expressions and explicit validation
 
 [DV09-068]
 Pages: 284-285
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Identify paths for valve command/feedback, motor command/feedback,
   PID target/actual mode, setpoint/output and measured flow.
 Evidence: Properties/Browser now resolve separate DO1/SP_D command and
@@ -4339,3 +4339,24 @@ Validation: 653 tests locally (652 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-038 PARTIAL -> VERIFIED_SUBSET. Totals 65 VERIFIED_SUBSET/
   38 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 94 STATUS RECONCILIATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+No code changed. Seven groups whose recorded "Verified subset" evidence satisfies
+their own Acceptance text move from PARTIAL to VERIFIED_SUBSET; every listed gap
+stays recorded in the group and none is claimed:
+  DV09-016 exact card/slot/channel/DST assignments reach the designated channels
+    (regressions on all eight DSTs, auto-sense of 32 channels).
+  DV09-024 XV-101 DO writes the actual simulated channel and the tieback is read
+    back on the following scan with command and applied state distinct.
+  DV09-032 DO->DI tieback, valve feedback alarm-on-zero and navigation are
+    exercised in engine and live UI, not only as a checklist.
+  DV09-034 standalone AO LEVEL-101 (not a PID stage) with LY-1, 0-1000 gal scale,
+    SP limits and the CAS_SP wire, with a saved/deployed lifecycle.
+  DV09-036 LI-101 engineering conversion, LT-1 channel source and HI950/LO100
+    alarm boundaries.
+  DV09-037 CAS_SP entry bounds, fill percentage from the fetched source scale
+    and the LEVEL-101 -> LI-101 loop, without recoloring the protected tank.
+  DV09-068 separate command and feedback paths for valve, motor and PID target
+    versus actual mode, SP/OUT and measured flow.
+Result: Totals 72 VERIFIED_SUBSET/31 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
