@@ -21,6 +21,7 @@ export type LockType =
   | 'CAN_CONFIGURE'
   | 'CAN_DOWNLOAD'
   | 'SYSTEM_ADMIN'
+  | 'ACTION_VERIFY'
   | UserLockType
 
 export type UserLockNumber = '01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10'
@@ -43,6 +44,7 @@ export const ALL_LOCKS: LockType[] = [
   'CAN_CONFIGURE',
   'CAN_DOWNLOAD',
   'SYSTEM_ADMIN',
+  'ACTION_VERIFY',
   ...USER_LOCKS
 ]
 
@@ -64,6 +66,7 @@ export const LOCK_LABEL: Record<LockType, string> = {
   CAN_CONFIGURE: 'Can Configure',
   CAN_DOWNLOAD: 'Can Download',
   SYSTEM_ADMIN: 'System Admin',
+  ACTION_VERIFY: 'Action Verify',
   ...USER_LOCK_LABELS
 }
 
@@ -80,6 +83,7 @@ export const LOCK_HINT: Record<LockType, string> = {
   CAN_CONFIGURE: 'Change the configuration database (new/delete modules)',
   CAN_DOWNLOAD: 'Download configurations to nodes',
   SYSTEM_ADMIN: 'Database administration: create, copy, rename',
+  ACTION_VERIFY: 'Verify (second signature) an electronic-signature change',
   ...USER_LOCK_HINTS
 }
 
@@ -157,6 +161,8 @@ interface SecurityState {
   login: (name: string, password: string) => boolean
   /** Why a logon would succeed or fail, without side effects. */
   loginStatus: (name: string, password: string) => 'ok' | 'bad' | 'disabled' | 'must-change' | 'not-downloaded'
+  /** DV09-080: check a user name and password without logging on; returns that user's effective keys. */
+  authenticate: (name: string, password: string) => { ok: true; user: string; locks: LockType[] } | { ok: false; reason: string }
   /** DV09-079: copy the configured users, groups and lock assignments to this workstation. */
   downloadWorkstation: () => string | null
   /** True while the configured security data differs from what this workstation holds. */
@@ -201,7 +207,7 @@ const DEFAULT_USERS: DvUser[] = [
     name: 'Supervisor1',
     fullName: 'Sarge Supervisor',
     password: 'supervisor1',
-    locks: ['CONTROL', 'RESTRICTED_CONTROL', 'TUNING', 'ALARMS', 'BATCH_OPERATE', 'CAN_DOWNLOAD']
+    locks: ['CONTROL', 'RESTRICTED_CONTROL', 'TUNING', 'ALARMS', 'BATCH_OPERATE', 'CAN_DOWNLOAD', 'ACTION_VERIFY']
   },
   {
     name: 'OperatorA',
@@ -421,6 +427,15 @@ export const useSecurity = create<SecurityState>((set, get) => ({
     if (!get().groups.some((g) => g.name === group)) return `Group ${group} does not exist`
     set((s) => ({ groups: s.groups.map((g) => (g.name === group ? { ...g, areas } : g)) }))
     return null
+  },
+
+  authenticate: (name, password) => {
+    const active = activeConfig(get())
+    const u = active.users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
+    if (!u || u.password !== password) return { ok: false, reason: 'Name or password is incorrect' }
+    if (u.disabled) return { ok: false, reason: 'The account is disabled' }
+    if (u.mustChangePassword) return { ok: false, reason: 'The password must be changed first' }
+    return { ok: true, user: u.name, locks: effectiveLocks(u, active.groups) }
   },
 
   downloadWorkstation: () => {

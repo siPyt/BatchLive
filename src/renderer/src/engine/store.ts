@@ -25,6 +25,16 @@ import type {
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
+import {
+  EMPTY_SIGNATURE_CONFIG,
+  evaluateSignature,
+  requiredSignature,
+  signaturePolicyError,
+  type SignatureAttempt,
+  type SignatureConfig,
+  type SignaturePolicy,
+  type SignatureRequest
+} from './electronicSignatures'
 import { captureDevice, cloneDeviceConfiguration, deviceActive, deviceConfigurationError, deviceDirty, deviceDownloadError, deviceEditorModules, prepareDeviceTransfer,
   deviceOperatorError, parseDevice, savedDeviceKey, serializeDevice, type DeviceDraftPatch, type DeviceLifecycle } from './deviceLifecycle'
 import { materializeMotorStrategy, motorStrategyError, motorTemplateStrategy, ownedMotorBlock, strategyModules, type MotorBlockConfiguration } from './motorStrategy'
@@ -156,6 +166,17 @@ interface StoreState extends PlantState {
   /** DV09-041 custom alarm type registry: up to 255 named types with a
    * priority and a %P1/%P2 message template, separate from a module's fixed
    * AlarmLimit set and its own Download Changed Setup Data step. */
+  /** DV09-080 Electronic Signatures: setup (application/area/module/policy) and staged writes. */
+  signature: SignatureConfig
+  signaturePending: SignatureRequest[]
+  setSignatureApplication: (patch: { operate?: boolean; controlStudio?: boolean }) => boolean
+  saveSignaturePolicy: (policy: SignaturePolicy) => string | null
+  deleteSignaturePolicy: (name: string) => boolean
+  setSignatureArea: (area: string, enabled: boolean) => boolean
+  setModuleSignaturePolicy: (tag: string, policy: string | undefined) => boolean
+  /** Returns an error message when the signature is rejected (the write stays staged), else null once applied. */
+  submitSignature: (id: number, attempt: SignatureAttempt) => string | null
+  cancelSignature: (id: number) => boolean
   customAlarmTypes: CustomAlarmTypeState
   defineCustomAlarmType: (name: string, def: CustomAlarmTypeDef) => boolean
   deleteCustomAlarmType: (name: string) => boolean
@@ -415,6 +436,98 @@ export const useStore = create<StoreState>((set, get) => ({
   pidLifecycle: {},
   deviceLifecycle: {},
   namedSets: { configured: {}, deployed: {} },
+  signature: EMPTY_SIGNATURE_CONFIG,
+  signaturePending: [],
+
+  setSignatureApplication: (patch) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', 'Configure electronic signatures')) return false
+    set((s) => ({ signature: { ...s.signature, ...patch } }))
+    get().logEvent('CONFIGURE', 'ELECTRONIC SIGNATURES', `Application settings changed: ${JSON.stringify(patch)}`)
+    return true
+  },
+
+  saveSignaturePolicy: (policy) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', 'Configure electronic signatures')) return 'Requires the Can Configure key'
+    const error = signaturePolicyError(policy)
+    if (error) return error
+    set((s) => ({ signature: { ...s.signature, policies: { ...s.signature.policies, [policy.name]: policy } } }))
+    get().logEvent('CONFIGURE', policy.name, 'Signature policy saved')
+    return null
+  },
+
+  deleteSignaturePolicy: (name) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', 'Configure electronic signatures')) return false
+    if (!get().signature.policies[name]) return false
+    set((s) => {
+      const policies = { ...s.signature.policies }
+      delete policies[name]
+      const modules = Object.fromEntries(Object.entries(s.signature.modules).filter(([, policy]) => policy !== name))
+      return { signature: { ...s.signature, policies, modules } }
+    })
+    get().logEvent('CONFIGURE', name, 'Signature policy deleted')
+    return true
+  },
+
+  setSignatureArea: (area, enabled) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', 'Configure electronic signatures')) return false
+    if (!get().areas.includes(area)) return false
+    set((s) => ({
+      signature: {
+        ...s.signature,
+        areas: enabled ? Array.from(new Set([...s.signature.areas, area])) : s.signature.areas.filter((a) => a !== area)
+      }
+    }))
+    get().logEvent('CONFIGURE', area, `Electronic Signature ${enabled ? 'enabled' : 'disabled'} for the area`)
+    return true
+  },
+
+  setModuleSignaturePolicy: (tag, policy) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', 'Configure electronic signatures')) return false
+    if (!get().modules[tag] && !get().sfcs[tag]) return false
+    if (policy !== undefined && !get().signature.policies[policy]) return false
+    set((s) => {
+      const modules = { ...s.signature.modules }
+      if (policy === undefined) delete modules[tag]
+      else modules[tag] = policy
+      return { signature: { ...s.signature, modules } }
+    })
+    get().logEvent('CONFIGURE', tag, policy === undefined ? 'Electronic Signature policy removed' : `Electronic Signature policy ${policy} associated`)
+    return true
+  },
+
+  submitSignature: (id, attempt) => {
+    const request = get().signaturePending.find((r) => r.id === id)
+    const apply = pendingSignatureWrites.get(id)
+    if (!request || !apply) return 'There is no pending signature request'
+    const verdict = evaluateSignature(request, attempt, useSecurity.getState().authenticate)
+    if (!verdict.ok) {
+      if (verdict.stage !== 'comment') {
+        get().logEvent('SECURITY', request.tag, `Electronic signature attempt for ${request.valueText} failed: ${verdict.reason}`)
+      }
+      return verdict.reason
+    }
+    const signers = verdict.verifier ? `confirmed by ${verdict.confirmer} and verified by ${verdict.verifier}` : `confirmed by ${verdict.confirmer}`
+    get().logEvent('SECURITY', request.tag, `Electronic signature attempt for ${request.valueText} ${signers}: ${attempt.comment.trim()}`)
+    pendingSignatureWrites.delete(id)
+    set((s) => ({ signaturePending: s.signaturePending.filter((r) => r.id !== id) }))
+    signatureBypass = true
+    try {
+      apply()
+    } finally {
+      signatureBypass = false
+    }
+    return null
+  },
+
+  cancelSignature: (id) => {
+    const request = get().signaturePending.find((r) => r.id === id)
+    if (!request) return false
+    pendingSignatureWrites.delete(id)
+    set((s) => ({ signaturePending: s.signaturePending.filter((r) => r.id !== id) }))
+    get().logEvent('SECURITY', request.tag, `Electronic signature cancelled for ${request.valueText}; the value was not written`)
+    return true
+  },
+
   customAlarmTypes: { configured: {}, deployed: {} },
   conditionDelayAlarms: {},
   conditionDelayAlarmRuntime: {},
@@ -596,6 +709,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setMode: (tag, mode) => {
     if (!requireUnlockedLock('CONTROL', `Set Mode ${tag}`)) return false
+    if (gateSignature(set, get, tag, ['MODE'], `MODE := ${mode}`, () => get().setMode(tag, mode))) return false
     if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
       rejectPid(get, tag, 'Go Online before writing a managed PID target mode')
       return false
@@ -651,6 +765,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setSetpoint: (tag, sp) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Set Setpoint ${tag}`)) return false
+    if (gateSignature(set, get, tag, ['SP'], `SP := ${sp}`, () => get().setSetpoint(tag, sp))) return false
     if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
       rejectPid(get, tag, 'Go Online before writing a managed PID setpoint')
       return false
@@ -671,6 +786,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setOutput: (tag, out) => {
     if (!requireUnlockedLock('CONTROL', `Set Output ${tag}`)) return false
+    if (gateSignature(set, get, tag, ['OUT'], `OUT := ${out}`, () => get().setOutput(tag, out))) return false
     if (get().pidLifecycle[tag] && !get().pidLifecycle[tag].online) {
       rejectPid(get, tag, 'Go Online before writing a managed PID output')
       return false
@@ -693,6 +809,8 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setTuning: (tag, t) => {
     if (!requireUnlockedKey('TUNING', `Tune ${tag}`)) return false
+    const tuned = Object.keys(t).map((key) => key.toUpperCase())
+    if (gateSignature(set, get, tag, tuned, `Tuning := ${JSON.stringify(t)}`, () => get().setTuning(tag, t))) return false
     const record = get().pidLifecycle[tag]
     if (record) {
       const controller = record.deployed ? get().hardware.controllers[record.deployed.controllerTag] : undefined
@@ -975,6 +1093,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   startMotor: (tag) => {
     if (!requireUnlockedLock('CONTROL', `Start ${tag}`)) return
+    if (gateSignature(set, get, tag, ['SP_D'], 'SP_D := 1', () => get().startMotor(tag))) return
     const module = get().modules[tag]
     if (module?.type === 'MOTOR') {
       const error = deviceOperatorError(module, get().hardware) ?? deviceDescriptorCommandError(module, get().namedSets)
@@ -989,6 +1108,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   stopMotor: (tag) => {
     if (!requireUnlockedLock('CONTROL', `Stop ${tag}`)) return
+    if (gateSignature(set, get, tag, ['SP_D'], 'SP_D := 0', () => get().stopMotor(tag))) return
     const module = get().modules[tag]
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'MOTOR') (m as MotorModule).commanded = false
@@ -999,6 +1119,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   openValve: (tag) => {
     if (!requireUnlockedLock('CONTROL', `Open ${tag}`)) return
+    if (gateSignature(set, get, tag, ['SP_D'], 'SP_D := 1', () => get().openValve(tag))) return
     const module = get().modules[tag]
     if (module?.type === 'VALVE') {
       const error = deviceOperatorError(module, get().hardware) ?? deviceDescriptorCommandError(module, get().namedSets)
@@ -1013,6 +1134,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   closeValve: (tag) => {
     if (!requireUnlockedLock('CONTROL', `Close ${tag}`)) return
+    if (gateSignature(set, get, tag, ['SP_D'], 'SP_D := 0', () => get().closeValve(tag))) return
     const module = get().modules[tag]
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'VALVE') (m as ValveModule).commandedOpen = false
@@ -3158,6 +3280,8 @@ export const useStore = create<StoreState>((set, get) => ({
 
   writeSfcNamedValue: (name, parameter, value) => {
     if (!requireUnlockedLock('CONTROL', `Named Set data entry ${name}/${parameter}`)) return false
+    if (gateSignature(set, get, name, [parameter.toUpperCase()], `${parameter} := ${value}`,
+      () => get().writeSfcNamedValue(name, parameter, value))) return false
     const state = get()
     const deployed = state.sfcLifecycle[name]?.deployed
     const runtime = state.sfcs[name]
@@ -3305,6 +3429,8 @@ export const useStore = create<StoreState>((set, get) => ({
       pidLifecycle: {},
       deviceLifecycle: {},
       namedSets: { configured: {}, deployed: {} },
+      signature: EMPTY_SIGNATURE_CONFIG,
+      signaturePending: [],
       customAlarmTypes: { configured: {}, deployed: {} },
       conditionDelayAlarms: {},
       conditionDelayAlarmRuntime: {},
@@ -3362,3 +3488,54 @@ registerAreaResolver((action) => {
   }
   return undefined
 })
+
+
+// DV09-080: operator writes that need an electronic signature are staged here until signed.
+let signatureBypass = false
+let nextSignatureId = 1
+const pendingSignatureWrites = new Map<number, () => void>()
+
+function gateSignature(
+  set: (partial: Partial<StoreState> | ((state: StoreState) => Partial<StoreState>)) => void,
+  get: () => StoreState,
+  tag: string,
+  parameters: string[],
+  valueText: string,
+  apply: () => void
+): boolean {
+  if (signatureBypass) return false
+  const state = get()
+  const area = state.modules[tag]?.area ?? (state.sfcs[tag] as { area?: string } | undefined)?.area
+  let level: 0 | 1 | 2 = 0
+  let policy: SignaturePolicy | undefined
+  for (const parameter of parameters) {
+    const required = requiredSignature(state.signature, { tag, area }, parameter)
+    if (required.level > level) {
+      level = required.level
+      policy = required.policy
+    }
+  }
+  if (level === 0 || !policy) return false
+  const parameter = parameters.join(',')
+  const superseded = state.signaturePending.filter((r) => r.tag === tag && r.parameter === parameter)
+  superseded.forEach((r) => pendingSignatureWrites.delete(r.id))
+  const request: SignatureRequest = {
+    id: nextSignatureId++,
+    tag,
+    parameter,
+    valueText,
+    level,
+    policy: policy.name,
+    allowSamePerson: policy.allowSamePerson,
+    requestedBy: useSecurity.getState().currentUser,
+    requestedAt: Date.now()
+  }
+  pendingSignatureWrites.set(request.id, apply)
+  set((s) => ({ signaturePending: [...s.signaturePending.filter((r) => !superseded.includes(r)), request] }))
+  get().logEvent(
+    'SECURITY',
+    tag,
+    `Electronic signature required for ${valueText} (${level === 2 ? 'confirm and verify' : 'confirm'}, policy ${policy.name})`
+  )
+  return true
+}

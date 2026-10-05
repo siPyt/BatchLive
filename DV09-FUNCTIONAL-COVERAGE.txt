@@ -2490,3 +2490,18 @@ Line2 - Supervisor1: sitewide tuning and download; an operator without Tuning
 Line3 - Download Workstation: new users and key changes take effect for logon
   only after the download; the downloaded set survives an app restart.
 Line4 - Tests: tests/security-area-writes.test.cjs.
+
+PASS 70: ELECTRONIC SIGNATURES AND SIGNED MESSAGE STARTUP (pp334-342, 362-363)
+-----------------------------------------------------------------------
+Line1 - Setup: enable signatures for Operate/Control Studio, enable the plant
+  area, create a policy listing parameters with none/one/two signatures,
+  associate the policy with a module or SFC.
+Line2 - Operation: a listed write is staged and opens the Electronic Signature
+  Data Entry dialog; the value is written only after comment, confirm and (for
+  two signatures) a verify by a user holding Action Verify, never the same
+  person unless allowed.
+Line3 - Journal: failed attempt, confirmed-and-verified attempt, cancellation
+  and the resulting parameter change are separate events.
+Line4 - SFC: MESSAGE startup under a policy keeps the chart waiting until
+  approved; denied verification and cancel write nothing.
+Line5 - Tests: electronic-signatures.test.cjs, electronic-signatures-sfc.test.cjs.

@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 19 VERIFIED_SUBSET, 54 PARTIAL, 30 MISSING,
+DV-09 remains incomplete: 21 VERIFIED_SUBSET, 54 PARTIAL, 28 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 The user's standing instruction ("finish everything and stop stopping",
 2026-10-05) authorizes continuing to commit and push every pass without
@@ -1728,11 +1728,33 @@ Acceptance: Test correct-area allowed/wrong-area denied writes and alarms,
 
 [DV09-080]
 Pages: 334-342
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Enable signature policies/application/area/module settings; select
   required parameters; zero/one/two signatures, comment, confirmation/verifier,
   ACTION_VERIFY key, allowed same-person policy and successful/failed events.
-Evidence: No signature policy, staged write or verification workflow.
+Evidence (Pass70): engine/electronicSignatures.ts + store implement the
+  Electronic Signatures chain. Setup (Explorer > Setup > Electronic
+  Signatures, Can Configure): application enable (DeltaV Operate / Control
+  Studio), plant-area enable, New Signature Policy with a Parameter
+  Confirmation table (SP, MODE, OUT, GAIN, RESET, RATE, SP_D, MESSAGE; none /
+  one signature (confirm) / two (confirm and verify)), an allow-same-person
+  option, and module-to-policy association. requiredSignature() requires every
+  prerequisite (application, area, module policy and listed parameter) before a
+  signature is demanded. Operator writes through setSetpoint, setMode,
+  setOutput, setTuning, start/stop/open/close and writeSfcNamedValue are
+  staged by gateSignature: nothing is written, a pending request opens the
+  Electronic Signature Data Entry dialog (comment, confirm, verify), and
+  the original write runs only after submitSignature succeeds. Confirm and
+  verify authenticate against the active security data; the verifier must hold
+  the new ACTION_VERIFY key (Supervisor1, admin, ENGINEER), a blank comment is
+  refused, and the same person may verify only when the policy allows it.
+  The journal records three distinct outcomes: attempt failed (verify/confirm
+  failure), attempt confirmed and verified, and the resulting OPERATOR change,
+  plus required and cancelled events. SFC-driven writes are never gated.
+  Tests: electronic-signatures.test.cjs. Not claimed: OPC/Excel write paths
+  (excluded by the course and not modeled), the server restart note, signature
+  data download to a controller, and per-parameter policies other than the
+  listed writable set.
 Acceptance: Changes must not apply until required signatures succeed; test
   failures/cancellation, verifier rights, same-person restrictions and three
   distinct event outcomes. Native OPC/Excel exclusions are not app integrations.
@@ -1781,11 +1803,19 @@ Acceptance: Simulator-native export must round-trip hardware, strategy,
 
 [DV09-085]
 Pages: 362-363
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Signature policy on MESSAGE requiring confirmation/verification of
   startup/shutdown, with setup/area/module enable prerequisites.
-Evidence: Named Set MESSAGE exists; native confirmation/verification signature
-  policy and dual-user command workflow remain absent.
+Evidence (Pass70): a policy listing MESSAGE with two signatures can be
+  associated with an SFC (right-click Electronic Signature equivalent: the
+  Module associations list). The MESSAGE Named Set entry (picture data entry
+  or writeSfcNamedValue) is staged: the operator request, denied verification
+  (verifier without Action Verify), cancellation and administrator approval
+  are exercised end to end in electronic-signatures-sfc.test.cjs, showing the
+  chart keeps waiting, XV-101 stays closed with no premature command write,
+  and only the approved MESSAGE releases the transition and runs the step. The
+  journal holds the failed attempt, cancellation, confirmed-and-verified and
+  the MESSAGE := NS-T101:STARTUP change.
 Acceptance: Test operator request, administrator approval, denied verification,
   cancellation and resulting SFC behavior without premature command writes.
 
@@ -3334,3 +3364,36 @@ Validation: 446 repository tests run locally (445 pass; the remaining failure
   is the pre-existing local-only pdf_om.txt dependency). Typecheck passed.
 Result: DV09-079 PARTIAL -> VERIFIED_SUBSET. Current totals are the Status
   line recount in the header. Scope boundary: real Windows logoff is DV09-078.
+
+PASS 70 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-080 (electronic signature policies, pages 334-342) and DV09-085
+(MESSAGE startup/shutdown signature, pages 362-363).
+Engine: new engine/electronicSignatures.ts (types, SIGNABLE_PARAMETERS,
+  signaturePolicyError, requiredSignature, evaluateSignature). security.ts
+  adds the ACTION_VERIFY lock (held by admin, ENGINEER and Supervisor1) and
+  authenticate(). store.ts adds signature config + signaturePending, the
+  setup actions (all behind Can Configure, registered as the fn-signature-
+  config secured function), submitSignature/cancelSignature, and gateSignature
+  in setSetpoint, setMode, setOutput, setTuning, startMotor, stopMotor,
+  openValve, closeValve and writeSfcNamedValue.
+UI: SignatureDialog (global) and SignatureSetupPanel (Explorer > Setup >
+  Electronic Signatures).
+Tests: tests/electronic-signatures.test.cjs (11) and
+  tests/electronic-signatures-sfc.test.cjs (1): prerequisite chain, policy
+  validation, staged writes, comment/confirm/verify failures, Action Verify
+  and same-person rules, cancel, tuning by parameter name, authorization of
+  setup, and the full SFC MESSAGE flow without a premature command write.
+Browser: Setup panel configured a two-signature SP policy for TIC-401 on all
+  areas; writing SP 120 from the real faceplate opened the dialog, an
+  OperatorA verifier was refused ("does not hold the Action Verify key"), and
+  Supervisor1 completed the signature and SP became 120.
+Boundary (honest): Excel Add-In/OPC writes are not modeled (the course
+  excludes them); signature configuration is runtime state and is not
+  downloaded to a controller node or persisted with the project; the server
+  restart note has no equivalent.
+Validation: 458 repository tests run locally (457 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
+Result: DV09-080 MISSING -> VERIFIED_SUBSET; DV09-085 MISSING ->
+  VERIFIED_SUBSET. Totals 21 VERIFIED_SUBSET/54 PARTIAL/28 MISSING/19 BOUNDARY/
+  6 CONTEXT.

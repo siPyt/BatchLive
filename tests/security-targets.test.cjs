@@ -55,7 +55,7 @@ test('DV09-074 the lock registry is typed: every course lock including User Lock
   assert.equal(LOCK_LABEL.USER_LOCK_10, 'User Lock 10')
   for (const lock of ALL_LOCKS) assert.ok(LOCK_LABEL[lock], `${lock} has a label`)
   assert.equal(new Set(ALL_LOCKS).size, ALL_LOCKS.length)
-  assert.equal(ALL_LOCKS.length, 12 + 10)
+  assert.equal(ALL_LOCKS.length, 13 + 10)
 })
 
 test('DV09-075 every literal secured operation in the app is a registered parameter/field/function', () => {

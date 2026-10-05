@@ -7,6 +7,7 @@ import { TopBar } from './components/TopBar'
 import { NavSidebar } from './components/NavSidebar'
 import { StatusBar } from './components/StatusBar'
 import { FlexLockOverlay } from './components/FlexLockOverlay'
+import { SignatureDialog } from './components/SignatureDialog'
 import { AccessDeniedToast } from './components/AccessDeniedToast'
 import { AlarmAudio } from './components/AlarmAudio'
 import { FaceplateHost } from './faceplates/FaceplateHost'
@@ -106,6 +107,7 @@ export function App(): JSX.Element {
       <StatusBar />
       <AccessDeniedToast />
       <FlexLockOverlay />
+      <SignatureDialog />
       <AlarmAudio />
     </div>
   )
