@@ -18,6 +18,7 @@ const { pictureAlarmSignal, pictureModeSignal, pictureSignal, parseSavedPicture 
 const { lifecyclePidModules, savedPidStorageKey } = require('../src/renderer/src/engine/pidLifecycle.ts')
 const { moduleTrendPens, availableTrendPens } = require('../src/renderer/src/engine/trendPens.ts')
 const { analyzePidTuneTest, pidTuneSample, pidTuneSignature } = require('../src/renderer/src/engine/pidTuneTest.ts')
+const { moduleDownloadStatus } = require('../src/renderer/src/engine/downloadStatus.ts')
 
 function fic() { return useStore.getState().modules['FIC-102'] }
 function fixture(run) {
@@ -54,6 +55,25 @@ function fixture(run) {
     else global.window = before.window
   }
 }
+
+test('unchanged PID Save stays matched and permits Online without a redundant deployment; runtime tuning is not configured data', () => fixture(store => {
+  store.bindAnalogDst('FIC-102', 'input', 'FT-2')
+  store.bindAnalogDst('FIC-102', 'output', 'FY-2')
+  assert.equal(store.enablePidLifecycle('FIC-102'), true)
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  assert.equal(store.downloadPidModule('FIC-102'), true)
+  const deployed = useStore.getState().pidLifecycle['FIC-102'].deployed
+  assert.equal(store.savePidConfiguration('FIC-102'), true)
+  const record = useStore.getState().pidLifecycle['FIC-102']
+  assert.notEqual(record.savedRevision, record.deployedRevision)
+  assert.equal(moduleDownloadStatus(useStore.getState(), 'FIC-102').status, 'MATCH')
+  assert.equal(store.setPidLifecycleOnline('FIC-102', true), true)
+  assert.equal(useStore.getState().pidLifecycle['FIC-102'].deployed, deployed)
+  assert.equal(store.setTuning('FIC-102', { gain: 0.7 }), true)
+  assert.equal(fic().gain, 0.7)
+  assert.equal(useStore.getState().pidLifecycle['FIC-102'].saved.module.gain, 0.5)
+  assert.equal(moduleDownloadStatus(useStore.getState(), 'FIC-102').status, 'MATCH')
+}))
 
 test('p250/253 PID_LOOP creates the exact FIC-102 control template', () => fixture(() => {
   const m = fic()

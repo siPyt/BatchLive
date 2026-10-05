@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { sfcDraftDirty, sfcNeedsDownload, type SfcConfiguration } from '../engine/sfcLifecycle'
 import { SimulatorDialog } from './SimulatorDialog'
+import { DownloadStatusIndicator } from './DownloadStatusIndicator'
 
 export function SfcLifecycleControls({ name }: { name: string }): JSX.Element {
   const lifecycle = useStore(s => s.sfcLifecycle[name])
@@ -23,6 +24,7 @@ export function SfcLifecycleControls({ name }: { name: string }): JSX.Element {
       <strong>{lifecycle.online ? 'Online — deployed SFC' : 'Offline — configured SFC draft'}</strong>
       <span>{dirty ? 'Unsaved edits' : 'Saved'} · {sfcNeedsDownload(lifecycle) ? 'Download required' :
         lifecycle.deployed ? 'Saved/deployed match' : 'Not downloaded'}</span>
+      <DownloadStatusIndicator tag={name} controls />
       <button className="tbtn sm" disabled={lifecycle.online} onClick={() => setProperties(lifecycle.draft)}>Module Properties...</button>
       <button className="tbtn sm" disabled={lifecycle.online} onClick={() => useStore.getState().saveSfc(name)}>Save</button>
       <button className="tbtn sm" disabled={lifecycle.online} onClick={() => {

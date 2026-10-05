@@ -6,6 +6,8 @@ import { SimulatorDialog } from './SimulatorDialog'
 import { useUi } from '../ui/uiStore'
 import { deviceEditorModules } from '../engine/deviceLifecycle'
 import { descriptorRoles, type DeviceStateDescriptors } from '../engine/deviceDescriptors'
+import { DownloadStatusIndicator } from './DownloadStatusIndicator'
+import { compareModuleDownload } from '../engine/downloadStatus'
 
 export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const record = useStore(s => s.deviceLifecycle[tag])
@@ -27,9 +29,12 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
     }}>Enable Saved Device Lifecycle</button>
   </td><td>Opt-in; currently live</td></tr>
   const c = record.draft
+  const comparison = compareModuleDownload(useStore.getState(), tag)
   const status = deviceDirty(record) ? 'Unsaved draft' : !record.deployed ? 'Saved; first download required' :
-    record.savedRevision !== record.deployedRevision ? 'Saved; download required' : 'Downloaded'
+    comparison.status === 'UNKNOWN' ? 'Controller comparison unavailable' :
+    comparison.status === 'DIFFERENT' ? 'Saved; download required' : 'Saved/deployed match'
   return <>
+    <tr><td>MODULE DOWNLOAD STATUS</td><td colSpan={2}><DownloadStatusIndicator tag={tag} controls /></td></tr>
     <tr><td>DEVICE CONFIGURATION / RUNTIME</td><td><div className="traditional-channel-form">
       <button className="tbtn sm" onClick={() => online(tag, !record.online)}>{record.online ? 'Go Offline' : 'Go Online'}</button>
       <button className="tbtn sm" disabled={record.online} onClick={() => save(tag)}>Save Device</button>

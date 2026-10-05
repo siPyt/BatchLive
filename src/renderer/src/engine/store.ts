@@ -54,6 +54,7 @@ import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, ty
 import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { cloneSfcBlocks, reconcileSfcAlarms, sfcBlockConfigurationError, type SfcBlockConfiguration } from './sfcBlocks'
 import { requireUnlockedKey, useSecurity } from './security'
+import { compareModuleDownload, type DownloadStatusCheck } from './downloadStatus'
 import {
   cloneSfcParameters, controllerNamedSets, sfcParameterError, type SfcExpressionContext, type SfcParameter
 } from './sfcParameters'
@@ -137,6 +138,8 @@ interface StoreState extends PlantState {
   editMotorBlock: (tag: string, patch: Partial<MotorBlockConfiguration>) => boolean
   namedSets: NamedSetState
   sfcLifecycle: Record<string, SfcLifecycle>
+  downloadStatusChecks: Record<string, DownloadStatusCheck>
+  updateModuleDownloadStatus: (tag: string) => boolean
   enableSfcLifecycle: (name: string) => boolean
   configureSfcController: (name: string, controllerTag: string, expected?: SfcConfiguration) => boolean
   configureSfcProperties: (name: string, patch: Partial<SfcModuleProperties>, expected?: SfcConfiguration) => boolean
@@ -320,6 +323,21 @@ export const useStore = create<StoreState>((set, get) => ({
   pidLifecycle: {},
   deviceLifecycle: {},
   namedSets: { configured: {}, deployed: {} },
+  downloadStatusChecks: {},
+  updateModuleDownloadStatus: tag => {
+    if (!requireUnlockedKey('CAN_CONFIGURE', `Update Download Status ${tag}`)) return false
+    const comparison = compareModuleDownload(get(), tag)
+    const error = comparison.error ?? (comparison.status === 'UNSUPPORTED' ? comparison.message : null)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', tag, `Download Status update rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    set(state => ({ downloadStatusChecks: { ...state.downloadStatusChecks,
+      [tag]: { signature: comparison.signature } } }))
+    get().logEvent('DIAGNOSTIC', tag, `Module Download Status: ${comparison.status}; ${comparison.message}; comparison only, no transfer`)
+    return true
+  },
   sfcLifecycle: {},
   hornSilenced: false,
 
@@ -2144,7 +2162,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!record) return rejectPid(get, tag, 'Module does not use the saved PID_LOOP lifecycle')
     if (online) {
       const controller = record.deployed ? state.hardware.controllers[record.deployed.controllerTag] : undefined
-      if (!record.deployed || record.deployedRevision !== record.savedRevision || pidLifecycleDirty(record) ||
+      if (!record.deployed || compareModuleDownload(state, tag).status !== 'MATCH' || pidLifecycleDirty(record) ||
           runtime?.type !== 'PID' || !runtime.downloaded ||
           !controller || controllerIsDown(controller) || pidDownloadError(record.deployed, state.hardware)) {
         return rejectPid(get, tag, 'Save and Full-download the current PID_LOOP to an available assigned controller before Online')
@@ -2879,6 +2897,7 @@ export const useStore = create<StoreState>((set, get) => ({
       deviceLifecycle: {},
       namedSets: { configured: {}, deployed: {} },
       sfcLifecycle: {},
+      downloadStatusChecks: {},
       rev: get().rev + 1
     })
   }

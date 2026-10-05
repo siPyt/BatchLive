@@ -2698,6 +2698,37 @@ button {
   max-height: 80vh;
   overflow-y: auto;
 }
+.download-status-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.download-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.download-status-triangle {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 17px;
+  height: 16px;
+  padding-top: 4px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: #9aa0a7;
+  color: #171d18;
+  font-weight: 700;
+  font-size: 10px;
+}
+.download-status.no_configuration .download-status-triangle {
+  background: #f2c313;
+}
+.download-status.different .download-status-triangle {
+  background: #2f6fbe;
+}
 .module-download-dialog::backdrop,
 .sfc-properties-dialog::backdrop,
 .bld-entry-dialog::backdrop {

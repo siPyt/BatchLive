@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { SimulatorDialog } from './SimulatorDialog'
 import { useStore } from '../engine/store'
 import { lifecycleDirty } from '../engine/moduleLifecycle'
+import { DownloadStatusIndicator } from './DownloadStatusIndicator'
+import { compareModuleDownload } from '../engine/downloadStatus'
 
 export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const record = useStore(s => s.moduleLifecycle[tag])
@@ -23,9 +25,12 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const c = record.draft
   const m = c.module
   const downloaded = runtime?.type === 'AO' && runtime.downloaded === true
+  const comparison = compareModuleDownload(useStore.getState(), tag)
   const status = lifecycleDirty(record) ? 'Unsaved draft' : !downloaded ? 'Not downloaded - Full required' :
-    record.savedRevision !== record.deployedRevision ? 'Saved - download required' : 'Downloaded'
+    comparison.status === 'UNKNOWN' ? 'Controller comparison unavailable' :
+    comparison.status === 'DIFFERENT' ? 'Saved - download required' : 'Saved/deployed match'
   return <>
+    <tr><td>MODULE DOWNLOAD STATUS</td><td colSpan={2}><DownloadStatusIndicator tag={tag} controls /></td></tr>
     <tr><td>CONFIGURATION / RUNTIME</td><td><div className="traditional-channel-form">
       <button className="tbtn sm" onClick={() => online(tag, !record.online)}>
         {record.online ? 'Go Offline' : 'Go Online'}

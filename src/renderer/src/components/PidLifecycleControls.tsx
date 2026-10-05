@@ -3,6 +3,8 @@ import { useStore } from '../engine/store'
 import { changedPidTuningParameters, pidLifecycleDirty } from '../engine/pidLifecycle'
 import { traditionalChannels } from '../engine/traditionalIo'
 import { PidTransferDialog } from './PidTransferDialog'
+import { DownloadStatusIndicator } from './DownloadStatusIndicator'
+import { compareModuleDownload } from '../engine/downloadStatus'
 
 export function PidLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const [showUpload, setShowUpload] = useState(false)
@@ -27,12 +29,15 @@ export function PidLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const controller = draft.controllerTag ? hardware.controllers[draft.controllerTag] : undefined
   const downloaded = runtime?.type === 'PID' && runtime.downloaded === true
   const changed = changedPidTuningParameters(record.saved, runtime?.type === 'PID' ? runtime : undefined)
+  const comparison = compareModuleDownload(useStore.getState(), tag)
   const status = dirty ? 'Unsaved draft' : !downloaded ? 'Not downloaded - Full required' :
-    record.savedRevision !== record.deployedRevision ? 'Saved - download required' : 'Downloaded'
+    comparison.status === 'UNKNOWN' ? 'Controller comparison unavailable' :
+    comparison.status === 'DIFFERENT' ? 'Saved - download required' : 'Saved/deployed match'
   const channels = traditionalChannels(hardware)
   const aiChoices = channels.filter(({ card, channel }) => card.type === 'AI' && channel.dst)
   const aoChoices = channels.filter(({ card, channel }) => card.type === 'AO' && channel.dst)
   return <>
+    <tr><td>MODULE DOWNLOAD STATUS</td><td colSpan={2}><DownloadStatusIndicator tag={tag} controls /></td></tr>
     <tr><td>CONFIGURATION / RUNTIME</td><td><div className="traditional-channel-form">
       <button className="tbtn sm" onClick={() => online(tag, !record.online)}>
         {record.online ? 'Go Offline' : 'Go Online'}

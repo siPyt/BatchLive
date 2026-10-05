@@ -13,6 +13,7 @@ import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
 import { sfcConfiguredMetadata } from '../engine/sfcLifecycle'
 import type { SfcDef } from '../engine/sfc'
 import { LicensingProperties } from '../components/LicensingProperties'
+import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -154,6 +155,7 @@ export function ExplorerDisplay(): JSX.Element {
         <span className="exp-badge">{TYPE_BADGE[m.type]}</span>
         <b className="exp-tag">{m.tag}</b>
         <span className="exp-desc">{m.description}</span>
+        <DownloadStatusIndicator tag={m.tag} controls />
         <span className="exp-status" style={{ color: st.color }}>
           {st.text}
         </span>
@@ -174,6 +176,7 @@ export function ExplorerDisplay(): JSX.Element {
     <span className="exp-caret" /><ModuleIcon kind="control" />
     <span className="exp-badge">SFC</span><b className="exp-tag">{sfc.name}</b>
     <span className="exp-desc">{sfc.description}</span>
+    <DownloadStatusIndicator tag={sfc.name} controls />
     <span className="exp-status">{sfc.status}</span>
   </div>
 

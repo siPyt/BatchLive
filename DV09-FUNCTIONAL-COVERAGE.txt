@@ -3,25 +3,25 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: SFC module description
-and equipment membership (Pass44, LOCAL; pushes paused by user).
-Previous milestone: 5bfed46, simulator process Test/Review/Update (Pass43, LOCAL).
+DV-09 is NOT complete. Latest implemented milestone: managed module
+Download Status comparison/indicators (Pass45, LOCAL; pushes paused by user).
+Previous milestone: ce09200, SFC metadata (Pass44, LOCAL).
 Last published functional milestone: da59138, PID Detail/trends (Pass41).
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
   VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
-  PARTIAL         54 - related behavior exists; exact workflow has gaps
-  MISSING         41 - required executable workflow/model is absent
+  PARTIAL         55 - related behavior exists; exact workflow has gaps
+  MISSING         40 - required executable workflow/model is absent
   BOUNDARY        19 - hardware/vendor/host behavior outside verified simulation
   CONTEXT          6 - framing/recap, not implementation requirements
   TOTAL          128
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:336 repository tests passed;27 focused SFC regressions,
-typecheck, production build, editor diagnostics and audit validation passed.
-Browser verified SFC metadata creation, Properties Cancel/OK, equipment hierarchy
-and counts, Save/Download, stale rejection, Load and FlexLock discard.
+Last validation:340 repository tests passed; typecheck, production build,
+edited-file diagnostics, audit validator and diff whitespace checks passed.
+Browser verified yellow/unknown/blue/clear states, saved/draft isolation,
+read-only comparison, shared Explorer/SFC results, Cancel and successful transfer.
 Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
@@ -33,6 +33,7 @@ Most recent delivered functionality:
   - Independent valve body and actuator colors/quality in opt-in custom pictures.
   - Measured simulator process Test, reviewed manual tuning Update and stale guards.
   - SFC description/equipment membership through Properties, persistence and deployment.
+  - Shared module-scoped Download Status comparison and yellow/unknown/blue indicators.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1653,3 +1654,44 @@ creation from actual form, Cancel/OK, configured-versus-runtime description,
 nested equipment count1, Save/Download READY, stale rejection, Load and locked
 dialog discard. Original96-module running plant/UI/security restored and fixture
 saved storage removed. Checkpoint is local only; no push authorization.
+
+PASS 45: MANAGED MODULE DOWNLOAD STATUS (pp92-95)
+------------------------------------------------
+DV09-017 is PARTIAL, not complete. Corrected obsolete evidence that all module
+configuration is immediately live and Studio Download is universally disabled.
+Line1 - Scope: managed AO, PID_LOOP, MOTOR/VALVE and SFC saved/deployed copies.
+  Unmanaged/live modules do not acquire a fabricated native status.
+Line2 - Yellow: no deployed module configuration, including before first Save
+  or after Save but before first deployment.
+Line3 - Unknown: changed saved configuration invalidates its earlier comparison
+  and displays a question-mark triangle until Update Download Status.
+Line4 - Update: compares saved/deployed structure, including nested configuration.
+  Object-key ordering and absent versus undefined optional fields normalize.
+  Different revision numbers alone are not different configuration.
+Line5 - Blue: a current check confirms a difference; another changed Save returns
+  to Unknown. Identical saved/deployed data show Up to date with no triangle.
+Line6 - Isolation: unsaved draft edits, live output/PV and online tuning are not
+  implicit saved database edits. Comparison changes only cached check/event log.
+  Runtime, hardware, configuration/revisions and saved storage remain unchanged.
+Line7 - Transfer: Cancel and failed/stale Download do not clear blue. Successful
+  Download clears it by committing matching saved/deployed copies.
+Line8 - Guards: controller unavailability, unknown/unmanaged tags, denied Configure
+  permission and FlexLock reject without transfer or success-shaped results.
+Line9 - Surfaces: Explorer rows, Studio caption/owned motor owner and lifecycle
+  controls share checks. New Project clears session-local comparison checks.
+Line10 - PID regression: unchanged Save no longer falsely prevents Online merely
+  because its saved revision increased. Dirty/changed configurations still reject.
+Browser: yellow RGB242/195/19, question mark, blue RGB47/111/190, no triangle on
+match; unsaved edit remains matched; Update leaves runtime/records/hardware/storage
+unchanged. Explorer and SFC agree. Actual Download Cancel preserves DIFFERENT;
+confirmation produces MATCH. Event dispatch was used where ordinary clicks timed
+out because of shared-browser visibility. Original96-module running plant,
+UI/security and exact saved storage restored; fixture removed.
+Boundary: whole-controller Total/Full transfer, card download, whole-node/network
+status, physical configuration communication and remaining Setup scopes are open.
+Single-module Full commands are not full-controller downloads. No plant equipment,
+pipe, palette or FBD geometry redesign. Local commits only; pushes remain paused.
+Final verification:340 full-suite tests, including three Download Status tests
+and the unchanged-PID-Save/Online/live-tuning regression. Typecheck, production
+build, edited-file diagnostics, diff whitespace and regenerated/checkable audit
+ledger passed (575pages,12157records,128groups, zero unmapped records).

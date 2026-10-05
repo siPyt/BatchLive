@@ -332,6 +332,28 @@ descriptions and nests assigned SFCs under their equipment group; counts include
 both FBD and SFC modules. This remains a supported algorithm-choice/metadata
 subset, not native dialog/template or Save As parity.
 
+### Managed module download status (DV-09 pp92–95 subset)
+
+Explorer module rows, Control Studio and saved-lifecycle controls share a
+module-scoped indicator for managed AO, PID_LOOP, MOTOR/VALVE and SFC modules:
+**yellow triangle** means no deployed configuration; **question-mark triangle**
+means a changed saved configuration has not been compared; **blue triangle**
+means **Update Download Status** confirmed a saved/deployed difference.
+Matching saved/deployed copies show **Up to date** without a triangle.
+Update requires an unlocked workstation and Configure permission; it compares
+only, logs its result and never downloads, changes outputs or saves data.
+Controller unavailability rejects the comparison explicitly.
+
+Unsaved editor drafts retain their separate dirty indication and do not
+represent the saved configuration database. Re-saving unchanged data does not
+create a false difference, regardless of revision numbers. Online tuning and
+process values are not automatically uploaded into saved configuration.
+Failed or cancelled downloads preserve the difference; successful transfer
+clears it. Checks are session-local and reset with New Project.
+Live/unmanaged modules do not receive a fabricated native status. This is not
+a whole-controller/network comparison, whole-controller Total/Full download
+or card download implementation.
+
 Reset an existing sample SFC and choose **Use Save/Download lifecycle** to opt it into isolated
 configured, saved and deployed linear algorithms. **Module Properties**
 assigns its configured controller, description and same-area equipment membership

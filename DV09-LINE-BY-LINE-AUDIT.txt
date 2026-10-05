@@ -279,10 +279,28 @@ Acceptance: Verify exact slots, types, enabled states, names and direction;
 
 [DV09-017]
 Pages: 92-95
-Status: MISSING
+Status: PARTIAL
 Required: Distinguish full download, partial module/card download, changed
   Setup data and unknown/blue/yellow download-status indicators.
-Evidence: STORE configuration is immediately live; STUDIO Download disabled.
+Verified module subset (Pass45): managed AO, PID_LOOP, MOTOR/VALVE and SFC
+  have separate configured/saved/deployed copies. A shared saved-versus-deployed
+  comparison exposes yellow/no deployed configuration, unknown/question mark
+  after a changed Save, blue after Update Download Status confirms differences,
+  and no triangle when configurations match. Explorer, Studio and lifecycle
+  controls share the checked result. Unsaved drafts remain separate; changing
+  live tuning/process feedback does not silently change saved configuration.
+  Structural comparison, not revision equality, determines differences.
+  Comparison writes only session-local check state and a diagnostic event;
+  no output, runtime, configuration, storage or deployment transfer occurs.
+  Failed/cancelled transfer retains blue; successful transfer clears it.
+  Unavailable deployed controllers reject Update explicitly; live/unmanaged
+  modules have no fabricated native download status.
+Existing transfer subsets: standalone AO Full/Partial is single-module scope;
+  managed devices/PID/SFC transfer only their saved module. Changed Named Set
+  Setup Data has independent controller/workstation targets.
+Gaps: whole-controller Total/Full transfer, card configuration download,
+  whole-node/network status and remaining Setup scopes are not implemented.
+  Single-module Full commands are not a native full-controller download.
 Acceptance: Maintain separate configuration/runtime state; full versus partial
   transfer must affect the proper scope and update dirty indicators correctly.
 

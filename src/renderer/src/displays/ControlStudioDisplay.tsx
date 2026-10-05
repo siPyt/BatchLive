@@ -6,6 +6,7 @@ import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
 import { StandaloneAoControls } from '../components/StandaloneAoControls'
 import { ModuleDownloadDialog, ModuleLifecycleRows } from '../components/ModuleLifecycleControls'
+import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
 import { PidLifecycleRows } from '../components/PidLifecycleControls'
 import { PidTransferDialog } from '../components/PidTransferDialog'
 import { DeviceDownloadDialog, DeviceLifecycleRows } from '../components/DeviceLifecycleControls'
@@ -1398,7 +1399,7 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
     pidRecord && pidLifecycleDirty(pidRecord) ? 'Save the PID_LOOP configuration before downloading' : undefined
   return (
     <div className="ribbon">
-      <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio</span><span className="studio-caption-status">{lifecycle ? lifecycle.online ? 'ONLINE - controller runtime' : 'OFFLINE - configuration draft' : 'ONLINE · simulated configuration'}</span></div>
+      <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>{tag} — Control Studio</span><span className="studio-caption-status">{lifecycle ? lifecycle.online ? 'ONLINE - controller runtime' : 'OFFLINE - configuration draft' : 'ONLINE · simulated configuration'}</span><DownloadStatusIndicator tag={deviceRecord ? ownerTag : tag} controls /></div>
       <div className="ribbon-tabs">
         {RIBBON_TABS.map((t) => (
           <button key={t} type="button" className={'ribbon-tab' + (t === 'File' ? ' file' : t === tab ? ' active' : '')}
