@@ -4,11 +4,18 @@ import { isSfcAlarm } from '../engine/sfcBlocks'
 import { useSecurity } from '../engine/security'
 import { useUi } from '../ui/uiStore'
 import { alarmEligible, compareAlarmRank } from '../utils/format'
+import { alarmArea, bannerVisible, isDeviceAlarm } from '../engine/deviceAlarms'
 
 export function AlarmBanner(): JSX.Element {
   const [areaPickerOpen, setAreaPickerOpen] = useState(false)
   const alarms = useStore((s) => s.alarms)
   const modules = useStore((s) => s.modules)
+  const hardware = useStore((s) => s.hardware)
+  const thresholds = useUi((s) => s.bannerThresholds)
+  const setThresholds = useUi((s) => s.setBannerThresholds)
+  const [bannerOpen, setBannerOpen] = useState(false)
+  const [draft, setDraft] = useState({ process: thresholds.process, device: thresholds.device })
+  const [thresholdError, setThresholdError] = useState<string | null>(null)
   const ackAlarm = useStore((s) => s.ackAlarm)
   const hornSilenced = useStore((s) => s.hornSilenced)
   const silenceHorn = useStore((s) => s.silenceHorn)
@@ -23,7 +30,7 @@ export function AlarmBanner(): JSX.Element {
   // DV09-044: counts, tiles, horn and "Ack Page" must all use the same
   // eligible set — subscribed-area AND area-write-key eligible.
   const eligible = alarms.filter((a) =>
-    alarmEligible(a, modules[a.moduleTag]?.area, subscribedAreas, hasAreaKey)
+    alarmEligible(a, alarmArea(a, modules, hardware), subscribedAreas, hasAreaKey) && bannerVisible(a, thresholds)
   )
   const visible = eligible.filter((a) => a.shelvedUntil === undefined)
   const active = visible.filter((a) => a.active)
@@ -72,6 +79,7 @@ export function AlarmBanner(): JSX.Element {
             }
             title={`${a.moduleTag}: ${a.moduleDesc} · ${a.label}${!a.active ? ' (RTN)' : ''} — Click to open ${isSfcAlarm(a) ? 'SFC' : 'faceplate'} · double-click to acknowledge`}
             onClick={() => isSfcAlarm(a) ? openSfc(a.moduleTag) : openFaceplate(a.moduleTag)}
+            data-device-alarm={isDeviceAlarm(a) || undefined}
             onDoubleClick={() => ackAlarm(a.id)}
           >
             <svg className="alarm-tile-symbol" viewBox="0 0 16 16" aria-hidden="true">
@@ -105,6 +113,27 @@ export function AlarmBanner(): JSX.Element {
         >
           🔇 Silence
         </button>
+        <div style={{ position: 'relative' }}>
+          <button className={'tbtn sm' + (bannerOpen ? ' active' : '')} title="Banner settings: process and device priority thresholds" onClick={() => setBannerOpen((v) => !v)}>
+            Banner ▾
+          </button>
+          {bannerOpen && (
+            <div className="alm-colpicker" data-banner-settings>
+              <div className="alm-colpicker-row">
+                <label>Process alarms above <input aria-label="Process banner threshold" type="number" min={0} max={15} value={draft.process} onChange={(e) => setDraft({ ...draft, process: Number(e.target.value) })} /></label>
+              </div>
+              <div className="alm-colpicker-row">
+                <label>Device alarms above <input aria-label="Device banner threshold" type="number" min={0} max={15} value={draft.device} onChange={(e) => setDraft({ ...draft, device: Number(e.target.value) })} /></label>
+              </div>
+              <div className="alm-colpicker-row">
+                <button className="tbtn sm" onClick={() => { const error = setThresholds(draft); setThresholdError(error); if (!error) setBannerOpen(false) }}>Save</button>
+                <button className="tbtn sm" onClick={() => { setDraft({ process: 3, device: 7 }); setThresholdError(setThresholds({ process: 3, device: 7 })) }}>Defaults</button>
+              </div>
+              {thresholdError && <div role="alert">{thresholdError}</div>}
+              <div className="alm-colpicker-row" style={{ fontSize: 11 }}>The banner shows an alarm only when its priority is above its threshold. The alarm list always shows every alarm.</div>
+            </div>
+          )}
+        </div>
         <div style={{ position: 'relative' }}>
           <button
             className={'tbtn sm' + (subscribedAreas !== null ? ' active' : '') + (areaPickerOpen ? ' active' : '')}

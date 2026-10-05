@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 40 VERIFIED_SUBSET, 56 PARTIAL, 7 MISSING,
+DV-09 remains incomplete: 45 VERIFIED_SUBSET, 56 PARTIAL, 2 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 The user's standing instruction ("finish everything and stop stopping",
 2026-10-05) authorizes continuing to commit and push every pass without
@@ -2292,30 +2292,60 @@ CHAPTER 13: DEVICE ALARMS, PLANTWEB AND DISPLAY CONFIGURATION
 
 [DV09-121]
 Pages: 535-543
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Device-generated events and Not Communicating/Abnormal alarms,
   Abnormal disabled by default, editable enabled/priority and prerequisites.
-Evidence: No fieldbus device alarm model. CHARM pulled quality and generic
-  process alarms are different, not a substitute.
+Evidence (Pass74): engine/deviceAlarms.ts evaluates device alarms every scan for
+  commissioned FF devices: Not Communicating (only once the device has been live
+  or one full probe round has passed, and it returns to normal when the LAS
+  finds the device again), and the device-generated Abnormal, Failed,
+  Maintenance and Advisory conditions. Abnormal is disabled by default; every
+  kind has an editable enabled flag and numeric priority 4-15 (validated) that
+  maps to the class (>=12 critical, >=8 warning, else advisory). Prerequisites
+  are explicit: Enable Device Alarms on the H1 card, a downloaded card, an
+  available controller/port, a commissioned device, and for device-generated
+  alerts a communicating device with alert reporting enabled in its resource
+  block. Alarms use ids DEVALM.<device>.<kind>, category DEVICE and are
+  journaled as ALARM/RTN, so they stay separate from process PV alarms.
 Acceptance: Test communication failure, default-disabled Abnormal, enabling,
   priority, logging and device versus process classification.
 
 [DV09-122]
 Pages: 544-549
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: PlantWeb Advisory, Not Communicating, Failed and Maintenance alerts,
   default enabling and per-alert priority.
-Evidence: No ADVISE_ALM/COMM_ALM/FAILED_ALM/MAINT_ALM device composites.
+Evidence (Pass74): the PlantWeb alerts Advisory, Not Communicating, Failed and
+  Maintenance (plus Abnormal) are independent causes with default enabling
+  (all on except Abnormal) and per-alert priority: defaults Failed 15
+  (critical), Maintenance 11 and Not Communicating 11 (warning), Advisory 7.
+  Setting a device condition raises only its own alarm and clearing one leaves
+  the others; device state is separate from process alarms (tested with a
+  process AI module present). Device conditions are simulated through the
+  virtual field device; real FF alert parameters (ADVISE_ALM and so on) are not
+  modeled beyond these four composites.
 Acceptance: Model each independent cause/category and configurable priority,
   keeping device state separate from process PV alarm conditions.
 
 [DV09-123]
 Pages: 550-553
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Enable Device Alarms, supported re-annunciation, area association
   inherited from controller or manually selected module, primary display and
   FFDEV_FP faceplate.
-Evidence: No device properties/area/display association.
+Evidence (Pass74): Enable Device Alarms is a real prerequisite on the H1 card.
+  Area association has both paths: inherited from the controller's assigned
+  area (setControllerArea) or taken from a chosen module's area; the resolved
+  area feeds the same banner/horn/Ack Page eligibility as module alarms (an
+  unresolved area fails closed under a workstation subscription, and the user
+  area key must match). Repeat annunciation is offered only for device types
+  that support it (a transmitter refuses it with a message) and an
+  unacknowledged alarm repeats at the configured interval, re-sounding a
+  silenced horn until acknowledged. A primary display (an existing picture)
+  can be assigned and the FFDEV_FP faceplate opens from the H1 panel or by
+  clicking the banner tile, showing the device, each alarm's state, priority
+  and enabled editors, Ack, and simulated device conditions. Verified in the
+  browser (faceplate, FAILED on the banner).
 Acceptance: Test both area-resolution paths and resulting alarm/event scope,
   faceplate navigation and repeat-annunciation capability checks.
 
@@ -2340,21 +2370,34 @@ Acceptance: Configure/reorder/remove columns without fabricated fields;
 
 [DV09-125]
 Pages: 561-568
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Separate process/device banner thresholds, initialization settings
   and save/run behavior. Defaults: process>3 and device>7; device7 excluded.
   Changing device threshold to6 permits advisory7 on the banner.
-Evidence: BANNER uses global three-priority alarms; no device category/settings.
+Evidence (Pass74): the banner has separate strictly-greater-than thresholds:
+  process alarms above 3 and device alarms above 7 by default, so a device
+  Advisory of priority 7 is excluded and lowering the device threshold to 6
+  admits it (tested and verified in the browser). The thresholds are
+  validated (whole numbers 0-15), saved in the browser profile and applied
+  when the application initializes, with defaults on missing or corrupt data.
+  The alarm list is independent of the banner thresholds. This Banner settings
+  panel is a simulator-native equivalent of the manual's VB-script
+  initialization workflow, not native .grf or script support.
 Acceptance: Test strict > comparisons, list-versus-banner independence,
   initialization and persistence. Simulator settings can replace VB scripting
   only if disclosed as an equivalent workflow, not native .grf/script support.
 
 [DV09-126]
 Pages: 569-569
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Complete UserSettings save-as/edit/search/threshold/save/close/run
   exercise and verify advisory device alarms in banner.
-Evidence: No User_Ref/UserSettings picture or scripting environment.
+Evidence (Pass74): the settings exercise is available as Banner settings in the
+  alarm banner: edit the device and process thresholds, save, and the saved
+  values run on the next start (init test) and change which real device
+  alarms the banner shows (browser: advisory tile appears after the device
+  threshold is set to 6). Save-as/search of a User_Ref picture and a scripting
+  environment have no equivalent here.
 Acceptance: Ensure settings truly execute on initialization and affect actual
   device alarms; a renamed file or static banner is insufficient.
 
@@ -3637,3 +3680,38 @@ Validation: 500 repository tests run locally (499 pass; the remaining failure
   is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
 Result: the twelve groups MISSING -> VERIFIED_SUBSET. Totals 40 VERIFIED_SUBSET/
   56 PARTIAL/7 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 74 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: chapter 13 device alarms: DV09-121, 122, 123, 125 and 126 (pages
+535-553 and 561-569).
+Engine: new deviceAlarms.ts (alarm kinds/labels, rank -> class, evaluation with
+  prerequisites, area resolution, banner thresholds with persistence). fieldbus.ts
+  adds per-device DeviceAlarmConfig, H1Card.deviceAlarms and the live-address
+  history; hardware.ts adds controllerAreas; types.ts adds repeat fields to
+  ActiveAlarm; store.tick reconciles device alarms and treats a repeat as a new
+  annunciation; format.ts classifies device alarms as category DEVICE.
+  fieldbusActions.ts adds enableDeviceAlarms, configureDeviceAlarm,
+  setDeviceAlarmArea, setControllerArea, setDeviceReannunciation and
+  setDevicePrimaryDisplay.
+UI: FfDeviceFaceplate (FFDEV_FP) routed from FaceplateHost; AlarmBanner,
+  AlarmAudio and AlarmSummary resolve device areas, the banner and horn apply
+  the thresholds, and a Banner settings picker edits them; H1Panel opens the
+  faceplate.
+Tests: tests/device-alarms.test.cjs (11): defaults and rank validation, the
+  Enable Device Alarms prerequisite, Not Communicating lifecycle, Abnormal
+  enabling/priority/reporting, independent alert causes next to a process
+  alarm, both area-resolution paths with eligibility, repeat annunciation and
+  capability checks, primary display validation, strict banner thresholds,
+  settings save/init/corrupt-data handling, and the faceplate markup.
+Browser: faceplate enabled Device Alarms and simulated Failed/Advisory; the
+  banner showed FAILED only (advisory 7 excluded) and ADVISORY after setting
+  the device threshold to 6.
+Boundary (honest): device conditions come from the virtual field device; only
+  the four PlantWeb composites and Abnormal are modeled; the thresholds panel is
+  not a VB-script/User_Ref environment; native .grf display files are not
+  produced.
+Validation: 511 repository tests run locally (510 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
+Result: DV09-121, 122, 123, 125 and 126 MISSING -> VERIFIED_SUBSET. Totals 45
+  VERIFIED_SUBSET/56 PARTIAL/2 MISSING/19 BOUNDARY/6 CONTEXT.

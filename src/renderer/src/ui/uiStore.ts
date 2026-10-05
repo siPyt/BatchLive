@@ -1,3 +1,4 @@
+import { bannerThresholdError, loadBannerThresholds, saveBannerThresholds, type BannerThresholds } from '../engine/deviceAlarms'
 import { create } from 'zustand'
 import { useStore } from '../engine/store'
 import { resolvePictureTarget, usePictures } from '../engine/pictureStore'
@@ -85,6 +86,10 @@ interface UiState {
    * area (the existing unrestricted default); an array restricts this
    * workstation's alarm banner/audio/acknowledge-all to those areas only. */
   subscribedAreas: string[] | null
+  /** DV09-125/126: banner priority thresholds (strictly greater than), separate for process and device alarms. */
+  bannerThresholds: BannerThresholds
+  /** Validates, applies and saves the thresholds; returns an error message or null. */
+  setBannerThresholds: (t: BannerThresholds) => string | null
   setSubscribedAreas: (areas: string[] | null) => void
 }
 
@@ -253,5 +258,13 @@ export const useUi = create<UiState>((set, get) => ({
   },
 
   subscribedAreas: null,
+  bannerThresholds: loadBannerThresholds(),
+  setBannerThresholds: (t) => {
+    const error = bannerThresholdError(t)
+    if (error) return error
+    if (!saveBannerThresholds(t)) return 'The banner settings could not be saved in this browser profile'
+    set({ bannerThresholds: { ...t } })
+    return null
+  },
   setSubscribedAreas: (areas) => set({ subscribedAreas: areas })
 }))

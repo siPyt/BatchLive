@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
+import { alarmArea } from '../engine/deviceAlarms'
 import { isSfcAlarm } from '../engine/sfcBlocks'
 import { useUi } from '../ui/uiStore'
 import { compareAlarmRank, alarmColumnText, ALARM_COLUMNS, loadAlarmColumns, saveAlarmColumns } from '../utils/format'
@@ -11,6 +12,7 @@ type Filter = 'ALL' | AlarmPriority | 'UNACK' | 'SHELVED'
 export function AlarmSummary(): JSX.Element {
   const alarms = useStore((s) => s.alarms)
   const modules = useStore((s) => s.modules)
+  const hardware = useStore((s) => s.hardware)
   const ackAlarm = useStore((s) => s.ackAlarm)
   const ackAll = useStore((s) => s.ackAll)
   const shelveAlarm = useStore((s) => s.shelveAlarm)
@@ -140,6 +142,7 @@ export function AlarmSummary(): JSX.Element {
                 a={a}
                 columns={columns}
                 module={modules[a.moduleTag]}
+                area={alarmArea(a, modules, hardware)}
                 onAck={() => ackAlarm(a.id)}
                 onOpen={() => isSfcAlarm(a) ? openSfc(a.moduleTag) : openFaceplate(a.moduleTag)}
                 onShelve={() => shelveAlarm(a.id, 60)}
@@ -160,11 +163,13 @@ function AlarmRow({
   onAck,
   onOpen,
   onShelve,
-  onUnshelve
+  onUnshelve,
+  area
 }: {
   a: ActiveAlarm
   columns: AlarmColumnKey[]
   module: AnyModule | undefined
+  area?: string
   onAck: () => void
   onOpen: () => void
   onShelve: () => void
@@ -183,12 +188,12 @@ function AlarmRow({
         key === 'module' ? (
           <td key={key}>
             <a style={{ color: linkColor, cursor: 'pointer', fontWeight: 700 }} onClick={onOpen}>
-              {alarmColumnText(key, a, module)}
+              {alarmColumnText(key, a, module, area)}
             </a>
           </td>
         ) : (
           <td key={key} style={boldColumns.includes(key) ? { fontWeight: 700 } : undefined}>
-            {alarmColumnText(key, a, module)}
+            {alarmColumnText(key, a, module, area)}
           </td>
         )
       )}

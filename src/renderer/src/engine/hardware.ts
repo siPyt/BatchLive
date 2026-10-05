@@ -111,6 +111,8 @@ export interface HardwareState {
   serialCards?: Record<string, import('./serialIo').SerialCard>
   /** DV09-096..127 FOUNDATION fieldbus H1 cards keyed by card id. */
   h1Cards?: Record<string, import('./fieldbus').H1Card>
+  /** DV09-123 area each controller (node) is assigned to; device alarms can inherit it. */
+  controllerAreas?: Record<string, string>
   /** DI IO_IN / DO IO_OUT keyed by module, independently of channel DST names. */
   discreteBindings?: Record<string, string>
   /** Standalone AI / PID AI1, AO1, AO2 physical channel bindings. */

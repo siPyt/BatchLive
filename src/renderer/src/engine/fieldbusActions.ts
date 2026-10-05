@@ -1,10 +1,13 @@
 import { useStore } from './store'
 import { useSecurity, type LockType } from './security'
 import { controllerIsDown } from './hardware'
+import { usePictures } from './pictureStore'
+import { deviceAlarmRankError } from './deviceAlarms'
 import {
   FF_BLOCK_PARAMS,
   H1_LIMITS,
   H1_PORT_IDS,
+  DEVICE_ALARM_KINDS,
   blockCapacityError,
   blockCardType,
   catalogEntry,
@@ -22,6 +25,7 @@ import {
   makeH1Card,
   snapshotOf,
   syncFieldbusCards,
+  type DeviceAlarmKind,
   type FfAuditEntry,
   type FfBlock,
   type FfDevice,
@@ -183,7 +187,7 @@ export function downloadH1Card(cardId: string): string | null {
   const error = mutate(cardId, (next) => {
     next.downloaded = true
     for (const id of H1_PORT_IDS) {
-      next.runtime[id] = { elapsedMs: 0, cycle: 0, lasAddress: null, lasLostMs: 0, takeoverAt: null, liveList: [], probeCursor: H1_LIMITS.firstAddress, tokenPasses: 0, bands: {}, unscheduledQueued: 0, unscheduledServed: 0, failed: false }
+      next.runtime[id] = { elapsedMs: 0, cycle: 0, lasAddress: null, lasLostMs: 0, takeoverAt: null, liveList: [], probeCursor: H1_LIMITS.firstAddress, tokenPasses: 0, bands: {}, unscheduledQueued: 0, unscheduledServed: 0, failed: false, seen: [] }
     }
     return null
   }, true)
@@ -565,6 +569,83 @@ export function transferFfValues(from: CompareSource, to: { cardId: string; tag:
       }
       record(device, 'TRANSFER', diff.scope, diff.parameter, diff.left, diff.right, reason, 'Compare and transfer')
     }
+    return null
+  })
+}
+
+// --- device alarms (DV09-121..123) ------------------------------------------
+
+/** Enable Device Alarms on the H1 card (controller): the prerequisite for every device alarm. */
+export function enableDeviceAlarms(cardId: string, enabled: boolean): string | null {
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  return mutate(cardId, (card) => { card.deviceAlarms = enabled; return null })
+}
+
+export function configureDeviceAlarm(cardId: string, tag: string, kind: DeviceAlarmKind, patch: { enabled?: boolean; rank?: number }): string | null {
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  if (!DEVICE_ALARM_KINDS.includes(kind)) return fail(cardId, `Unknown device alarm ${String(kind)}`)
+  if (patch.rank !== undefined) {
+    const error = deviceAlarmRankError(patch.rank)
+    if (error) return fail(cardId, error)
+  }
+  return mutate(cardId, (card) => {
+    const device = findDevice(card, tag)
+    if (!device) return `Device ${tag} does not exist`
+    Object.assign(device.alarms.settings[kind], patch)
+    return null
+  })
+}
+
+/** The device's area comes from its controller's assigned area or from a chosen module. */
+export function setDeviceAlarmArea(cardId: string, tag: string, mode: 'CONTROLLER' | 'MODULE', module?: string): string | null {
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  const modules = useStore.getState().modules
+  if (mode === 'MODULE' && (!module || !modules[module])) return fail(cardId, 'Select an existing module to take the area from')
+  return mutate(cardId, (card) => {
+    const device = findDevice(card, tag)
+    if (!device) return `Device ${tag} does not exist`
+    device.alarms.areaMode = mode
+    device.alarms.areaModule = mode === 'MODULE' ? module : undefined
+    return null
+  })
+}
+
+export function setControllerArea(controllerTag: string, area: string | null): string | null {
+  if (!allow('CAN_CONFIGURE', `Configure H1 card on ${controllerTag}`)) return 'Requires the Can Configure key'
+  const s = useStore.getState()
+  if (!s.hardware.controllers[controllerTag]) return fail(controllerTag, 'Controller does not exist')
+  if (area !== null && !s.areas.includes(area)) return fail(controllerTag, `Area ${area} does not exist`)
+  useStore.setState((st) => {
+    const controllerAreas = { ...st.hardware.controllerAreas }
+    if (area === null) delete controllerAreas[controllerTag]
+    else controllerAreas[controllerTag] = area
+    return { hardware: { ...st.hardware, controllerAreas }, rev: st.rev + 1 }
+  })
+  return null
+}
+
+/** Repeat annunciation only where the device supports it. */
+export function setDeviceReannunciation(cardId: string, tag: string, enabled: boolean, seconds: number): string | null {
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  return mutate(cardId, (card) => {
+    const device = findDevice(card, tag)
+    if (!device) return `Device ${tag} does not exist`
+    if (enabled && !catalogEntry(device.catalogId)?.reannunciation) return `${catalogEntry(device.catalogId)?.model ?? tag} does not support repeat annunciation`
+    if (!Number.isInteger(seconds) || seconds < 5 || seconds > 3600) return 'The repeat interval must be a whole number of seconds from 5 to 3600'
+    device.alarms.reannunciate = enabled
+    device.alarms.reannounceSeconds = seconds
+    return null
+  })
+}
+
+export function setDevicePrimaryDisplay(cardId: string, tag: string, picture: string): string | null {
+  if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return 'Requires the Can Configure key'
+  const name = picture.trim().toUpperCase()
+  if (name && !usePictures.getState().pictures[name]) return fail(cardId, `Picture ${name} does not exist`)
+  return mutate(cardId, (card) => {
+    const device = findDevice(card, tag)
+    if (!device) return `Device ${tag} does not exist`
+    device.alarms.primaryDisplay = name
     return null
   })
 }

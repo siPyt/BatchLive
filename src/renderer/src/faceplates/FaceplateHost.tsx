@@ -10,16 +10,22 @@ import { AoFaceplate } from './AoFaceplate'
 import { moduleTrendPens } from '../engine/trendPens'
 import { moduleOwnUnacknowledgedAlarms } from '../utils/format'
 import { PidDetailDialog } from './PidDetailDialog'
+import { FfDeviceFaceplate } from './FfDeviceFaceplate'
+import { findFfDevice } from '../engine/deviceAlarms'
 
 /** Renders every open faceplate window. */
 export function FaceplateHost(): JSX.Element {
   const faceplates = useUi((s) => s.faceplates)
   const detailTag = useUi(state => state.pidDetailTag)
   const closeDetail = useUi(state => state.closePidDetail)
+  const modules = useStore((s) => s.modules)
+  const hardware = useStore((s) => s.hardware)
   return (
     <>
       {faceplates.map((f) => (
-        <FaceplateWindow key={f.tag} tag={f.tag} x={f.x} y={f.y} />
+        !modules[f.tag] && findFfDevice(hardware, f.tag)
+          ? <FfDeviceFaceplate key={f.tag} tag={f.tag} x={f.x} y={f.y} />
+          : <FaceplateWindow key={f.tag} tag={f.tag} x={f.x} y={f.y} />
       ))}
       {detailTag && <PidDetailDialog tag={detailTag} onClose={closeDetail} />}
     </>

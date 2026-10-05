@@ -25,6 +25,7 @@ import type {
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
 import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
+import { reconcileDeviceAlarms } from './deviceAlarms'
 import {
   SERIAL_LIMITS,
   SERIAL_PORT_IDS,
@@ -629,6 +630,8 @@ export const useStore = create<StoreState>((set, get) => ({
           tripped, runtime.elapsed, 's', next.time, `CONDALM.${name}`, name)
       }
     }
+    // DV09-121..123: fieldbus device alarms (PlantWeb alerts) are device-state alarms, separate from process alarms.
+    reconcileDeviceAlarms(next.alarms, s.hardware, next.time)
     // Sample trend data.
     const trend = s.trend
     const last = trend[trend.length - 1]
@@ -653,7 +656,8 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     // A brand-new active alarm re-sounds the horn even if it was silenced.
     const priorById = new Map(s.alarms.map((a) => [a.id, a]))
-    const hasNewAlarm = next.alarms.some((a) => a.active && !priorById.get(a.id)?.active)
+    const hasNewAlarm = next.alarms.some((a) => (a.active && !priorById.get(a.id)?.active) ||
+      (a.active && !a.acknowledged && (a.repeats ?? 0) > (priorById.get(a.id)?.repeats ?? 0)))
     // Journal every alarm transition: newly active alarms and returns-to-normal.
     const nextById = new Map(next.alarms.map((a) => [a.id, a]))
     const newEntries: EventLogEntry[] = [...sfcDiagnostics]

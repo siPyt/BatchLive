@@ -89,6 +89,43 @@ export const FF_BLOCK_PARAMS: Record<FfBlockType, FfParamDef[]> = {
   ]
 }
 
+export type DeviceAlarmKind = 'NOT_COMM' | 'ABNORMAL' | 'FAILED' | 'MAINTENANCE' | 'ADVISORY'
+export const DEVICE_ALARM_KINDS: DeviceAlarmKind[] = ['NOT_COMM', 'ABNORMAL', 'FAILED', 'MAINTENANCE', 'ADVISORY']
+
+export interface DeviceAlarmSetting {
+  enabled: boolean
+  /** Numeric priority 4-15. */
+  rank: number
+}
+
+export interface DeviceAlarmConfig {
+  settings: Record<DeviceAlarmKind, DeviceAlarmSetting>
+  /** Where the alarm's area comes from: the controller's assigned area or the area of a chosen module. */
+  areaMode: 'CONTROLLER' | 'MODULE'
+  areaModule?: string
+  /** Picture opened for the device (the FFDEV_FP faceplate is always available). */
+  primaryDisplay: string
+  reannunciate: boolean
+  reannounceSeconds: number
+}
+
+/** Course defaults: Not Communicating, Failed, Maintenance and Advisory on; Abnormal off. */
+export function defaultDeviceAlarms(): DeviceAlarmConfig {
+  return {
+    settings: {
+      NOT_COMM: { enabled: true, rank: 11 },
+      ABNORMAL: { enabled: false, rank: 7 },
+      FAILED: { enabled: true, rank: 15 },
+      MAINTENANCE: { enabled: true, rank: 11 },
+      ADVISORY: { enabled: true, rank: 7 }
+    },
+    areaMode: 'CONTROLLER',
+    primaryDisplay: '',
+    reannunciate: false,
+    reannounceSeconds: 60
+  }
+}
+
 export interface FfCatalogEntry {
   id: string
   manufacturer: string
@@ -98,19 +135,21 @@ export interface FfCatalogEntry {
   revisions: number[]
   ddRevisions: number[]
   linkMaster: boolean
+  /** The device supports repeat annunciation of an unacknowledged alert. */
+  reannunciation: boolean
   blocks: { tag: string; type: FfBlockType }[]
   transducers: { tag: string; kind: string }[]
 }
 
 /** Generic virtual instruments; a real device catalog needs genuine device descriptions. */
 export const FF_CATALOG: FfCatalogEntry[] = [
-  { id: 'VI-PT100', manufacturer: 'Virtual Instruments', model: 'PT-100 pressure transmitter', deviceType: 'PRESSURE', revisions: [1, 2], ddRevisions: [1, 2], linkMaster: false,
+  { id: 'VI-PT100', manufacturer: 'Virtual Instruments', model: 'PT-100 pressure transmitter', deviceType: 'PRESSURE', revisions: [1, 2], ddRevisions: [1, 2], linkMaster: false, reannunciation: false,
     blocks: [{ tag: 'AI1', type: 'AI' }, { tag: 'AI2', type: 'AI' }, { tag: 'PID1', type: 'PID' }], transducers: [{ tag: 'TB1', kind: 'PRESSURE' }] },
-  { id: 'VI-TT200', manufacturer: 'Virtual Instruments', model: 'TT-200 temperature transmitter', deviceType: 'TEMPERATURE', revisions: [1, 2, 3], ddRevisions: [1, 2], linkMaster: false,
+  { id: 'VI-TT200', manufacturer: 'Virtual Instruments', model: 'TT-200 temperature transmitter', deviceType: 'TEMPERATURE', revisions: [1, 2, 3], ddRevisions: [1, 2], linkMaster: false, reannunciation: true,
     blocks: [{ tag: 'AI1', type: 'AI' }, { tag: 'MAI1', type: 'MAI' }], transducers: [{ tag: 'TB1', kind: 'TEMPERATURE' }] },
-  { id: 'VI-FV300', manufacturer: 'Virtual Instruments', model: 'FV-300 valve positioner', deviceType: 'POSITIONER', revisions: [2, 3], ddRevisions: [2, 3], linkMaster: true,
+  { id: 'VI-FV300', manufacturer: 'Virtual Instruments', model: 'FV-300 valve positioner', deviceType: 'POSITIONER', revisions: [2, 3], ddRevisions: [2, 3], linkMaster: true, reannunciation: true,
     blocks: [{ tag: 'AO1', type: 'AO' }, { tag: 'PID1', type: 'PID' }, { tag: 'ISEL1', type: 'ISEL' }], transducers: [{ tag: 'TB1', kind: 'VALVE' }] },
-  { id: 'VI-FM400', manufacturer: 'Virtual Instruments', model: 'FM-400 flow meter', deviceType: 'FLOW', revisions: [1], ddRevisions: [1], linkMaster: false,
+  { id: 'VI-FM400', manufacturer: 'Virtual Instruments', model: 'FM-400 flow meter', deviceType: 'FLOW', revisions: [1], ddRevisions: [1], linkMaster: false, reannunciation: false,
     blocks: [{ tag: 'AI1', type: 'AI' }, { tag: 'DI1', type: 'DI' }], transducers: [{ tag: 'TB1', kind: 'FLOW' }] }
 ]
 
@@ -179,6 +218,8 @@ export interface FfDevice {
   transducers: FfTransducer[]
   blocks: FfBlock[]
   history: FfAuditEntry[]
+  /** DV09-121..123 device alarms (PlantWeb alerts). */
+  alarms: DeviceAlarmConfig
 }
 
 export interface FfPhysicalDevice {
@@ -230,6 +271,8 @@ export interface H1PortRuntime {
   unscheduledQueued: number
   unscheduledServed: number
   failed: boolean
+  /** Addresses that have been live at least once (a silent one is Not Communicating, an unprobed one is not yet known). */
+  seen: number[]
 }
 
 export interface H1Card {
@@ -244,6 +287,8 @@ export interface H1Card {
   /** Physical devices attached to each segment (the virtual field). */
   field: Record<string, FfPhysicalDevice>
   downloaded: boolean
+  /** Enable Device Alarms: device alarms are evaluated only while this is on. */
+  deviceAlarms: boolean
   cardFailed: boolean
   /** Blocks assigned to execute in the H1 card instead of a device. */
   runtime: Record<H1PortId, H1PortRuntime>
@@ -254,7 +299,7 @@ export const CARD_LAS_ADDRESS = 1
 function emptyRuntime(): H1PortRuntime {
   return {
     elapsedMs: 0, cycle: 0, lasAddress: null, lasLostMs: 0, takeoverAt: null, liveList: [], probeCursor: H1_LIMITS.firstAddress,
-    tokenPasses: 0, bands: {}, unscheduledQueued: 0, unscheduledServed: 0, failed: false
+    tokenPasses: 0, bands: {}, unscheduledQueued: 0, unscheduledServed: 0, failed: false, seen: []
   }
 }
 
@@ -273,6 +318,7 @@ export function makeH1Card(controllerTag: string, slot: number, redundant: boole
     ports: { P01: defaultH1Port(), P02: defaultH1Port() },
     field: {},
     downloaded: false,
+    deviceAlarms: false,
     cardFailed: false,
     runtime: { P01: emptyRuntime(), P02: emptyRuntime() }
   }
@@ -407,7 +453,8 @@ export function makeFfDevice(tag: string, port: H1PortId, address: number, entry
       tag: b.tag, type: b.type, mode: b.type === 'PID' ? 'OOS' : 'AUTO', executesIn: 'DEVICE', rateMs: 1000,
       params: Object.fromEntries(FF_BLOCK_PARAMS[b.type].map((p) => [p.name, p.default]))
     })),
-    history: []
+    history: [],
+    alarms: defaultDeviceAlarms()
   }
 }
 
@@ -549,7 +596,7 @@ export function syncFieldbusCards(hw: HardwareState): HardwareState {
   return { ...hw, traditionalCards: cards }
 }
 
-function deviceComm(card: H1Card, portId: H1PortId, device: FfDevice): boolean {
+export function deviceComm(card: H1Card, portId: H1PortId, device: FfDevice): boolean {
   const physical = device.deviceId ? card.field[device.deviceId] : undefined
   const runtime = card.runtime[portId]
   return !!physical && physical.communicating && physical.address === device.address && runtime.liveList.includes(device.address)
@@ -607,6 +654,7 @@ function stepCard(hw: HardwareState, source: H1Card, dt: number): H1Card {
     const physical = Object.values(card.field).filter((d) => d.port === portId)
     // Live list: the LAS probes a few unlisted addresses per macrocycle; removed devices drop out at once.
     rt.liveList = rt.liveList.filter((address) => physical.some((d) => d.address === address && d.communicating))
+    for (const address of rt.liveList) if (!rt.seen.includes(address)) rt.seen.push(address)
     const bandSet = Array.from(new Set([port.requestedMacrocycleMs, ...Object.values(port.devices).flatMap((d) => d.blocks.map((b) => b.rateMs))]))
     for (const band of bandSet) {
       const key = String(band)
@@ -625,7 +673,7 @@ function stepCard(hw: HardwareState, source: H1Card, dt: number): H1Card {
             const address = rt.probeCursor
             rt.probeCursor = rt.probeCursor >= H1_LIMITS.lastAddress ? H1_LIMITS.firstAddress : rt.probeCursor + 1
             const found = physical.find((d) => d.address === address && d.communicating)
-            if (found && !rt.liveList.includes(address)) rt.liveList.push(address)
+            if (found && !rt.liveList.includes(address)) { rt.liveList.push(address); if (!rt.seen.includes(address)) rt.seen.push(address) }
           }
           const served = Math.min(rt.unscheduledQueued, 4)
           rt.unscheduledQueued -= served

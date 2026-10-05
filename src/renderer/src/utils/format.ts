@@ -58,6 +58,7 @@ const ALARM_PARAMETER: Partial<Record<ActiveAlarm['type'], string>> = {
 }
 
 export function alarmParameter(a: ActiveAlarm): string {
+  if (a.id.startsWith('DEVALM.')) return 'STATUS'
   return ALARM_PARAMETER[a.type] ?? '—'
 }
 
@@ -74,6 +75,7 @@ const ALARM_CATEGORY: Partial<Record<ActiveAlarm['type'], string>> = {
 }
 
 export function alarmCategory(a: ActiveAlarm): string {
+  if (a.id.startsWith('DEVALM.')) return 'DEVICE'
   return ALARM_CATEGORY[a.type] ?? '—'
 }
 
@@ -148,7 +150,7 @@ export function saveAlarmColumns(columns: AlarmColumnKey[]): void {
  * the alarm belongs to, if it still exists (area/node/part-of come from the
  * real module record, never invented when the module or field is absent).
  */
-export function alarmColumnText(key: AlarmColumnKey, a: ActiveAlarm, m: AnyModule | undefined): string {
+export function alarmColumnText(key: AlarmColumnKey, a: ActiveAlarm, m: AnyModule | undefined, area?: string): string {
   switch (key) {
     case 'timeIn': return clockString(a.time)
     case 'module': return a.moduleTag
@@ -157,7 +159,7 @@ export function alarmColumnText(key: AlarmColumnKey, a: ActiveAlarm, m: AnyModul
     case 'value': return a.unit ? `${a.value.toFixed(1)} ${a.unit}` : '—'
     case 'priority': return a.priority
     case 'rank': return String(alarmRank(a))
-    case 'area': return m?.area ?? '—'
+    case 'area': return area ?? m?.area ?? '—'
     case 'node': return (m && 'controllerTag' in m && m.controllerTag) || '—'
     case 'partOf': return m?.equipmentModule ?? '—'
     case 'parameter': return alarmParameter(a)

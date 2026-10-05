@@ -2543,3 +2543,16 @@ Line4 - Blocks: resource/transducer/function blocks with modes, write lock,
   extended parameters, calibration and a read-only audit trail with compare.
 Line5 - Tests: tests/fieldbus-h1.test.cjs. Not claimed: real FOUNDATION
   stack, device descriptions, electrical segment verification.
+
+PASS 74: FIELDBUS DEVICE ALARMS AND BANNER THRESHOLDS (pp535-553, 561-569)
+-----------------------------------------------------------------------
+Line1 - Alarms: Not Communicating, Abnormal (off by default), Failed,
+  Maintenance and Advisory per commissioned device, numeric priority 4-15,
+  category DEVICE, journaled and separate from process alarms.
+Line2 - Prerequisites and area: Enable Device Alarms on the H1 card; area from
+  the controller or a chosen module; repeat annunciation only where supported.
+Line3 - FFDEV_FP faceplate with alarm states, priority/enable editors, Ack and
+  simulated device conditions.
+Line4 - Banner: separate strict thresholds (process > 3, device > 7), saved and
+  applied at start; the alarm list is unfiltered.
+Line5 - Tests: tests/device-alarms.test.cjs. Not claimed: native scripts/.grf.

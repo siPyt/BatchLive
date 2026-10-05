@@ -3,6 +3,7 @@ import { useStore } from '../engine/store'
 import { useSecurity } from '../engine/security'
 import { useUi } from '../ui/uiStore'
 import { alarmEligible } from '../utils/format'
+import { alarmArea, bannerVisible } from '../engine/deviceAlarms'
 
 // Synthesizes the DeltaV-style audible alarm tone: a two-tone alternating
 // beep for Critical, a single pulsed chime for Warning. Muted by Horn Silence
@@ -10,6 +11,8 @@ import { alarmEligible } from '../utils/format'
 export function AlarmAudio(): null {
   const alarms = useStore((s) => s.alarms)
   const modules = useStore((s) => s.modules)
+  const hardware = useStore((s) => s.hardware)
+  const thresholds = useUi((s) => s.bannerThresholds)
   const hornSilenced = useStore((s) => s.hornSilenced)
   const subscribedAreas = useUi((s) => s.subscribedAreas)
   const hasAreaKey = useSecurity((s) => s.hasAreaKey)
@@ -20,7 +23,7 @@ export function AlarmAudio(): null {
     // DV09-044: the horn must trigger only on the same subscribed-area AND
     // area-write-key eligible set used by the banner's counts/tiles/ack.
     const eligible = alarms.filter((a) =>
-      alarmEligible(a, modules[a.moduleTag]?.area, subscribedAreas, hasAreaKey)
+      alarmEligible(a, alarmArea(a, modules, hardware), subscribedAreas, hasAreaKey) && bannerVisible(a, thresholds)
     )
     const hasUnackedCritical = eligible.some(
       (a) => a.active && !a.acknowledged && a.priority === 'CRITICAL' && a.shelvedUntil === undefined

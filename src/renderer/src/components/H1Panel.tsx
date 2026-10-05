@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../engine/store'
+import { useUi } from '../ui/uiStore'
 import * as act from '../engine/fieldbusActions'
 import {
   FF_CATALOG,
@@ -221,6 +222,7 @@ function FfDeviceEditor({ card, device }: { card: H1Card; device: FfDevice }): J
   const [message, setMessage] = useState<Result>(null)
   const [low, setLow] = useState(0)
   const [high, setHigh] = useState(100)
+  const openFaceplate = useUi((s) => s.openFaceplate)
   const entry = catalogEntry(device.catalogId)
   return (
     <details className="traditional-channel" data-ff-device={device.tag}>
@@ -259,6 +261,7 @@ function FfDeviceEditor({ card, device }: { card: H1Card; device: FfDevice }): J
             </select>
           </div>
         ))}
+        <button className="tbtn sm" onClick={() => openFaceplate(device.tag)}>Open FFDEV_FP faceplate</button>
         {device.state === 'COMMISSIONED' && (
           <button className="tbtn sm" onClick={() => setMessage(act.decommissionFfDevice(card.id, device.tag, reason))}>Decommission</button>
         )}

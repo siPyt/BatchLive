@@ -61,6 +61,9 @@ export interface ActiveAlarm {
   time: number
   /** ISA-18.2 Shelving: epoch ms the shelf expires, or undefined if not shelved. */
   shelvedUntil?: number
+  /** DV09-123 repeat annunciation of an unacknowledged device alarm. */
+  repeats?: number
+  lastAnnunciatedAt?: number
 }
 
 /** DeltaV Event Chronicle categories: process alarms plus the operator/system actions that make up the audit trail. */
