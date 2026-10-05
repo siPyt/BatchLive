@@ -10,7 +10,7 @@ require.extensions['.ts'] = (module, filename) => {
 const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const { findDst } = require('../src/renderer/src/engine/traditionalIo.ts')
-const { parseDevice, savedDeviceKey } = require('../src/renderer/src/engine/deviceLifecycle.ts')
+const { deviceConfigurationError, parseDevice, savedDeviceKey } = require('../src/renderer/src/engine/deviceLifecycle.ts')
 function fixture(run) {
   const before = { store: useStore.getState(), security: useSecurity.getState(), window: global.window }
   const alerts = [], database = new Map()
@@ -94,6 +94,54 @@ test('Full device download applies only saved fields; actual independent DI conf
   s.tick(.1)
   assert.equal(m().running, true)
   assert.equal(m().dcState, 'CONFIRMED_ACTIVE')
+}))
+test('DV09-048 device state masks: feedback bit inversion and unavailable self-confirmation', () => fixture((s, alerts, database) => {
+  // Inverted bit mask: bit1 (not bit0) now means confirmed active.
+  prepare(s)
+  s.editDeviceDraft('MTR', { feedbackInverted: true })
+  s.saveDeviceConfiguration('MTR')
+  assert.equal(s.downloadDeviceConfiguration('MTR'), true)
+  s.tick(.1)
+  s.startMotor('MTR')
+  assert.equal(s.setTraditionalInput('CTLR-IN', 1), true)
+  for (let i = 0; i < 30; i++) s.tick(.1)
+  assert.equal(m().running, false, 'bit0=1 does not confirm active once inverted')
+  assert.equal(m().dcState, 'FAILED_ACTIVE', 'the opposite physical bit never confirms within the travel time')
+  assert.equal(s.setTraditionalInput('CTLR-IN', 0), true)
+  s.tick(.1)
+  assert.equal(m().running, true, 'bit0=0 (inverted) confirms active')
+  assert.equal(m().dcState, 'CONFIRMED_ACTIVE')
+  s.stopMotor('MTR')
+  assert.equal(s.setTraditionalInput('CTLR-IN', 1), true)
+  s.tick(.1)
+  assert.equal(m().running, false, 'bit0=1 (inverted) confirms passive')
+  assert.equal(m().dcState, 'CONFIRMED_PASSIVE')
+
+  // Unavailable: no physical confirmation bit; self-confirms by elapsed Confirm Time, ignoring the (even Bad) DI channel.
+  prepare(s, 'OTHER', 'CTLR2')
+  s.editDeviceDraft('OTHER', { feedbackUnavailable: true, confirmTimeSec: 1 })
+  s.saveDeviceConfiguration('OTHER')
+  assert.equal(s.downloadDeviceConfiguration('OTHER'), true)
+  s.tick(.1)
+  assert.equal(m('OTHER').ioInputBad, false, 'an unavailable feedback bit is never reported Bad')
+  s.startMotor('OTHER')
+  s.tick(.1)
+  assert.equal(m('OTHER').running, false)
+  assert.equal(m('OTHER').dcState, 'GOING_ACTIVE')
+  for (let i = 0; i < 15; i++) s.tick(.1)
+  assert.equal(m('OTHER').running, true, 'self-confirmed active after the configured Confirm Time elapsed')
+  assert.equal(m('OTHER').dcState, 'CONFIRMED_ACTIVE')
+  assert.equal(m('OTHER').ioInputBad, false)
+  s.stopMotor('OTHER')
+  for (let i = 0; i < 15; i++) s.tick(.1)
+  assert.equal(m('OTHER').running, false, 'self-confirmed passive after Confirm Time elapsed')
+  assert.equal(m('OTHER').dcState, 'CONFIRMED_PASSIVE')
+
+  // Validation: both fields must be Boolean.
+  assert.match(deviceConfigurationError({ ...record('MTR').draft, feedbackInverted: 'yes' }, useStore.getState().modules), /Feedback polarity must be Boolean/)
+  assert.match(deviceConfigurationError({ ...record('MTR').draft, feedbackUnavailable: 'yes' }, useStore.getState().modules), /Feedback availability must be Boolean/)
+  // Round-trip through Save/Load: the saved blob genuinely persists the configured mask.
+  assert.equal(parseDevice(database.get(savedDeviceKey('MTR')), 'MTR').feedbackInverted, true)
 }))
 test('an existing passive live binding can enter saved lifecycle without poisoning healthy physical channel quality', () => fixture(s => {
   assert.equal(s.bindDeviceDst('MTR', 'input', 'CTLR-IN'), true)

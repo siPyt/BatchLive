@@ -2350,3 +2350,29 @@ production build both passed.
 
 Commit/push authorization for this pass follows the same 2026-10-05
 instruction already recorded for Pass54.
+
+PASS 63: DV09-048 DEVICE STATE MASKS (FEEDBACK BIT INVERT/UNAVAILABLE)
+------------------------------------------------------------------------
+Line1 - Engine: MotorModule/ValveModule gain feedbackInverted (bit0/bit1
+  polarity) and feedbackUnavailable (don't-care/no-confirmation-wired:
+  self-confirms by elapsed Confirm Time), both fully lifecycle-managed
+  exactly like the existing interlockInverted option.
+Line2 - simulate.ts's applyExternalDevice flips the sampled bit when
+  inverted, and when unavailable never reports ioInputBad and transitions
+  Going-to-X -> Confirmed by travel timer instead of reaching Failed on Bad
+  feedback. Both are no-ops when unset, so no existing device test changed.
+Line3 - UI: DeviceLifecycleControls.tsx adds the two draft checkboxes plus a
+  deployed-state summary row.
+Line4 - Tests: an inverted motor confirms only on the opposite bit (and
+  fails, not confirms, on the non-matching one); an unavailable motor
+  self-confirms after its Confirm Time with no Bad feedback ever reported;
+  both validate as Boolean and round-trip through Save/Load.
+Boundary: one physical confirmation input per device (not independent bit0
+AND bit1 channels), so "don't-care" is one flag, not a true 2-bit mask table.
+Result: DV09-048 PARTIAL -> VERIFIED_SUBSET. Current totals14 VERIFIED_SUBSET/
+55 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. 374 repository tests run locally
+(373 pass; pre-existing pdf_om.txt failure unrelated). Typecheck and
+production build both passed.
+
+Commit/push authorization for this pass follows the same 2026-10-05
+instruction already recorded for Pass54.

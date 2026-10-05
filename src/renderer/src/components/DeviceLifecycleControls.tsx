@@ -52,6 +52,10 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
         `Interlock: ${runtime.interlockSource ?? 'manual'}; permissive: ${runtime.permissiveSource ?? 'manual'}; command: ${runtime.commandSource ?? 'operator'}` : ''}</td></tr>
     <tr><td>DEPLOYED INTERLOCK POLARITY</td><td>{record.deployed?.interlockInverted ? 'Healthy when source1; trips at0' : 'Trips when source1'}</td>
       <td>Bad always trips; manual interlock remains active-trip</td></tr>
+    <tr><td>DEPLOYED FEEDBACK STATE MASK</td><td>{record.deployed ?
+      `${record.deployed.feedbackUnavailable ? 'Unavailable (self-confirmed)' : record.deployed.feedbackInverted ? 'Inverted (bit1=active)' : 'Normal (bit0=active)'}` :
+      '(not deployed)'}</td>
+    <td>DV09-048 device state mask: confirmation-bit polarity/availability</td></tr>
     {!record.online && <>
       <DeviceDescriptorDraftRows key={`${tag}:${JSON.stringify(c.descriptors)}`} tag={tag} descriptors={c.descriptors} />
       <tr><td>DRAFT CONTROLLER</td><td><select aria-label={`${tag} device controller`} value={c.controllerTag}
@@ -75,6 +79,13 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
       <tr><td>DRAFT NATIVE INTERLOCK POLARITY</td><td><input type="checkbox" aria-label={`${tag} draft native interlock polarity`}
         checked={c.interlockInverted ?? false} onChange={e => edit(tag, { interlockInverted: e.target.checked })} /></td>
         <td>Selected: healthy at1, trips at0. Unselected: active-trip at1. Bad always trips.</td></tr>
+      <tr><td>DRAFT FEEDBACK BIT MASK (bit0/bit1)</td><td><input type="checkbox" aria-label={`${tag} draft feedback inverted`}
+        checked={c.feedbackInverted ?? false} disabled={c.feedbackUnavailable ?? false}
+        onChange={e => edit(tag, { feedbackInverted: e.target.checked })} /></td>
+        <td>Selected: bit1 means confirmed active (NO wiring). Unselected: bit0 means confirmed active (NC wiring, default).</td></tr>
+      <tr><td>DRAFT FEEDBACK UNAVAILABLE</td><td><input type="checkbox" aria-label={`${tag} draft feedback unavailable`}
+        checked={c.feedbackUnavailable ?? false} onChange={e => edit(tag, { feedbackUnavailable: e.target.checked })} /></td>
+        <td>No physical confirmation bit wired: self-confirms by elapsed Confirm Time instead of real DI feedback.</td></tr>
       {(['interlockSource', 'permissiveSource', 'commandSource'] as const).map(source => <tr key={source}><td>DRAFT {source}</td><td>
         <select aria-label={`${tag} draft ${source}`} value={c[source] ?? ''} onChange={e => edit(tag, { [source]: e.target.value || undefined })}>
           <option value="">(manual/operator)</option>

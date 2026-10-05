@@ -863,10 +863,26 @@ CHAPTER 5: MOTOR CONTROL
 
 [DV09-048]
 Pages: 216-221
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Configure device state masks including bit0/bit1, don't-care and
   unavailable states.
-Evidence: Fixed DcState and feedback fields exist; no editable mask model.
+Evidence (Pass63): MotorModule/ValveModule gain feedbackInverted (bit0/bit1
+  polarity selection: which physical confirmation-bit value means confirmed
+  active) and feedbackUnavailable (don't-care/no-confirmation-wired: the
+  device self-confirms by elapsed Confirm Time instead of real DI feedback,
+  the same way an internal/unmanaged device already does) as fully
+  lifecycle-managed device options (captured/validated/downloaded/saved/
+  loaded exactly like the existing interlockInverted option). simulate.ts's
+  applyExternalDevice applies both: inverted reads flip the sampled bit
+  before use; unavailable devices never report ioInputBad and transition
+  Going-to-X -> Confirmed by travel timer rather than ever reaching a Bad-
+  feedback Failed state. DeviceLifecycleControls.tsx exposes both as draft
+  checkboxes plus a deployed-state summary row.
+Gaps (honest, not fixed this pass): this simulator's device binding model has
+  exactly one physical confirmation input per device (not independently
+  wired bit0 AND bit1 channels), so "don't-care" is expressed as the single
+  feedbackUnavailable flag rather than a true 2-bit mask table (Check/
+  Uncheck per state) like the real Control Studio STATE_MASKS composite.
 Acceptance: Exercise each mask against input bits and distinguish unknown
   feedback from confirmed passive/active and fault.
 
@@ -2383,7 +2399,9 @@ DV09-047: An arbitrary N-condition/OR expression tree (today's conjunction is
   exactly two AND'd fbCondition.ts AI1/PV or DI1/PV_D references); the exact
   conjunction+strict-delay+custom-type+reset/reactivation/captured-message
   behavior itself now exists and is verified (Pass62).
-DV09-048: Editable DC bit0/bit1/don't-care/unavailable state masks.
+DV09-048: A true independently-wired 2-bit mask table (today's single-input
+  feedbackInverted/feedbackUnavailable options cover polarity/don't-care for
+  this simulator's one-confirmation-bit device model; Pass63).
 DV09-049: Full passive-on-timeout/confirmation/trip/SP-tracking DC options and
   native property sequence. Named Sets and independent descriptors now exist.
 DV09-050: Remaining full native motor template/property/workshop certification;
@@ -2925,4 +2943,43 @@ Validation: 373 repository tests run locally (372 pass; the remaining
   dv09-audit.test.cjs). Typecheck and the production build both passed.
 Result: DV09-047 PARTIAL -> VERIFIED_SUBSET. Current totals13 VERIFIED_SUBSET/
 56 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next
+remaining group in a subsequent pass.
+
+PASS 63 CHANGE DETAIL AND VALIDATION (2026-10-05)
+--------------------------------------------------
+Scope: DV09-048, continuing the open-ended line-by-line continuation.
+Engine: MotorModule/ValveModule gain feedbackInverted (bit0/bit1 polarity:
+  which physical confirmation-bit value means confirmed active) and
+  feedbackUnavailable (don't-care/no-confirmation-wired: self-confirms by
+  elapsed Confirm Time instead of real DI feedback, matching how an
+  internal/unmanaged device already behaves), both fully lifecycle-managed
+  (DeviceConfiguration, capture/validate/transfer/serialize/parse) exactly
+  like the existing interlockInverted option, so Save/Download/Load and
+  validation follow the identical established pattern.
+simulate.ts: applyExternalDevice flips the sampled input bit when
+  feedbackInverted is set, and when feedbackUnavailable is set never reports
+  ioInputBad and transitions Going-to-X -> Confirmed by elapsed travel timer
+  instead of ever reaching a Bad-feedback Failed state. Both are no-ops
+  (byte-for-byte prior behavior) when unset, so every existing device test
+  needed zero changes.
+UI: DeviceLifecycleControls.tsx adds DRAFT FEEDBACK BIT MASK and DRAFT
+  FEEDBACK UNAVAILABLE checkboxes plus a DEPLOYED FEEDBACK STATE MASK summary
+  row, alongside the existing interlock-polarity row.
+Tests: device-lifecycle.test.cjs adds a DV09-048 regression: an inverted
+  motor confirms active only on the opposite physical bit (and reaches
+  FAILED_ACTIVE, not CONFIRMED_ACTIVE, on the non-matching one within the
+  travel time); an unavailable motor never reports ioInputBad and correctly
+  self-confirms CONFIRMED_ACTIVE/CONFIRMED_PASSIVE after its configured
+  Confirm Time elapses; both fields reject non-Boolean values with the
+  correct message and round-trip through Save/Load.
+Boundary (honest, not fixed this pass): this simulator's device binding
+  model has exactly one physical confirmation input per device, not
+  independently wired bit0 AND bit1 channels, so "don't-care" is one flag
+  rather than a true 2-bit Check/Uncheck mask table like the real Control
+  Studio STATE_MASKS composite seen in the newNewImages screenshots.
+Validation: 374 repository tests run locally (373 pass; the remaining
+  failure is the pre-existing local-only pdf_om.txt dependency in
+  dv09-audit.test.cjs). Typecheck and the production build both passed.
+Result: DV09-048 PARTIAL -> VERIFIED_SUBSET. Current totals14 VERIFIED_SUBSET/
+55 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next
 remaining group in a subsequent pass.

@@ -349,6 +349,12 @@ export interface MotorModule extends ModuleDisplayProperties {
   downloaded?: boolean
   controllerTag?: string
   interlockInverted?: boolean
+  /** DV09-048 device state mask: selects which physical confirmation-bit
+   * polarity means "confirmed active" (bit0 vs bit1 wiring). */
+  feedbackInverted?: boolean
+  /** DV09-048 device state mask: no physical confirmation bit is wired; the
+   * device self-confirms by elapsed travel time instead of real feedback. */
+  feedbackUnavailable?: boolean
   tag: string
   type: 'MOTOR'
   description: string
@@ -393,6 +399,12 @@ export interface ValveModule extends ModuleDisplayProperties {
   downloaded?: boolean
   controllerTag?: string
   interlockInverted?: boolean
+  /** DV09-048 device state mask: selects which physical confirmation-bit
+   * polarity means "confirmed active" (bit0 vs bit1 wiring). */
+  feedbackInverted?: boolean
+  /** DV09-048 device state mask: no physical confirmation bit is wired; the
+   * device self-confirms by elapsed travel time instead of real feedback. */
+  feedbackUnavailable?: boolean
   tag: string
   type: 'VALVE'
   description: string

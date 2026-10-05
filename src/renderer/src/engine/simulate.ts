@@ -369,26 +369,48 @@ function applyExternalDevice(m: MotorModule | ValveModule, hw: HardwareState, dt
   }
   const bindings = hw.deviceBindings?.[m.tag]
   if (!bindings) return false
-  const input = deviceChannelSignal(hw, bindings.input, 'DI')
   const output = deviceChannelSignal(hw, bindings.output, 'DO')
-  m.ioInputBad = input.bad
+  // DV09-048 "unavailable" state mask: no physical confirmation bit is wired;
+  // the device self-confirms via its own travel timer instead of real
+  // feedback, the same way an internal (unmanaged) DC1 block already does.
+  const unavailable = !!m.feedbackUnavailable
+  const inputRaw = unavailable ? { value: false, bad: false } : deviceChannelSignal(hw, bindings.input, 'DI')
+  const inputBad = !unavailable && inputRaw.bad
+  m.ioInputBad = inputBad
   m.ioOutputBad = output.bad
-  if (!input.bad) {
-    if (m.type === 'MOTOR') m.running = input.value
-    else m.open = input.value
+  // DV09-048 bit0/bit1 state mask: feedbackInverted selects which physical
+  // bit polarity means "confirmed active".
+  const inputValue = m.feedbackInverted ? !inputRaw.value : inputRaw.value
+  if (!unavailable && !inputBad) {
+    if (m.type === 'MOTOR') m.running = inputValue
+    else m.open = inputValue
   }
   const confirmed = m.type === 'MOTOR' ? m.running : m.open
   const desired = m.type === 'MOTOR' ? m.commanded : m.commandedOpen
   if (m.interlock && m.resetRequired) m.locked = true
-  const target = desired && !input.bad && !m.interlock && !m.locked &&
-    (!m.permissiveRequired || m.permissiveOk || (!input.bad && confirmed))
+  const target = desired && !inputBad && !m.interlock && !m.locked &&
+    (!m.permissiveRequired || m.permissiveOk || (!inputBad && confirmed))
   m.outputCommand = target
   m.appliedCommand = output.value
   if (m.interlock) { m.dcState = 'SHUTDOWN'; m.travelTimer = 0 }
   else if (m.locked) { m.dcState = 'LOCKED'; m.travelTimer = 0 }
-  else if (input.bad || output.bad || m.fault) {
+  else if (inputBad || output.bad || m.fault) {
     m.dcState = target ? 'FAILED_ACTIVE' : 'FAILED_PASSIVE'
     m.travelTimer += dt
+  } else if (unavailable) {
+    if (confirmed === target) {
+      m.dcState = confirmed ? 'CONFIRMED_ACTIVE' : 'CONFIRMED_PASSIVE'
+      m.travelTimer = 0
+    } else {
+      m.travelTimer += dt
+      m.dcState = target ? 'GOING_ACTIVE' : 'GOING_PASSIVE'
+      if (m.travelTimer >= m.confirmTimeSec) {
+        if (m.type === 'MOTOR') m.running = target
+        else m.open = target
+        m.travelTimer = 0
+        m.dcState = target ? 'CONFIRMED_ACTIVE' : 'CONFIRMED_PASSIVE'
+      }
+    }
   } else if (confirmed === target) {
     m.dcState = confirmed ? 'CONFIRMED_ACTIVE' : 'CONFIRMED_PASSIVE'
     m.travelTimer = 0
@@ -397,7 +419,7 @@ function applyExternalDevice(m: MotorModule | ValveModule, hw: HardwareState, dt
     m.dcState = m.travelTimer >= m.confirmTimeSec ?
       target ? 'FAILED_ACTIVE' : 'FAILED_PASSIVE' : target ? 'GOING_ACTIVE' : 'GOING_PASSIVE'
   }
-  if (m.type === 'MOTOR' && !input.bad && m.running) m.runtimeHrs += dt / 3600
+  if (m.type === 'MOTOR' && (unavailable || !inputBad) && m.running) m.runtimeHrs += dt / 3600
   return true
 }
 

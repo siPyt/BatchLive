@@ -21,6 +21,8 @@ export interface DeviceConfiguration {
   permissiveSource?: string
   commandSource?: string
   interlockInverted?: boolean
+  feedbackInverted?: boolean
+  feedbackUnavailable?: boolean
   strategy?: MotorStrategyConfiguration
   descriptors?: DeviceStateDescriptors
 }
@@ -58,7 +60,9 @@ export function captureDevice(m: MotorModule | ValveModule, hw: HardwareState): 
     (binding?.output ? findDst(hw, binding.output)?.card.controllerTag : '') ?? '',
   inputDst: binding?.input ?? '', outputDst: binding?.output ?? '',
   permissiveRequired: m.permissiveRequired, resetRequired: m.resetRequired,
-  confirmTimeSec: m.confirmTimeSec, interlockInverted: m.interlockInverted, strategy: m.type === 'MOTOR' ? captureMotorStrategy(m) : undefined, interlockSource: m.interlockSource,
+  confirmTimeSec: m.confirmTimeSec, interlockInverted: m.interlockInverted,
+  feedbackInverted: m.feedbackInverted, feedbackUnavailable: m.feedbackUnavailable,
+  strategy: m.type === 'MOTOR' ? captureMotorStrategy(m) : undefined, interlockSource: m.interlockSource,
   permissiveSource: m.permissiveSource, commandSource: m.commandSource,
   descriptors: m.descriptors ? { ...m.descriptors } : undefined }
 }
@@ -71,6 +75,8 @@ export function deviceConfigurationError(c: DeviceConfiguration, modules: Record
     !Number.isFinite(c.confirmTimeSec) || c.confirmTimeSec < 0 ? 'Confirmation time must be finite and nonnegative' :
     typeof c.permissiveRequired !== 'boolean' || typeof c.resetRequired !== 'boolean' ? 'Device options must be Boolean' :
     c.interlockInverted !== undefined && typeof c.interlockInverted !== 'boolean' ? 'Interlock polarity must be Boolean' :
+    c.feedbackInverted !== undefined && typeof c.feedbackInverted !== 'boolean' ? 'Feedback polarity must be Boolean' :
+    c.feedbackUnavailable !== undefined && typeof c.feedbackUnavailable !== 'boolean' ? 'Feedback availability must be Boolean' :
     (c.descriptors ? descriptorMappingError(c.descriptors) ??
       (namedSets ? descriptorDefinitionError(c.descriptors, namedSets[c.descriptors.namedSet]) : null) : null) ??
     (c.strategy ? c.type !== 'MOTOR' ? 'Only motor modules can own this strategy' :
@@ -107,7 +113,8 @@ export function prepareDeviceTransfer(record: DeviceLifecycle | undefined, tag: 
   if (error) return { error: `Device download failed; last-good runtime retained: ${error}` }
   const c = record.saved
   const module = { ...m, permissiveRequired: c.permissiveRequired,
-    interlockInverted: c.interlockInverted, descriptors: c.descriptors ? { ...c.descriptors } : undefined,
+    interlockInverted: c.interlockInverted, feedbackInverted: c.feedbackInverted, feedbackUnavailable: c.feedbackUnavailable,
+    descriptors: c.descriptors ? { ...c.descriptors } : undefined,
     resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec, interlockSource: c.interlockSource,
     permissiveSource: c.permissiveSource, commandSource: c.commandSource, controllerTag: c.controllerTag,
     downloaded: true, ioInputBad: true, ioOutputBad: true, outputCommand: false, travelTimer: 0,
@@ -140,12 +147,16 @@ export function parseDevice(text: string, tag: string): DeviceConfiguration {
       'permissiveSource' in c && typeof c.permissiveSource !== 'string' ||
       'commandSource' in c && typeof c.commandSource !== 'string') throw new Error('Invalid saved device source')
   if ('interlockInverted' in c && typeof c.interlockInverted !== 'boolean') throw new Error('Invalid saved interlock polarity')
+  if ('feedbackInverted' in c && typeof c.feedbackInverted !== 'boolean') throw new Error('Invalid saved feedback polarity')
+  if ('feedbackUnavailable' in c && typeof c.feedbackUnavailable !== 'boolean') throw new Error('Invalid saved feedback availability')
   return { tag, type: c.type, controllerTag: c.controllerTag, inputDst: c.inputDst, outputDst: c.outputDst,
     permissiveRequired: c.permissiveRequired, resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec,
     interlockSource: 'interlockSource' in c && typeof c.interlockSource === 'string' ? c.interlockSource : undefined,
     permissiveSource: 'permissiveSource' in c && typeof c.permissiveSource === 'string' ? c.permissiveSource : undefined,
     commandSource: 'commandSource' in c && typeof c.commandSource === 'string' ? c.commandSource : undefined,
     interlockInverted: 'interlockInverted' in c && typeof c.interlockInverted === 'boolean' ? c.interlockInverted : undefined,
+    feedbackInverted: 'feedbackInverted' in c && typeof c.feedbackInverted === 'boolean' ? c.feedbackInverted : undefined,
+    feedbackUnavailable: 'feedbackUnavailable' in c && typeof c.feedbackUnavailable === 'boolean' ? c.feedbackUnavailable : undefined,
     descriptors: 'descriptors' in c ? parseDeviceDescriptors(c.descriptors) : undefined,
     strategy: 'strategy' in c ? parseMotorStrategy(c.strategy) : undefined }
 }
