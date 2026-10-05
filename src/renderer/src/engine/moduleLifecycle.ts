@@ -214,7 +214,9 @@ function isAlarm(value: unknown): value is AlarmLimit {
     ['HI_HI', 'HI', 'LO', 'LO_LO', 'DV_HI', 'DV_LO', 'PVBAD', 'FAIL', 'INTERLOCK'].includes(value.type) &&
     typeof value.label === 'string' && typeof value.priority === 'string' &&
     ['CRITICAL', 'WARNING', 'ADVISORY'].includes(value.priority) && typeof value.enabled === 'boolean' &&
-    (value.limit === undefined || typeof value.limit === 'number' && Number.isFinite(value.limit))
+    (value.limit === undefined || typeof value.limit === 'number' && Number.isFinite(value.limit)) &&
+    (value.rank === undefined ||
+      typeof value.rank === 'number' && Number.isInteger(value.rank) && value.rank >= 4 && value.rank <= 15)
 }
 function isConfiguration(value: unknown): value is AoConfiguration {
   if (!object(value) || !object(value.module)) return false

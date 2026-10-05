@@ -22,6 +22,16 @@ export function priorityRank(p: AlarmPriority): number {
 }
 
 /**
+ * Effective sort rank for an alarm: an explicit configured numeric priority
+ * (4-15) if set, otherwise the priority class's default rank. Course p181-182
+ * "Arbitrary priorities 4-15" allows fine-grained ordering without changing
+ * the priority class that drives banner color/label.
+ */
+export function alarmRank(a: { priority: AlarmPriority; rank?: number }): number {
+  return a.rank ?? PRIO_RANK[a.priority]
+}
+
+/**
  * DeltaV alarm ranking (Operate course, "DeltaV Alarm Ranking"):
  * 1) unacknowledged before acknowledged
  * 2) active before inactive
@@ -31,7 +41,7 @@ export function priorityRank(p: AlarmPriority): number {
 export function compareAlarmRank(a: ActiveAlarm, b: ActiveAlarm): number {
   if (a.acknowledged !== b.acknowledged) return a.acknowledged ? 1 : -1
   if (a.active !== b.active) return a.active ? -1 : 1
-  const pr = PRIO_RANK[b.priority] - PRIO_RANK[a.priority]
+  const pr = alarmRank(b) - alarmRank(a)
   if (pr !== 0) return pr
   return b.time - a.time
 }
@@ -41,7 +51,7 @@ export function moduleAlarm(tag: string, alarms: ActiveAlarm[]): ActiveAlarm | n
   let best: ActiveAlarm | null = null
   for (const a of alarms) {
     if (a.moduleTag !== tag || !a.active) continue
-    if (!best || PRIO_RANK[a.priority] > PRIO_RANK[best.priority]) best = a
+    if (!best || alarmRank(a) > alarmRank(best)) best = a
   }
   return best
 }

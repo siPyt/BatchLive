@@ -30,7 +30,7 @@ const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const { nextAreaName } = require('../src/renderer/src/engine/areas.ts')
 const { usePictures, resolvePictureTarget } = require('../src/renderer/src/engine/pictureStore.ts')
 const { moduleNameError, isValidDeltaVTag } = require('../src/renderer/src/engine/naming.ts')
-const { compareAlarmRank } = require('../src/renderer/src/utils/format.ts')
+const { compareAlarmRank, alarmRank, priorityRank } = require('../src/renderer/src/utils/format.ts')
 const { findDst, channelConfigurationError, advanceTraditionalIo, sampleAnalogInputs } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const { savedAoStorageKey } = require('../src/renderer/src/engine/moduleLifecycle.ts')
@@ -716,6 +716,42 @@ test('DV09 page 181: alarm ranking applies all four rules in source order', () =
     assert.deepEqual([second, first].sort(compareAlarmRank), [first, second])
   }
   assert.equal(compareAlarmRank(base, { ...base }), 0)
+})
+
+test('DV09-038/039 arbitrary numeric priority rank (4-15) overrides the class default without changing color/label', () => {
+  const base = { id: 'base', moduleTag: 'DV09', type: 'HI', priority: 'ADVISORY',
+    time: 1, active: true, acknowledged: false }
+  assert.equal(alarmRank({ priority: 'ADVISORY' }), priorityRank('ADVISORY'))
+  assert.equal(alarmRank({ priority: 'ADVISORY', rank: 12 }), 12)
+  // An ADVISORY alarm with an explicit rank above WARNING's class default (11) outranks it.
+  const boostedAdvisory = { ...base, priority: 'ADVISORY', rank: 14 }
+  const plainWarning = { ...base, priority: 'WARNING', time: 1 }
+  assert.ok(compareAlarmRank(boostedAdvisory, plainWarning) < 0)
+  assert.deepEqual([plainWarning, boostedAdvisory].sort(compareAlarmRank), [boostedAdvisory, plainWarning])
+  // Two same-class alarms with explicit ranks sort by rank, not just the shared class.
+  const lowCritical = { ...base, priority: 'CRITICAL', rank: 5 }
+  const highCritical = { ...base, priority: 'CRITICAL', rank: 15 }
+  assert.ok(compareAlarmRank(highCritical, lowCritical) < 0)
+  // Equal explicit ranks still fall back to the newer-timestamp rule.
+  const older = { ...base, priority: 'CRITICAL', rank: 10, time: 1 }
+  const newer = { ...base, priority: 'CRITICAL', rank: 10, time: 99 }
+  assert.ok(compareAlarmRank(newer, older) < 0)
+})
+
+test('DV09-038/039 setAlarmLimit validates and applies an explicit numeric priority rank', () => {
+  withAreaProject((store, alerts) => {
+    analogCourseProject(store)
+    store.setAlarmLimit('LI-101', 'HI', { rank: 3 })
+    assert.match(alerts.at(-1), /4 to 15/)
+    assert.equal(useStore.getState().modules['LI-101'].alarms.find(a => a.type === 'HI').rank, undefined)
+    store.setAlarmLimit('LI-101', 'HI', { rank: 4.5 })
+    assert.match(alerts.at(-1), /4 to 15/)
+    store.setAlarmLimit('LI-101', 'HI', { rank: 12 })
+    assert.equal(useStore.getState().modules['LI-101'].alarms.find(a => a.type === 'HI').rank, 12)
+    store.setAlarmLimit('LI-101', 'HI', { rank: null })
+    assert.equal(useStore.getState().modules['LI-101'].alarms.find(a => a.type === 'HI').rank, undefined,
+      'rank: null clears the explicit override back to the class default')
+  })
 })
 
 function discreteCourseProject(store) {

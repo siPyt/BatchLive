@@ -34,6 +34,13 @@ export interface AlarmLimit {
   /** Trip setpoint in engineering units (undefined for discrete/fail alarms). */
   limit?: number
   enabled: boolean
+  /**
+   * Optional explicit numeric priority rank (4-15) that overrides the
+   * priority class's default rank (CRITICAL 15 / WARNING 11 / ADVISORY 7)
+   * for sort/comparison purposes only. The priority class still controls
+   * banner color and label. Undefined uses the class default.
+   */
+  rank?: number
 }
 
 export interface ActiveAlarm {
@@ -44,6 +51,8 @@ export interface ActiveAlarm {
   customType?: string
   label: string
   priority: AlarmPriority
+  /** Explicit numeric priority rank (4-15) carried from the configured AlarmLimit, if set. */
+  rank?: number
   value: number
   unit: string
   active: boolean

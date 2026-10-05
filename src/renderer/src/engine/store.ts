@@ -224,7 +224,7 @@ interface StoreState extends PlantState {
   setAlarmLimit: (
     tag: string,
     type: AlarmType,
-    patch: { limit?: number; enabled?: boolean; priority?: AlarmPriority }
+    patch: { limit?: number; enabled?: boolean; priority?: AlarmPriority; rank?: number | null }
   ) => void
   startMotor: (tag: string) => void
   stopMotor: (tag: string) => void
@@ -801,7 +801,9 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!useSecurity.getState().requireLock('RESTRICTED_CONTROL', `Configure alarm ${tag}`)) return
     const error = !get().modules[tag]?.alarms.some(alarm => alarm.type === type)
       ? `${tag}.${type} is not a configured alarm`
-      : patch.limit !== undefined && !Number.isFinite(patch.limit) ? 'Alarm limit must be finite' : null
+      : patch.limit !== undefined && !Number.isFinite(patch.limit) ? 'Alarm limit must be finite' :
+      patch.rank != null && (!Number.isInteger(patch.rank) || patch.rank < 4 || patch.rank > 15)
+        ? 'Alarm priority rank must be a whole number from 4 to 15' : null
     if (error) {
       get().logEvent('DIAGNOSTIC', tag, `Alarm configuration rejected: ${error}`)
       window.alert(error)
@@ -814,6 +816,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (patch.limit !== undefined) next.limit = patch.limit
         if (patch.enabled !== undefined) next.enabled = patch.enabled
         if (patch.priority !== undefined) next.priority = patch.priority
+        if (patch.rank !== undefined) next.rank = patch.rank ?? undefined
         return next
       })
     })

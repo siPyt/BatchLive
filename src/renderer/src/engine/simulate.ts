@@ -258,6 +258,7 @@ export function reconcileAlarm(
         ...(customType ? { customType } : {}),
         label: lim.label,
         priority: lim.priority,
+        ...(lim.rank !== undefined ? { rank: lim.rank } : {}),
         value,
         unit,
         active: true,
@@ -276,6 +277,7 @@ export function reconcileAlarm(
         list[idx].moduleDesc = desc
         list[idx].label = lim.label
         list[idx].priority = lim.priority
+        list[idx].rank = lim.rank
       }
     }
   } else if (idx !== -1) {

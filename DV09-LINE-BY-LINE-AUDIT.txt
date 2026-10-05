@@ -1,10 +1,10 @@
 BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
 =============================================
 
-CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS56
+CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS57
 ---------------------------------------------------
-Implementation baseline: 27c245d, 2026-10-05.
-365 repository tests run locally (364 pass); typecheck, production build and
+Implementation baseline: ff224d0, 2026-10-05 (hash recorded after commit below).
+367 repository tests run locally (366 pass); typecheck, production build and
 whitespace checks pass. The one failure is the pre-existing local-only
 pdf_om.txt dependency in dv09-audit.test.cjs (not bundled with the repo by
 design), not a regression. The dated history and exact known remaining-work
@@ -12,7 +12,7 @@ index are appended at the end of this report. Earlier release records are
 historical.
 DV-09 remains incomplete: 9 VERIFIED_SUBSET, 57 PARTIAL, 37 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
-The user authorized commit and push of Pass54-56 on 2026-10-05, separate from
+The user authorized commit and push of Pass54-57 on 2026-10-05, separate from
 the 2026-10-04 authorization that covered Pass42-53 only. Remote delivery is
 verified separately after each push.
 
@@ -696,8 +696,15 @@ Status: PARTIAL
 Required: Numeric priorities 4-15, log-only level 3, six banner entries,
   audible settings/WAV, auto-ack/banner options, captured parameters and
   controller timestamps.
-Evidence: Three priorities (15/11/7), six tiles, browser audio and memory journal
-  exist; numeric administration/capture/transport behavior missing.
+Evidence: Three priority CLASSES (CRITICAL/WARNING/ADVISORY, still driving
+  color/label) plus an additive optional rank (4-15 whole number) that
+  overrides sort order per alarm; setAlarmLimit validates range/integer and
+  a null sentinel clears back to the class default. Editable in ExplorerDisplay
+  (Configured Alarms table Rank column) and PidFaceplate (Alarms tab Rank
+  input); persisted via the existing AO/PID saved-config isAlarm validators.
+  Six tiles, browser audio and memory journal remain as before.
+  Log-only level 3, auto-ack/banner administration options, captured
+  parameters and controller timestamps are still MISSING.
 Acceptance: Test configurable priorities and logging/visibility/audio separately.
 
 [DV09-039]
@@ -706,8 +713,16 @@ Status: VERIFIED_SUBSET
 Required: Rank unacknowledged before acknowledged, active before inactive,
   then higher numeric priority, then newer timestamp.
 Verified: RANK implements this exact order. TESTS now prove dominance of
-  each rule, reverse comparisons, sorting and ties.
-Gaps: Only three supported numeric priority values; no arbitrary 4-15 editor.
+  each rule, reverse comparisons, sorting and ties. Pass57 adds an optional
+  per-alarm numeric rank (4-15) that overrides the 3-class default within
+  rule 3 without changing rule order; TESTS prove a boosted ADVISORY alarm
+  outranks a plain WARNING alarm, same-class alarms sort by explicit rank,
+  and equal explicit ranks still fall back to rule 4 (newer timestamp).
+  Live-verified in browser: editing a module's rank, an out-of-range reject,
+  and clearing back to the class default.
+Gaps: The numeric rank is an override field layered on the 3-class system,
+  not a replacement of AlarmPriority with raw DeltaV priority numbers; SFC
+  block custom alarms (SfcAlarmType) do not yet expose rank.
 Acceptance: Preserve comparator order when extending priorities; do not sort
   highest priority ahead of unacknowledged return-to-normal events.
 
@@ -2273,9 +2288,11 @@ DV09-062: Remaining native System Tree/full dynamo catalog/exact picture
   workshop; shared custom flow_color and flashing nonnormal ISAN already work.
 
 B. ALARMS/DEVICE OPTIONS - REMAINING FUNCTIONAL CHANGES
-DV09-038: Arbitrary priorities4-15, log-only3, six-tile/banner/audible/WAV/
-  auto-ack options, captured parameters and controller timestamps.
-DV09-039: Arbitrary numeric priority editor; preserve existing tested rank order.
+DV09-038: Log-only3, six-tile/banner/audible/WAV/auto-ack options, captured
+  parameters and controller timestamps; arbitrary numeric priority (4-15)
+  rank override now exists (Pass57), layered on the 3-class system.
+DV09-039: SFC block custom alarms (SfcAlarmType) still lack a rank field;
+  arbitrary numeric priority editor for module/PID alarms now exists (Pass57).
 DV09-040: Typed selectable/reorderable area/category/message/node/parameter/
   part-of/time-last/unit/zone columns with actual values.
 DV09-041: Configurable alarm type registry up to255 and captured %P1/%P2 message
@@ -2553,3 +2570,67 @@ absent). Classifications unchanged at 9 VERIFIED_SUBSET/57 PARTIAL/37 MISSING/
 19 BOUNDARY/6 CONTEXT since no group's Status line changed. Typecheck and
 production build passed. Commit/push authorization for this pass follows the
 same 2026-10-05 instruction already recorded for Pass54.
+
+PASS 57 CHANGE DETAIL AND VALIDATION (2026-10-05)
+-------------------------------------------------
+Scope: DV09-038/039, continuing the user's "entire DV09, line by line"
+instruction: "arbitrary priorities 4-15" numeric alarm priority administration.
+Design decision: rather than replace the 3-class AlarmPriority union (used in
+  10+ files, persisted in saved AO/PID JSON) with raw DeltaV priority numbers,
+  an additive optional rank field (4-15 whole number) was added that overrides
+  sort order only, leaving the 3-class system controlling color/label/banner
+  grouping. This is a deliberate narrower subset, recorded honestly below.
+Engine: types.ts adds rank?:number to AlarmLimit and ActiveAlarm. format.ts
+  adds alarmRank() (explicit rank, else the class default 15/11/7) and updates
+  compareAlarmRank/moduleAlarm to rank by it. simulate.ts's reconcileAlarm
+  propagates rank into live ActiveAlarm entries. store.ts's setAlarmLimit
+  validates rank (Number.isInteger, 4-15) before applying it, rejecting
+  invalid values with the same window.alert/logEvent DIAGNOSTIC pattern as
+  existing limit/priority validation; a rank:null patch clears the override
+  back to the class default. moduleLifecycle.ts's and pidLifecycle.ts's
+  isAlarm saved-config validators accept the optional field so existing and
+  new saved AO/PID configurations both round-trip correctly.
+UI: ExplorerDisplay.tsx's Configured Alarms table and PidFaceplate.tsx's Alarms
+  tab each add a Rank numeric input (min 4, max 15, placeholder showing the
+  implied class default, blank clears the override) beside the existing
+  enable checkbox/limit/priority controls.
+Scope boundary (recorded honestly, not fixed this pass): sfcBlocks.ts's
+  SfcAlarmType (SFC block-level custom alarms) was deliberately left
+  untouched; it still carries only priority, no rank. This is a conscious
+  scoping decision, not an oversight.
+Tests: control-strategy.test.cjs adds two regressions. The first exercises
+  alarmRank()/compareAlarmRank() directly: an ADVISORY alarm boosted to
+  rank 14 outranks a plain WARNING alarm (class rank 11); two CRITICAL
+  alarms with explicit ranks 5/15 sort by rank, not just shared class; equal
+  explicit ranks still fall back to the newer-timestamp rule. The second
+  exercises setAlarmLimit on a real module (LI-101 from analogCourseProject):
+  rejects rank 3 and rank 4.5 with the existing alert/DIAGNOSTIC-log pattern
+  and no mutation, accepts rank 12, then confirms rank:null clears it back to
+  undefined (the class default). 367 repository tests run locally (366 pass;
+  the one failure is the pre-existing local-only pdf_om.txt dependency, not a
+  regression). Typecheck (tsconfig.web.json) and production build
+  (electron-vite build) both passed; git diff --check reported no whitespace
+  issues.
+Browser verification: a temporary standalone Vite preview (not committed)
+  opened DeltaV Explorer, selected the pharma project's SIC-201 PID module,
+  and used its Configured Alarms table's new Rank input on the PV BAD alarm:
+  typed 9 -> committed and displayed as "PV BAD - CRITICAL 9"; typed 2 ->
+  rejected with the alert "Alarm priority rank must be a whole number from 4
+  to 15" and the value stayed at 9 (confirmed via the accessibility snapshot
+  after dismissing the dialog); cleared the field -> reverted to the
+  unlabeled class-default display ("PV BAD - CRITICAL", no rank shown). The
+  temporary preview config was deleted afterward; git status showed no stray
+  files from this change (a pre-existing untracked newImage/ folder of
+  user-supplied real DeltaV reference screenshots was confirmed unrelated and
+  left alone).
+Result: DV09-038 Evidence updated: numeric priority rank administration now
+  has real evidence (not just the 3 fixed class priorities), but log-only
+  level 3, six-tile/banner administration, audible/WAV configuration,
+  auto-ack options, captured parameters and controller timestamps remain
+  MISSING, so Status stays PARTIAL. DV09-039 Verified/Gaps updated to record
+  the new rank override and its one remaining honest gap (SFC block alarms);
+  Status stays VERIFIED_SUBSET (the 4-rule comparator order itself was
+  already fully verified in Pass42-53 era work; this pass extended rule 3
+  without changing rule order, which the new regressions directly test).
+  Classifications unchanged at 9 VERIFIED_SUBSET/57 PARTIAL/37 MISSING/
+  19 BOUNDARY/6 CONTEXT since neither group's Status line changed.

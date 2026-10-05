@@ -3,11 +3,13 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-05
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: a calculated open-loop
-reaction-curve tuning suggestion for the simulator PID Tune Test (Pass56).
-Implementation: 27c245d, 2026-10-05, reaction-curve tuning suggestion (Pass56).
-Previous milestone: a583253, selective AO parameter upload (Pass55), 2026-10-05.
-The user authorized commit and push of Pass54-56 on 2026-10-05, separate from
+DV-09 is NOT complete. Latest implemented milestone: an optional numeric
+alarm priority rank (4-15) overriding sort order within the existing 3-class
+priority system (Pass57).
+Implementation: ff224d0, 2026-10-05 (hash recorded after commit below), alarm
+priority rank (Pass57).
+Previous milestone: 27c245d, reaction-curve tuning suggestion (Pass56), 2026-10-05.
+The user authorized commit and push of Pass54-57 on 2026-10-05, separate from
 the 2026-10-04 authorization that covered Pass42-53 only.
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
@@ -20,16 +22,21 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:365 repository tests run locally (364 pass); typecheck and
+Last validation: 367 repository tests run locally (366 pass); typecheck and
 production build passed. The one failure is the pre-existing local-only
 pdf_om.txt dependency in dv09-audit.test.cjs, not a regression from this pass.
-Browser verified in a temporary standalone preview: a real FIC-102 built from
-the PID_LOOP template with FT-2/FY-2 traditional cards and a 20s input filter
-recorded a MAN output step; Review rendered a calculated Suggested Tuning,
-Use Suggested Values pre-filled GAIN/RESET, and Update Tuning applied them.
-Temporary preview config and course modules/cards were discarded afterward.
+Browser verified in a temporary standalone preview: opened DeltaV Explorer,
+selected the pharma project's SIC-201 PID module, edited its PV BAD alarm's
+new Rank field (9 accepted and displayed; 2 rejected with the existing
+validation alert and no change; clearing the field reverted to the unlabeled
+class-default display). Temporary preview config was discarded afterward.
 
 Most recent delivered functionality:
+  - Optional numeric alarm priority rank (4-15) that overrides sort order for
+    an individual alarm without changing its CRITICAL/WARNING/ADVISORY class
+    (color/label); editable in ExplorerDisplay's Configured Alarms table and
+    PidFaceplate's Alarms tab; persists through the existing AO/PID saved-
+    config validators; a blank/null value clears back to the class default.
   - Calculated open-loop reaction-curve (two-point/Ziegler-Nichols) tuning
     suggestion for the PID Tune Test, with a reviewable "Use Suggested Values"
     pre-fill; native DeltaV Tune system identification is not replicated.
@@ -59,6 +66,11 @@ Most recent delivered functionality:
   - Atomic Full across enrolled AO/PID/device/SFC with passive/reset guards.
 
 Remaining adjacent regulatory/picture requirements:
+  DV09-038 pp179-180: log-only level3, six-tile/banner administration, audible
+    settings/WAV configuration, auto-ack options, captured parameters and
+    controller timestamps remain MISSING; numeric rank administration exists.
+  DV09-039 pp181-182: SFC block custom alarms (SfcAlarmType) still lack a rank
+    field; module/PID alarm rank administration now exists.
   DV09-059 p258: native detail template/file parity; simulated workflow verified.
   DV09-060 pp259-264: AO upload is now selective too, but still not generic for
     every module/parameter type and still lacks a download-time differs prompt.
@@ -2128,3 +2140,56 @@ tests run locally (364 pass; the one failure is the pre-existing local-only
 pdf_om.txt dependency). Typecheck and production build passed. Commit/push
 authorization for this pass follows the same 2026-10-05 instruction already
 recorded for Pass54.
+
+PASS 57: OPTIONAL NUMERIC ALARM PRIORITY RANK, 4-15 (pp179-182)
+----------------------------------------------------------------
+Line1 - Scope: the next item in the user's "entire DV09, line by line"
+  instruction. Adds "arbitrary priorities 4-15" numeric alarm priority
+  administration (DV09-038/039), additively layered on the existing 3-class
+  CRITICAL/WARNING/ADVISORY system rather than replacing it.
+Line2 - Design decision: AlarmPriority (used in 10+ files, persisted in saved
+  AO/PID JSON) was not refactored to raw numbers. Instead an optional
+  rank?:number (4-15) field overrides sort order only; the 3-class system
+  still controls color/label/banner grouping, preserving every existing
+  tested behavior.
+Line3 - Engine: types.ts adds rank to AlarmLimit/ActiveAlarm; format.ts adds
+  alarmRank() (explicit rank, else class default 15/11/7) feeding
+  compareAlarmRank/moduleAlarm; simulate.ts's reconcileAlarm propagates rank
+  into live alarms; store.ts's setAlarmLimit validates (whole number, 4-15)
+  and applies it, with rank:null clearing back to the class default;
+  moduleLifecycle.ts/pidLifecycle.ts's isAlarm validators accept the field
+  for saved-config round-trips.
+Line4 - UI: ExplorerDisplay.tsx's Configured Alarms table and PidFaceplate.tsx's
+  Alarms tab each add a Rank numeric input beside enable/limit/priority.
+Line5 - Scope boundary (honest, not fixed this pass): sfcBlocks.ts's
+  SfcAlarmType (SFC block custom alarms) was deliberately left without a
+  rank field; this is a conscious scoping decision.
+Line6 - Tests: a direct alarmRank()/compareAlarmRank() regression proves a
+  rank-boosted ADVISORY alarm outranks a plain WARNING alarm, same-class
+  alarms sort by explicit rank, and equal explicit ranks still fall back to
+  the newer-timestamp rule. A setAlarmLimit regression on LI-101 (from
+  analogCourseProject) proves rank 3/4.5 are rejected with no mutation,
+  rank 12 is accepted, and rank:null clears it back to undefined.
+Line7 - Browser: a temporary standalone preview (not committed) opened DeltaV
+  Explorer, selected the pharma project's SIC-201 PID module, and used its
+  Configured Alarms Rank input on the PV BAD alarm: 9 committed and displayed
+  as "PV BAD - CRITICAL 9"; 2 was rejected with the validation alert and the
+  value stayed at 9; clearing the field reverted to the unlabeled class-
+  default display. Preview config was discarded afterward; a pre-existing
+  untracked newImage/ folder of user-supplied real DeltaV reference
+  screenshots was confirmed unrelated and left alone.
+Boundary: log-only level 3, six-tile/banner administration, audible/WAV
+configuration, auto-ack options, captured parameters and controller
+timestamps (DV09-038) remain MISSING; SFC block alarm rank (DV09-039) remains
+out of scope this pass.
+Result: DV09-038 Evidence updated (numeric rank administration now has real
+evidence); status remains PARTIAL. DV09-039 Verified/Gaps updated to record
+the new rank override and its one remaining honest gap; status remains
+VERIFIED_SUBSET (the 4-rule comparator order itself was already verified;
+this pass extended rule 3 without changing rule order). Classification
+totals unchanged at 9 VERIFIED_SUBSET/57 PARTIAL/37 MISSING/19 BOUNDARY/
+6 CONTEXT since neither group's Status line changed. 367 repository tests run
+locally (366 pass; the one failure is the pre-existing local-only pdf_om.txt
+dependency). Typecheck, production build and whitespace checks passed.
+Commit/push authorization for this pass follows the same 2026-10-05
+instruction already recorded for Pass54.

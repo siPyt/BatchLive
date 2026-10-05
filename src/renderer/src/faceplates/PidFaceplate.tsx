@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import type { PidModule, PidTargetMode, AlarmPriority, AlarmType, AlarmLimit, AnalogOutputStage } from '../engine/types'
 import { pidExecutionBad } from '../engine/pidModes'
-import { fmt, fmtQ, modeColor } from '../utils/format'
+import { fmt, fmtQ, modeColor, priorityRank } from '../utils/format'
 import { appliedPidOutput, pidIo } from '../engine/analogStrategy'
 
 const MODES: PidTargetMode[] = ['MAN', 'AUTO', 'CAS', 'OOS']
@@ -364,6 +364,19 @@ function AlarmTab({ m }: { m: PidModule }): JSX.Element {
             <option value="WARNING">WARN</option>
             <option value="ADVISORY">ADV</option>
           </select>
+          <input
+            className="fp-numinput sm"
+            aria-label={`${m.tag} ${a.type} priority rank`}
+            type="number"
+            min={4}
+            max={15}
+            step={1}
+            placeholder={String(priorityRank(a.priority))}
+            value={a.rank ?? ''}
+            onChange={(e) =>
+              setAlarmLimit(m.tag, a.type, { rank: e.target.value.trim() ? Number(e.target.value) : null })
+            }
+          />
         </div>
       ))}
     </div>

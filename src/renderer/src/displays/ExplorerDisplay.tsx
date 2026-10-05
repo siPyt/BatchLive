@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
-import { moduleAlarm, fmt } from '../utils/format'
+import { moduleAlarm, fmt, priorityRank } from '../utils/format'
 import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
 import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engine/types'
 import { ModuleIcon } from '../components/EngineeringIcons'
@@ -606,6 +606,7 @@ function ModuleProperties({
                 <th>Condition</th>
                 <th>Limit</th>
                 <th>Priority</th>
+                <th>Rank</th>
               </tr>
             </thead>
             <tbody>
@@ -646,6 +647,21 @@ function ModuleProperties({
                       <option value="WARNING">WARNING</option>
                       <option value="ADVISORY">ADVISORY</option>
                     </select>
+                  </td>
+                  <td>
+                    <input
+                      className="exp-alm-input"
+                      aria-label={`${m.tag} ${a.type} priority rank`}
+                      type="number"
+                      min={4}
+                      max={15}
+                      step={1}
+                      placeholder={String(priorityRank(a.priority))}
+                      value={a.rank ?? ''}
+                      onChange={(e) =>
+                        setAlarmLimit(m.tag, a.type, { rank: e.target.value.trim() ? Number(e.target.value) : null })
+                      }
+                    />
                   </td>
                 </tr>
               ))}
