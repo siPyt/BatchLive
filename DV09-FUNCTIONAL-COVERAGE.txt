@@ -2633,3 +2633,9 @@ PASS 84: CONTEXTUAL HELP AND WORKSHOP VERIFICATION (pp66-67)
 Line1 - What's This help per controller control with live prerequisites.
 Line2 - Commissioning workshop steps verified from state and the journal.
 Line3 - Dialog choice (No to auto-sense) stays manual. Tests: controller-help.test.cjs.
+
+PASS 85: CONTROL NETWORK PLACEHOLDERS AND COMMISSIONING PROPERTIES (pp57-62)
+-----------------------------------------------------------------------
+Line1 - Drag a decommissioned node onto the Control Network or a placeholder.
+Line2 - Properties dialog: name rules, description, area, hardware alarms, network redundancy, time-sync integrity, redundant.
+Line3 - Auto-sense Yes/No after OK; hardware alarms are real. Tests: commissioning.test.cjs.

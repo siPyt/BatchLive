@@ -10,6 +10,7 @@ import { H1Panel } from '../components/H1Panel'
 import { useSystem } from '../engine/systemPreferences'
 import { ControllerLedStrip, IdentifyDialog } from '../components/ControllerIndicators'
 import { WhatsThis } from '../components/WhatsThis'
+import { ControlNetworkPanel } from '../components/ControlNetworkPanel'
 import {
   COLD_RESTART_MODE_LABEL, coldRestartFromSelectors, coldRestartMode, describeColdRestart, splitColdRestart,
   type ColdRestartMode, type ColdRestartParts
@@ -47,6 +48,7 @@ export function PhysicalNetworkDisplay(): JSX.Element {
   const [newTag, setNewTag] = useState('')
   const [newDescription, setNewDescription] = useState('')
   const [createError, setCreateError] = useState('')
+  const [newSimplex, setNewSimplex] = useState(false)
   const pullCharm = useStore((s) => s.pullCharm)
   const reinsertCharm = useStore((s) => s.reinsertCharm)
   const openFaceplate = useUi((s) => s.openFaceplate)
@@ -56,12 +58,13 @@ export function PhysicalNetworkDisplay(): JSX.Element {
 
   const submitController = (): void => {
     if (!canCreate) return
-    if (!createController(newTag, newDescription)) {
+    if (!createController(newTag, newDescription, { simplexOnly: newSimplex })) {
       setCreateError('Controller could not be created. Verify your System Admin key and the controller details.')
       return
     }
     setNewTag('')
     setNewDescription('')
+    setNewSimplex(false)
     setCreateError('')
     setCreateOpen(false)
   }
@@ -77,6 +80,7 @@ export function PhysicalNetworkDisplay(): JSX.Element {
           {createOpen ? 'Cancel' : '＋ Add Decommissioned Controller'}
         </button>
       </div>
+      <ControlNetworkPanel />
       {createOpen && (
         <div className="hardware-create exp-newmod">
           <div className="exp-newmod-title">Add Decommissioned Controller</div>
@@ -92,6 +96,10 @@ export function PhysicalNetworkDisplay(): JSX.Element {
               onChange={(e) => setNewDescription(e.target.value)}
               placeholder="Optional controller description"
             />
+          </label>
+          <label className="hardware-setting-check">
+            Simplex hardware (cannot be made redundant)
+            <input type="checkbox" checked={newSimplex} onChange={(e) => setNewSimplex(e.target.checked)} />
           </label>
           {tagExists && <div className="exp-newmod-err">A controller with that name already exists.</div>}
           {newTag.trim() && !isValidControllerTag(newTag.trim()) && (
@@ -187,7 +195,9 @@ function ControllerPanel({
   const [settings, setSettings] = useState({
     redundant: c.redundant,
     networkRedundant: c.networkRedundant,
-    coldRestartMinutes: c.coldRestartMinutes
+    coldRestartMinutes: c.coldRestartMinutes,
+    hardwareAlarms: !!c.hardwareAlarms,
+    timeSyncIntegrity: !!c.timeSyncIntegrity
   })
   const [crMode, setCrMode] = useState<ColdRestartMode>(coldRestartMode(c.coldRestartMinutes))
   const [crParts, setCrParts] = useState<ColdRestartParts>(splitColdRestart(c.coldRestartMinutes))
@@ -199,11 +209,13 @@ function ControllerPanel({
     setSettings({
       redundant: c.redundant,
       networkRedundant: c.networkRedundant,
-      coldRestartMinutes: c.coldRestartMinutes
+      coldRestartMinutes: c.coldRestartMinutes,
+      hardwareAlarms: !!c.hardwareAlarms,
+      timeSyncIntegrity: !!c.timeSyncIntegrity
     })
     setCrMode(coldRestartMode(c.coldRestartMinutes))
     setCrParts(splitColdRestart(c.coldRestartMinutes))
-  }, [c.tag, c.redundant, c.networkRedundant, c.coldRestartMinutes])
+  }, [c.tag, c.redundant, c.networkRedundant, c.coldRestartMinutes, c.hardwareAlarms, c.timeSyncIntegrity])
 
   const updateColdRestart = (mode: ColdRestartMode, parts: ColdRestartParts): void => {
     setCrMode(mode)
@@ -429,6 +441,14 @@ function ControllerPanel({
             onChange={(e) => setSettings((current) => ({ ...current, networkRedundant: e.target.checked }))}
           />
         </label>
+        <label className="hardware-setting-check">
+          System hardware alarms
+          <input type="checkbox" checked={settings.hardwareAlarms} onChange={(e) => setSettings((current) => ({ ...current, hardwareAlarms: e.target.checked }))} />
+        </label>
+        <label className="hardware-setting-check">
+          Time-sync integrity error
+          <input type="checkbox" checked={settings.timeSyncIntegrity} onChange={(e) => setSettings((current) => ({ ...current, timeSyncIntegrity: e.target.checked }))} />
+        </label>
         <label>
           Cold Restart <WhatsThis topic="coldRestart" controller={c} />
           <select aria-label="Cold restart mode" value={crMode} onChange={(e) => updateColdRestart(e.target.value as ColdRestartMode, crParts)}>
@@ -449,6 +469,11 @@ function ControllerPanel({
           </span>
         )}        <button className="tbtn sm" disabled={down && c.commissioned} onClick={applySettings}>Apply Properties</button>
         <WhatsThis topic="applyProperties" controller={c} />
+        {c.commissioned && c.powerDownAt === null && (
+          <button className="tbtn sm" onClick={() => useStore.getState().setControllerTimeSync(c.tag, c.timeSynced === false)}>
+            {c.timeSynced === false ? 'Restore Time Sync' : 'Simulate Time Sync Loss'}
+          </button>
+        )}
         {c.lastAutoSense ? (
           <span className="hardware-autosense-result">
             Last scan {new Date(c.lastAutoSense.scannedAt).toLocaleTimeString()} · {c.lastAutoSense.carriersScanned} carriers ·{' '}

@@ -26,6 +26,7 @@ import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } fr
 import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { reconcileDeviceAlarms } from './deviceAlarms'
+import { commissionPropertiesErrors, controllerReferenceCount, placeholderErrors, reconcileHardwareAlarms, type CommissionProperties } from './commissioning'
 import { useSimulator, validateScale } from './simulatorSession'
 import { coldRestartDecision, type ColdRestartDecision } from './coldRestart'
 import { DEFAULT_RECIPE_NAME, defaultRecipe, recipeErrors, resolveRecipe, type Recipe } from './recipes'
@@ -341,7 +342,14 @@ interface StoreState extends PlantState {
   /** Fail a controller leg (primary, or both legs if not redundant) — bound I/O goes Bad. */
   failController: (tag: string) => boolean
   restoreController: (tag: string) => boolean
-  createController: (tag: string, description: string) => boolean
+  createController: (tag: string, description: string, options?: { simplexOnly?: boolean }) => boolean
+  /** DV09-006 Control Network placeholders: named slots a decommissioned controller can be dropped onto. */
+  createPlaceholder: (name: string, description: string) => string | null
+  deletePlaceholder: (name: string) => string | null
+  /** The Commissioning Properties dialog: validates, optionally renames/takes a placeholder, applies properties, commissions. */
+  commissionControllerWithProperties: (tag: string, props: CommissionProperties, placeholder?: string | null) => string | null
+  /** Diagnostic simulation of a node losing or regaining time synchronization. */
+  setControllerTimeSync: (tag: string, inSync: boolean) => boolean
   setControllerConfiguration: (tag: string, patch: Partial<ControllerConfiguration>) => boolean
   commissionController: (tag: string) => boolean
   decommissionController: (tag: string) => boolean
@@ -662,6 +670,7 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     // DV09-121..123: fieldbus device alarms (PlantWeb alerts) are device-state alarms, separate from process alarms.
     reconcileDeviceAlarms(next.alarms, s.hardware, next.time)
+    reconcileHardwareAlarms(next.alarms, s.hardware, next.time)
     // Sample trend data.
     const trend = s.trend
     const last = trend[trend.length - 1]
@@ -1406,8 +1415,79 @@ export const useStore = create<StoreState>((set, get) => ({
     return restored
   },
 
-  createController: (tag, description) => {
-    if (!useSecurity.getState().requireLock('SYSTEM_ADMIN', `Create controller ${tag}`)) return false
+  createPlaceholder: (name, description) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Create controller placeholder ${name}`)) return 'Requires the Can Configure key'
+    const errors = placeholderErrors(name, description, get().hardware)
+    if (errors.length) {
+      get().logEvent('DIAGNOSTIC', name.trim(), `Placeholder creation rejected: ${errors.join('; ')}`)
+      return errors.join('; ')
+    }
+    const n = name.trim()
+    set((s) => ({ hardware: { ...s.hardware, placeholders: { ...s.hardware.placeholders, [n]: { name: n, description: description.trim() } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', n, 'Control Network placeholder created')
+    return null
+  },
+  deletePlaceholder: (name) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Delete controller placeholder ${name}`)) return 'Requires the Can Configure key'
+    if (!get().hardware.placeholders?.[name]) return `Placeholder ${name} does not exist`
+    set((s) => {
+      const placeholders = { ...s.hardware.placeholders }
+      delete placeholders[name]
+      return { hardware: { ...s.hardware, placeholders }, rev: s.rev + 1 }
+    })
+    get().logEvent('CONFIGURE', name, 'Control Network placeholder deleted')
+    return null
+  },
+  commissionControllerWithProperties: (tag, props, placeholder = null) => {
+    const security = useSecurity.getState()
+    if (!security.requireLock('CAN_CONFIGURE', `Configure controller ${tag}`)) return 'Requires the Can Configure key'
+    if (!security.requireLock('CAN_DOWNLOAD', `Commission controller ${tag}`)) return 'Requires the Can Download key'
+    const state = get()
+    const c = state.hardware.controllers[tag]
+    const fail = (message: string): string => {
+      get().logEvent('DIAGNOSTIC', tag, `Commissioning rejected: ${message}`)
+      return message
+    }
+    if (!c) return fail(`Controller ${tag} does not exist`)
+    if (c.commissioned) return fail('The controller is already commissioned')
+    if (c.powerDownAt !== null) return fail('The controller has no power')
+    if (placeholder !== null && !state.hardware.placeholders?.[placeholder]) return fail(`Placeholder ${placeholder} does not exist`)
+    const name = (placeholder ?? props.name).trim()
+    const errors = commissionPropertiesErrors({ ...props, name }, {
+      otherControllers: Object.keys(state.hardware.controllers).filter((existing) => existing !== tag),
+      areas: state.areas, simplexOnly: !!c.simplexOnly })
+    if (errors.length) return fail(errors.join('; '))
+    if (name !== tag && controllerReferenceCount(state as never, tag) > 0)
+      return fail(`${tag} is referenced by configuration (carriers, cards or modules), so it cannot be renamed; commission it under its own name`)
+    const address = c.controlNetworkAddress ?? allocateControlNetworkAddress(state.hardware.controllers)
+    if (!address) return fail('No control network address is available')
+    set((s) => {
+      const controllers = { ...s.hardware.controllers }
+      delete controllers[tag]
+      const redundant = props.redundant && !c.simplexOnly
+      controllers[name] = { ...c, tag: name, description: props.description.trim(), networkRedundant: props.networkRedundant, redundant,
+        hardwareAlarms: props.hardwareAlarms, timeSyncIntegrity: props.timeSyncIntegrity, timeSynced: true, commissioned: true,
+        controlNetworkAddress: address, identified: false, primary: 'ACTIVE', secondary: redundant ? 'STANDBY' : 'N/A' }
+      const controllerAreas = { ...s.hardware.controllerAreas }
+      delete controllerAreas[tag]
+      if (props.area !== null) controllerAreas[name] = props.area
+      const placeholders = { ...s.hardware.placeholders }
+      if (placeholder !== null) delete placeholders[placeholder]
+      return { hardware: { ...s.hardware, controllers, controllerAreas, placeholders }, rev: s.rev + 1 }
+    })
+    if (name !== tag) get().logEvent('CONFIGURE', name, `Controller renamed from ${tag} at commissioning${placeholder !== null ? ` (dropped onto placeholder ${placeholder})` : ''}`)
+    get().logEvent('CONFIGURE', name, `Controller commissioned and added to the control network at ${address}`)
+    return null
+  },
+  setControllerTimeSync: (tag, inSync) => {
+    if (!useSecurity.getState().requireLock('DIAGNOSTIC', `Set time sync of controller ${tag}`)) return false
+    const c = get().hardware.controllers[tag]
+    if (!c || !c.commissioned || c.powerDownAt !== null || (c.timeSynced !== false) === inSync) return false
+    set((s) => ({ hardware: { ...s.hardware, controllers: { ...s.hardware.controllers, [tag]: { ...c, timeSynced: inSync } } }, rev: s.rev + 1 }))
+    get().logEvent('DIAGNOSTIC', tag, inSync ? 'Controller time synchronization restored' : 'Controller time synchronization lost (simulated)')
+    return true
+  },
+  createController: (tag, description, options) => {    if (!useSecurity.getState().requireLock('SYSTEM_ADMIN', `Create controller ${tag}`)) return false
     const normalizedTag = tag.trim()
     const normalizedDescription = description.trim()
     const error = !isValidControllerTag(normalizedTag)
@@ -1446,7 +1526,8 @@ export const useStore = create<StoreState>((set, get) => ({
               secondary: 'N/A' as const,
               scanTimeMs: 0,
               cpuLoadPct: 0,
-              carrierIds: []
+              carrierIds: [],
+              ...(options?.simplexOnly ? { simplexOnly: true } : {})
             }
           }
         },

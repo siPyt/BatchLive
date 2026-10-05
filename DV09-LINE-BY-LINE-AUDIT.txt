@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 55 VERIFIED_SUBSET, 48 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 56 VERIFIED_SUBSET, 47 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -182,11 +182,31 @@ Acceptance: Test indication start, stop, dismissal and controller identity;
 
 [DV09-006]
 Pages: 57-59
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Commission through Explorer's physical/control-network hierarchy,
   including placeholders or node movement and full node properties.
-Evidence: Commissioning changes actual simulated membership/address through
-  NETWORK. Explorer drag/drop/placeholder workflow is missing.
+Evidence (Pass85): commissioning changes real simulated membership and address,
+  and Physical Network now has the Explorer-style Control Network hierarchy:
+  a Decommissioned Nodes list, a Control Network drop zone and named
+  placeholders (create/delete need Can Configure). Dragging a decommissioned
+  controller onto the Control Network or a placeholder opens the Commissioning
+  Properties dialog with the course fields: Name (1-16 characters, at least
+  one letter, letters/digits/$/-/_; a placeholder supplies and locks the name),
+  Description (255), area for alarms and events, Enable System Hardware
+  Alarms, Enable network redundancy, Show integrity error when not in time
+  sync, and Node is redundant (disabled for simplex hardware); OK validates
+  every field, renames when safe, applies the properties, assigns the address,
+  consumes the placeholder and then asks Yes/No for Auto-sense I/O. Renaming is
+  refused when cards, carriers or modules already refer to the name. Hardware
+  alarms (controller failed, standby unavailable, time-sync integrity) are real
+  alarms in the controller's area (category SYSTEM) only when their switches
+  are on. Nine regressions cover validation, placeholders, the dialog path,
+  placeholder drop, impossible/invalid cases, key refusal, hardware alarms and
+  time sync; the browser exercised create, placeholder, drop, dialog, OK and
+  Auto-sense Yes (drag events were dispatched directly because Playwright's
+  mouse drag does not synthesize HTML5 drag-and-drop).
+  Boundary: moving an already-commissioned node between placeholders, the
+  Configuration Assistant path and native Explorer dialogs are not reproduced.
 Acceptance: Verify each entry path, invalid placeholders and node association
   without conflating a panel button with the complete course procedure.
 
@@ -4059,3 +4079,27 @@ Validation: 583 tests locally (582 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-010 PARTIAL -> VERIFIED_SUBSET. Totals 55 VERIFIED_SUBSET/
   48 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 85 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-006 Explorer commissioning path, placeholders and node properties (pp57-62).
+Engine: new commissioning.ts (properties validation, placeholders, reference
+  scan for safe rename, hardware alarm reconciliation); hardware.ts gains
+  hardwareAlarms/timeSyncIntegrity/timeSynced/simplexOnly and placeholders;
+  store gains createPlaceholder, deletePlaceholder,
+  commissionControllerWithProperties, setControllerTimeSync and a createController
+  simplex option; registry targets fn-controller-placeholder and the time-sync
+  action under fn-controller-diagnostics; hardware alarms reconciled each tick;
+  alarm area/category extended for HWALM alarms.
+UI: ControlNetworkPanel (drag/drop, placeholders, Commissioning Properties
+  dialog, auto-sense prompt); hardware alarm / time-sync switches and a time-sync
+  loss simulation button in each controller row.
+Tests: tests/commissioning.test.cjs (9).
+Browser: drop onto placeholder opened the dialog with the locked name; OK
+  commissioned SLOT_A in area REACTOR; Auto-sense Yes completed.
+Boundary (honest): no node movement between placeholders, no Configuration
+  Assistant path.
+Validation: 592 tests locally (591 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-006 PARTIAL -> VERIFIED_SUBSET. Totals 56 VERIFIED_SUBSET/
+  47 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

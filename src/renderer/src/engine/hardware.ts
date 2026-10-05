@@ -68,6 +68,14 @@ export interface Controller {
   scanTimeMs: number
   cpuLoadPct: number
   carrierIds: string[]
+  /** Commissioning dialog: controller hardware errors raise alarms in the controller's area. */
+  hardwareAlarms?: boolean
+  /** Commissioning dialog: raise an integrity alarm while the node is not time-synchronized. */
+  timeSyncIntegrity?: boolean
+  /** False while the node is out of time sync (a diagnostic simulation); undefined means in sync. */
+  timeSynced?: boolean
+  /** Simplex hardware cannot be made redundant. */
+  simplexOnly?: boolean
   /** Outcome of the most recent power restoration, for the cold-restart status display. */
   lastRestoration?: { at: number; outageMinutes: number; coldRestart: boolean; reason: string }
 }
@@ -85,6 +93,8 @@ export interface ControllerConfiguration {
   redundant: boolean
   networkRedundant: boolean
   coldRestartMinutes: number
+  hardwareAlarms?: boolean
+  timeSyncIntegrity?: boolean
 }
 
 export const MAX_COLD_RESTART_MINUTES = 30 * 24 * 60 + 23 * 60 + 59
@@ -115,6 +125,8 @@ export interface HardwareState {
   h1Cards?: Record<string, import('./fieldbus').H1Card>
   /** DV09-123 area each controller (node) is assigned to; device alarms can inherit it. */
   controllerAreas?: Record<string, string>
+  /** DV09-006 named Control Network slots a decommissioned controller can be dropped onto. */
+  placeholders?: Record<string, { name: string; description: string }>
   /** DI IO_IN / DO IO_OUT keyed by module, independently of channel DST names. */
   discreteBindings?: Record<string, string>
   /** Standalone AI / PID AI1, AO1, AO2 physical channel bindings. */

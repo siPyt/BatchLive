@@ -76,6 +76,7 @@ const ALARM_CATEGORY: Partial<Record<ActiveAlarm['type'], string>> = {
 
 export function alarmCategory(a: ActiveAlarm): string {
   if (a.id.startsWith('DEVALM.')) return 'DEVICE'
+  if (a.id.startsWith('HWALM.')) return 'SYSTEM'
   return ALARM_CATEGORY[a.type] ?? '—'
 }
 

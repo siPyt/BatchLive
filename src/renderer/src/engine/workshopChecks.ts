@@ -19,7 +19,7 @@ const firstIndex = (log: readonly EventLogEntry[], tag: string, pattern: RegExp,
 
 function checkController(c: Controller, log: readonly EventLogEntry[]): StepCheck[] {
   const t = c.tag
-  const started = firstIndex(log, t, /^Decommissioned controller created|^Controller decommissioned/)
+  const started = firstIndex(log, t, /^Decommissioned controller created|^Controller decommissioned|^Controller renamed from/)
   const idStart = firstIndex(log, t, /identify flashing started/)
   const idStop = idStart >= 0 ? firstIndex(log, t, /identify flashing stopped/, idStart) : -1
   const commissionedAt = lastIndex(log, t, /^Controller commissioned and added/)

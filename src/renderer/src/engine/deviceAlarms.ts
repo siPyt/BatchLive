@@ -1,5 +1,6 @@
 import { controllerIsDown, type HardwareState } from './hardware'
 import { reconcileAlarm } from './simulate'
+import { hardwareAlarmArea, isHardwareAlarm } from './commissioning'
 import {
   DEVICE_ALARM_KINDS,
   H1_PORT_IDS,
@@ -65,6 +66,7 @@ export function deviceAlarmArea(hw: HardwareState, modules: Record<string, AnyMo
 
 /** Area of any alarm: a module's area, or the resolved area of a device alarm. */
 export function alarmArea(alarm: ActiveAlarm, modules: Record<string, AnyModule>, hw: HardwareState): string | undefined {
+  if (isHardwareAlarm(alarm)) return hardwareAlarmArea(hw, alarm.moduleTag)
   return isDeviceAlarm(alarm) ? deviceAlarmArea(hw, modules, alarm.moduleTag) : modules[alarm.moduleTag]?.area
 }
 
