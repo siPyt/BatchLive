@@ -759,7 +759,68 @@ button {
   color: #17222b;
   font-size: 26px;
 }
-.overview-vessel-panels {
+.overview-section {
+  flex-shrink: 0;
+  max-width: 1680px;
+  width: 100%;
+  margin: 0 auto 22px;
+}
+.overview-section-heading {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: #17222b;
+  border-bottom: 1px solid #6b7680;
+  padding-bottom: 3px;
+}
+.overview-section-heading small {
+  margin-left: 12px;
+  font-size: 11px;
+  font-weight: 400;
+}
+.overview-rooms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 18px;
+}
+.overview-room {
+  background: #b7bec2;
+  border: 1px solid #2b3137;
+  padding: 8px 12px 10px;
+}
+.overview-room-wide {
+  grid-column: span 2;
+}
+.overview-room h3 {
+  margin: 0 0 4px;
+  text-align: center;
+  font-size: 17px;
+  color: #17222b;
+}
+.overview-room-tanks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+.overview-room-tanks svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 190px;
+}
+.overview-reference-only {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  max-width: 1680px;
+  width: 100%;
+  margin: 12px auto 0;
+  flex-shrink: 0;
+}
+.overview-reference-only button[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}.overview-vessel-panels {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 28px;

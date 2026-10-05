@@ -124,8 +124,15 @@ test('IMG_0616 overview is a fixed three-panel navigation screen, while area det
     'Product / Header', 'Autoclaves', 'Lyophilizers', 'CIP Skids', 'Temperature Control Units']) {
     assert.ok(html.includes(label), label)
   }
-  assert.ok(!html.includes('3T-8130'))
-  assert.ok(!html.includes('3T-8140'))
+  for (const tag of ['3T-8130', '3T-8120', '3T-8140', '3T-5370', '3T-5440', '3T-5460', '3T-8030', '3T-5420', '3T-5110']) {
+    assert.ok(html.includes(tag), tag)
+  }
+  for (const label of ['Room 1040', 'Room 1040A', 'Room 1042', 'WFI Still (Sandbox)']) assert.ok(html.includes(label), label)
+  for (const label of ['NGS-808', 'Scrubber 3S-8050', 'CIP-804', 'WFI Pretr Skid', '3TCU-8010', '3TCU-8020', 'Glycol 3T-8150',
+    'Process Waste', '3UF-8201', 'HCL Totes', 'PW Neutr.', '3SUR-3300', '3SUR-3200', 'Buffer Prep', '3CIP-3200', '3T-3300', '3T-3350']) {
+    assert.match(html, new RegExp(`aria-disabled="true"[^>]*>${label.replace(/[.]/g, '\\.')}</button>`), label)
+  }
+  assert.equal((html.match(/not modeled/g) || []).length >= 6, true)
   assert.match(render(OverviewDisplay, { focusArea: 'REACTOR' }), /dv-area-jumpbar/)
 })
 
@@ -142,6 +149,13 @@ test('photographed overview and all unit pictures expose real modules, shared ut
       assert.ok(html.includes(label), label)
     }
     for (const view of ['n3', 'n1', 'n1bp', 'still']) assert.match(render(PhotoPlantDisplay, { view }), /<svg/)
+    const still = render(PhotoPlantDisplay, { view: 'still' })
+    for (const label of ['3WFI-8110-TCV102', '3WFI-8110-PCV103', '3WFI-8110-LCV200', '3WFI-8110-TCV200', '3WFI-8110-LCV100',
+      '3WFI-8110-XV202', '3WFI-8110-FCV300', '3WFI-8110-SV500', '3WFI-8110-TT102', '3WFI-8110-IY100', '3WFI-8110-TT200',
+      'Oil Pump', 'Oil Pressure', 'Oil Temperature', 'WFI STILL', 'COMMS', 'Cold / Off', 'Distillate Level', 'Feed Water Level']) {
+      assert.ok(still.includes(label), label)
+    }
+    assert.match(still, /aria-disabled="true"[^>]*aria-label="WFI STILL COMMS is shown in the reference but is not modeled"/)
     const modules = { ...useStore.getState().modules,
       '3T-8130-LIC005': { ...addon.modules['3T-8130-LIC005'], pvBad: true } }
     delete modules['3T-8140-TIC011']

@@ -1,16 +1,16 @@
 import { useStore } from '../engine/store'
+import { useSecurity } from '../engine/security'
 import { useUi, type DisplayId } from '../ui/uiStore'
+import type { AnyModule, PidModule } from '../engine/types'
 import { PHOTO_TANKS, PHOTO_TAG_TYPES, STILL, type PhotoTankId, type PhotoPlantState } from '../engine/photoPlant'
 import { appliedPidOutput } from '../engine/analogStrategy'
 import { pidExecutionBad } from '../engine/pidModes'
 import {
-  ClassicTank, ClassicPipe, ClassicPump, ClassicSanitaryValve, ClassicControlValve,
-  ClassicHex, ClassicFlag, PALE_TEXT
+  ClassicPipe, ClassicPump, ClassicSanitaryValve, ClassicControlValve,
+  ClassicHex, ClassicFlag, PALE_TEXT, PALE_GREEN, PALE_RED
 } from '../components/ClassicGraphics'
-import { OverviewReading } from './PlantNavigationOverview'
-
+import { OverviewReading, TankLevel, TankSummary, tankRoute } from './overviewParts'
 type PhotoView = PhotoTankId | 'overview' | 'still'
-const tankRoute = (id: PhotoTankId): DisplayId => id === 'n3' ? 'photo-n3' : id === 'n1' ? 'photo-n1' : 'photo-n1bp'
 
 export function PhotoPlantDisplay({ view }: { view: PhotoView }): JSX.Element {
   const state = useStore(s => s.photoPlant)
@@ -41,6 +41,7 @@ export function PhotoPlantDisplay({ view }: { view: PhotoView }): JSX.Element {
     <h1 className={view === 'overview' ? undefined : 'graphic-display-title'}>{title}</h1>
     <div className="photo-model-note">Sandbox training model - not site control logic or a validated GMP process.
       Shared utilities and N1-to-existing-WFI/CIP supply are connected; other photographed areas are not yet built.</div>
+    {view === 'still' && <div className="photo-model-note">Startup: start the oil pump and open the SV500 cooling-water valve; once oil pressure is ready, reset and start the compressor. Open feed isolation XV100 so LCV100 can admit feed water; heat with TCV102/PCV103. Distillate above 95 degC is produced; TCV200 cools it using incoming feed water. Start the DIST pump with XV201 (storage) or XV202 (waste) open.</div>}
     {missing.length > 0 && <div className="photo-model-note" role="alert">Incomplete model - required modules missing or wrong type:
       {' '}{missing.join(', ')}. Restore the modules before training; physical vessel state is not a valid instrument reading.</div>}
     <div className="photo-utility-summary" aria-label="Shared plant utilities">
@@ -76,64 +77,6 @@ export function PhotoPlantDisplay({ view }: { view: PhotoView }): JSX.Element {
       <button className="overview-navigation-button" onClick={() => navigate('plant-map')}>Original Spatial Plant Map</button>
     </nav>
   </div>
-}
-
-function TankLevel({ tag, x, y, w, h, label }: {
-  tag: string; x: number; y: number; w: number; h: number; label: string
-}): JSX.Element {
-  const module = useStore(s => s.modules[tag])
-  if (module?.type === 'PID' && !module.pvBad && !pidExecutionBad(module))
-    return <ClassicTank x={x} y={y} w={w} h={h} label={label} level={module.pv} />
-  return <g><rect x={x} y={y} width={w} height={h} fill="#eceeef" stroke="#5b7384" />
-    <text x={x + w / 2} y={y + h / 2 + 45} textAnchor="middle" fill={PALE_TEXT} fontSize={11}>
-      {module?.type === 'PID' ? 'Level quality BAD' : 'Not configured'}
-    </text></g>
-}
-
-function TankSummary({ id, state }: { id: PhotoTankId; state: PhotoPlantState }): JSX.Element {
-  const modules = useStore(s => s.modules)
-  const navigate = useUi(s => s.navigate)
-  const config = PHOTO_TANKS.find(tank => tank.id === id)!
-  const p = config.prefix
-  const tank = state.tanks[id]
-  const motor = (tag: string): boolean => { const m = modules[tag]; return m?.type === 'MOTOR' && m.running && !m.fault }
-  const valve = (tag: string): boolean => { const m = modules[tag]; return m?.type === 'VALVE' && m.open }
-  const inUse = motor(`${p}-XC002`) && valve(`${p}-YV014`)
-  const filling = valve(`${p}-YV007`) && motor(`${STILL}-DIST`) && valve(`${STILL}-XV201`) && state.still.distillateLiters > 0
-  const remaining = tank.sanitation === 'SOAK' ? Math.max(0, 600 - tank.soakSeconds) : undefined
-  const clock = remaining === undefined ? '--:--'
-    : `${Math.floor(remaining / 60).toString().padStart(2, '0')}:${Math.floor(remaining % 60).toString().padStart(2, '0')}`
-  const sanitationActive = tank.sanitation !== 'IDLE'
-  return <svg viewBox="0 0 420 400" role="img" aria-label={`${config.title} live summary`}>
-    <TankLevel tag={`${p}-LIC005`} x={143} y={38} w={134} h={180} label="" />
-    <rect x={163} y={52} width={94} height={26} fill="#fff" stroke="#2b3137" />
-    <text x={210} y={70} textAnchor="middle" fill={PALE_TEXT} fontSize={13}>{inUse ? 'In Use' : 'Not In Use'}</text>
-    <rect x={159} y={95} width={102} height={28} fill="#fff" />
-    <text x={210} y={115} textAnchor="middle" fill={PALE_TEXT} fontSize={18} fontWeight={800}>{p}</text>
-    <OverviewReading tag={`${p}-AI015A`} module={modules[`${p}-AI015A`]} x={10} y={56} />
-    <OverviewReading tag={`${p}-AI015B`} module={modules[`${p}-AI015B`]} x={10} y={155} />
-    <OverviewReading tag={`${p}-TIC011`} module={modules[`${p}-TIC011`]} x={292} y={56} />
-    <OverviewReading tag={`${p}-PIC016`} module={modules[`${p}-PIC016`]} x={292} y={155} />
-    <OverviewReading tag={`${p}-LIC005`} module={modules[`${p}-LIC005`]} x={154} y={157} pvOnly />
-    <text x={210} y={238} textAnchor="middle" fill={PALE_TEXT} fontSize={10}>{tank.liters.toFixed(0)} liter (model)</text>
-    <rect x={14} y={282} width={112} height={56} fill="#fff" stroke="#6b7680" />
-    <text x={70} y={304} textAnchor="middle" fill={PALE_TEXT} fontSize={11} fontWeight={700}>WFI-LVL-CTRL</text>
-    <text x={70} y={324} textAnchor="middle" fill={PALE_TEXT} fontSize={11}>{filling ? 'Filling' : 'Not Filling'}</text>
-    <g aria-label={`${id.toUpperCase()}-WFI-SANI sandbox sanitation`}>
-      <rect x={140} y={262} width={266} height={118} fill="#fff" stroke={sanitationActive ? '#8a6d00' : '#6b7680'}
-        strokeWidth={sanitationActive ? 2 : 1} />
-      <text x={273} y={280} textAnchor="middle" fill={PALE_TEXT} fontSize={11} fontWeight={700}>{id.toUpperCase()}-WFI-SANI (training)</text>
-      <text x={150} y={299} fill={PALE_TEXT} fontSize={10}>Cycle Stage: {tank.sanitation}</text>
-      <text x={150} y={315} fill={PALE_TEXT} fontSize={10}>Hot Soak: {tank.soakSeconds.toFixed(0)} / 600 s</text>
-      <text x={150} y={331} fill={PALE_TEXT} fontSize={10}>Sani Time Remaining: {clock}</text>
-      <g role="button" tabIndex={0} aria-label={`Open ${config.title} sanitation controls`} style={{ cursor: 'pointer' }}
-        onClick={() => navigate(tankRoute(id))}
-        onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(tankRoute(id)) } }}>
-        <rect x={185} y={344} width={176} height={26} fill="#eceeef" stroke="#2b3137" />
-        <text x={273} y={362} textAnchor="middle" fill={PALE_TEXT} fontSize={11} fontWeight={700}>Sani Control</text>
-      </g>
-    </g>
-  </svg>
 }
 
 function TankPicture({ id, state }: { id: PhotoTankId; state: PhotoPlantState }): JSX.Element {
@@ -174,37 +117,142 @@ function TankPicture({ id, state }: { id: PhotoTankId; state: PhotoPlantState })
   </svg>
 }
 
+function ValvePercent({ x, y, module }: { x: number; y: number; module: AnyModule | undefined }): JSX.Element {
+  const pid = module?.type === 'PID' ? module : undefined
+  const bad = !pid || pid.pvBad || pidExecutionBad(pid)
+  return <text x={x} y={y} textAnchor="middle" fill={PALE_TEXT} fontSize={9}>{bad && !pid ? 'n/c' : `${pid ? appliedPidOutput(pid).toFixed(0) : '--'} %`}</text>
+}
+
 function StillPicture(): JSX.Element {
   const modules = useStore(s => s.modules)
-  const motor = (suffix: string): boolean => { const m = modules[`${STILL}-${suffix}`]; return m?.type === 'MOTOR' && m.running }
-  const valve = (suffix: string): boolean => { const m = modules[`${STILL}-${suffix}`]; return m?.type === 'VALVE' && m.open }
-  const heat = modules[`${STILL}-TIC102`]
-  return <svg width="100%" height="100%" viewBox="0 0 1040 600" role="img" aria-label="WFI still coupled training process">
-    <ClassicPipe d="M100,130 H240 V195 H455 M535,140 H730 M455,360 V450 H320 V490 H160 M535,360 V490 H900 M730,140 V80 H900" />
-    <ClassicPipe d="M535,220 H900 M455,360 H220 V250 H100" />
-    <ClassicHex x={160} y={105} w={130} h={50} label="FEED" />
-    <ClassicHex x={230} y={420} w={130} h={50} label="DISTILLATE" />
-    <ClassicHex x={700} y={420} w={130} h={50} label="BLOWDOWN" />
-    <TankLevel tag={`${STILL}-LIC100`} x={430} y={140} w={150} h={220} label="WFI STILL" />
-    <ClassicPump x={730} y={140} running={motor('COMP')} tag={`${STILL}-COMP`} labelPosition="right" />
-    <ClassicPump x={730} y={80} running={motor('LUBE')} tag={`${STILL}-LUBE`} labelPosition="left" />
-    <ClassicPump x={320} y={490} running={motor('DIST')} tag={`${STILL}-DIST`} labelPosition="right" discharge="right" />
-    <ClassicSanitaryValve x={610} y={490} open={valve('XV100')} tag={`${STILL}-XV100`} labelPosition="above" />
-    <ClassicSanitaryValve x={160} y={490} open={valve('XV201')} tag={`${STILL}-XV201`} labelPosition="above" />
-    <ClassicControlValve x={820} y={220} position={heat?.type === 'PID' ? appliedPidOutput(heat) : 0} tag={`${STILL}-TIC102`} labelPosition="above" />
-    <ClassicFlag x={100} y={115} w={80} text="Plant Steam" pointRight={false} />
-    <ClassicFlag x={900} y={476} w={100} text="Feed Water" />
-    <ClassicFlag x={100} y={235} w={80} text="To WFI Tanks" pointRight={false} />
-    <ClassicFlag x={900} y={206} w={100} text="Heating Steam" />
-    <OverviewReading tag={`${STILL}-TIC102`} module={heat} x={140} y={195} />
-    <OverviewReading tag={`${STILL}-LIC100`} module={modules[`${STILL}-LIC100`]} x={445} y={180} pvOnly />
-    <OverviewReading tag={`${STILL}-LT200`} module={modules[`${STILL}-LT200`]} x={445} y={285} />
-    <OverviewReading tag={`${STILL}-FT200`} module={modules[`${STILL}-FT200`]} x={340} y={390} />
-    <OverviewReading tag={`${STILL}-PT103`} module={modules[`${STILL}-PT103`]} x={445} y={65} />
-    <OverviewReading tag={`${STILL}-OIL-PRESS`} module={modules[`${STILL}-OIL-PRESS`]} x={825} y={125} />
-    <OverviewReading tag={`${STILL}-AIT200`} module={modules[`${STILL}-AIT200`]} x={145} y={335} />
-    <text x={500} y={560} fill={PALE_TEXT} fontSize={12} textAnchor="middle">
-      Startup: oil pump; once oil pressure is ready, reset/start compressor. Open feed/delivery and start distillate pump.
-    </text>
+  const user = useSecurity(s => s.currentUser)
+  const state = useStore(s => s.photoPlant)
+  const navigate = useUi(s => s.navigate)
+  const openFaceplate = useUi(s => s.openFaceplate)
+  const t = (suffix: string): string => `${STILL}-${suffix}`
+  const motor = (suffix: string): boolean => { const m = modules[t(suffix)]; return m?.type === 'MOTOR' && m.running }
+  const valve = (suffix: string): boolean => { const m = modules[t(suffix)]; return m?.type === 'VALVE' && m.open }
+  const pid = (suffix: string): PidModule | undefined => { const m = modules[t(suffix)]; return m?.type === 'PID' ? m : undefined }
+  const analog = (suffix: string): number | undefined => {
+    const m = modules[t(suffix)]
+    return m?.type === 'AI' && !m.pvBad ? m.pv : undefined
+  }
+  const bar = (module: AnyModule | undefined, x: number): JSX.Element => {
+    const good = module?.type === 'PID' && !module.pvBad && !pidExecutionBad(module) ? module.pv
+      : module?.type === 'AI' && !module.pvBad ? module.pv : undefined
+    const level = Math.max(0, Math.min(100, good ?? 0))
+    return <g>
+      <rect x={x} y={125} width={7} height={130} fill="#fff" stroke="#44525c" />
+      {good !== undefined && <rect x={x} y={125 + 130 * (1 - level / 100)} width={7} height={130 * level / 100} fill="#2f5f96" />}
+    </g>
+  }
+  const oilPressure = analog('OIL-PRESS')
+  const oilTemperature = analog('OIL-TEMP')
+  const status = !state ? 'Unavailable'
+    : state.still.production > 0 ? 'Producing'
+      : state.still.temperature >= 95 ? 'Hot Standby'
+        : state.still.temperature > 35 ? 'Heating' : 'Cold / Off'
+  const nav = (label: string[], y: number, route?: DisplayId): JSX.Element =>
+    <g role="button" tabIndex={route ? 0 : undefined} aria-disabled={route ? undefined : true}
+      aria-label={route ? `Open ${label.join(' ')}` : `${label.join(' ')} is shown in the reference but is not modeled`}
+      style={{ cursor: route ? 'pointer' : 'not-allowed' }} opacity={route ? 1 : 0.55}
+      onClick={route ? () => navigate(route) : undefined}
+      onKeyDown={route ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(route) } } : undefined}>
+      <title>{route ? label.join(' ') : `${label.join(' ')} appears in the reference photograph but is not modeled`}</title>
+      <rect x={873} y={y} width={92} height={42} fill="#f3f3f3" stroke="#222" strokeWidth={2} />
+      {label.map((line, index) => <text key={line} x={919} y={y + 17 + index * 14} textAnchor="middle"
+        fill={PALE_TEXT} fontSize={10} fontWeight={800}>{line}</text>)}
+    </g>
+  const indicator = (x: number, y: number, ok: boolean | undefined, text: string, tag: string): JSX.Element =>
+    <g role="button" tabIndex={0} aria-label={`${text}: ${ok === undefined ? 'unavailable' : ok ? 'normal' : 'abnormal'}. Open faceplate`}
+      style={{ cursor: 'pointer' }} onClick={() => openFaceplate(tag)}
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openFaceplate(tag) } }}>
+      <rect x={x} y={y} width={14} height={14} fill={ok === undefined ? '#9aa4ab' : ok ? PALE_GREEN : PALE_RED} stroke="#222" />
+      <text x={x + 22} y={y + 11} fill={PALE_TEXT} fontSize={10}>{text}</text>
+    </g>
+  const comp = modules[t('COMP')]
+  return <svg width="100%" height="100%" viewBox="0 0 1040 620" role="img" aria-label="WFI still coupled training process">
+    <ClassicPipe d="M88,59 H179 V110" />
+    <ClassicPipe d="M244,146 V184 H92" />
+    <ClassicPipe d="M256,128 H387 V300 H470" />
+    <ClassicPipe d="M556,121 H616" />
+    <ClassicPipe d="M590,121 V74 H910" />
+    <ClassicPipe d="M556,200 H908" />
+    <ClassicPipe d="M556,236 H910" />
+    <ClassicPipe d="M499,270 V606" />
+    <ClassicPipe d="M499,426 H402" />
+    <ClassicPipe d="M290,421 H179 V330 M179,380 H113 M179,330 H113" />
+    <ClassicPipe d="M908,525 H321 V440 M625,525 V442" />
+    <ClassicPipe d="M690,442 V585 H905" />
+    <ClassicHex x={154} y={110} w={102} h={36} label="FEED" />
+    <ClassicHex x={290} y={404} w={112} h={34} label="DSTLT" />
+    <ClassicHex x={594} y={404} w={115} h={36} label="BLWDN" />
+    <TankLevel tag={t('LIC100')} x={443} y={92} w={113} h={178} label="" />
+    {bar(modules[t('LT200')], 451)}
+    {bar(modules[t('LIC100')], 541)}
+    <text transform="translate(448 190) rotate(-90)" fill={PALE_TEXT} fontSize={7}>Distillate Level</text>
+    <text transform="translate(556 190) rotate(-90)" fill={PALE_TEXT} fontSize={7}>Feed Water Level</text>
+    <rect x={198} y={28} width={140} height={22} fill="#f3f3f3" stroke="#6b7680" />
+    <text x={268} y={43} textAnchor="middle" fill={PALE_TEXT} fontSize={11}>{status}</text>
+    <ClassicFlag x={24} y={49} w={64} text="Plant Steam" />
+    <ClassicFlag x={92} y={174} w={64} text="Condensate" pointRight={false} />
+    <ClassicFlag x={113} y={320} w={55} text="Storage" pointRight={false} />
+    <ClassicFlag x={113} y={370} w={55} text="Waste" pointRight={false} />
+    <ClassicFlag x={971} y={64} w={60} text="Cooling Water" pointRight={false} />
+    <ClassicFlag x={969} y={190} w={60} text="Plant Steam" pointRight={false} />
+    <ClassicFlag x={970} y={226} w={60} text="Condensate" pointRight={false} />
+    <ClassicFlag x={963} y={515} w={55} text="Feed Water" pointRight={false} />
+    <ClassicFlag x={963} y={575} w={55} text="BLWDN" pointRight={false} />
+    <ClassicControlValve x={142} y={59} position={pid('TIC102') ? appliedPidOutput(pid('TIC102')!) : 0}
+      tag={t('TIC102')} label={t('TCV102')} labelPosition="above" />
+    <ValvePercent x={142} y={84} module={pid('TIC102')} />
+    <ClassicControlValve x={769} y={200} position={pid('PIC103') ? appliedPidOutput(pid('PIC103')!) : 0}
+      tag={t('PIC103')} label={t('PCV103')} labelPosition="above" />
+    <ValvePercent x={769} y={225} module={pid('PIC103')} />
+    <ClassicControlValve x={235} y={421} position={pid('LIC200') ? appliedPidOutput(pid('LIC200')!) : 0}
+      tag={t('LIC200')} label={t('LCV200')} labelPosition="above" />
+    <ValvePercent x={235} y={446} module={pid('LIC200')} />
+    <ClassicControlValve x={394} y={525} position={pid('TIC200') ? appliedPidOutput(pid('TIC200')!) : 0}
+      tag={t('TIC200')} label={t('TCV200')} labelPosition="above" />
+    <ValvePercent x={394} y={550} module={pid('TIC200')} />
+    <ClassicControlValve x={729} y={525} position={pid('LIC100') ? appliedPidOutput(pid('LIC100')!) : 0}
+      tag={t('LIC100')} label={t('LCV100')} labelPosition="above" />
+    <ValvePercent x={729} y={550} module={pid('LIC100')} />
+    <ClassicSanitaryValve x={830} y={525} open={valve('XV100')} tag={t('XV100')} labelPosition="above" />
+    <ClassicSanitaryValve x={729} y={585} open={valve('FCV300')} tag={t('FCV300')} labelPosition="above" />
+    <ClassicSanitaryValve x={786} y={74} open={valve('SV500')} tag={t('SV500')} labelPosition="above" />
+    <ClassicSanitaryValve x={148} y={330} open={valve('XV201')} tag={t('XV201')} labelPosition="above" />
+    <ClassicSanitaryValve x={148} y={380} open={valve('XV202')} tag={t('XV202')} labelPosition="below" />
+    <ClassicSanitaryValve x={499} y={561} open={valve('XV200')} tag={t('XV200')} orientation="vertical" labelPosition="right" />
+    <ClassicPump x={679} y={74} running={motor('LUBE')} tag={t('LUBE')} labelPosition="left" />
+    <ClassicPump x={499} y={426} running={motor('DIST')} tag={t('DIST')} labelPosition="below" />
+    <g data-equipment-tag={t('COMP')} data-state={motor('COMP') ? 'running' : 'stopped'} style={{ cursor: 'pointer' }}
+      role="button" tabIndex={0} aria-label={`${t('COMP')}: ${motor('COMP') ? 'Running' : 'Off'}. Open faceplate`}
+      onClick={() => openFaceplate(t('COMP'))}
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openFaceplate(t('COMP')) } }}>
+      <title>{`${t('COMP')}: ${comp?.type === 'MOTOR' ? comp.description : 'not configured'}`}</title>
+      <rect x={616} y={104} width={69} height={38} rx={16} fill={motor('COMP') ? PALE_GREEN : '#c6d2db'} stroke="#44525c" strokeWidth={1.5} />
+      <text x={650} y={127} textAnchor="middle" fill={motor('COMP') ? '#fff' : PALE_TEXT} fontSize={11} fontWeight={700}>{motor('COMP') ? 'On' : 'Off'}</text>
+      <text x={650} y={156} textAnchor="middle" fill={PALE_TEXT} fontSize={8}>{t('COMP')}</text>
+    </g>
+    <OverviewReading tag={t('TIC102')} label={t('TT102')} module={modules[t('TIC102')]} x={262} y={92} w={96} pvOnly />
+    <OverviewReading tag={t('PT103')} module={modules[t('PT103')]} x={471} y={42} w={96} />
+    <OverviewReading tag={t('LIC100')} label={t('LT100')} module={modules[t('LIC100')]} x={463} y={150} w={74} pvOnly />
+    <OverviewReading tag={t('LT200')} module={modules[t('LT200')]} x={463} y={200} w={74} />
+    <OverviewReading tag={t('IY100')} module={modules[t('IY100')]} x={697} y={104} w={96} />
+    <OverviewReading tag={t('TT200')} module={modules[t('TT200')]} x={50} y={212} w={96} />
+    <OverviewReading tag={t('AIT200')} module={modules[t('AIT200')]} x={50} y={258} w={96} />
+    <OverviewReading tag={t('FT200')} module={modules[t('FT200')]} x={410} y={372} w={96} />
+
+    <rect x={820} y={98} width={136} height={86} fill="#fff" stroke="#222" strokeWidth={2} />
+    <text x={888} y={118} textAnchor="middle" fill={PALE_TEXT} fontSize={13} fontWeight={800}>Oil Pump</text>
+    {indicator(828, 128, oilPressure === undefined ? undefined : oilPressure >= 15, 'Oil Pressure', t('OIL-PRESS'))}
+    {indicator(828, 154, oilTemperature === undefined ? undefined : oilTemperature < 65, 'Oil Temperature', t('OIL-TEMP'))}
+    {nav(['N1BP WFI Tank', 'and Loop'], 258, 'photo-n1bp')}
+    {nav(['N1 WFI Tank', 'and Loop'], 308, 'photo-n1')}
+    {nav(['N3 WFI Tank', 'and Loop'], 358, 'photo-n3')}
+    {nav(['WFI STILL', 'COMMS'], 408)}
+    <rect x={20} y={572} width={110} height={22} fill="#f3f3f3" stroke="#6b7680" />
+    <text x={30} y={587} fill={PALE_TEXT} fontSize={10}>User: {user}</text>
   </svg>
 }

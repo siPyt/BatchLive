@@ -1,10 +1,10 @@
-import type { AnyModule } from '../engine/types'
 import { useStore } from '../engine/store'
 import { pidExecutionBad } from '../engine/pidModes'
 import { useUi, type DisplayId } from '../ui/uiStore'
 import { DISPLAY_NAVIGATION } from '../ui/displayNavigation'
-import { fmt, fmtQ } from '../utils/format'
 import { ClassicTank, PALE_TEXT } from '../components/ClassicGraphics'
+import { PHOTO_TANKS } from '../engine/photoPlant'
+import { OverviewReading, TankSummary, tankRoute } from './overviewParts'
 
 const PANELS = [
   { display: 'feed', title: 'Feed Tank and Supply', vessel: 'TK-101', level: 'LIC-101',
@@ -15,16 +15,27 @@ const PANELS = [
     readings: ['AT-402', 'AT-401', 'TIC-401'], device: 'P-401' }
 ] satisfies { display: DisplayId; title: string; vessel: string; level: string; readings: string[]; device: string }[]
 
-const OTHER_AREAS: DisplayId[] = ['plant-map', 'photo-overview', 'product', 'autoclave', 'lyo', 'cip', 'tcu']
+const OTHER_AREAS: DisplayId[] = ['plant-map', 'photo-overview', 'photo-still', 'product', 'autoclave', 'lyo', 'cip', 'tcu']
+const ROOMS = [
+  { title: 'Room 1040', tanks: ['3T-5370', '3T-5440', '3T-5460', '3T-8030'], wide: true },
+  { title: 'Room 1040A', tanks: ['3T-5420'], wide: false },
+  { title: 'Room 1042', tanks: ['3T-5110'], wide: false }
+]
+const REFERENCE_ONLY = ['NGS-808', 'Scrubber 3S-8050', 'CIP-804', 'WFI Pretr Skid', '3TCU-8010', '3TCU-8020',
+  'Glycol 3T-8150', 'Process Waste', '3UF-8201', 'HCL Totes', 'PW Neutr.', '3SUR-3300', '3SUR-3200',
+  'Buffer Prep', '3CIP-3200', '3T-3300', '3T-3350']
 
 export function PlantNavigationOverview(): JSX.Element {
   const modules = useStore(s => s.modules)
   const process = useStore(s => s.process)
   const batch = useStore(s => s.batch)
+  const photoPlant = useStore(s => s.photoPlant)
   const navigate = useUi(s => s.navigate)
 
   return <div className="display plant-navigation-overview">
     <h1>Plant Overview Navigation</h1>
+    <section className="overview-section" aria-label="Process areas">
+    <h2 className="overview-section-heading">Process Areas</h2>
     <div className="overview-vessel-panels">
       {PANELS.map(panel => {
         const levelModule = modules[panel.level]
@@ -67,40 +78,48 @@ export function PlantNavigationOverview(): JSX.Element {
         </section>
       })}
     </div>
-    <nav className="overview-other-areas" aria-label="Other process areas">
+    </section>
+    <section className="overview-section" aria-label="WFI tank loops">
+      <h2 className="overview-section-heading">WFI Tank Loops<small>Sandbox training models</small></h2>
+      {photoPlant ? <div className="overview-vessel-panels">
+        {PHOTO_TANKS.map(tank => <section className="overview-vessel-section" key={tank.id} aria-label={tank.title}>
+          <div className="overview-vessel-panel overview-loop-panel">
+            <h2>{tank.title}</h2>
+            <TankSummary id={tank.id} state={photoPlant} />
+          </div>
+          <button className="overview-navigation-button" onClick={() => navigate(tankRoute(tank.id))}>Open {tank.title}</button>
+        </section>)}
+      </div> : <div className="overview-room">
+        <p>The photographed WFI training units are not installed in this project.</p>
+        <button className="overview-navigation-button" onClick={() => navigate('photo-overview')}>Open installer</button>
+      </div>}
+    </section>
+    <section className="overview-section" aria-label="Rooms and storage tanks">
+      <h2 className="overview-section-heading">Rooms and Storage Tanks<small>Layout from the reference photograph; vessels are not modeled yet</small></h2>
+      <div className="overview-rooms">
+        {ROOMS.map(room => <div className={`overview-room${room.wide ? ' overview-room-wide' : ''}`} key={room.title}
+          role="group" aria-label={`${room.title}, reference only`}>
+          <h3>{room.title}</h3>
+          <div className="overview-room-tanks">
+            {room.tanks.map(tag => <svg key={tag} viewBox="0 0 220 190" role="img" aria-label={`${tag}: reference vessel, not modeled`}>
+              <title>{`${tag} appears in the reference photograph but is not modeled`}</title>
+              <g opacity={0.5}><ClassicTank x={30} y={10} w={160} h={150} level={0} label="" /></g>
+              <rect x={65} y={70} width={90} height={26} fill="#fff" />
+              <text x={110} y={89} textAnchor="middle" fill={PALE_TEXT} fontSize={15} fontWeight={800}>{tag}</text>
+              <text x={110} y={182} textAnchor="middle" fill={PALE_TEXT} fontSize={10}>Not modeled</text>
+            </svg>)}
+          </div>
+        </div>)}
+      </div>
+    </section>    <nav className="overview-other-areas" aria-label="Other process areas">
       {OTHER_AREAS.map(id => <button className="overview-navigation-button" key={id} onClick={() => navigate(id)}>
         {DISPLAY_NAVIGATION.find(display => display.id === id)?.label}
       </button>)}
     </nav>
+    <nav className="overview-reference-only" aria-label="Photographed areas not yet modeled">
+      {REFERENCE_ONLY.map(label => <button className="overview-navigation-button" key={label} aria-disabled="true"
+        title={`${label} appears in the reference photograph but is not modeled yet`}
+        onClick={event => event.preventDefault()}>{label}</button>)}
+    </nav>
   </div>
-}
-
-export function OverviewReading({ tag, module, x, y, pvOnly = false }: {
-  tag: string; module: AnyModule | undefined; x: number; y: number; pvOnly?: boolean
-}): JSX.Element {
-  const openFaceplate = useUi(s => s.openFaceplate)
-  const analog = module?.type === 'PID' || module?.type === 'AI' ? module : undefined
-  const bad = analog?.type === 'PID' ? analog.pvBad || pidExecutionBad(analog) : analog?.pvBad
-  const pid = !pvOnly && analog?.type === 'PID' ? analog : undefined
-  const rows = analog ? [
-    ['PV', `${fmtQ(analog.pv, analog.decimals, !!bad)} ${analog.unit}`],
-    ...(pid ? [['SP', `${fmt(pid.sp, pid.decimals)} ${pid.unit}`],
-      ['OUT', `${fmtQ(pid.out, 1, pidExecutionBad(pid))} %`]] : [])
-  ] : [['', 'Not configured']]
-  return <g className={analog ? 'overview-live-reading' : undefined}
-    role={analog ? 'button' : undefined} tabIndex={analog ? 0 : undefined}
-    aria-label={`${tag}: ${rows.map(row => row.join(' ')).join(', ')}${analog ? '. Open faceplate' : ''}`}
-    onClick={analog ? () => openFaceplate(tag) : undefined}
-    onKeyDown={analog ? event => {
-      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openFaceplate(tag) }
-    } : undefined}>
-    <title>{analog ? `${tag}: ${analog.description}. Open faceplate` : `${tag}: not configured`}</title>
-    <text x={x + 56} y={y - 5} textAnchor="middle" fill={PALE_TEXT} fontSize={9}>{tag}</text>
-    <rect x={x} y={y} width={112} height={rows.length * 14 + 8} fill="#fff" stroke={pid ? '#2f5f96' : '#6b7680'} />
-    {rows.map(([label, value], index) => <g key={label}>
-      <text x={x + 4} y={y + 15 + index * 14} fill={PALE_TEXT} fontSize={9}>{label}</text>
-      <text x={x + 108} y={y + 15 + index * 14} textAnchor="end" fill={PALE_TEXT} fontSize={9}>{value}</text>
-    </g>)}
-    {pid && <text x={x + 56} y={y + 61} textAnchor="middle" fill={PALE_TEXT} fontSize={9}>{pid.actualMode}</text>}
-  </g>
 }

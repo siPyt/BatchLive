@@ -292,3 +292,62 @@ test('add-on installation preserves existing runtime; collisions reject atomical
     global.window = oldWindow
   }
 })
+
+test('IMG_0604 still instruments are real: oil cooling, compressor current, drain/blowdown/waste, level valve, feed-water cooling and steam makeup', () => {
+  const stillState = () => {
+    const addon = createPhotoPlant()
+    addon.state.still.oilPressure = 30
+    return addon
+  }
+  const run = (addon, seconds) => { let state = addon.state; for (let i = 0; i < seconds; i++) state = stepPhotoPlant(state, addon.modules, 1); return state }
+
+  // oil cooler: running lube+compressor without SV500 overheats; open SV500 with cooling water holds it lower
+  const hot = stillState()
+  confirm(hot.modules[`${STILL}-LUBE`]); confirm(hot.modules[`${STILL}-COMP`])
+  const cooled = stillState()
+  confirm(cooled.modules[`${STILL}-LUBE`]); confirm(cooled.modules[`${STILL}-COMP`]); confirm(cooled.modules[`${STILL}-SV500`])
+  const hotState = run(hot, 200), cooledState = run(cooled, 200)
+  assert.ok(hotState.still.oilTemperature > 60 && cooledState.still.oilTemperature < hotState.still.oilTemperature - 10)
+  assert.equal(photoMeasurements(hotState)[`${STILL}-OIL-TEMP`], hotState.still.oilTemperature)
+  assert.ok(hotState.still.compressorCurrent >= 6)
+  const stopped = stillState()
+  assert.equal(run(stopped, 5).still.compressorCurrent, 0)
+
+  // drain, blowdown and waste valves remove water only on actual valve feedback
+  const drain = stillState()
+  const before = drain.state.still.feedLiters
+  assert.equal(run(drain, 5).still.feedLiters, before)
+  confirm(drain.modules[`${STILL}-XV200`])
+  assert.ok(before - run(drain, 5).still.feedLiters >= 9.9)
+  const blow = stillState()
+  confirm(blow.modules[`${STILL}-FCV300`])
+  const blown = run(blow, 10)
+  assert.ok(Math.abs(before - blown.still.feedLiters - 1.5) < 1e-6)
+  const waste = stillState()
+  confirm(waste.modules[`${STILL}-DIST`]); confirm(waste.modules[`${STILL}-XV202`])
+  const wasted = run(waste, 5)
+  assert.ok(wasted.still.distillateLiters < 50 && wasted.tanks.n3.liters === 4200)
+
+  // LCV200 throttles delivery to the storage tanks
+  const delivery = (output) => {
+    const addon = stillState()
+    confirm(addon.modules[`${STILL}-DIST`]); confirm(addon.modules[`${STILL}-XV201`])
+    for (const tank of PHOTO_TANKS) { confirm(addon.modules[`${tank.prefix}-YV007`]); manual(addon.modules[`${tank.prefix}-LIC005`], 100) }
+    manual(addon.modules[`${STILL}-LIC200`], output)
+    return run(addon, 5).tanks.n3.liters - 4200
+  }
+  assert.ok(delivery(100) > 0 && delivery(50) < delivery(100) && delivery(0) === 0)
+
+  // PCV103 steam makeup heats the still; distillate cooling needs feed-water flow through TCV200
+  const steam = stillState()
+  const idle = run(stillState(), 60).still.temperature
+  manual(steam.modules[`${STILL}-PIC103`], 100)
+  assert.ok(run(steam, 60).still.temperature > idle)
+  const coolNoFlow = stillState(), coolFlow = stillState()
+  coolNoFlow.state.still.distillateTemperature = 100; coolFlow.state.still.distillateTemperature = 100
+  manual(coolNoFlow.modules[`${STILL}-TIC200`], 100); manual(coolFlow.modules[`${STILL}-TIC200`], 100)
+  confirm(coolFlow.modules[`${STILL}-XV100`]); manual(coolFlow.modules[`${STILL}-LIC100`], 100)
+  assert.ok(run(coolFlow, 30).still.distillateTemperature < run(coolNoFlow, 30).still.distillateTemperature - 10)
+  const m = photoMeasurements(run(coolFlow, 1))
+  assert.equal(m[`${STILL}-TT200`], m[`${STILL}-TIC200`])
+})

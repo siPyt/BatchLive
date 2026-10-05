@@ -17,7 +17,10 @@ export interface PhotoTankState {
 }
 export interface PhotoPlantState {
   tanks: Record<PhotoTankId, PhotoTankState>
-  still: { feedLiters: number; distillateLiters: number; temperature: number; production: number; oilPressure: number }
+  still: {
+    feedLiters: number; distillateLiters: number; temperature: number; production: number; oilPressure: number
+    distillateTemperature: number; oilTemperature: number; compressorCurrent: number
+  }
   utilities: {
     steamPressure: number
     coolingAvailability: number
@@ -56,10 +59,11 @@ export const COUPLED_LEGACY_TAGS = new Set(['LIC-401', 'AT-401', 'AT-402', 'TI-4
 
 export function createPhotoPlant(): { state: PhotoPlantState; modules: Record<string, AnyModule> } {
   const modules: Record<string, AnyModule> = {}
-  const loop = (tag: string, description: string, unit: string, max: number, pv: number, sp = pv): void => {
+  const loop = (tag: string, description: string, unit: string, max: number, pv: number, sp = pv,
+    extra: Record<string, unknown> = {}): void => {
     const m = makeModule({ tag, description: `Sandbox: ${description}`, area: PHOTO_AREA, type: 'PID', unit, pvMax: max })
     if (m.type !== 'PID') throw new Error('Photo plant loop factory requires PID')
-    Object.assign(m, { pv, sp, out: 0, _integral: 0, _prevPv: pv, gain: 2, reset: 30 })
+    Object.assign(m, { pv, sp, out: 0, _integral: 0, _prevPv: pv, gain: 2, reset: 30, ...extra })
     m.alarms = [{ type: 'PVBAD', label: 'PV BAD', priority: 'CRITICAL', enabled: true },
       { type: 'HI', label: 'HIGH', priority: 'WARNING', limit: max * 0.9, enabled: true },
       ...(unit === '%' ? [{ type: 'LO' as const, label: 'LOW LEVEL', priority: 'WARNING' as const, limit: 5, enabled: true }] : [])]
@@ -72,7 +76,7 @@ export function createPhotoPlant(): { state: PhotoPlantState; modules: Record<st
     m.pv = pv
     m.alarms = [{ type: 'PVBAD', label: 'PV BAD', priority: 'CRITICAL', enabled: true },
       { type: 'HI', label: 'HIGH', priority: 'WARNING',
-        limit: tag.endsWith('AI015B') ? 1.3 : tag.endsWith('AI015A') ? 500 : max * 0.9, enabled: true }]
+        limit: tag.endsWith('AI015B') ? 1.3 : tag.endsWith('AI015A') ? 500 : tag.endsWith('OIL-TEMP') ? 65 : max * 0.9, enabled: true }]
     modules[tag] = m
   }
   const device = (tag: string, description: string, type: 'MOTOR' | 'VALVE'): void => {
@@ -111,7 +115,17 @@ export function createPhotoPlant(): { state: PhotoPlantState; modules: Record<st
   device(`${STILL}-COMP`, 'Still compressor (oil pressure permissive)', 'MOTOR')
   device(`${STILL}-DIST`, 'Still distillate delivery pump', 'MOTOR')
   device(`${STILL}-XV100`, 'Still feed isolation', 'VALVE')
-  device(`${STILL}-XV201`, 'Still delivery isolation', 'VALVE')
+  device(`${STILL}-XV201`, 'Still delivery isolation to storage tanks', 'VALVE')
+  loop(`${STILL}-PIC103`, 'Still evaporator steam makeup (PCV103); vapor pressure PV', 'psig', 15, 0, 1.5, { mode: 'MAN', direct: false })
+  loop(`${STILL}-TIC200`, 'Distillate cooler feed-water flow (TCV200); distillate temperature PV', 'degC', 150, 25, 35, { mode: 'AUTO', direct: true })
+  loop(`${STILL}-LIC200`, 'Distillate delivery level valve (LCV200); distillate level PV', '%', 100, 10, 50, { mode: 'MAN', out: 100, direct: true })
+  indicator(`${STILL}-TT200`, 'Still distillate temperature', 'degC', 150, 25)
+  indicator(`${STILL}-IY100`, 'Still compressor motor current', 'amp', 60, 0)
+  indicator(`${STILL}-OIL-TEMP`, 'Still compressor oil temperature', 'degC', 120, 25)
+  device(`${STILL}-SV500`, 'Still oil cooler cooling-water supply', 'VALVE')
+  device(`${STILL}-XV202`, 'Still delivery to waste', 'VALVE')
+  device(`${STILL}-XV200`, 'Still vessel drain', 'VALVE')
+  device(`${STILL}-FCV300`, 'Still blowdown', 'VALVE')
   const compressor = modules[`${STILL}-COMP`]
   compare(`${STILL}-OIL-READY`, `${STILL}-OIL-PRESS`, '>=', 15)
   compare(`${STILL}-OIL-LOW`, `${STILL}-OIL-PRESS`, '<', 10)
@@ -145,7 +159,8 @@ export function createPhotoPlant(): { state: PhotoPlantState; modules: Record<st
       tanks: {
         n3: initialTank(), n1: initialTank(), n1bp: initialTank()
       },
-      still: { feedLiters: 600, distillateLiters: 50, temperature: 25, production: 0, oilPressure: 0 },
+      still: { feedLiters: 600, distillateLiters: 50, temperature: 25, production: 0, oilPressure: 0,
+        distillateTemperature: 25, oilTemperature: 25, compressorCurrent: 0 },
       utilities: { steamPressure: 4, coolingAvailability: 1, legacyWfiLiters: 4200,
         legacyConductivity: 0.9, legacyToc: 80, legacyTemperature: 78, cipFlow: {} }
     }
@@ -180,7 +195,7 @@ export function stepPhotoPlant(previous: PhotoPlantState, modules: Record<string
   for (let scan = 0; scan < steps; scan++) {
     const utilities = state.utilities
     const steamLoad = [...STEAM_USERS].filter(tag => !tag.startsWith('PIC')).reduce((sum, tag) => sum + output(modules, tag), 0) +
-      output(modules, `${STILL}-TIC102`) + PHOTO_TANKS.reduce((sum, tank) =>
+      output(modules, `${STILL}-TIC102`) + output(modules, `${STILL}-PIC103`) + PHOTO_TANKS.reduce((sum, tank) =>
         sum + (active(modules, `${tank.prefix}-XC002`) ? output(modules, `${tank.prefix}-TIC011`) : 0), 0)
     const steamTarget = active(modules, 'SB-STEAM') ? Math.max(0, 4 - steamLoad * 0.15) : 0
     utilities.steamPressure += (steamTarget - utilities.steamPressure) * Math.min(h / 5, 1)
@@ -188,20 +203,34 @@ export function stepPhotoPlant(previous: PhotoPlantState, modules: Record<string
     const steamFactor = clamp(utilities.steamPressure / 4, 0, 1)
     const still = state.still
     still.oilPressure += ((active(modules, `${STILL}-LUBE`) ? 30 : 0) - still.oilPressure) * Math.min(h / 2, 1)
+    const oilTarget = active(modules, `${STILL}-LUBE`) ? (active(modules, `${STILL}-COMP`) ? 70 : 45) : 25
+    const oilCooled = active(modules, `${STILL}-SV500`) ? 25 + (oilTarget - 25) * (1 - 0.6 * utilities.coolingAvailability) : oilTarget
+    still.oilTemperature += (oilCooled - still.oilTemperature) * Math.min(h / 30, 1)
     const feed = active(modules, `${STILL}-XV100`) ? output(modules, `${STILL}-LIC100`) * 2 : 0
-    const heat = still.feedLiters > 20 ? output(modules, `${STILL}-TIC102`) * 1.8 * steamFactor : 0
+    const heat = still.feedLiters > 20
+      ? (output(modules, `${STILL}-TIC102`) * 1.8 + output(modules, `${STILL}-PIC103`) * 1.2) * steamFactor : 0
     still.temperature = clamp(still.temperature + (heat - 0.008 * (still.temperature - 25)) * h, 15, 130)
     const production = active(modules, `${STILL}-COMP`) && still.oilPressure >= 10 && still.feedLiters > 20
       ? clamp((still.temperature - 95) / 7, 0, 1) * 0.8 : 0
     const distilled = Math.min(production * h, still.feedLiters, STILL_DISTILLATE_CAPACITY - still.distillateLiters)
     still.production = h > 0 ? distilled / h : 0
-    still.feedLiters = clamp(still.feedLiters + feed * h - distilled, 0, STILL_FEED_CAPACITY)
+    still.compressorCurrent = active(modules, `${STILL}-COMP`) ? 6 + still.production * 20 : 0
+    const feedDrain = Math.min(still.feedLiters, (active(modules, `${STILL}-XV200`) ? 2 * h : 0) +
+      (active(modules, `${STILL}-FCV300`) ? 0.15 * h : 0))
+    still.feedLiters = clamp(still.feedLiters + feed * h - distilled - feedDrain, 0, STILL_FEED_CAPACITY)
+    if (distilled > 0) still.distillateTemperature = (still.distillateTemperature * still.distillateLiters +
+      still.temperature * distilled) / (still.distillateLiters + distilled)
     still.distillateLiters += distilled
+    const coolingRate = 0.002 + output(modules, `${STILL}-TIC200`) * 0.08 * clamp(feed / 2, 0, 1)
+    still.distillateTemperature = clamp(still.distillateTemperature - (still.distillateTemperature - 25) * coolingRate * h, 15, 130)
     const fillRequests = PHOTO_TANKS.map(tank => active(modules, `${tank.prefix}-YV007`)
       ? Math.min(output(modules, `${tank.prefix}-LIC005`) * 1.2 * h, TANK_CAPACITY - state.tanks[tank.id].liters) : 0)
     const requested = fillRequests.reduce((sum, liters) => sum + liters, 0)
+    const wasted = active(modules, `${STILL}-DIST`) && active(modules, `${STILL}-XV202`)
+      ? Math.min(2 * h * output(modules, `${STILL}-LIC200`), still.distillateLiters) : 0
+    still.distillateLiters -= wasted
     const delivery = active(modules, `${STILL}-DIST`) && active(modules, `${STILL}-XV201`)
-      ? Math.min(requested, 2 * h, still.distillateLiters) : 0
+      ? Math.min(requested, 2 * h * output(modules, `${STILL}-LIC200`), still.distillateLiters) : 0
     still.distillateLiters -= delivery
     PHOTO_TANKS.forEach((config, index) => {
       const tank = state.tanks[config.id]
@@ -226,7 +255,7 @@ export function stepPhotoPlant(previous: PhotoPlantState, modules: Record<string
         utilities.legacyWfiLiters = received
       }
       const drain = active(modules, `${config.prefix}-YV009`) ? 1.5 * h : 0
-      if (filled > 0) tank.temperature = (tank.temperature * tank.liters + still.temperature * filled) / (tank.liters + filled)
+      if (filled > 0) tank.temperature = (tank.temperature * tank.liters + still.distillateTemperature * filled) / (tank.liters + filled)
       tank.liters = clamp(tank.liters + filled - demand - drain, 0, TANK_CAPACITY)
       const heating = circulating && tank.liters > 100 ? output(modules, `${config.prefix}-TIC011`) * 1.2 * steamFactor : 0
       const cooling = 0.004 + (circulating ? 0.011 * utilities.coolingAvailability : 0)
@@ -271,7 +300,13 @@ export function photoMeasurements(state: PhotoPlantState): Record<string, number
     [`${STILL}-FT200`]: state.still.production * 60 / 3.78541,
     [`${STILL}-PT103`]: Math.max(0, state.still.temperature - 95) * 0.2,
     [`${STILL}-OIL-PRESS`]: state.still.oilPressure,
-    [`${STILL}-AIT200`]: 0.3
+    [`${STILL}-AIT200`]: 0.3,
+    [`${STILL}-PIC103`]: Math.max(0, state.still.temperature - 95) * 0.2,
+    [`${STILL}-TIC200`]: state.still.distillateTemperature,
+    [`${STILL}-TT200`]: state.still.distillateTemperature,
+    [`${STILL}-LIC200`]: state.still.distillateLiters / STILL_DISTILLATE_CAPACITY * 100,
+    [`${STILL}-IY100`]: state.still.compressorCurrent,
+    [`${STILL}-OIL-TEMP`]: state.still.oilTemperature
   }
   Object.assign(result, {
     'SB-STEAM-PRESS': state.utilities.steamPressure,
