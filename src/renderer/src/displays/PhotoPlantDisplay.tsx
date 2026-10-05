@@ -92,11 +92,22 @@ function TankLevel({ tag, x, y, w, h, label }: {
 
 function TankSummary({ id, state }: { id: PhotoTankId; state: PhotoPlantState }): JSX.Element {
   const modules = useStore(s => s.modules)
+  const navigate = useUi(s => s.navigate)
   const config = PHOTO_TANKS.find(tank => tank.id === id)!
   const p = config.prefix
   const tank = state.tanks[id]
-  return <svg viewBox="0 0 420 330" role="img" aria-label={`${config.title} live summary`}>
+  const motor = (tag: string): boolean => { const m = modules[tag]; return m?.type === 'MOTOR' && m.running && !m.fault }
+  const valve = (tag: string): boolean => { const m = modules[tag]; return m?.type === 'VALVE' && m.open }
+  const inUse = motor(`${p}-XC002`) && valve(`${p}-YV014`)
+  const filling = valve(`${p}-YV007`) && motor(`${STILL}-DIST`) && valve(`${STILL}-XV201`) && state.still.distillateLiters > 0
+  const remaining = tank.sanitation === 'SOAK' ? Math.max(0, 600 - tank.soakSeconds) : undefined
+  const clock = remaining === undefined ? '--:--'
+    : `${Math.floor(remaining / 60).toString().padStart(2, '0')}:${Math.floor(remaining % 60).toString().padStart(2, '0')}`
+  const sanitationActive = tank.sanitation !== 'IDLE'
+  return <svg viewBox="0 0 420 400" role="img" aria-label={`${config.title} live summary`}>
     <TankLevel tag={`${p}-LIC005`} x={143} y={38} w={134} h={180} label="" />
+    <rect x={163} y={52} width={94} height={26} fill="#fff" stroke="#2b3137" />
+    <text x={210} y={70} textAnchor="middle" fill={PALE_TEXT} fontSize={13}>{inUse ? 'In Use' : 'Not In Use'}</text>
     <rect x={159} y={95} width={102} height={28} fill="#fff" />
     <text x={210} y={115} textAnchor="middle" fill={PALE_TEXT} fontSize={18} fontWeight={800}>{p}</text>
     <OverviewReading tag={`${p}-AI015A`} module={modules[`${p}-AI015A`]} x={10} y={56} />
@@ -104,9 +115,24 @@ function TankSummary({ id, state }: { id: PhotoTankId; state: PhotoPlantState })
     <OverviewReading tag={`${p}-TIC011`} module={modules[`${p}-TIC011`]} x={292} y={56} />
     <OverviewReading tag={`${p}-PIC016`} module={modules[`${p}-PIC016`]} x={292} y={155} />
     <OverviewReading tag={`${p}-LIC005`} module={modules[`${p}-LIC005`]} x={154} y={157} pvOnly />
-    <rect x={16} y={264} width={388} height={46} fill="#eceeef" stroke="#6b7680" />
-    <text x={30} y={282} fill={PALE_TEXT} fontSize={11}>Sanitation: {tank.sanitation}</text>
-    <text x={30} y={300} fill={PALE_TEXT} fontSize={10}>Soak: {tank.soakSeconds.toFixed(0)} / 600 s - {tank.liters.toFixed(0)} liter</text>
+    <text x={210} y={238} textAnchor="middle" fill={PALE_TEXT} fontSize={10}>{tank.liters.toFixed(0)} liter (model)</text>
+    <rect x={14} y={282} width={112} height={56} fill="#fff" stroke="#6b7680" />
+    <text x={70} y={304} textAnchor="middle" fill={PALE_TEXT} fontSize={11} fontWeight={700}>WFI-LVL-CTRL</text>
+    <text x={70} y={324} textAnchor="middle" fill={PALE_TEXT} fontSize={11}>{filling ? 'Filling' : 'Not Filling'}</text>
+    <g aria-label={`${id.toUpperCase()}-WFI-SANI sandbox sanitation`}>
+      <rect x={140} y={262} width={266} height={118} fill="#fff" stroke={sanitationActive ? '#8a6d00' : '#6b7680'}
+        strokeWidth={sanitationActive ? 2 : 1} />
+      <text x={273} y={280} textAnchor="middle" fill={PALE_TEXT} fontSize={11} fontWeight={700}>{id.toUpperCase()}-WFI-SANI (training)</text>
+      <text x={150} y={299} fill={PALE_TEXT} fontSize={10}>Cycle Stage: {tank.sanitation}</text>
+      <text x={150} y={315} fill={PALE_TEXT} fontSize={10}>Hot Soak: {tank.soakSeconds.toFixed(0)} / 600 s</text>
+      <text x={150} y={331} fill={PALE_TEXT} fontSize={10}>Sani Time Remaining: {clock}</text>
+      <g role="button" tabIndex={0} aria-label={`Open ${config.title} sanitation controls`} style={{ cursor: 'pointer' }}
+        onClick={() => navigate(tankRoute(id))}
+        onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(tankRoute(id)) } }}>
+        <rect x={185} y={344} width={176} height={26} fill="#eceeef" stroke="#2b3137" />
+        <text x={273} y={362} textAnchor="middle" fill={PALE_TEXT} fontSize={11} fontWeight={700}>Sani Control</text>
+      </g>
+    </g>
   </svg>
 }
 

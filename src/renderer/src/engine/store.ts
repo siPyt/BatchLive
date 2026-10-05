@@ -22,7 +22,7 @@ import type {
   AnalogOutputPatch
 } from './types'
 import { buildInitialPlant, buildBlankPlant, makeModule, type NewModuleSpec } from './plant'
-import { createPhotoPlant, PHOTO_AREA, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
+import { installPhotoPlant, PHOTO_TANKS, startPhotoSanitation, type PhotoTankId } from './photoPlant'
 import { reconcileAlarm, resetDeviceLock, stepPlant } from './simulate'
 import { captureDevice, cloneDeviceConfiguration, deviceActive, deviceConfigurationError, deviceDirty, deviceDownloadError, deviceEditorModules, prepareDeviceTransfer,
   deviceOperatorError, parseDevice, savedDeviceKey, serializeDevice, type DeviceDraftPatch, type DeviceLifecycle } from './deviceLifecycle'
@@ -322,7 +322,7 @@ interface StoreState extends PlantState {
   newProject: (kind: 'pharma' | 'blank') => void
 }
 
-const initial = buildInitialPlant()
+const initial = installPhotoPlant(buildInitialPlant()).plant
 
 /** Seeds every built-in SFC: reactor startup, both autoclaves, both lyos, all 3 CIP skids. */
 function makeDefaultSfcs(): Record<string, SfcDef> {
@@ -344,19 +344,9 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!requireUnlockedLock('CAN_CONFIGURE', 'Add photographed WFI training units')) return false
     const state = get()
     if (state.photoPlant) return rejectSfc(get, 'PHOTO-PLANT', 'Photographed WFI training units are already installed')
-    const addon = createPhotoPlant()
-    const legacyLevel = state.modules['LIC-401']
-    if (legacyLevel?.type === 'PID') addon.state.utilities.legacyWfiLiters = Math.max(0, Math.min(100, legacyLevel.pv)) * 70
-    const conductivity = state.modules['AT-401']
-    const toc = state.modules['AT-402']
-    const temperature = state.modules['TI-402']
-    if (conductivity?.type === 'AI') addon.state.utilities.legacyConductivity = conductivity.pv
-    if (toc?.type === 'AI') addon.state.utilities.legacyToc = toc.pv
-    if (temperature?.type === 'AI') addon.state.utilities.legacyTemperature = temperature.pv
-    const conflicts = Object.keys(addon.modules).filter(tag => state.modules[tag])
+    const { plant, conflicts } = installPhotoPlant(state)
     if (conflicts.length) return rejectSfc(get, 'PHOTO-PLANT', `Cannot add photographed units; existing tags would be overwritten: ${conflicts.join(', ')}`)
-    set({ modules: { ...state.modules, ...addon.modules }, photoPlant: addon.state,
-      areas: state.areas.includes(PHOTO_AREA) ? state.areas : [...state.areas, PHOTO_AREA], rev: state.rev + 1 })
+    set({ modules: plant.modules, photoPlant: plant.photoPlant, areas: plant.areas, rev: state.rev + 1 })
     get().logEvent('CONFIGURE', 'PHOTO-PLANT', 'Added coupled N3/N1/N1BP WFI tanks, still and shared steam/cooling utilities; N1 feeds legacy WFI storage and CIP supplies; existing modules/process preserved, integrated training physics enabled')
     return true
   },
@@ -3273,10 +3263,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   newProject: (kind) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `New Project (${kind})`)) return
-    const base = kind === 'blank' ? buildBlankPlant() : buildInitialPlant()
+    const base = kind === 'blank' ? buildBlankPlant() : installPhotoPlant(buildInitialPlant()).plant
     set({
       ...base,
-      photoPlant: undefined,
+      photoPlant: kind === 'blank' ? undefined : base.photoPlant,
       trend: [],
       eventLog: [],
       batch: makeBatch(),

@@ -1,4 +1,4 @@
-import type { AnyModule } from './types'
+import type { AnyModule, PlantState } from './types'
 import { makeModule } from './plant'
 import { appliedPidOutput, createPidIo } from './analogStrategy'
 import { pidExecutionBad, pidTargetAllowed } from './pidModes'
@@ -294,6 +294,25 @@ export function photoMeasurements(state: PhotoPlantState): Record<string, number
     })
   }
   return result
+}
+
+/** Additive install: existing modules/process/exercises are retained; returns tags that would collide instead. */
+export function installPhotoPlant(plant: PlantState):
+  { plant: PlantState; conflicts: string[] } {
+  const addon = createPhotoPlant()
+  const conflicts = Object.keys(addon.modules).filter(tag => plant.modules[tag])
+  if (conflicts.length) return { plant, conflicts }
+  const utilities = addon.state.utilities
+  const legacyLevel = plant.modules['LIC-401']
+  if (legacyLevel?.type === 'PID') utilities.legacyWfiLiters = clamp(legacyLevel.pv, 0, 100) * TANK_CAPACITY / 100
+  const conductivity = plant.modules['AT-401']
+  const toc = plant.modules['AT-402']
+  const temperature = plant.modules['TI-402']
+  if (conductivity?.type === 'AI') utilities.legacyConductivity = conductivity.pv
+  if (toc?.type === 'AI') utilities.legacyToc = toc.pv
+  if (temperature?.type === 'AI') utilities.legacyTemperature = temperature.pv
+  return { conflicts, plant: { ...plant, modules: { ...plant.modules, ...addon.modules }, photoPlant: addon.state,
+    areas: plant.areas.includes(PHOTO_AREA) ? plant.areas : [...plant.areas, PHOTO_AREA] } }
 }
 
 export function startPhotoSanitation(state: PhotoPlantState, id: PhotoTankId): PhotoPlantState {
