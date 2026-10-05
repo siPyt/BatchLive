@@ -2452,3 +2452,17 @@ production build both passed.
 
 Commit/push authorization for this pass follows the same 2026-10-05
 instruction already recorded for Pass54.
+
+PASS 67: SECURITY GROUPS, INHERITED KEYS AND ACCOUNT STATUS (pp313-328)
+-----------------------------------------------------------------------
+Line1 - Groups: create/rename/describe/delete groups; add and remove members;
+  grant keys and area keys to a group. A seeded Operate group mirrors the
+  course's Properties for Group: Operate form.
+Line2 - Effective keys: a user's keys are their own plus every group's; the
+  change applies at the next permission check, and direct grants remain.
+Line3 - Accounts: disabled and must-change-password states block logon; the
+  FlexLock overlay explains and offers Change Password and Log On.
+Line4 - Authorization: every user/group mutation requires System Admin inside
+  the store, so no screen is needed to be safe.
+Line5 - Tests: tests/security-groups.test.cjs. Not claimed: password aging
+  policy, Windows accounts, per-parameter lock reassignment (DV09-075).

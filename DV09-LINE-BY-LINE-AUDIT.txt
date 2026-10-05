@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 16 VERIFIED_SUBSET, 53 PARTIAL, 34 MISSING,
+DV-09 remains incomplete: 17 VERIFIED_SUBSET, 55 PARTIAL, 31 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 The user's standing instruction ("finish everything and stop stopping",
 2026-10-05) authorizes continuing to commit and push every pass without
@@ -1637,16 +1637,39 @@ Pages: 313-322
 Status: PARTIAL
 Required: User create/delete/general/advanced account status/password settings,
   group membership and individual key grants.
-Evidence: USERS/SECURITY support app-local users and keys, no full account
-  status/groups. UI says Users & Groups but contains no group model.
+Evidence (Pass67): User Manager now has per-user Account (Advanced) status:
+  Account disabled and Must change password at next logon, enforced by
+  login()/loginStatus() (a disabled or expired account cannot log on and the
+  FlexLock overlay shows the reason and a Change Password and Log On flow via
+  changePassword(), which rejects wrong current, blank and unchanged
+  passwords). Users can join and leave groups from the user form and keys are
+  shown as direct versus inherited. addUser, deleteUser, setUserLocks,
+  setUserAreas and every new account/group mutation now require the System
+  Admin key inside the security store, not only on the screen. A user cannot
+  disable their own account. Still absent: full account expiry dates,
+  password complexity/aging policy and Windows account integration.
 Acceptance: Add real membership/account state, validation and authorization
   at mutation boundaries, not only a restricted screen.
 
 [DV09-077]
 Pages: 323-328
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Group create/modify, descriptions, member add/remove and group keys.
-Evidence: No groups/inherited-key resolution.
+Evidence (Pass67): SECURITY adds DvGroup {name, description, locks, members,
+  areas?} with createGroup/updateGroup (rename + description)/deleteGroup/
+  addGroupMember/removeGroupMember/setGroupLocks/setGroupAreas. Each mutation
+  requires the System Admin key at the store boundary and returns a specific
+  error for blank/duplicate group names, missing groups, missing users and
+  duplicate or absent members. effectiveLocks() = the user's own keys plus
+  every key of each group the user belongs to, recomputed on every hasLock
+  call so member/key changes take effect immediately and independent user
+  grants are retained. effectiveAreas() extends only users who already have
+  restricted area keys; an unrestricted user stays unrestricted. Deleting a
+  user removes the user from every group. A seeded Operate group (OperatorA,
+  Supervisor1: Control, Alarms) mirrors the course's "Properties for Group:
+  Operate" form. The User Manager now lists Users and Groups, with General
+  (name/description), Members, Keys and area-key forms per group and a Groups
+  checklist plus inherited-key markers per user. Tests: security-groups.test.cjs.
 Acceptance: Verify member changes immediately affect effective keys and area
   grants; retain independent user grants and reject missing/duplicate members.
 
@@ -3190,3 +3213,35 @@ Result: DV09-043 MISSING -> VERIFIED_SUBSET. Current totals16 VERIFIED_SUBSET/
 53 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next
 remaining group in a subsequent pass.
 
+PASS 67 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-077 (group create/modify, members, group keys) and the account,
+group-membership and mutation-boundary parts of DV09-076, pages 313-328.
+Resumed from this report's last pass (Pass66) per the user's overnight
+instruction: follow the DV-09 manual line for line, commit and push
+regularly, log every change in these text documents.
+Engine: security.ts gains DvGroup, effectiveLocks, effectiveAreas, groupsOf
+  and the group/account actions listed under DV09-076/077 above. hasLock and
+  hasAreaKey now use the effective sets. login() refuses disabled and
+  must-change accounts with a recorded reason; loginStatus() reports why
+  without side effects. All user and group mutations require SYSTEM_ADMIN
+  inside the store.
+UI: UserManagerDisplay.tsx is rebuilt around Users and Groups lists. A user
+  form has Account (Advanced), Groups, Locks & Keys (direct vs inherited) and
+  Area Write Keys; a group form has General, Members, Keys and area keys.
+  FlexLockOverlay.tsx adds the disabled message and Change Password flow.
+Tests: tests/security-groups.test.cjs (7 tests): inherited keys appear and
+  disappear immediately while direct grants stay; duplicate/missing/blank
+  validation; group area keys extend only restricted members; deletion drops
+  memberships; disabled/must-change/password-change logon; self-disable
+  refusal; and denial of every mutation for a non-admin user.
+Boundary (honest): groups do not yet carry per-parameter lock reassignment
+  (DV09-075, next pass) and area keys are not yet enforced on module writes
+  (DV09-079). The audit's header counts were stale (53/34) and are corrected
+  by recounting the group Status lines.
+Validation: 431 repository tests run locally (430 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency in dv09-audit.test.cjs).
+  Typecheck passed.
+Result: DV09-077 MISSING -> VERIFIED_SUBSET; DV09-076 stays PARTIAL with
+  narrower evidence. Current totals 17 VERIFIED_SUBSET/55 PARTIAL/31 MISSING/
+  19 BOUNDARY/6 CONTEXT.

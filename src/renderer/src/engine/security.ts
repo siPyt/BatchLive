@@ -75,10 +75,49 @@ export interface DvUser {
    * means authorized for every area (the existing unrestricted default), not
    * an empty/no-access set — restriction is opt-in per user. */
   areas?: string[]
+  /** DV09-076 Advanced tab: account status. Undefined/false = enabled. */
+  disabled?: boolean
+  /** DV09-076 Advanced tab: password status. The user must pick a new password at next logon. */
+  mustChangePassword?: boolean
+}
+
+/** DV09-077: a named group. Members inherit the group's keys (and, when the
+ * member has restricted areas, the group's areas) in addition to their own. */
+export interface DvGroup {
+  name: string
+  description: string
+  locks: LockType[]
+  members: string[]
+  /** Undefined = the group grants no area keys; the user's own area keys apply. */
+  areas?: string[]
+}
+
+export function effectiveLocks(user: DvUser | undefined, groups: DvGroup[]): LockType[] {
+  if (!user) return []
+  const out = new Set<LockType>(user.locks)
+  for (const g of groups) {
+    if (g.members.includes(user.name)) g.locks.forEach((l) => out.add(l))
+  }
+  return ALL_LOCKS.filter((l) => out.has(l))
+}
+
+/** undefined = unrestricted (the user has no area restriction of their own). */
+export function effectiveAreas(user: DvUser | undefined, groups: DvGroup[]): string[] | undefined {
+  if (!user || !user.areas) return undefined
+  const out = new Set<string>(user.areas)
+  for (const g of groups) {
+    if (g.members.includes(user.name)) (g.areas ?? []).forEach((a) => out.add(a))
+  }
+  return Array.from(out)
+}
+
+export function groupsOf(user: string, groups: DvGroup[]): string[] {
+  return groups.filter((g) => g.members.includes(user)).map((g) => g.name)
 }
 
 interface SecurityState {
   users: DvUser[]
+  groups: DvGroup[]
   /** name of the currently logged-on user. */
   currentUser: string
   /** FlexLock engaged — blocks the UI until a valid log on. */
@@ -86,12 +125,26 @@ interface SecurityState {
   /** most recent "Access Denied" reason, consumed by a toast. */
   lastDenied: string | null
   login: (name: string, password: string) => boolean
+  /** Why a logon would succeed or fail, without side effects. */
+  loginStatus: (name: string, password: string) => 'ok' | 'bad' | 'disabled' | 'must-change'
   lockWorkstation: () => void
   addUser: (u: DvUser) => boolean
   deleteUser: (name: string) => void
   setUserLocks: (name: string, locks: LockType[]) => void
   /** DV09-044: set this user's area write keys; undefined restores unrestricted (all areas). */
   setUserAreas: (name: string, areas: string[] | undefined) => void
+  /** DV09-076 Advanced tab. Each returns an error message, or null on success. */
+  setUserStatus: (name: string, patch: { disabled?: boolean; mustChangePassword?: boolean }) => string | null
+  setUserFullName: (name: string, fullName: string) => string | null
+  changePassword: (name: string, oldPassword: string, newPassword: string) => string | null
+  /** DV09-077 groups. Each returns an error message, or null on success. */
+  createGroup: (name: string, description: string) => string | null
+  updateGroup: (name: string, patch: { newName?: string; description?: string }) => string | null
+  deleteGroup: (name: string) => string | null
+  addGroupMember: (group: string, user: string) => string | null
+  removeGroupMember: (group: string, user: string) => string | null
+  setGroupLocks: (group: string, locks: LockType[]) => string | null
+  setGroupAreas: (group: string, areas: string[] | undefined) => string | null
   hasLock: (lock: LockType) => boolean
   /** DV09-044: true if the current user's area write keys authorize this area
    * (undefined area, e.g. an alarm whose module no longer exists, is never authorized). */
@@ -120,8 +173,18 @@ const DEFAULT_USERS: DvUser[] = [
   }
 ]
 
+const DEFAULT_GROUPS: DvGroup[] = [
+  {
+    name: 'Operate',
+    description: 'Plant operators: day-to-day control and alarm handling',
+    locks: ['CONTROL', 'ALARMS'],
+    members: ['OperatorA', 'Supervisor1']
+  }
+]
+
 export const useSecurity = create<SecurityState>((set, get) => ({
   users: DEFAULT_USERS,
+  groups: DEFAULT_GROUPS,
   currentUser: 'admin',
   locked: false,
   lastDenied: null,
@@ -129,38 +192,167 @@ export const useSecurity = create<SecurityState>((set, get) => ({
   login: (name, password) => {
     const u = get().users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
     if (!u || u.password !== password) return false
+    if (u.disabled) {
+      set({ lastDenied: `Access Denied — account ${u.name} is disabled` })
+      return false
+    }
+    if (u.mustChangePassword) {
+      set({ lastDenied: `Access Denied — ${u.name} must change the password before logging on` })
+      return false
+    }
     set({ currentUser: u.name, locked: false })
     return true
+  },
+
+  loginStatus: (name, password) => {
+    const u = get().users.find((x) => x.name.toLowerCase() === name.trim().toLowerCase())
+    if (!u || u.password !== password) return 'bad'
+    if (u.disabled) return 'disabled'
+    return u.mustChangePassword ? 'must-change' : 'ok'
   },
 
   lockWorkstation: () => set({ locked: true }),
 
   addUser: (u) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Create user ${u.name}`)) return false
     if (!u.name.trim() || get().users.some((x) => x.name.toLowerCase() === u.name.toLowerCase())) return false
     set((s) => ({ users: [...s.users, u] }))
     return true
   },
 
   deleteUser: (name) =>
-    set((s) => (name === s.currentUser ? s : { users: s.users.filter((u) => u.name !== name) })),
+    get().requireLock('SYSTEM_ADMIN', `Delete user ${name}`) &&
+    set((s) =>
+      name === s.currentUser
+        ? s
+        : {
+            users: s.users.filter((u) => u.name !== name),
+            groups: s.groups.map((g) => ({ ...g, members: g.members.filter((m) => m !== name) }))
+          }
+    ),
 
-  setUserLocks: (name, locks) =>
-    set((s) => ({ users: s.users.map((u) => (u.name === name ? { ...u, locks } : u)) })),
+  setUserLocks: (name, locks) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Set keys of user ${name}`)) return
+    set((s) => ({ users: s.users.map((u) => (u.name === name ? { ...u, locks } : u)) }))
+  },
 
-  setUserAreas: (name, areas) =>
-    set((s) => ({ users: s.users.map((u) => (u.name === name ? { ...u, areas } : u)) })),
+  setUserAreas: (name, areas) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Set area keys of user ${name}`)) return
+    set((s) => ({ users: s.users.map((u) => (u.name === name ? { ...u, areas } : u)) }))
+  },
+
+  setUserStatus: (name, patch) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Change account status ${name}`)) return 'Requires the System Admin key'
+    const u = get().users.find((x) => x.name === name)
+    if (!u) return `User ${name} does not exist`
+    if (patch.disabled && name === get().currentUser) return 'The logged-on user cannot disable their own account'
+    set((s) => ({ users: s.users.map((x) => (x.name === name ? { ...x, ...patch } : x)) }))
+    return null
+  },
+
+  setUserFullName: (name, fullName) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Edit user ${name}`)) return 'Requires the System Admin key'
+    if (!get().users.some((x) => x.name === name)) return `User ${name} does not exist`
+    set((s) => ({ users: s.users.map((x) => (x.name === name ? { ...x, fullName } : x)) }))
+    return null
+  },
+
+  changePassword: (name, oldPassword, newPassword) => {
+    const u = get().users.find((x) => x.name === name)
+    if (!u) return `User ${name} does not exist`
+    if (u.password !== oldPassword) return 'The current password is incorrect'
+    if (!newPassword) return 'The new password cannot be blank'
+    if (newPassword === oldPassword) return 'The new password must differ from the current password'
+    set((s) => ({
+      users: s.users.map((x) => (x.name === name ? { ...x, password: newPassword, mustChangePassword: false } : x))
+    }))
+    return null
+  },
+
+  createGroup: (name, description) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Create group ${name}`)) return 'Requires the System Admin key'
+    const n = name.trim()
+    if (!n) return 'Group name cannot be blank'
+    if (get().groups.some((g) => g.name.toLowerCase() === n.toLowerCase())) return `Group ${n} already exists`
+    set((s) => ({ groups: [...s.groups, { name: n, description, locks: [], members: [] }] }))
+    return null
+  },
+
+  updateGroup: (name, patch) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Modify group ${name}`)) return 'Requires the System Admin key'
+    if (!get().groups.some((g) => g.name === name)) return `Group ${name} does not exist`
+    const newName = patch.newName?.trim()
+    if (patch.newName !== undefined) {
+      if (!newName) return 'Group name cannot be blank'
+      if (newName !== name && get().groups.some((g) => g.name.toLowerCase() === newName.toLowerCase())) {
+        return `Group ${newName} already exists`
+      }
+    }
+    set((s) => ({
+      groups: s.groups.map((g) =>
+        g.name === name
+          ? { ...g, name: newName ?? g.name, description: patch.description ?? g.description }
+          : g
+      )
+    }))
+    return null
+  },
+
+  deleteGroup: (name) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Delete group ${name}`)) return 'Requires the System Admin key'
+    if (!get().groups.some((g) => g.name === name)) return `Group ${name} does not exist`
+    set((s) => ({ groups: s.groups.filter((g) => g.name !== name) }))
+    return null
+  },
+
+  addGroupMember: (group, user) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Add ${user} to group ${group}`)) return 'Requires the System Admin key'
+    const g = get().groups.find((x) => x.name === group)
+    if (!g) return `Group ${group} does not exist`
+    if (!get().users.some((u) => u.name === user)) return `User ${user} does not exist`
+    if (g.members.includes(user)) return `${user} is already a member of ${group}`
+    set((s) => ({ groups: s.groups.map((x) => (x.name === group ? { ...x, members: [...x.members, user] } : x)) }))
+    return null
+  },
+
+  removeGroupMember: (group, user) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Remove ${user} from group ${group}`)) return 'Requires the System Admin key'
+    const g = get().groups.find((x) => x.name === group)
+    if (!g) return `Group ${group} does not exist`
+    if (!g.members.includes(user)) return `${user} is not a member of ${group}`
+    set((s) => ({
+      groups: s.groups.map((x) => (x.name === group ? { ...x, members: x.members.filter((m) => m !== user) } : x))
+    }))
+    return null
+  },
+
+  setGroupLocks: (group, locks) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Set keys of group ${group}`)) return 'Requires the System Admin key'
+    if (!get().groups.some((g) => g.name === group)) return `Group ${group} does not exist`
+    set((s) => ({ groups: s.groups.map((g) => (g.name === group ? { ...g, locks } : g)) }))
+    return null
+  },
+
+  setGroupAreas: (group, areas) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Set area keys of group ${group}`)) return 'Requires the System Admin key'
+    if (!get().groups.some((g) => g.name === group)) return `Group ${group} does not exist`
+    set((s) => ({ groups: s.groups.map((g) => (g.name === group ? { ...g, areas } : g)) }))
+    return null
+  },
 
   hasLock: (lock) => {
     const s = get()
     const u = s.users.find((x) => x.name === s.currentUser)
-    return !!u && u.locks.includes(lock)
+    return effectiveLocks(u, s.groups).includes(lock)
   },
 
   hasAreaKey: (area) => {
     const s = get()
     const u = s.users.find((x) => x.name === s.currentUser)
-    if (!u || !u.areas) return true
-    return area !== undefined && u.areas.includes(area)
+    if (!u) return true
+    const areas = effectiveAreas(u, s.groups)
+    if (!areas) return true
+    return area !== undefined && areas.includes(area)
   },
 
   requireLock: (lock, action) => {

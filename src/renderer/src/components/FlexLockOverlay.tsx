@@ -7,19 +7,44 @@ import { useStore } from '../engine/store'
 export function FlexLockOverlay(): JSX.Element | null {
   const locked = useSecurity((s) => s.locked)
   const login = useSecurity((s) => s.login)
+  const loginStatus = useSecurity((s) => s.loginStatus)
+  const changePassword = useSecurity((s) => s.changePassword)
   const logEvent = useStore((s) => s.logEvent)
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [mustChange, setMustChange] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   if (!locked) return null
 
+  function finish(): void {
+    logEvent('SECURITY', name.trim(), 'User logged on')
+    setName('')
+    setPassword('')
+    setNewPassword('')
+    setMustChange(false)
+    setError(null)
+  }
+
   function submit(): void {
-    if (login(name, password)) {
-      logEvent('SECURITY', name.trim(), 'User logged on')
-      setName('')
-      setPassword('')
-      setError(null)
+    if (mustChange) {
+      const failure = changePassword(name.trim(), password, newPassword)
+      if (failure) {
+        setError(failure)
+        return
+      }
+      if (login(name, newPassword)) finish()
+      return
+    }
+    const status = loginStatus(name, password)
+    if (status === 'ok' && login(name, password)) {
+      finish()
+    } else if (status === 'disabled') {
+      setError('This account is disabled.')
+    } else if (status === 'must-change') {
+      setMustChange(true)
+      setError('Your password has expired. Enter a new password.')
     } else {
       setError('Name or password is incorrect.')
     }
@@ -43,9 +68,20 @@ export function FlexLockOverlay(): JSX.Element | null {
             onKeyDown={(e) => e.key === 'Enter' && submit()}
           />
         </label>
+        {mustChange && (
+          <label className="flexlock-field">
+            New password
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+            />
+          </label>
+        )}
         {error && <div className="flexlock-error">{error}</div>}
         <button className="tbtn" style={{ marginTop: 10, width: '100%' }} onClick={submit}>
-          Log On
+          {mustChange ? 'Change Password and Log On' : 'Log On'}
         </button>
       </div>
     </div>
