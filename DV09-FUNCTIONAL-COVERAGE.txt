@@ -5,7 +5,7 @@ CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-05
 -------------------------------------------
 DV-09 is NOT complete. Latest implemented milestone: selective AO parameter
 upload generalizing the PID_LOOP tuning-upload pattern (Pass55).
-Implementation: Pass55, local commit (hash recorded after commit below).
+Implementation: a583253, 2026-10-05, selective AO upload (Pass55).
 Previous milestone: a68483a, OUT ramp/PipesAnim connection (Pass54), 2026-10-05.
 The user authorized commit and push of Pass54/55 on 2026-10-05, separate from
 the 2026-10-04 authorization that covered Pass42-53 only.
