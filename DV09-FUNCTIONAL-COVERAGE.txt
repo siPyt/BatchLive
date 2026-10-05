@@ -7,7 +7,7 @@ DV-09 is NOT complete. Latest implemented milestone: a generic qualified
 "ALARMS array" datalink resolver (TAG.ALM[TYPE].FIELD) for ENAB/PRI/PRIAD/
 MACK, shared by builder and faceplates with correct per-field Locks & Keys
 (Pass66).
-Implementation: c9d9953, 2026-10-05, qualified alarm field datalink (Pass66).
+Implementation: 123be87, 2026-10-05, DO channel output options (Pass86). Passes 67-86 (security, signatures, export, serial, fieldbus, device alarms, chronicle, simulator, scan/order, password policy, recipes, cold restart, LEDs/identify, help, commissioning, DO options) are listed as PASS sections at the end of this file; the older milestone text below is historical.
 Previous milestone: 6a2468f, workstation area subscription AND user area-key
 alarm eligibility (Pass65), 2026-10-05.
 The user's standing instruction ("finish everything and stop stopping",

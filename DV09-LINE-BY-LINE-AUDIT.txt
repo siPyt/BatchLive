@@ -1,10 +1,10 @@
 BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
 =============================================
 
-CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS75
+CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS86
 ---------------------------------------------------
-Implementation baseline: 5e0d41e, 2026-10-05 (overnight continuation).
-518 repository tests run locally (517 pass); typecheck and production build
+Implementation baseline: 123be87, 2026-10-05 (overnight continuation).
+601 repository tests run locally (600 pass); typecheck and production build
 pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
@@ -14,9 +14,12 @@ DV-09 remains incomplete: 57 VERIFIED_SUBSET, 46 PARTIAL, 0 MISSING,
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
 counts (53 PARTIAL/34 MISSING) were stale and are corrected by recounting the
-group Status lines; Passes 67-75 moved 31 groups out of MISSING (security
+group Status lines; Passes 67-76 moved 32 groups out of MISSING (security
 groups and lock reassignment, area keys, electronic signatures, export,
-serial/Modbus, FOUNDATION fieldbus, device alarms, System Preferences).
+serial/Modbus, FOUNDATION fieldbus, device alarms, System Preferences,
+alarm composites); Passes 77-86 then deepened PARTIAL groups (event chronicle,
+simulator controls, module scan/order, password policy, Recipe Studio, cold
+restart, controller indicators, contextual help, commissioning, DO options).
 The user's standing instruction ("work all night until it is completely done",
 2026-10-05) authorizes continuing to commit and push every pass without
 pausing for per-pass confirmation, until 100% or the user interrupts.
