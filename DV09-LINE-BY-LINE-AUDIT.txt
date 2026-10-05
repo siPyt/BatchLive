@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 56 VERIFIED_SUBSET, 47 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 57 VERIFIED_SUBSET, 46 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -320,14 +320,27 @@ Acceptance: Exercise the complete hierarchy, unit behavior, area writes and
 
 [DV09-014]
 Pages: 84-86
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Use named Device Signal Tags for traditional channels, associate
   module I/O and configure discrete output latching/momentary/pulse options.
-Evidence: CHARM boundTag/boundField are not a traditional DST database.
-Verified subset: Traditional named/enabled channels and independent DI/DO
-  bindings now execute. Duplicate DSTs, wrong direction, multiple output
-  writers and simultaneous CHARM binding are rejected with diagnostics.
-Gaps: DO latching/momentary/pulse options and full channel model remain absent.
+Evidence (earlier passes + Pass86): Traditional channels carry real Device
+  Signal Tag names distinct from module tags (CHARM boundTag/boundField remain a
+  separate legacy path). Named, enabled channels execute with independent DI/DO
+  bindings; duplicate DSTs, wrong direction, multiple output writers,
+  simultaneous CHARM binding and renaming an in-use DST are rejected with
+  diagnostics; disabled/unbound/failed channels report Bad quality.
+  Pass86 adds the DST output option from the course (DO Latching, Momentary or
+  Continuous Pulse): Latching follows the command, Momentary produces one fixed
+  pulse (0.1-3600 s) per rising edge that completes even if the command is
+  withdrawn, and Continuous pulse produces a 50% duty train at the configured
+  period while commanded and restarts high. The option applies to both module
+  and device writers of the channel, follows simulated time, is configured in
+  the channel editor under Can Configure and survives other channel edits.
+  Nine regressions verify validation, exact traces, edge/early-release/scale
+  behaviour, tieback readback, rejection, locks and Bad channels.
+  Boundary: pulse timing is the simulator's reading of the course's three
+  option names (no pulse-count or duty settings), and native DST property
+  dialogs such as Analog In vs HART typing are not reproduced.
 Acceptance: Distinguish a channel's DST from the module tag; test I/O direction,
   duplicate ownership, enabled state, output options and unbound quality.
 
@@ -4103,3 +4116,21 @@ Validation: 592 tests locally (591 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-006 PARTIAL -> VERIFIED_SUBSET. Totals 56 VERIFIED_SUBSET/
   47 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 86 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-014 DO output options (Latching / Momentary / Continuous Pulse) from DST properties (pp84-86, course p2-16).
+Engine: traditionalIo.ts gains DoOutputOption/DoRuntime, doOptionError and
+  driveDigitalOutput, used by both the DO-module writer and the device (motor/
+  valve) writer; store gains configureOutputOption (CAN_CONFIGURE, existing
+  traditional-I/O registry target).
+UI: Output option selector, seconds field and status in the DO channel editor.
+Tests: tests/do-output-options.test.cjs (9) with exact scan traces.
+Browser: DO card channel set to Continuous pulse 2 s and the status line updated.
+Boundary (honest): timing reading of the three option names; no pulse counts or
+  duty settings; native DST dialogs / Analog In vs HART typing not reproduced;
+  the device-writer path shares the helper but has no dedicated trace test.
+Validation: 601 tests locally (600 pass; only pdf_om.txt-dependent audit fails),
+  typecheck and build passed.
+Result: DV09-014 PARTIAL -> VERIFIED_SUBSET. Totals 57 VERIFIED_SUBSET/
+  46 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

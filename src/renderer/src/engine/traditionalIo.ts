@@ -23,6 +23,9 @@ export interface TraditionalChannel {
   configuredFilterSeconds?: number
   filterSeconds?: number
   filteredValue?: number
+  /** DV09-014: DO channels only; absent means Latching. */
+  outputOption?: DoOutputOption
+  doRuntime?: DoRuntime
 }
 
 export interface TraditionalCard {
@@ -37,6 +40,45 @@ export interface TraditionalCard {
   fieldbus?: { cardId: string; port: H1PortId; device: string; block: string }
 }
 
+/** DV09-014 DST output options for a DO channel: follow the command (Latching), a fixed-width pulse per rising edge (Momentary), or a 50% duty pulse train while commanded (Continuous Pulse). */
+export type DoOutputMode = 'LATCHING' | 'MOMENTARY' | 'PULSE'
+export interface DoOutputOption { mode: DoOutputMode; /** Momentary pulse width, or the continuous-pulse period, in seconds. */ seconds: number }
+export interface DoRuntime { prev: boolean; elapsed: number; active: boolean }
+export const DO_OPTION_MIN_SECONDS = 0.1
+export const DO_OPTION_MAX_SECONDS = 3600
+export const DO_MODE_LABEL: Record<DoOutputMode, string> = {
+  LATCHING: 'Latching', MOMENTARY: 'Momentary', PULSE: 'Continuous pulse'
+}
+
+export function doOptionError(option: DoOutputOption): string | null {
+  if (!(option.mode in DO_MODE_LABEL)) return 'Output option must be Latching, Momentary or Continuous pulse'
+  if (option.mode === 'LATCHING') return null
+  if (!Number.isFinite(option.seconds) || option.seconds < DO_OPTION_MIN_SECONDS || option.seconds > DO_OPTION_MAX_SECONDS)
+    return `${option.mode === 'MOMENTARY' ? 'Pulse width' : 'Pulse period'} must be between ${DO_OPTION_MIN_SECONDS} and ${DO_OPTION_MAX_SECONDS} seconds`
+  return null
+}
+
+/** The channel level for this scan; updates the channel's pulse runtime. dt is the simulated time of the scan. */
+export function driveDigitalOutput(channel: TraditionalChannel, command: boolean, dt: number): number {
+  const option = channel.outputOption
+  if (!option || option.mode === 'LATCHING') { channel.doRuntime = undefined; return command ? 1 : 0 }
+  const step = Number.isFinite(dt) && dt > 0 ? dt : 0
+  const runtime: DoRuntime = channel.doRuntime ?? { prev: false, elapsed: 0, active: false }
+  const rising = command && !runtime.prev
+  let level = false
+  if (option.mode === 'MOMENTARY') {
+    const elapsed = rising ? 0 : runtime.elapsed
+    const active = rising || runtime.active
+    level = active && elapsed < option.seconds - 1e-9
+    const after = elapsed + step
+    channel.doRuntime = { prev: command, elapsed: after, active: active && after < option.seconds - 1e-9 }
+  } else {
+    const elapsed = command ? (rising ? 0 : runtime.elapsed) : 0
+    level = command && Math.round((elapsed % option.seconds) * 1e6) / 1e6 < option.seconds / 2 - 1e-9
+    channel.doRuntime = { prev: command, elapsed: Math.round((elapsed + step) * 1e6) / 1e6, active: level }
+  }
+  return level ? 1 : 0
+}
 export function makeTraditionalCard(controllerTag: string, slot: number, type: TraditionalCardType): TraditionalCard {
   return {
     id: `${controllerTag}/C${String(slot).padStart(2, '0')}`, controllerTag, slot, type,
@@ -235,7 +277,7 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
       continue
     }
     module.ioOutputBad = target.channel.bad || module.downloaded === false
-    if (!module.ioOutputBad) target.channel.value = Number(!!module.outputCommand)
+    if (!module.ioOutputBad) target.channel.value = driveDigitalOutput(target.channel, !!module.outputCommand, dt)
     module.appliedCommand = target.channel.value !== 0
   }
   const writers = new Map<string, string>()
@@ -250,7 +292,7 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
       if (module?.type !== 'DO') continue
       channel.bad ||= module.mode === 'OOS'
       module.ioBad = channel.bad
-      if (!channel.bad) channel.value = module.commanded ? 1 : 0
+      if (!channel.bad) channel.value = driveDigitalOutput(channel, !!module.commanded, dt)
       module.state = channel.value !== 0
     }
   }

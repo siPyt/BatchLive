@@ -87,8 +87,8 @@ import { isPidTargetMode, pidTargetAllowed, pidExecutionBad } from './pidModes'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from './deviceDescriptors'
 import { deviceLogicError, deviceSourceError, resetConditionTiming } from './fb'
 import {
-  analogBindingError, channelConfigurationError, deviceBindingError, discreteBindingError, findDst, makeTraditionalCard,
-  type AnalogBindingPort, type DeviceBindingPort, type TraditionalCardType
+  analogBindingError, channelConfigurationError, deviceBindingError, discreteBindingError, doOptionError, findDst, makeTraditionalCard,
+  type AnalogBindingPort, type DeviceBindingPort, type DoOutputOption, type TraditionalCardType
 } from './traditionalIo'
 import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, type BatchRuntime, type BatchCommand, type PhaseDef } from './batch'
 import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
@@ -267,6 +267,8 @@ interface StoreState extends PlantState {
   configureTraditionalChannel: (cardId: string, channel: number,
     patch: { dst: string; enabled: boolean; tiebackDst?: string }) => boolean
   setTraditionalInput: (dst: string, value: number) => boolean
+  /** DV09-014: set a DO channel to Latching, Momentary (pulse width) or Continuous pulse (period). */
+  configureOutputOption: (cardId: string, channel: number, option: DoOutputOption) => boolean
   configureInputFilter: (cardId: string, channel: number, seconds: number) => boolean
   downloadInputFilters: (cardId: string) => boolean
   bindDiscreteDst: (tag: string, dst: string) => boolean
@@ -2273,8 +2275,26 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
-  configureInputFilter: (cardId, channelNumber, seconds) => {
-    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure AI channel filter ${cardId}`)) return false
+  configureOutputOption: (cardId, channelNumber, option) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${cardId} channel ${channelNumber} output option`)) return false
+    const card = get().hardware.traditionalCards?.[cardId]
+    const channel = card?.channels.find(c => c.channel === channelNumber)
+    const error = !card || !channel ? 'Traditional card/channel does not exist' :
+      card.type !== 'DO' ? 'Output options apply only to DO channels' : doOptionError(option)
+    if (error || !card) {
+      const message = error ?? 'Traditional card does not exist'
+      get().logEvent('DIAGNOSTIC', cardId, `Output option rejected: ${message}`); window.alert(message)
+      return false
+    }
+    const stored = option.mode === 'LATCHING' ? undefined : { mode: option.mode, seconds: option.seconds }
+    set(s => ({ hardware: { ...s.hardware, traditionalCards: { ...s.hardware.traditionalCards,
+      [cardId]: { ...card, channels: card.channels.map(c => c.channel === channelNumber
+        ? { ...c, outputOption: stored, doRuntime: undefined } : c) } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', cardId, `CH${channelNumber} output option ${option.mode}${stored ? ` ${option.seconds} s` : ''}`)
+    return true
+  },
+
+  configureInputFilter: (cardId, channelNumber, seconds) => {    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure AI channel filter ${cardId}`)) return false
     const card = get().hardware.traditionalCards?.[cardId]
     const channel = card?.channels.find(c => c.channel === channelNumber)
     const error = !card || card.type !== 'AI' || !channel ? 'Select a traditional AI card/channel' :

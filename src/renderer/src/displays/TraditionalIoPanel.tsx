@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { channelBad, traditionalChannels, type TraditionalCard, type TraditionalCardType,
-  type TraditionalChannel } from '../engine/traditionalIo'
+  type TraditionalChannel, DO_MODE_LABEL, type DoOutputMode } from '../engine/traditionalIo'
 
 export function TraditionalIoPanel({ controllerTag }: { controllerTag: string }): JSX.Element {
   const hardware = useStore(s => s.hardware)
@@ -51,6 +51,13 @@ function TraditionalChannelEditor({ card, channel }: {
   const configure = useStore(s => s.configureTraditionalChannel)
   const simulateInput = useStore(s => s.setTraditionalInput)
   const configureFilter = useStore(s => s.configureInputFilter)
+  const configureOption = useStore(s => s.configureOutputOption)
+  const [doMode, setDoMode] = useState<DoOutputMode>(channel.outputOption?.mode ?? 'LATCHING')
+  const [doSeconds, setDoSeconds] = useState(String(channel.outputOption?.seconds ?? 1))
+  useEffect(() => {
+    setDoMode(channel.outputOption?.mode ?? 'LATCHING')
+    setDoSeconds(String(channel.outputOption?.seconds ?? 1))
+  }, [channel.outputOption?.mode, channel.outputOption?.seconds])
   const [filter, setFilter] = useState(String(channel.configuredFilterSeconds ?? 0))
   const [dst, setDst] = useState(channel.dst)
   const [enabled, setEnabled] = useState(channel.enabled)
@@ -103,8 +110,21 @@ function TraditionalChannelEditor({ card, channel }: {
           <button className="tbtn sm" disabled={!channel.dst || !!channel.tiebackDst}
             onClick={() => simulateInput(channel.dst, value)}>Set Simulated Input</button>
         </div>}
-        {card.type === 'AI' && <div className="traditional-toolbar">
-          <label>Configured input filter (s)<input aria-label={`${label} input filter seconds`} type="number"
+        {card.type === 'DO' && <div className="traditional-toolbar">
+          <label>Output option
+            <select aria-label={`${label} output option`} value={doMode} onChange={e => setDoMode(e.target.value as DoOutputMode)}>
+              {(Object.keys(DO_MODE_LABEL) as DoOutputMode[]).map(m => <option key={m} value={m}>{DO_MODE_LABEL[m]}</option>)}
+            </select>
+          </label>
+          {doMode !== 'LATCHING' && <label>{doMode === 'MOMENTARY' ? 'Pulse width (s)' : 'Pulse period (s)'}
+            <input aria-label={`${label} output option seconds`} type="number" step="any" min={0.1} value={doSeconds}
+              onChange={e => setDoSeconds(e.target.value)} /></label>}
+          <button className="tbtn sm" onClick={() => configureOption(card.id, channel.channel,
+            { mode: doMode, seconds: doMode === 'LATCHING' ? 0 : doSeconds.trim() ? Number(doSeconds) : NaN })}>Apply Output Option</button>
+          <span>{channel.outputOption ? `${DO_MODE_LABEL[channel.outputOption.mode]} ${channel.outputOption.seconds} s` : 'Latching'}
+            {channel.outputOption ? ' — module commands become pulses, so a bound device sees the pulsed level' : ''}</span>
+        </div>}
+        {card.type === 'AI' && <div className="traditional-toolbar">          <label>Configured input filter (s)<input aria-label={`${label} input filter seconds`} type="number"
             step="any" min={0} value={filter} onChange={e => setFilter(e.target.value)} /></label>
           <button className="tbtn sm" onClick={() => configureFilter(card.id, channel.channel,
             filter.trim() ? Number(filter) : NaN)}>Configure Input Filter</button>

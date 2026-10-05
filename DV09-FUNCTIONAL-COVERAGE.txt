@@ -2639,3 +2639,8 @@ PASS 85: CONTROL NETWORK PLACEHOLDERS AND COMMISSIONING PROPERTIES (pp57-62)
 Line1 - Drag a decommissioned node onto the Control Network or a placeholder.
 Line2 - Properties dialog: name rules, description, area, hardware alarms, network redundancy, time-sync integrity, redundant.
 Line3 - Auto-sense Yes/No after OK; hardware alarms are real. Tests: commissioning.test.cjs.
+
+PASS 86: DO OUTPUT OPTIONS (pp84-86)
+-----------------------------------------------------------------------
+Line1 - DO channels: Latching, Momentary (fixed pulse per rising edge) or Continuous pulse (50% duty).
+Line2 - Applies to module and device writers; follows simulated time. Tests: do-output-options.test.cjs.
