@@ -6,8 +6,7 @@ CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-05
 DV-09 is NOT complete. Latest implemented milestone: an optional numeric
 alarm priority rank (4-15) overriding sort order within the existing 3-class
 priority system (Pass57).
-Implementation: ff224d0, 2026-10-05 (hash recorded after commit below), alarm
-priority rank (Pass57).
+Implementation: 05cdeca, 2026-10-05, alarm priority rank (Pass57).
 Previous milestone: 27c245d, reaction-curve tuning suggestion (Pass56), 2026-10-05.
 The user authorized commit and push of Pass54-57 on 2026-10-05, separate from
 the 2026-10-04 authorization that covered Pass42-53 only.

@@ -3,7 +3,7 @@ BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
 
 CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS57
 ---------------------------------------------------
-Implementation baseline: ff224d0, 2026-10-05 (hash recorded after commit below).
+Implementation baseline: 05cdeca, 2026-10-05.
 367 repository tests run locally (366 pass); typecheck, production build and
 whitespace checks pass. The one failure is the pre-existing local-only
 pdf_om.txt dependency in dv09-audit.test.cjs (not bundled with the repo by
