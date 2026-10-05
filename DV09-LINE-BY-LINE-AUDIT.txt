@@ -1,6 +1,18 @@
 BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
 =============================================
 
+CURRENT FUNCTIONAL REVIEW - 2026-10-04, AFTER PASS53
+---------------------------------------------------
+Implementation baseline: 0dc6c8f, 2026-10-04T21:17:58-05:00.
+365 repository tests pass; typecheck, production build, scoped diagnostics and
+whitespace checks pass. The dated history and exact known remaining-work index
+are appended at the end of this report. Earlier release records are historical.
+DV-09 remains incomplete: 8 VERIFIED_SUBSET, 58 PARTIAL, 37 MISSING,
+19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
+The user authorized commit/push of implementation and this dated audit on
+2026-10-04. Remote delivery is verified separately after the final push; older
+push-pause statements below describe earlier checkpoints, not this authorization.
+
 SOURCE, SCOPE AND HONEST COMPLETION BOUNDARY
 -------------------------------------------
 Primary source: 740124885-Deltav-O-M-Training-Manual.pdf.
@@ -272,8 +284,9 @@ Verified subset: Physical Network has card/channel DST and Enable properties.
 Verified analog extension: Standalone AI and PID AI1/AO1/AO2 stages bind to
   the named AI/AO channels. Input is supplied in engineering units, output
   is percent; held fault signals/quality and output ownership are tested.
-Gaps: Standalone course AO, native electrical scaling/card dialogs, physical
-  wiring, persistence and downloaded configuration are not implemented.
+Gaps: Native electrical scaling/card dialogs, physical wiring and full card
+  configuration persistence/download are not implemented. Standalone AO and
+  bounded managed-module transfers now exist; they do not deploy entire cards.
 Acceptance: Verify exact slots, types, enabled states, names and direction;
   data must reach the designated channel rather than a substitute variable.
 
@@ -467,8 +480,11 @@ Pages: 115-116
 Status: PARTIAL
 Required: Use Control Studio hierarchy, diagram, palette, parameters and alarms
   views to engineer a module.
-Evidence: STUDIO panes/ribbon/FBD have executable subsets. File, clipboard
-  and Download are disabled; configuration is always simulated online.
+Evidence: STUDIO panes/ribbon/FBD have executable subsets. File/New now creates
+  exact named FBD/SFC modules (Pass46). Enrolled AO/PID/device/SFC have distinct
+  offline/saved/deployed/online lifecycles and download controls (Pass44-53).
+  Clipboard, remaining native palette/filter/property workflows and unmanaged
+  algorithm lifecycle parity are not certified; it is not always-online anymore.
 Acceptance: Wire offline/save/download/online modes and parameter filters
   without redesigning the protected IMG_0435/IMG_0440 presentation.
 
@@ -780,11 +796,17 @@ Acceptance: Exercise each mask against input bits and distinguish unknown
 
 [DV09-049]
 Pages: 222-225
-Status: MISSING
+Status: PARTIAL
 Required: Create named sets and separate DC SP/PV descriptors and options,
   including passive-on-timeout/confirmation, trip and SP tracking behavior.
-Evidence: Fixed descriptors/options are not a named-set editor or full DC
-  option semantics. Some permissive/interlock/reset settings exist.
+Evidence: Pass32/33 and device-descriptors regressions implement Named Set
+  configuration, independent passive/active command and feedback descriptors,
+  controller/workstation Setup separation, Save/Download, selection protection
+  and actual external feedback. Flush versus Flushing and Hold versus Holding
+  remain distinct until DI confirms. Current managed batch preserves these
+  deployed-Setup validation requirements. Earlier MISSING wording was stale.
+Gaps: Full DC option semantics for passive-on-timeout/confirmation, trip and
+  SP tracking, arbitrary state masks and the native property/workshop sequence.
 Acceptance: Verify stored name/value mappings and each enabled option with
   active/passive transitions, timeout and recovery.
 
@@ -1944,8 +1966,8 @@ IMPLEMENTATION ORDER BASED ON REAL DEPENDENCIES
 10. Original-PDF visual inspection for every screenshot-only workflow.
     Record exact control labels/options and plots without copying the manual.
 
-VALIDATION AND RELEASE RECORD
------------------------------
+ORIGINAL TEXT-AUDIT VALIDATION AND RELEASE RECORD (HISTORICAL)
+------------------------------------------------------------
 Text audit: all 575 PDF page markers mapped; every split source record mapped
   by scripts\validate-dv09-audit.mjs, including the trailing blank record.
 This source mapping does NOT count implemented requirements or certify parity.
@@ -1963,3 +1985,399 @@ Preservation: no equipment SVG, protected palette/state colors, process
 Image-only review and exact course functionality remain unfinished.
 User-provided 3001.png and 3002.png stay outside implementation commits.
 Commit permitted; push must wait for explicit user authorization.
+
+DATED CHANGE HISTORY - WHAT CHANGED AND WHEN
+--------------------------------------------
+Times below are actual Git author timestamps, UTC-05:00, not estimated work
+duration or proof of a particular deployment time. Commit subjects summarize
+changes; per-pass engine/UI evidence and limitations are in the numbered groups
+above and DV09-FUNCTIONAL-COVERAGE.txt. A historical subject does not certify
+native equivalence or override a remaining-work entry. This lists every existing
+commit from repository creation through the current implementation, including
+docs/reference/configuration-only changes. This audit revision itself is the
+following documentation commit, identifiable in Git history.
+
+2026-10-01
+12:25:24 0f98661 Initial BatchLive HMI simulator.
+12:25:36 ef9eea7 Ignore TypeScript build-info artifacts.
+12:45:54 6d52028 PID derivative/ALPHA and alarm priority/ranking/word fidelity.
+12:51:06 b2b582e Explorer hierarchy and online Control Studio FB diagram.
+12:51:45 20ae832 Stop tracking PDF extraction; broaden extraction ignore.
+13:03:27 3abb888 ISA-88 phase SFC, reactor recipe and Batch Operator.
+13:18:40 85128f5 Operate light theme, Studio ribbon and solid alarm rows.
+13:26:54 a3fc422 Bumpless PID start, anti-windup, PIC relief, navigation history.
+13:36:35 b05c3c3 Windows icon, Explorer alarm editing and light background.
+13:49:49 8ba465b Module creation/deletion and generic live loop simulation.
+13:57:07 666ef79 PID faceplate tabs, bars, target/actual mode, alarm config/trend.
+14:05:35 448ad40 SFC editor/runner with steps/actions/transitions/run/hold/reset.
+14:09:39 7c8502f Display Builder pictures, datalinks, text and dynamos.
+14:41:12 9623d56 Explorer menus, Studio views, Builder, workshops/alarm layout.
+
+2026-10-02
+10:21:49 769c6a0 Device control, modes, keys, faceplate links, equipment/phases/network.
+11:05:50 8f7ae53 Pharma buildout, quality, alarm audio/shelving and SFC qualifiers.
+11:16:44 fb0be12 Additional WFI/autoclave/lyo/CIP/TCU units.
+11:26:30 838c3df Facility Overview area navigation.
+11:30:30 b82d8a9 Pharma P&ID mimic diagrams.
+11:36:40 2f52488 WFI vessel/pump geometry improvements.
+11:36:48 9e51567 Remove accidentally committed screenshot attachment.
+14:14:43 07e0789 Spatial Overview, SVG dynamos, SFC chart, WFI loop/pump work.
+14:27:15 4f65ca9 Studio SP/tuning/device commands and pipe-occlusion repair.
+15:06:35 0050cb4 FB catalog and drag/wire/delete scoped FBD canvas.
+15:20:08 20a468a Generic PID cascade/feedforward/tracking and visible cascade wiring.
+15:36:13 250f2cd BKCAL/IMAN/anti-windup and executable agitator overload strategy.
+15:50:41 c446a77 Logic-to-device interlock/command wiring and sanitation controls.
+15:58:27 e35b4fc Reference-oriented classic WFI styling.
+16:20:44 7b69e59 Classic styling across reactor/autoclave/lyo/CIP/TCU.
+16:42:16 1659eee Reference image files.
+
+2026-10-03
+09:34:55 b2e5577 Improve reference-oriented Control Studio FBD.
+12:32:42 a4e91f7 Plant graphics and controller lifecycle training.
+13:08:38 c1bb5ed Reference equipment symbols and protected graphics contract.
+13:17:37 1651bed Approved reference-based engineering icons.
+14:36:42 f274fc9 Executable analog and split-range strategies.
+14:45:12 eb1d3ea Toolbar/alarm-banner containment repair.
+15:39:07 7d425a9 Verified commissioning, areas and picture navigation.
+15:54:43 05d8963 Full extracted-text audit and enforced module naming.
+16:40:46 ad4df43 Traditional discrete I/O workflows.
+17:32:39 02eec0f Traditional analog DST binding and LI-101 alarms.
+17:58:59 74dd9a2 Standalone AO parameters and real signal propagation.
+18:49:26 68a4e04 Isolated saved AO download/restart lifecycle.
+19:11:11 00b5c72 Bounded picture entry and source-scaled fill.
+19:22:52 e38819c Independent primary/detail display links.
+19:29:00 dba1bc4 Configured AI filter-only card transfer.
+19:44:51 efc52f0 Chart-grounded SFC action lifetimes.
+21:05:00 5f403c5 SFC Properties drafts and expression-path browser.
+21:15:10 afefef1 Named Set editor and target-specific Setup transfer.
+21:27:37 8d4c462 Separate draft/saved/deployed linear SFC.
+21:47:14 3ac6507 Saved SFC MESSAGE/Named Set operator entry.
+21:51:11 6600f1e Studio/alarm layout reference images.
+22:02:40 5f3d9d5 SFC return routes and repeated step activation.
+22:07:03 f24cd66 Selective routes/shared convergence.
+22:18:00 5e82e17 Course feedback and actual-mode paths.
+22:28:37 34aa8be Explorer SFC creation.
+
+2026-10-04
+10:34:01 54d27d3 Concurrent SFC paths/synchronized joins.
+10:45:39 576a070 Boolean SFC parameter actions.
+11:04:29 b4786f5 Owned SFC alarm blocks/shared timeout alarms.
+11:18:33 46f76cc Startup level checks/device reset actions.
+11:38:31 078ffbf Executable device permissive wiring.
+11:49:22 3f7438e Independent command/output versus external confirmation/input.
+12:02:24 09d94dc Sustained comparisons/fail-safe interlocks.
+12:10:26 c46f6f8 First-out trapping and independent bypass feedback.
+12:19:24 652e040 Saved motor/valve versus deployed runtime.
+12:41:21 233b34f Owned motor templates/exact quoted condition paths.
+12:49:31 3d74faf Exact 500/10 gallon motor interaction regressions.
+13:01:09 99d1d12 Independent device command/feedback descriptors.
+13:10:42 07c2448 Referenced physical DST resource counts by type.
+13:30:03 979e37e PID OOS and qualified tracking LO.
+13:33:07 2157320 PID OOS/LO presentation regression evidence.
+15:33:40 dfc7e9e PID normal/permitted mode fields.
+15:39:29 752d0bf Exact PID_LOOP FIC-102 template.
+15:53:25 a3aa231 FIC-102 deployment lifecycle.
+16:02:40 448fcaa FIC-102 operator picture entry.
+16:06:02 b62610a Active-alarm picture visibility.
+16:11:53 34b55e4 Configurable PID ISAN picture indication.
+16:20:29 153036e Selected PID tuning upload.
+16:59:13 2083629 Shared custom-picture flow color animation.
+18:21:42 24d154b Current status documentation.
+18:24:53 aec7ad2 Remaining local repository configuration edits.
+18:29:25 da59138 PID Detail tuning/dynamic real-time trends (Pass41).
+18:36:50 96e3cde Independent custom valve body/actuator animation (Pass42).
+18:45:25 5bfed46 Simulator PID Test/Review/Update (Pass43).
+19:05:48 ce09200 SFC descriptions/equipment membership/persistence (Pass44).
+19:14:09 ffaf292 Structural managed-module download status (Pass45).
+19:21:11 16a2903 Shared Studio New FBD/SFC creation (Pass46).
+19:32:14 d9310c8 Immutable single-AO last-good transfer replay (Pass47).
+20:17:56 0196b49 Independent controller-owned AO restart memory (Pass48).
+20:22:52 be34b68 AO verify/caution/stale-confirm/results (Pass49).
+20:27:15 c65d49d Atomic controller-owned AO Full batch (Pass50).
+21:07:46 1133f38 Atomic controller-owned AO replay excluding newer defaults (Pass51).
+21:11:53 76e21aa Atomic mixed AO/PID Full; PID held Offline/OOS (Pass52).
+21:17:58 0dc6c8f Atomic Full across enrolled AO/PID/MOTOR/VALVE/SFC (Pass53).
+
+CURRENT TASK CHANGE DETAIL (PASS51-53, 2026-10-04)
+------------------------------------------------
+Engine:
+  moduleLifecycle.ts: shared deployed-AO scope and replay preflight; immutable
+    final Full/Partial snapshots restored, not newer saved/live defaults.
+  store.ts: atomic controller AO replay, mixed regulatory Full and all-enrolled
+    Full actions; whole-scope/stale-confirm/access/target guards; one commit.
+  controllerRegulatoryTransfer.ts: pure AO/PID scope/review/preflight preparation.
+  pidLifecycle.ts: shared safe PID runtime constructor; Download does not Online.
+  controllerModuleTransfer.ts: composed AO/PID/device/SFC preparation, no partial
+    state mutation when a later member fails.
+  deviceLifecycle.ts: shared passive/Good-channel/deployed-Setup validation and
+    owned strategy construction for individual/batch device downloads.
+  sfcLifecycle.ts: shared saved/clean/reset/Offline/reference/metadata validation
+    and READY runtime construction for individual/batch SFC downloads.
+UI:
+  PhysicalNetworkDisplay.tsx: named explicit replay/mixed/all-enrolled Full
+    confirmations with Cancel and truthful algorithm effects/exclusions.
+Tests:
+  control-strategy.test.cjs: three controller replay regressions.
+  fic102-template.test.cjs: three mixed regulatory and three all-family tests.
+  engineering-creation-ui.test.cjs: actual rendered command entries, no mutation.
+Docs:
+  README.md/workshops.ts/coverage/audit: actual workflows, boundaries, measured
+    browser results, dates and remaining-work inventory. Ledger regeneration
+    follows the DV09-049 correction from stale MISSING to supported PARTIAL.
+Preservation:
+  No equipment symbol/palette/piping/FBD artwork or approved layout redesigned.
+  Each browser fixture restored original96-module plant/UI/security/storage.
+
+EXACT KNOWN REMAINING-WORK INDEX (AFTER PASS53)
+---------------------------------------------
+This is the remaining change list, not a new completion claim. Each ID below
+points to its full Required/Evidence/Gaps/Acceptance entry above and source PDF
+pages. Do not reimplement verified subsets: finish only their named missing
+surfaces and prescribed exercise acceptance. PARTIAL means at least one required
+operation or exact native sequence is still unfulfilled/unverified.
+Image-only workflows not fully inspected can contain additional requirements;
+that uncertainty is itself open work, not concealed by an "exact" inventory.
+
+A. CONTROL/CONFIGURATION AND PICTURES - REMAINING FUNCTIONAL CHANGES
+DV09-003: Complete application/entry-path distinctions and unsupported native
+  operation labeling; exact Run/Configure/Explorer/Studio/Diagnostics procedure.
+DV09-005: Native discovery/Identify indication/dismissal screenshot verification.
+DV09-006: Placeholder/node movement, network hierarchy and full node Properties.
+DV09-007: Node-area hardware alarms/time-sync integrity and hardware capability
+  versus editable redundancy distinctions; retain validated name/description.
+DV09-008: Remaining native discovery/card catalog; preserve Yes/No scans.
+DV09-009: Course cold-restart selectors/always-enabled semantics, independent
+  non-AO restoration and persistent controller scripts, not minutes relabeling.
+DV09-010: Contextual help and exact five-minute lifecycle exercise entry paths.
+DV09-012: Isolated complete Tank101/Tank201 scenario with every listed course
+  tag/relationship, including second-tank/simulation/shutdown modules; no baseline
+  pharma overwrite or symbol redesign.
+DV09-013: Process Cell/Unit hierarchy, area-specific writes and workstation alarm
+  boundaries across every eligible surface.
+DV09-014: Configured DO latching/momentary/pulse behavior and full channel model.
+DV09-015: Persistent area/project export and native Explorer tree/menu parity.
+DV09-016: Electrical/XD_SCALE/card Properties, saved versus deployed entire card
+  configuration and persistence; exact all-slot/channel source review.
+DV09-017: True all-object controller Total versus partial card/module/Setup,
+  unmanaged AI/DI/DO/FB lifecycles, entire-card transfer and node/network status.
+  Pass53 already covers all ENROLLED AO/PID/device/SFC in one atomic batch; do
+  not call that native Total or include excluded objects merely in a label.
+DV09-018: Last-good/restart memory/persistent replay for PID/device/SFC/cards/
+  Setup and whole-controller scripts, workstation/upgrade recovery. AO-only
+  replay/memory is already executable and must remain separate from live NVM.
+DV09-019: General reference/dependency/upload/installability/license stages,
+  disk download log and complete controller/Fieldbus chain. Enrolled-module
+  atomic failure/caution/Cancel are already implemented; native async progress
+  must be real modeled stages, not fake timed success.
+DV09-021: Independent module/block scan multiples1-255, scheduling/order and
+  arbitrary faceplate-template properties, not one global10Hz scan.
+DV09-022: Unified typed arbitrary module/block/parameter/type/field resolver
+  across configuration/operator/alarm/SFC; remaining library templates.
+DV09-023: Remaining clipboard/palette/filter/parameter/native Studio workflows
+  and unmanaged lifecycle; keep completed File/New and protected reference FBD.
+DV09-024: DO CAS/common/quick/filter properties, saved/deployed/Online DO
+  lifecycle and exact XV-101 standalone DO procedure; preserve pharma valve.
+DV09-025: DISCRETE DI template/controller/display/saved/deployed/Online lifecycle;
+  retain already-tested false-input alarm and real IO_IN feedback.
+DV09-026: Configure/Run Quick Edit/object-tree/pane/menu/native editing sequence.
+DV09-027: Main picture template, editable background/grouped title removal and
+  exact save identity/procedure; basic empty custom canvas is not equivalent.
+DV09-028: Native .grf/template/dialog persistence; preserve Previous/Next targets.
+DV09-029: Arbitrary typed datalink/field expressions, layout/error tables,
+  refresh/history/browser and confirmation entry beyond current numeric subset.
+DV09-030: Complete text font/style/color/position Properties and persistence.
+DV09-031: Specified Valve17/PumpsAnim catalog/configuration and exact reverse
+  Overview link procedure, while retaining protected mechanical artwork.
+DV09-032: Remaining full picture/template/assignment/download sequence; channel
+  tieback/discrete feedback already executes and must not be substituted.
+DV09-033: General block/template/Boolean alarm definition/evaluation surfaces.
+DV09-034: Arbitrary AO parameter types/paths/native Properties/templates/
+  faceplate assignment; keep standalone CAS_SP/limits/lifecycle already tested.
+DV09-035: Generalize parameter restoration and partial preservation beyond AO;
+  persistent multi-algorithm/controller memory and native dialog procedure.
+DV09-036: ANALOG LI-101 template, electrical conversion and AI controller/
+  Save/Download/Online lifecycle; retain physical LT-1 and HI950/LO100 behavior.
+DV09-037: Remaining arbitrary native paths/picture expert/source-image procedure;
+  preserve bounded0-1000 CAS_SP, source-scaled fill and real simulated tieback.
+DV09-051: Complete course SP_D entry/pump custom animation/alarm visibility
+  sequence; course white/yellow belongs only to isolated custom pictures.
+DV09-052: Complete integrated course prerequisite/visual procedure certification;
+  preserve verified500/10-gallon actual channel/interlock/permissive responses.
+DV09-053: Exact optional XV-OPTION workshop/template/remaining DC options;
+  independent Flush/Hold versus Flushing/Holding and DI/DO already work.
+DV09-054: Remaining substitution/system identity/license-property workflow;
+  referenced DST counts exist, real licensing keys remain external.
+DV09-055: Full remote RCAS/ROUT host paths/timeouts/initialization and named-set
+  mode bitmasks; preserve actual MAN/AUTO/CAS/IMAN/OOS/LO and permitted fields.
+DV09-056: Remaining native PID template/Properties/prerequisite sequence;
+  exact FIC-102 configuration and safe saved/deployed execution already exist.
+DV09-057: Native licensing Properties/exact workshop display certification;
+  retain real typed referenced DST counts, do not invent purchased license keys.
+DV09-058: Source-verified OUT ramp behavior and native PipesAnim/catalog/
+  picture procedure; SP/mode/active-alarm and independent valve animation exist.
+DV09-059: Native detail-template layout/file assignment and full course setup;
+  simulator Detail tuning/trends already execute.
+DV09-060: Generic upload of arbitrary module parameters, not only selected
+  PID tuning and AO upload-to-draft; preserve none/Cancel selection isolation.
+DV09-061: Whole-card transfer/lifecycle and native Tune algorithm/procedure;
+  configured2.6s filter and measured simulator Test/Review/Update already exist.
+DV09-062: Remaining native System Tree/full dynamo catalog/exact picture
+  workshop; shared custom flow_color and flashing nonnormal ISAN already work.
+
+B. ALARMS/DEVICE OPTIONS - REMAINING FUNCTIONAL CHANGES
+DV09-038: Arbitrary priorities4-15, log-only3, six-tile/banner/audible/WAV/
+  auto-ack options, captured parameters and controller timestamps.
+DV09-039: Arbitrary numeric priority editor; preserve existing tested rank order.
+DV09-040: Typed selectable/reorderable area/category/message/node/parameter/
+  part-of/time-last/unit/zone columns with actual values.
+DV09-041: Configurable alarm type registry up to255 and captured %P1/%P2 message
+  parameters, validation and changed-Setup download.
+DV09-042: Full CUALM/LAALM/CV/NALM/PRI/ENAB/INV/OPSUP/SUPTMO/SUPTMR composites,
+  numeric states and suppression timers distinct from shelving/disable/ack.
+DV09-043: Qualified ALARMS array/limit/MACK/ENAB/PRIAD datalinks and writes,
+  shared typed resolution/permissions across builder and faceplates.
+DV09-044: User area-key AND workstation subscription intersection consistently
+  driving banner/list/count/audio/ack, including all four eligibility cases.
+DV09-045: Configured workstation Chronicle/SOE/subscriptions and durable
+  save/reload process events; current bounded memory journal is not an archive.
+DV09-046: General highest-ranked alarm graphics-expert visibility.
+DV09-047: Exact level>900 AND valve-closed for>20s advisory/custom type/message,
+  reset/reactivation/captured values, not just available composable timers.
+DV09-048: Editable DC bit0/bit1/don't-care/unavailable state masks.
+DV09-049: Full passive-on-timeout/confirmation/trip/SP-tracking DC options and
+  native property sequence. Named Sets and independent descriptors now exist.
+DV09-050: Remaining full native motor template/property/workshop certification;
+  owned interlock/permissive/first-out/bypass/channel execution already works.
+
+C. SFC - REMAINING FUNCTIONAL CHANGES
+DV09-064: Remaining arbitrary action/path classes and exact termination/palette
+  procedures; engine assignment/Boolean/block actions already execute.
+DV09-065: Final timing-chart/source-image/native editor verification for every
+  qualifier N/R/L/D/P/S/SD/DS/SL; preserve implemented lifecycle boundary tests.
+DV09-066: Native graph editing palette/insertion/procedure for divergence,
+  convergence and joins; selective/parallel execution engine already exists.
+DV09-067: Complete native action/transition context Properties and Expression
+  Assistant beyond supported browser/expression subset.
+DV09-068: Remaining general typed path field variants/exact source procedure;
+  command versus feedback and target versus actual paths already separated.
+DV09-069: Full native New/palette/Named Set/parameter workshop sequence and
+  image-only verification; NS-T101/MESSAGE/reserved prompt/New already work.
+DV09-070: Exact integrated SFC-T101 startup/controller/picture/save/download/
+  MESSAGE exercise in the isolated complete teaching plant, not just fixtures.
+DV09-071: Exact integrated repeated startup/shutdown path/prompt/feedback waits
+  and original native graph procedure; engine route/reset/re-entry exists.
+DV09-072: Exact integrated waiting-message/startup-level/reset/30s-timeout
+  workshop; existing level/device-reset/alarm-block subsets are not full parity.
+
+D. SECURITY/ADMINISTRATION/EXPORT - REMAINING FUNCTIONAL CHANGES
+DV09-074: Configurable typed lock registry for every listed control/system/
+  UserLock01-10/batch/recipe/calibration/config/download/admin operation.
+DV09-075: Parameter/field/function-specific Security Properties lock reassignment
+  enforced at every write path, not screen-level coarse rights.
+DV09-076: Full user account/general/advanced/password/status/membership/key
+  administration and persistence, not just current simple users.
+DV09-077: Group CRUD/descriptions/membership/group keys; effective inherited
+  versus individual keys/area grants and immediate changes.
+DV09-079: OperatorA area-only access, Supervisor tuning/download, subscriptions,
+  inherited grants and virtual workstation download/full logoff/reload.
+DV09-080: Application/area/module/parameter signature policies, zero/one/two
+  signers, comments/verifier/ACTION_VERIFY/same-person policy and event results.
+DV09-082: Explicit single-/multi-node simulator initialization/coordination/
+  persistence/time-scaling/exact continuous/batch testing sequence.
+DV09-084: Validated round-trip export/import of physical network, strategies,
+  Named Sets/phase failure sets and pictures; native .fhx/.grf remains separate.
+DV09-085: Staged MESSAGE startup/shutdown signature requests/approval/Cancel/
+  denial with no premature SFC command mutation.
+
+E. VIRTUAL SERIAL/MODBUS - ALL LISTED WORKSHOPS STILL MISSING
+DV09-086: Two-port serial model/limits, RTU/ASCII, master/slave and coil/input/
+  holding/status tables;16 devices/16 datasets/100 values exact boundaries.
+DV09-087: Serial card autosense/placeholder/port enable/settings/retry/timeout/
+  startup-output model with actual mismatched/disabled communication failure.
+DV09-088: Typed direction/count/base/offset/status datasets, output readback/
+  block-versus-single write and address-overlap validation.
+DV09-089: Actual FT_MODICON register value/quality to PID IO_IN.
+DV09-090: Slot5 paired master1/slave2 virtual tieback with exact RTU/RS232/
+  9600/even/8/1/retry1/1000ms/delay0 settings.
+DV09-091: DEV01 address1 FLOW/MTR dataset maps R40001/coil00002, direction/
+  changed values/status and card download.
+DV09-092: MTR-MODBUS template/I/O/lifecycle/pump command and returned feedback.
+DV09-093: FIC-MODBUS PID_LOOP dataset I/O/lifecycle/picture/closed-loop and faults.
+
+F. VIRTUAL FOUNDATION/H1/DEVICE ALERTS - STILL MISSING
+DV09-096: Resource/transducer/function block inventory, identity/options/write
+  lock/mode/calibration model with truthful virtual execution.
+DV09-097: Shadow/extended FF blocks/device assignment/manufacturer parameters.
+DV09-099: Separate scheduled/unscheduled bus versus execution time, PID location,
+  requested/calculated rates and concurrent loops.
+DV09-100: LAS/link-master/basic-device schedule, publish/subscribe/live-list/
+  probe/token/backup takeover with measurable timing.
+DV09-101: AMS-equivalent virtual immutable change/method history with user/time/
+  reason and commissioned/standby transitions; not real AMS software.
+DV09-103: Mixed cable/trunk/spur length calculator and exact0.99/1.28 examples,
+  A1900/B1200/C400/D200m limits, invalid units/negative values.
+DV09-108: Pending Preferences/hidden-feature/library visibility and client closure.
+DV09-109: Virtual database server stop/restart/reconnect/admin/conflict behavior.
+DV09-111: H1 model LEDs/slot redundancy and96-total/64-device/32-card block limits.
+DV09-112: Requested/default/calculated/actual macrocycle, max(requested,calculated).
+DV09-113: Inclusive rate bands500/1000/2000/4000ms, four macrocycles and viewer.
+DV09-114: CD spacing/schedule/resources and35publisher/50subscriber/50total VCR
+  limits enforced together, with mixed-direction boundary tests.
+DV09-115: H1 autosense/enable/resource/card5 download/rescan/device identity and
+  communication quality derived from virtual inventory.
+DV09-121: Device events/Not Communicating/default-disabled Abnormal and priorities.
+DV09-122: Independent Advisory/Not Communicating/Failed/Maintenance alerts.
+DV09-123: Device-alarm enable/re-annunciation/controller-or-module area/display/
+  FFDEV_FP navigation and resulting event scope.
+DV09-124: Saved alarm-summary Category fourth-column configuration/reordering.
+DV09-125: Persistent initialized process>3/device>7 banner thresholds; strict
+  > comparison, device7 excluded at7/included at6, list independent of banner.
+DV09-126: Complete UserSettings save-as/edit/search/save/close/run threshold
+  workflow or clearly disclosed simulator equivalent acting on real alerts.
+DV09-127: Compatible device/placeholder/historical/current comparisons, selected
+  value transfer, difference/tab highlighting and immutable historical detail.
+
+G. EXTERNAL/PHYSICAL BOUNDARIES - NOT SOFTWARE PARITY CLAIMS
+DV09-002: Real architecture/controller/workstation/hardware roles.
+DV09-004: Windows/DeltaV logon and desktop environment.
+DV09-011: PlantWeb/AMS/OPC/SIS/wireless vendor integration.
+DV09-078: Native FlexLock/Windows desktop switching environment.
+DV09-081: Vendor software compatibility/licensing/support restrictions.
+DV09-083: Real Mimic/AMS capture/reconcile/vendor diagnostics.
+DV09-094: Physical FOUNDATION/PlantWeb field execution/architecture.
+DV09-095: Real fieldbus interoperability/protocol integration.
+DV09-098: Vendor DD/supplier revision/device certification/tooling.
+DV09-102: Physical segment/topology/terminator installation.
+DV09-104: Electrical load/voltage/ground/shield installation.
+DV09-105: Installed vendor Books Online and native manuals/help.
+DV09-106: Real Windows plus DeltaV credential/desktop exercise.
+DV09-110: Physical supply/H1/interface/segment assembly.
+DV09-116: Actual test instrument/isolated segment preparation.
+DV09-117: Physical resistance measurements across all six conductor paths.
+DV09-118: Physical capacitance/terminator measurements.
+DV09-119: Physical DC voltage/supply-specific readings.
+DV09-120: Physical AC waveform/amplitude/timing/meter hold.
+Training-only models/calculators may be added where explicitly specified, but
+their values must never be represented as measured/certified real installations.
+
+H. FINAL ACCEPTANCE STILL REQUIRED
+Review every original-PDF image-only dialog/chart/workshop and record unresolved
+controls, options and thresholds; extracted text alone cannot certify them.
+Run each complete prescribed teaching scenario end-to-end, including negative
+permissions, stale/failed/Cancel transfers, bad I/O, feedback waits, exact numeric
+thresholds, persistence/reload and repeated operation. Preserve approved graphics.
+No group/test/page count, checkbox, simulator substitute or push establishes
+full-course completion. CONTEXT IDs001/020/063/073/107/128 are not feature tasks.
+
+CURRENT RELEASE VALIDATION (2026-10-04, POST-INVENTORY)
+-----------------------------------------------------
+365/365 repository tests pass, including the new dated-index regression.
+Typecheck, production build, scoped editor diagnostics, whitespace and regenerated
+source-ledger validation pass. Ledger remains12157 records/575 pages/128 groups/
+zero unmapped. Inventory check:122/122 non-context IDs, no duplicates/omissions;
+93/93 historical commits through implementation0dc6c8f recorded with actual dates.
+Current remaining classifications8 VERIFIED_SUBSET/58 PARTIAL/37 MISSING/
+19 BOUNDARY/6 CONTEXT. DV09-049 corrected from stale MISSING to PARTIAL, not
+completed; missing DC options are explicitly listed. Commit/push is authorized
+for all code/tests/TXT/CSV/README/workshops in this release. Final remote SHA
+and clean working-tree verification are reported after publishing.

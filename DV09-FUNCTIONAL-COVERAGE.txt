@@ -5,21 +5,24 @@ CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
 DV-09 is NOT complete. Latest implemented milestone: atomic all-enrolled
 AO/PID/device/SFC controller Full transfer (Pass53).
+Implementation commit: 0dc6c8f, 2026-10-04T21:17:58-05:00.
 Previous milestone: 76e21aa, mixed AO/PID Full transfer (Pass52).
-Last published functional milestone: c65d49d, verified on GitHub main after the
-user authorized push. Pass42-50 and all related TXT/ledger/docs were published.
+This authorized release includes Pass51-53 plus dated audit/inventory/tests.
+Previously published: c65d49d, verified on GitHub main after the initial push;
+Pass42-50 and related TXT/ledger/docs were published. Final delivery of this
+release is separately verified after commit/push.
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
   VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
-  PARTIAL         57 - related behavior exists; exact workflow has gaps
-  MISSING         38 - required executable workflow/model is absent
+  PARTIAL         58 - related behavior exists; exact workflow has gaps
+  MISSING         37 - required executable workflow/model is absent
   BOUNDARY        19 - hardware/vendor/host behavior outside verified simulation
   CONTEXT          6 - framing/recap, not implementation requirements
   TOTAL          128
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:364 repository tests passed; typecheck, production build,
+Last validation:365 repository tests passed; typecheck, production build,
 edited-file diagnostics, audit validator and diff whitespace checks passed.
 Browser verified actual all-managed PhysicalNetworkDisplay fixture: five names/
 types; Cancel changed none; AO50%, PID OOS, devices passive, SFC READY/Offline.
@@ -58,6 +61,11 @@ lifecycles, remaining SFC/native mode behavior and image-only manual workflows.
 HOW TO CHECK PROGRESS
 ---------------------
 1. Read this snapshot for the latest milestone and validation.
+   The audit's DATED CHANGE HISTORY lists all93 implementation-history commits
+   through0dc6c8f with actual dates/times (UTC-05:00). Its EXACT KNOWN REMAINING-
+   WORK INDEX enumerates all122 non-context groups once:103 functional/subset
+   obligations and19 external boundaries, with named changes still required.
+   Original-PDF image-only review remains open and can reveal additional detail.
 2. Read the numbered PASS entries at the end of this file for delivered behavior,
    evidence and limitations. Pass numbers count milestones, not completed pages.
 3. In DV09-LINE-BY-LINE-AUDIT.txt, find a DV09 requirement ID or PDF page. Each
@@ -1982,3 +1990,21 @@ Boundary: not native Total Download; unmanaged algorithms, card/Setup, generic
 upload, licensing, Fieldbus and persistent controller scripts remain open.
 DV09-017/019 remain PARTIAL. Validation:364 repository tests, typecheck/build,
 scoped diagnostics and whitespace passed; final dated audit/inventory follows.
+
+DATED AUDIT/REMAINING INVENTORY UPDATE - 2026-10-04
+--------------------------------------------------
+Current task finished at commit0dc6c8f, 21:17:58 UTC-05:00. The audit now records
+every existing commit from repository creation through that implementation and
+lists every non-context group's exact known remaining change/boundary.
+Checks:93/93 implementation-history commits included;122/122 non-context IDs
+listed exactly once; no omissions/duplicates. New audit regression preserves
+the index and separate physical-boundary classification.
+Stale evidence corrected: Studio now has New and opt-in saved/deployed controls;
+standalone AO is no longer described as absent. DV09-049 changes MISSING to
+PARTIAL based on actual Named Set/independent descriptor tests and Pass32:
+full passive/timeout/trip/tracking DC options still remain. Ledger regenerated.
+Current totals8 VERIFIED_SUBSET/58 PARTIAL/37 MISSING/19 BOUNDARY/6 CONTEXT.
+364 functional/source-ledger tests plus one dated-index regression =365 tests.
+The user explicitly requested commit and push of this implementation/audit;
+older push-pause notes are historical checkpoints, not the current instruction.
+Remote delivery is checked after the final commit/push and reported separately.

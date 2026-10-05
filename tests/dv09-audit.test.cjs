@@ -59,3 +59,22 @@ test('DV09 mapping copies no source text and does not classify content by featur
   assert.ok(!result.csv.includes('download motor'))
   assert.equal(result.csv, buildAuditLedger(source, report).csv)
 })
+
+test('DV09 dated remaining-work index lists every non-context group exactly once and separates external boundaries', () => {
+  const groups = [...report.matchAll(/^\[(DV09-\d+)\]\r?\nPages:.*\r?\nStatus: (\w+)/gm)]
+  const expected = groups.filter(([, , status]) => status !== 'CONTEXT').map(([, id]) => id).sort()
+  const index = report.split('EXACT KNOWN REMAINING-WORK INDEX (AFTER PASS53)')[1]
+  assert.ok(index, 'remaining-work index must exist')
+  const listed = [...index.matchAll(/^(DV09-\d+):/gm)].map(([, id]) => id)
+  assert.equal(new Set(listed).size, listed.length, 'no duplicate remaining groups')
+  assert.deepEqual([...listed].sort(), expected, 'no omitted or invented remaining groups')
+  const external = index.split('G. EXTERNAL/PHYSICAL BOUNDARIES')[1].split('H. FINAL ACCEPTANCE')[0]
+  const boundaryIds = [...external.matchAll(/^(DV09-\d+):/gm)].map(([, id]) => id).sort()
+  assert.deepEqual(boundaryIds, groups.filter(([, , status]) => status === 'BOUNDARY').map(([, id]) => id).sort())
+  const history = report.split('DATED CHANGE HISTORY - WHAT CHANGED AND WHEN')[1].split('CURRENT TASK CHANGE DETAIL')[0]
+  const entries = [...history.matchAll(/^(\d{2}:\d{2}:\d{2}) ([a-f0-9]{7}) (\S.*)$/gm)]
+  assert.equal(entries.length, 93, 'frozen implementation history through Pass53 includes all 93 commits')
+  assert.equal(new Set(entries.map(([, , sha]) => sha)).size, entries.length)
+  assert.match(history, /21:17:58 0dc6c8f /)
+  assert.match(report, /2026-10-04T21:17:58-05:00/)
+})

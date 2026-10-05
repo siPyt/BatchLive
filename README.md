@@ -500,6 +500,12 @@ Verified workflows and remaining implementation gaps are recorded in
 An exercise is complete only when its prescribed sequence and expected results
 are executable, including configuration/download and operator boundaries.
 Adapted simulator workflows or learner checkmarks do not certify completion.
+The audit's **DATED CHANGE HISTORY** records actual Git timestamps and summaries
+for every commit through the Pass53 implementation. Its **EXACT KNOWN REMAINING-
+WORK INDEX** enumerates each non-context group once, separates functional gaps
+from physical/vendor boundaries and points back to the full acceptance criteria.
+An audit regression checks that no remaining group is omitted or duplicated.
+Original-PDF image-only review can still reveal additional requirements.
 
 Explorer supports creating and renaming actual plant areas, shared by module,
 equipment and SFC configuration. Physical Network commissioning offers an
