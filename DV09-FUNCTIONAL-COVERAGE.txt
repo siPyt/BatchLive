@@ -2420,5 +2420,32 @@ Result: DV09-044 MISSING -> VERIFIED_SUBSET. Current totals15 VERIFIED_SUBSET/
 (377 pass; pre-existing pdf_om.txt failure unrelated). Typecheck and
 production build both passed.
 
+PASS 66: DV09-043 QUALIFIED ALARMS ARRAY DATALINK (ENAB/PRI/PRIAD/MACK)
+-----------------------------------------------------
+Line1 - Engine: new alarmFields.ts defines ALARM_FIELD_LOCK (ENAB/PRIAD ->
+  SYSTEM_RECORDS, MACK -> ALARMS, PRI read-only), alarmFieldPath/
+  parseAlarmFieldPath for TAG.ALM[TYPE].FIELD, readAlarmField and
+  alarmFieldWriteError (pure, Lock-independent validation).
+Line2 - Store: writeAlarmField(path, value) enforces the field's lock first,
+  then validates and applies: ENAB/PRIAD mutate the matching AlarmLimit;
+  MACK resolves the deterministic `${tag}.${type}` ActiveAlarm id and calls
+  the existing ackAlarm, reusing working acknowledge logic.
+Line3 - UI: ExplorerDisplay.tsx's builder alarm table and PidFaceplate.tsx's
+  faceplate Alarm tab both gain an identical "MACK" button per alarm row
+  calling the same writeAlarmField(alarmFieldPath(...)) path; existing ENAB/
+  limit/priority/rank editors keep using setAlarmLimit unchanged.
+Line4 - Tests: tests/alarm-fields.test.cjs covers path parsing, the lock
+  table, readAlarmField's happy paths and errors, alarmFieldWriteError's
+  per-field validation, and an end-to-end store test proving both lock
+  denial and, once granted, correct ENAB/PRIAD/MACK application including a
+  real acknowledgment of an injected active alarm.
+Boundary: CUALM/LAALM/CV/NALM/INV/OPSUP/SUPTMO/SUPTMR remain DV09-042's
+separate scope; the path is not yet wired into Picture Builder/SFC generic
+data-entry binding, only the two explicit MACK buttons exercise it.
+Result: DV09-043 MISSING -> VERIFIED_SUBSET. Current totals16 VERIFIED_SUBSET/
+53 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. 383 repository tests run locally
+(382 pass; pre-existing pdf_om.txt failure unrelated). Typecheck and
+production build both passed.
+
 Commit/push authorization for this pass follows the same 2026-10-05
 instruction already recorded for Pass54.

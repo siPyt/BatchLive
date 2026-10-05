@@ -4,6 +4,7 @@ import type { PidModule, PidTargetMode, AlarmPriority, AlarmType, AlarmLimit, An
 import { pidExecutionBad } from '../engine/pidModes'
 import { fmt, fmtQ, modeColor, priorityRank } from '../utils/format'
 import { appliedPidOutput, pidIo } from '../engine/analogStrategy'
+import { alarmFieldPath } from '../engine/alarmFields'
 
 const MODES: PidTargetMode[] = ['MAN', 'AUTO', 'CAS', 'OOS']
 type Tab = 'operate' | 'tune' | 'alarm' | 'trend'
@@ -335,10 +336,16 @@ function TuneRow({
 
 function AlarmTab({ m }: { m: PidModule }): JSX.Element {
   const setAlarmLimit = useStore((s) => s.setAlarmLimit)
+  const writeAlarmField = useStore((s) => s.writeAlarmField)
+  const activeAlarms = useStore((s) => s.alarms)
   if (m.alarms.length === 0) return <div className="exp-empty sm">No alarms configured</div>
   return (
     <div className="fp-alarms">
-      {m.alarms.map((a) => (
+      {m.alarms.map((a) => {
+        const unacked = activeAlarms.some(
+          (al) => al.moduleTag === m.tag && al.type === a.type && al.active && !al.acknowledged
+        )
+        return (
         <div key={a.type} className="fp-alm-row">
           <input
             type="checkbox"
@@ -377,8 +384,17 @@ function AlarmTab({ m }: { m: PidModule }): JSX.Element {
               setAlarmLimit(m.tag, a.type, { rank: e.target.value.trim() ? Number(e.target.value) : null })
             }
           />
+          <button
+            className="tbtn sm"
+            disabled={!unacked}
+            title={`DV09-043 MACK: write ${alarmFieldPath(m.tag, a.type, 'MACK')} = true`}
+            onClick={() => writeAlarmField(alarmFieldPath(m.tag, a.type, 'MACK'), true)}
+          >
+            MACK
+          </button>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

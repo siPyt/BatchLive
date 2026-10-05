@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt, priorityRank } from '../utils/format'
+import { alarmFieldPath } from '../engine/alarmFields'
 import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
 import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engine/types'
 import { ModuleIcon } from '../components/EngineeringIcons'
@@ -522,6 +523,8 @@ function ModuleProperties({
   onFaceplate: () => void
 }): JSX.Element {
   const setAlarmLimit = useStore((s) => s.setAlarmLimit)
+  const writeAlarmField = useStore((s) => s.writeAlarmField)
+  const activeAlarms = useStore((s) => s.alarms)
   const deleteModule = useStore((s) => s.deleteModule)
   const equipment = useStore((s) => s.equipment)
   const setModuleEquipment = useStore((s) => s.setModuleEquipment)
@@ -639,10 +642,15 @@ function ModuleProperties({
                 <th>Limit</th>
                 <th>Priority</th>
                 <th>Rank</th>
+                <th>Ack</th>
               </tr>
             </thead>
             <tbody>
-              {m.alarms.map((a) => (
+              {m.alarms.map((a) => {
+                const unacked = activeAlarms.some(
+                  (al) => al.moduleTag === m.tag && al.type === a.type && al.active && !al.acknowledged
+                )
+                return (
                 <tr key={a.type}>
                   <td>
                     <input
@@ -695,8 +703,19 @@ function ModuleProperties({
                       }
                     />
                   </td>
+                  <td>
+                    <button
+                      className="tbtn sm"
+                      disabled={!unacked}
+                      title={`DV09-043 MACK: write ${alarmFieldPath(m.tag, a.type, 'MACK')} = true`}
+                      onClick={() => writeAlarmField(alarmFieldPath(m.tag, a.type, 'MACK'), true)}
+                    >
+                      MACK
+                    </button>
+                  </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}

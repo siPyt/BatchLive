@@ -57,6 +57,7 @@ import { advanceBatch, commandBatch, makeBatch, makeDefaultPhases, PROCEDURE, ty
 import { advanceSfcs, resetSfcBooleanActions, sfcStepsError, makeSampleSfc, makeAutoclaveSfc, makeLyoSfc, makeCipSfc, type SfcDef, type SfcStep } from './sfc'
 import { cloneSfcBlocks, reconcileSfcAlarms, sfcBlockConfigurationError, type SfcBlockConfiguration } from './sfcBlocks'
 import { requireUnlockedKey, useSecurity } from './security'
+import { ALARM_FIELD_LOCK, alarmFieldWriteError, parseAlarmFieldPath } from './alarmFields'
 import { compareModuleDownload, type DownloadStatusCheck } from './downloadStatus'
 import {
   cloneSfcParameters, controllerNamedSets, sfcParameterError, type SfcExpressionContext, type SfcParameter
@@ -247,6 +248,10 @@ interface StoreState extends PlantState {
     type: AlarmType,
     patch: { limit?: number; enabled?: boolean; priority?: AlarmPriority; rank?: number | null }
   ) => void
+  /** DV09-043: generic qualified "TAG.ALM[TYPE].FIELD" datalink write (ENAB/
+   * PRIAD/MACK), the same resolver builder, faceplates and any other
+   * qualified-path consumer share, each enforcing its own Lock & Key. */
+  writeAlarmField: (path: string, value: boolean | number | null) => boolean
   startMotor: (tag: string) => void
   stopMotor: (tag: string) => void
   openValve: (tag: string) => void
@@ -860,6 +865,37 @@ export const useStore = create<StoreState>((set, get) => ({
       })
     })
     get().logEvent('CONFIGURE', tag, `Alarm ${type} configured: ${JSON.stringify(patch)}`)
+  },
+
+  writeAlarmField: (path, value) => {
+    const parsed = parseAlarmFieldPath(path)
+    if ('error' in parsed) {
+      get().logEvent('DIAGNOSTIC', path, `Alarm field write rejected: ${parsed.error}`)
+      window.alert(parsed.error)
+      return false
+    }
+    const lock = ALARM_FIELD_LOCK[parsed.field]
+    if (lock && !useSecurity.getState().requireLock(lock, `Write ${path}`)) return false
+    const error = alarmFieldWriteError(get().modules, path, value)
+    if (error) {
+      get().logEvent('DIAGNOSTIC', parsed.tag, `Alarm field write rejected: ${error}`)
+      window.alert(error)
+      return false
+    }
+    if (parsed.field === 'MACK') {
+      get().ackAlarm(`${parsed.tag}.${parsed.type}`)
+      get().logEvent('OPERATOR', parsed.tag, `${path} acknowledged via MACK`)
+      return true
+    }
+    mutateModule(set, get, parsed.tag, (m) => {
+      m.alarms = m.alarms.map((alarm) => {
+        if (alarm.type !== parsed.type) return alarm
+        if (parsed.field === 'ENAB') return { ...alarm, enabled: value as boolean }
+        return { ...alarm, rank: (value as number | null) ?? undefined }
+      })
+    })
+    get().logEvent('CONFIGURE', parsed.tag, `${path} = ${value}`)
+    return true
   },
 
   startMotor: (tag) => {

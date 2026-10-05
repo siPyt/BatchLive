@@ -780,12 +780,41 @@ Acceptance: Implement/test every specified field and suppression timer/state
 
 [DV09-043]
 Pages: 195-200
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Alarm limit datalinks, ALARMS array members, MACK/ENAB/PRIAD data
   entry and numeric composites for alarm operation.
-Evidence: Builder has no qualified alarm field/array resolver or writes.
-Acceptance: The same typed alarm paths must work in builder, faceplates and
-  configuration with correct access control and visible errors.
+Evidence (Pass66): engine/alarmFields.ts adds a generic qualified-path
+  resolver for TAG.ALM[TYPE].FIELD covering ENAB (read/write Boolean),
+  PRIAD (read/write null-or-4..15 rank override, aliasing the existing
+  AlarmLimit.rank), PRI (read-only effective numeric rank via the existing
+  alarmRank helper) and MACK (write-only true-to-acknowledge, resolving to
+  the module+type's specific ActiveAlarm id and reusing ackAlarm). Pure
+  parseAlarmFieldPath/readAlarmField/alarmFieldWriteError are independent of
+  Locks & Keys; a new store.writeAlarmField(path, value) enforces the
+  correct, field-specific lock per the course's own LOCK_HINT text
+  (SYSTEM_RECORDS for ENAB/PRIAD, ALARMS for MACK) before validating and
+  applying the write, and returns false with a visible alert/lastDenied
+  message on any rejection. ExplorerDisplay.tsx's builder alarm table and
+  PidFaceplate.tsx's faceplate Alarm tab both gained a new "MACK" button
+  (enabled only while that alarm type is active and unacknowledged) that
+  calls the exact same writeAlarmField(alarmFieldPath(...)) path, so the
+  identical qualified datalink genuinely works from both builder and
+  faceplates, not just a fixed hardcoded editor. Their pre-existing ENAB/
+  limit/priority/rank(PRIAD) editors still call setAlarmLimit, an
+  intentionally separate bulk-configuration entry point (RESTRICTED_CONTROL)
+  left unchanged to avoid narrowing already-working Properties behavior.
+Gaps (honest, not fixed this pass): CUALM, LAALM, CV, NALM, INV, OPSUP,
+  SUPTMO and SUPTMR composite fields remain DV09-042's unimplemented scope;
+  only ENAB/PRI/PRIAD/MACK are resolvable through this generic path. The
+  qualified path is not yet wired into the Picture Builder's generic
+  numeric/discrete data-entry binding (Named Set picture framework), SFC
+  expressions, or any other arbitrary-path consumer — only the two explicit
+  UI entry points above exercise it.
+Acceptance: parseAlarmFieldPath/readAlarmField/alarmFieldWriteError and
+  store.writeAlarmField are covered by tests/alarm-fields.test.cjs, including
+  malformed/unsupported paths, both lock denials (SYSTEM_RECORDS, ALARMS)
+  and their grants, boundary validation (4-15 rank, Boolean ENAB, MACK must
+  be true) and a real MACK acknowledgment of an injected active alarm.
 
 [DV09-044]
 Pages: 201-204
@@ -2417,8 +2446,10 @@ DV09-041: Wiring the registry to automatically fire as a live module alarm
   validated/changed-Setup download now exists (Pass59).
 DV09-042: Full CUALM/LAALM/CV/NALM/PRI/ENAB/INV/OPSUP/SUPTMO/SUPTMR composites,
   numeric states and suppression timers distinct from shelving/disable/ack.
-DV09-043: Qualified ALARMS array/limit/MACK/ENAB/PRIAD datalinks and writes,
-  shared typed resolution/permissions across builder and faceplates.
+DV09-043: ENAB/PRI/PRIAD/MACK qualified TAG.ALM[TYPE].FIELD datalinks now
+  exist (Pass66) with correct per-field Locks & Keys, shared by builder and
+  faceplates; CUALM/LAALM/CV/NALM/INV/OPSUP/SUPTMO/SUPTMR remain DV09-042's
+  scope, and the path isn't yet wired into Picture Builder/SFC consumers.
 DV09-044: User area-key AND workstation subscription intersection now exists
   (Pass65) and consistently drives banner counts/tiles/horn/Ack Page; only the
   separate full-plant Alarm Summary List/Acknowledge All stay unfiltered by
@@ -3101,5 +3132,62 @@ Validation: 378 repository tests run locally (377 pass; the remaining
   dv09-audit.test.cjs). Typecheck and the production build both passed.
 Result: DV09-044 MISSING -> VERIFIED_SUBSET. Current totals15 VERIFIED_SUBSET/
 54 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next
+remaining group in a subsequent pass.
+
+PASS 66 CHANGE DETAIL AND VALIDATION (2026-10-05)
+--------------------------------------------------
+Scope: DV09-043 - a generic qualified "ALARMS array" datalink resolver
+(TAG.ALM[TYPE].FIELD) for ENAB/PRI/PRIAD/MACK, usable identically from
+builder and faceplates with correct per-field access control.
+Engine: a new engine/alarmFields.ts defines AlarmFieldName (ENAB/PRI/PRIAD/
+  MACK), ALARM_FIELD_LOCK (ENAB and PRIAD require SYSTEM_RECORDS, MACK
+  requires ALARMS, PRI is read-only - directly matching the course's own
+  LOCK_HINT text already present in security.ts), alarmFieldPath/
+  parseAlarmFieldPath (case-insensitive, validates the field name),
+  readAlarmField (ENAB -> AlarmLimit.enabled, PRIAD -> AlarmLimit.rank,
+  PRI -> the existing alarmRank() effective numeric rank, MACK -> a read
+  error since it is write-only) and alarmFieldWriteError (pure validation:
+  Boolean for ENAB, null-or-4..15 integer for PRIAD, read-only rejection for
+  PRI, must-be-true for MACK), independent of Locks & Keys like the
+  project's other *ConfigurationError validators. store.ts adds
+  writeAlarmField(path, value): parses the path, enforces the field's lock
+  via useSecurity().requireLock before anything else, validates with
+  alarmFieldWriteError, then either mutates the matching AlarmLimit (ENAB/
+  PRIAD) or resolves MACK to the module+type's deterministic ActiveAlarm id
+  (`${tag}.${type}`, the same id reconcileAlarm already uses) and calls the
+  existing ackAlarm - so MACK is a thin, honest wrapper over working
+  acknowledge logic, not a reimplementation. Any rejection returns false and
+  raises a visible window.alert/lastDenied message.
+UI: ExplorerDisplay.tsx's builder "Configured Alarms" table and
+  PidFaceplate.tsx's faceplate Alarm tab both gain a new "MACK" button per
+  alarm row (enabled only while that specific type is active and
+  unacknowledged) that calls writeAlarmField(alarmFieldPath(tag, type,
+  'MACK'), true) - the identical function and path in both places. Their
+  existing ENAB/limit/priority/PRIAD(rank) controls continue to call
+  setAlarmLimit, a deliberately separate bulk-configuration action
+  (RESTRICTED_CONTROL) left unchanged so existing Properties-dialog
+  behavior and its tests are not narrowed by this pass.
+Tests: tests/alarm-fields.test.cjs adds five tests: path parsing (valid,
+  case-insensitive, malformed, unsupported field) and alarmFieldPath's
+  round-trip; the ALARM_FIELD_LOCK table itself; readAlarmField's ENAB/
+  PRIAD/PRI happy paths plus MACK-is-write-only/missing-module/unconfigured-
+  type errors; alarmFieldWriteError's independent validation of all four
+  fields; and an end-to-end store.writeAlarmField test that strips then
+  restores SYSTEM_RECORDS and ALARMS from the admin user to prove both
+  denial (value unchanged, visible lastDenied/alert) and, once granted,
+  correct application - including a real MACK acknowledgment of an injected
+  active HI alarm and rejection of a malformed path / unconfigured type.
+Boundary (honest, not fixed this pass): CUALM, LAALM, CV, NALM, INV, OPSUP,
+  SUPTMO and SUPTMR remain DV09-042's separate, larger composite-state scope
+  and are not touched here. The qualified path is not yet wired into the
+  Picture Builder's generic numeric/discrete data-entry binding, SFC
+  expressions, or any other arbitrary-path consumer - only the two explicit
+  "MACK" buttons exercise it in this pass; a true "bind any picture entry
+  field to any alarm field" capability remains future work.
+Validation: 383 repository tests run locally (382 pass; the remaining
+  failure is the pre-existing local-only pdf_om.txt dependency in
+  dv09-audit.test.cjs). Typecheck and the production build both passed.
+Result: DV09-043 MISSING -> VERIFIED_SUBSET. Current totals16 VERIFIED_SUBSET/
+53 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next
 remaining group in a subsequent pass.
 
