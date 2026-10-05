@@ -744,10 +744,27 @@ Acceptance: Add typed selectable/reorderable columns with truthful values;
 
 [DV09-041]
 Pages: 185-190
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Administer priorities/types (up to 255 types) and captured %P1/%P2
   parameter messages.
-Evidence: Alarm types/priorities are fixed TS unions; no custom type registry.
+Evidence (Pass59): customAlarmTypes.ts adds a project-wide registry (up to
+  255 named types, each with a priority and a %P1/%P2 message template),
+  mirroring the existing Named Set configured/deployed + Download Changed
+  Setup Data pattern. store.ts's defineCustomAlarmType/deleteCustomAlarmType/
+  downloadCustomAlarmTypeSetup validate uniqueness-by-key, name syntax,
+  priority/template content and the 255 cap (CAN_CONFIGURE), and transfer
+  only the changed subset to a deployed registry (CAN_DOWNLOAD).
+  substituteAlarmMessage() captures live %P1/%P2 values through the same
+  generic parameter-path resolver pictures use (pictureSignal), substituting
+  "?" for an unknown/unresolved path rather than a fabricated number.
+  CustomAlarmTypeControls.tsx (ExplorerDisplay.tsx Setup tree, "Alarm Types")
+  provides Setup/Properties UI, a changed-setup list, Download Changed Setup
+  Data and a captured-message preview against a chosen real module.
+Gaps (honest, not fixed this pass): defined types are a standalone message
+  registry, not yet wired to automatically fire as a module's live alarm
+  condition (that remains the SFC-block-only CUSTOM alarm path already in
+  sfcBlocks.ts); a single flat deployed registry stands in for DeltaV's
+  per-controller/workstation Setup targets.
 Acceptance: Validate unique definitions, capture time/value and message
   substitution, including unknown paths and download of changed setup.
 
@@ -2313,8 +2330,10 @@ DV09-039: SFC block custom alarms (SfcAlarmType) still lack a rank field;
 DV09-040: Remaining Message (distinct from Alarm label), Time Last (vs Time
   In), standalone Unit and Zone columns; area/category/node/part-of/parameter
   typed selectable/reorderable columns with actual values now exist (Pass58).
-DV09-041: Configurable alarm type registry up to255 and captured %P1/%P2 message
-  parameters, validation and changed-Setup download.
+DV09-041: Wiring the registry to automatically fire as a live module alarm
+  condition (today it's a standalone Setup/message registry); the configurable
+  type/priority registry with %P1/%P2 captured message substitution and
+  validated/changed-Setup download now exists (Pass59).
 DV09-042: Full CUALM/LAALM/CV/NALM/PRI/ENAB/INV/OPSUP/SUPTMO/SUPTMR composites,
   numeric states and suppression timers distinct from shelving/disable/ack.
 DV09-043: Qualified ALARMS array/limit/MACK/ENAB/PRIAD datalinks and writes,
@@ -2704,3 +2723,51 @@ Result: DV09-040 Evidence updated (Status stays PARTIAL; Message/Time
   19 BOUNDARY/6 CONTEXT. This pass is the first of an open-ended continuation;
   remaining MISSING/PARTIAL/BOUNDARY groups and newImage-driven visual
   alignment continue in subsequent passes within this same release.
+
+PASS 59 CHANGE DETAIL AND VALIDATION (2026-10-05)
+--------------------------------------------------
+Scope: DV09-041, continuing the open-ended line-by-line continuation started
+in Pass58. The real newImage/ Control Studio screenshots (an AI module's
+alarm-definition table literally showing Alarm/Word/State/Parameter/Limit
+value/Enable/Invert/Priority/%P1 parameter/%P2 parameter/Functional
+Classification/Alarm Enabled/Alarm Description columns) directly evidenced
+the %P1/%P2 captured-parameter-message concept this item requires.
+Engine: customAlarmTypes.ts adds CustomAlarmTypeDef (priority, messageTemplate,
+  p1Path, p2Path) and CustomAlarmTypeState (configured/deployed, mirroring
+  namedSets.ts's existing split), customAlarmTypeNameError (1-16 chars,
+  leading letter, uppercase/digit/underscore), customAlarmTypeDefError
+  (supported priority, non-empty template, 240-char cap),
+  changedCustomAlarmTypeNames (exact changed-subset diff) and
+  substituteAlarmMessage, which captures %P1/%P2 through pictureDynamics.ts's
+  existing generic pictureSignal path resolver and substitutes "?" for an
+  unknown/unresolved path rather than a fabricated number.
+Store: defineCustomAlarmType/deleteCustomAlarmType (CAN_CONFIGURE; validate
+  name+definition, enforce the 255-type cap only for genuinely new names, log
+  CONFIGURE/DIAGNOSTIC events) and downloadCustomAlarmTypeSetup (CAN_DOWNLOAD;
+  rejects a no-op download, transfers exactly the changed subset into the
+  deployed registry) all follow the existing createNamedSet/
+  downloadChangedNamedSets pattern exactly.
+UI: CustomAlarmTypeControls.tsx adds an "Alarm Types" node under
+  ExplorerDisplay.tsx's Setup tree with a configured-type table (Edit/Delete),
+  a New/Properties dialog (name, priority, message template, %P1/%P2 paths),
+  a Changed Setup Data section with Download Changed Setup Data, and a
+  captured-message preview against any chosen real module tag.
+Tests: control-strategy.test.cjs adds a DV09-041 regression covering name/
+  definition validation, define/delete acting only on the configured draft,
+  the changed-subset download transferring atomically and rejecting a no-op
+  repeat, a deleted-but-undownloaded type's deployed message surviving until
+  the next download, real %P1 (FIC-101's PID1/OUT) substitution producing an
+  actual numeric percent and an unknown %P2 path substituting "?", the
+  255-type cap rejecting a 256th new name while still allowing updates to an
+  existing one.
+Boundary (honest, not fixed this pass): defined types are a standalone
+  message/Setup registry; they are not yet wired to automatically raise as a
+  module's own live alarm occurrence (SFC block alarms remain the only
+  automatically-firing CUSTOM alarm path). Deployed setup is one flat registry,
+  not per-controller/workstation targets like Named Sets.
+Validation: 370 repository tests run locally (369 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency in dv09-audit.test.cjs,
+  unrelated to this change). Typecheck and the production build both passed.
+Result: DV09-041 MISSING -> VERIFIED_SUBSET. Current totals11 VERIFIED_SUBSET/
+  57 PARTIAL/35 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the
+  next remaining group in a subsequent pass.

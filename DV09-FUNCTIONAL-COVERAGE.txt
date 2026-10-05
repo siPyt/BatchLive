@@ -2233,5 +2233,48 @@ remaining failure is the pre-existing local-only pdf_om.txt dependency).
 Typecheck and production build both passed. This is the first pass of an
 open-ended continuation; further groups and newImage-driven visual alignment
 continue in subsequent passes within this same release.
+
+PASS 59: CUSTOM ALARM TYPE REGISTRY WITH %P1/%P2 CAPTURED MESSAGES (pp185-190)
+--------------------------------------------------------------------------------
+Line1 - Scope: DV09-041, continuing the Pass58 open-ended continuation. The
+  real newImage/ Control Studio screenshots (an AI module's alarm-definition
+  table literally showing Alarm/Word/State/Parameter/Limit value/Enable/
+  Invert/Priority/%P1 parameter/%P2 parameter/Functional Classification/
+  Alarm Enabled/Alarm Description columns) directly evidenced the %P1/%P2
+  captured-parameter-message concept this item requires.
+Line2 - Engine: customAlarmTypes.ts adds a project-wide registry (up to 255
+  named types, each with a priority and a %P1/%P2 message template) using the
+  same configured/deployed split as namedSets.ts. substituteAlarmMessage()
+  captures %P1/%P2 through pictureDynamics.ts's existing generic pictureSignal
+  path resolver, substituting "?" for an unknown/unresolved path rather than
+  a fabricated number.
+Line3 - Store: defineCustomAlarmType/deleteCustomAlarmType (CAN_CONFIGURE)
+  and downloadCustomAlarmTypeSetup (CAN_DOWNLOAD) follow the existing
+  createNamedSet/downloadChangedNamedSets pattern exactly: validated name and
+  definition, a 255-cap enforced only for genuinely new names, and an atomic
+  changed-subset-only "Download Changed Setup Data" transfer.
+Line4 - UI: CustomAlarmTypeControls.tsx adds an "Alarm Types" node under
+  ExplorerDisplay.tsx's Setup tree: a configured-type table with Edit/Delete,
+  a Properties dialog (name/priority/message template/%P1/%P2 paths), a
+  Changed Setup Data section, and a captured-message preview against any
+  chosen real module.
+Line5 - Tests: control-strategy.test.cjs adds a DV09-041 regression for name/
+  definition validation, draft-only define/delete, atomic changed-subset
+  download (and its no-op rejection), a deleted-but-undownloaded type's
+  deployed message surviving until the next download, real %P1 (FIC-101's
+  PID1/OUT) substitution producing an actual numeric percent plus an unknown
+  %P2 path substituting "?", and the 255-type cap rejecting a 256th new name
+  while still allowing an update to an existing one.
+Boundary (honest, not fixed this pass): defined types are a standalone
+  message/Setup registry, not yet wired to automatically raise as a module's
+  own live alarm occurrence (SFC block alarms remain the only automatically-
+  firing CUSTOM alarm path); deployed setup is one flat registry, not
+  per-controller/workstation targets like Named Sets.
+Result: DV09-041 MISSING -> VERIFIED_SUBSET. Current totals11 VERIFIED_SUBSET/
+57 PARTIAL/35 MISSING/19 BOUNDARY/6 CONTEXT. 370 repository tests run locally
+(369 pass; the remaining failure is the pre-existing local-only pdf_om.txt
+dependency). Typecheck and production build both passed. Continuation
+proceeds to the next remaining group in a subsequent pass.
+
 Commit/push authorization for this pass follows the same 2026-10-05
 instruction already recorded for Pass54.

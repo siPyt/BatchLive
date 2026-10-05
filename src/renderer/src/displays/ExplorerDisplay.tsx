@@ -9,6 +9,7 @@ import { ModuleDisplayControls } from '../components/ModuleDisplayControls'
 import { nextAreaName } from '../engine/areas'
 import { moduleNameError } from '../engine/naming'
 import { NamedSetControls } from '../components/NamedSetControls'
+import { CustomAlarmTypeControls } from '../components/CustomAlarmTypeControls'
 import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
 import { sfcConfiguredMetadata } from '../engine/sfcLifecycle'
 import type { SfcDef } from '../engine/sfc'
@@ -74,6 +75,7 @@ export function ExplorerDisplay(): JSX.Element {
   const equipment = useStore((s) => s.equipment)
   const areas = useStore((s) => s.areas)
   const namedSets = useStore(s => s.namedSets.configured)
+  const customAlarmTypes = useStore(s => s.customAlarmTypes.configured)
   const addArea = useStore((s) => s.createArea)
   const renameArea = useStore((s) => s.renameArea)
   const deleteModule = useStore((s) => s.deleteModule)
@@ -93,11 +95,13 @@ export function ExplorerDisplay(): JSX.Element {
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
-  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'licensing'>('modules')
+  const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'licensing'>('modules')
   const [selectedNamedSet, setSelectedNamedSet] = useState<string | null>(null)
   const [namedSetCreateRequest, setNamedSetCreateRequest] = useState(0)
   const [namedSetPropertiesRequest, setNamedSetPropertiesRequest] =
     useState<{ name: string; serial: number } | null>(null)
+  const [selectedAlarmType, setSelectedAlarmType] = useState<string | null>(null)
+  const [alarmTypeCreateRequest, setAlarmTypeCreateRequest] = useState(0)
   const [menu, setMenu] = useState<
     { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'sfc' | 'em' | 'namedSets' | 'namedSet'; target: string } | null
   >(null)
@@ -227,6 +231,15 @@ export function ExplorerDisplay(): JSX.Element {
             }}>
             <b>{name}</b>
           </div>)}
+          <div className={'exp-node exp-area' + (setupView === 'alarmTypes' && !selectedAlarmType ? ' sel' : '')}
+            onClick={() => setSetupView('alarmTypes')}>
+            <b>Alarm Types</b>
+          </div>
+          {Object.keys(customAlarmTypes).map(name => <div key={name}
+            className={'exp-node exp-mod nested' + (setupView === 'alarmTypes' && selectedAlarmType === name ? ' sel' : '')}
+            onClick={() => { setSetupView('alarmTypes'); setSelectedAlarmType(name) }}>
+            <b>{name}</b>
+          </div>)}
         </>}
         <div className="exp-node exp-cell" onClick={() => toggle('PROPLUS')}>
           <span className="exp-caret">{open.PROPLUS === false ? '▸' : '▾'}</span><b>ProfessionalPLUS (simulated)</b>
@@ -343,6 +356,9 @@ export function ExplorerDisplay(): JSX.Element {
           <NamedSetControls selected={selectedNamedSet} onSelect={setSelectedNamedSet}
             createRequest={namedSetCreateRequest} propertiesRequest={namedSetPropertiesRequest}
             onRequestsHandled={() => { setNamedSetCreateRequest(0); setNamedSetPropertiesRequest(null) }} />
+        ) : setupView === 'alarmTypes' ? (
+          <CustomAlarmTypeControls selected={selectedAlarmType} onSelect={setSelectedAlarmType}
+            createRequest={alarmTypeCreateRequest} onRequestsHandled={() => setAlarmTypeCreateRequest(0)} />
         ) : selectedSfc ? (
           <div className="exp-props">
             <div className="exp-props-head">

@@ -70,6 +70,10 @@ import {
   NAMED_SETS_STORAGE_KEY, changedNamedSets, cloneNamedSet, namedSetError, namedSetTargetKey,
   parseNamedSets, serializeNamedSets, type NamedSetState, type NamedSetDefinition, type NamedSetTarget
 } from './namedSets'
+import {
+  MAX_CUSTOM_ALARM_TYPES, changedCustomAlarmTypeNames, cloneCustomAlarmType, customAlarmTypeDefError,
+  customAlarmTypeNameError, type CustomAlarmTypeDef, type CustomAlarmTypeState
+} from './customAlarmTypes'
 import { makeDefaultEquipment, makeBlankEquipment, type EquipmentModule } from './equipment'
 import {
   makeDefaultHardware,
@@ -140,6 +144,13 @@ interface StoreState extends PlantState {
   createMotorTemplate: (tag: string, area: string, description?: string) => boolean
   editMotorBlock: (tag: string, patch: Partial<MotorBlockConfiguration>) => boolean
   namedSets: NamedSetState
+  /** DV09-041 custom alarm type registry: up to 255 named types with a
+   * priority and a %P1/%P2 message template, separate from a module's fixed
+   * AlarmLimit set and its own Download Changed Setup Data step. */
+  customAlarmTypes: CustomAlarmTypeState
+  defineCustomAlarmType: (name: string, def: CustomAlarmTypeDef) => boolean
+  deleteCustomAlarmType: (name: string) => boolean
+  downloadCustomAlarmTypeSetup: () => boolean
   sfcLifecycle: Record<string, SfcLifecycle>
   downloadStatusChecks: Record<string, DownloadStatusCheck>
   updateModuleDownloadStatus: (tag: string) => boolean
@@ -334,6 +345,7 @@ export const useStore = create<StoreState>((set, get) => ({
   pidLifecycle: {},
   deviceLifecycle: {},
   namedSets: { configured: {}, deployed: {} },
+  customAlarmTypes: { configured: {}, deployed: {} },
   downloadStatusChecks: {},
   updateModuleDownloadStatus: tag => {
     if (!requireUnlockedKey('CAN_CONFIGURE', `Update Download Status ${tag}`)) return false
@@ -2756,6 +2768,52 @@ export const useStore = create<StoreState>((set, get) => ({
     return true
   },
 
+  defineCustomAlarmType: (name, def) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Define custom alarm type ${name}`)) return false
+    const state = get()
+    const isNew = !Object.hasOwn(state.customAlarmTypes.configured, name)
+    const error = customAlarmTypeNameError(name) ?? customAlarmTypeDefError(def) ??
+      (isNew && Object.keys(state.customAlarmTypes.configured).length >= MAX_CUSTOM_ALARM_TYPES
+        ? `Custom alarm type registry is full (maximum ${MAX_CUSTOM_ALARM_TYPES})` : null)
+    if (error) { get().logEvent('DIAGNOSTIC', name, error); window.alert(error); return false }
+    const configured = { ...state.customAlarmTypes.configured, [name]: cloneCustomAlarmType(def) }
+    set(s => ({ customAlarmTypes: { ...s.customAlarmTypes, configured }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', name, `Custom alarm type ${isNew ? 'defined' : 'updated'}; Changed Setup Data download required`)
+    return true
+  },
+
+  deleteCustomAlarmType: (name) => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Delete custom alarm type ${name}`)) return false
+    const state = get()
+    if (!Object.hasOwn(state.customAlarmTypes.configured, name)) {
+      const error = `Custom alarm type ${name} does not exist`
+      get().logEvent('DIAGNOSTIC', name, error); window.alert(error); return false
+    }
+    const configured = { ...state.customAlarmTypes.configured }
+    delete configured[name]
+    set(s => ({ customAlarmTypes: { ...s.customAlarmTypes, configured }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', name, 'Custom alarm type deleted; Changed Setup Data download required')
+    return true
+  },
+
+  downloadCustomAlarmTypeSetup: () => {
+    if (!requireUnlockedLock('CAN_DOWNLOAD', 'Download Changed Setup Data: Alarm Types')) return false
+    const state = get()
+    const changes = changedCustomAlarmTypeNames(state.customAlarmTypes)
+    if (!changes.length) {
+      const message = 'No alarm type setup changes to download'
+      get().logEvent('DIAGNOSTIC', 'Alarm Types', message); window.alert(message); return false
+    }
+    const deployed = { ...state.customAlarmTypes.deployed }
+    for (const name of changes) {
+      if (Object.hasOwn(state.customAlarmTypes.configured, name)) deployed[name] = cloneCustomAlarmType(state.customAlarmTypes.configured[name])
+      else delete deployed[name]
+    }
+    set(s => ({ customAlarmTypes: { ...s.customAlarmTypes, deployed }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', 'Alarm Types', `Changed Setup Data: ${changes.join(', ')}; simulated alarm type subset transferred atomically`)
+    return true
+  },
+
   enableSfcLifecycle: name => {
     if (!requireUnlockedLock('CAN_CONFIGURE', `Enable saved SFC lifecycle ${name}`)) return false
     const state = get()
@@ -3056,6 +3114,7 @@ export const useStore = create<StoreState>((set, get) => ({
       pidLifecycle: {},
       deviceLifecycle: {},
       namedSets: { configured: {}, deployed: {} },
+      customAlarmTypes: { configured: {}, deployed: {} },
       sfcLifecycle: {},
       downloadStatusChecks: {},
       rev: get().rev + 1

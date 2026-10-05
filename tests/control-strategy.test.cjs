@@ -38,6 +38,10 @@ const { findDst, channelConfigurationError, advanceTraditionalIo, sampleAnalogIn
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const { savedAoStorageKey } = require('../src/renderer/src/engine/moduleLifecycle.ts')
 const { moduleDownloadStatus } = require('../src/renderer/src/engine/downloadStatus.ts')
+const {
+  MAX_CUSTOM_ALARM_TYPES, changedCustomAlarmTypeNames, customAlarmTypeDefError, customAlarmTypeNameError,
+  substituteAlarmMessage
+} = require('../src/renderer/src/engine/customAlarmTypes.ts')
 
 function plant(splitRange = false) {
   const state = { ...buildInitialPlant(), hardware: makeDefaultHardware(), speed: 1 }
@@ -820,6 +824,62 @@ test('DV09-124 alarm-summary Category column can be added, moved to the fourth p
     if (previousWindow === undefined) delete global.window
     else global.window = previousWindow
   }
+})
+
+test('DV09-041 custom alarm type registry validates definitions, requires Changed Setup Data download, and substitutes captured %P1/%P2 values', () => {
+  withAreaProject((store, alerts) => {
+    // Name validation: 1-16 chars, starts with a letter, uppercase/digits/underscore only.
+    assert.match(customAlarmTypeNameError('bad name'), /uppercase/)
+    assert.match(customAlarmTypeNameError(''), /uppercase/)
+    assert.match(customAlarmTypeNameError('1BAD'), /uppercase/)
+    assert.match(customAlarmTypeNameError('X'.repeat(17)), /uppercase/)
+    assert.equal(customAlarmTypeNameError('HTR_FAULT'), null)
+    // Definition validation: supported priority, non-empty template, length cap.
+    assert.match(customAlarmTypeDefError({ priority: 'BOGUS', messageTemplate: 'x' }), /priority/)
+    assert.match(customAlarmTypeDefError({ priority: 'WARNING', messageTemplate: '  ' }), /message template/)
+    assert.match(customAlarmTypeDefError({ priority: 'WARNING', messageTemplate: 'x'.repeat(241) }), /240/)
+    assert.equal(customAlarmTypeDefError({ priority: 'WARNING', messageTemplate: 'ok' }), null)
+
+    // Defining a type requires valid name+def and persists to the configured (draft) registry only.
+    const def = { priority: 'CRITICAL', messageTemplate: 'Output %P1 exceeded limit %P2', p1Path: 'PID1/OUT', p2Path: 'BOGUS/PATH' }
+    assert.equal(store.defineCustomAlarmType('HTR_FAULT', def), true)
+    assert.deepEqual(useStore.getState().customAlarmTypes.configured.HTR_FAULT, def)
+    assert.equal(useStore.getState().customAlarmTypes.deployed.HTR_FAULT, undefined)
+    assert.equal(store.defineCustomAlarmType('bad name', def), false)
+    assert.match(alerts.at(-1), /uppercase/)
+
+    // Changed Setup Data: a defined-but-undownloaded type is listed as changed; download transfers it atomically.
+    assert.deepEqual(changedCustomAlarmTypeNames(useStore.getState().customAlarmTypes), ['HTR_FAULT'])
+    assert.equal(store.downloadCustomAlarmTypeSetup(), true)
+    assert.deepEqual(useStore.getState().customAlarmTypes.deployed.HTR_FAULT, def)
+    assert.deepEqual(changedCustomAlarmTypeNames(useStore.getState().customAlarmTypes), [])
+    // A second download with no pending changes is rejected rather than a silent no-op success.
+    assert.equal(store.downloadCustomAlarmTypeSetup(), false)
+    assert.match(alerts.at(-1), /No alarm type setup changes/)
+
+    // Deleting only changes the draft; the deployed definition (and its message) survive until downloaded again.
+    assert.equal(store.deleteCustomAlarmType('HTR_FAULT'), true)
+    assert.equal(useStore.getState().customAlarmTypes.configured.HTR_FAULT, undefined)
+    assert.ok(useStore.getState().customAlarmTypes.deployed.HTR_FAULT)
+    assert.equal(store.deleteCustomAlarmType('HTR_FAULT'), false)
+    assert.match(alerts.at(-1), /does not exist/)
+
+    // %P1/%P2 capture: PID1/OUT resolves to FIC-101's real numeric output; an unknown path substitutes "?", never a fabricated number.
+    const modules = useStore.getState().modules
+    const message = substituteAlarmMessage('FIC-101', useStore.getState().customAlarmTypes.deployed.HTR_FAULT, modules)
+    assert.match(message, /^Output \d+\.\d % exceeded limit \?$/)
+
+    // The 255-type cap rejects a 256th new definition without mutating the registry.
+    for (let i = 0; i < MAX_CUSTOM_ALARM_TYPES; i++) {
+      assert.equal(store.defineCustomAlarmType(`T${i}`, { priority: 'ADVISORY', messageTemplate: 'x' }), true)
+    }
+    assert.equal(Object.keys(useStore.getState().customAlarmTypes.configured).length, MAX_CUSTOM_ALARM_TYPES)
+    assert.equal(store.defineCustomAlarmType('ONE_TOO_MANY', { priority: 'ADVISORY', messageTemplate: 'x' }), false)
+    assert.match(alerts.at(-1), /registry is full/)
+    assert.equal(Object.keys(useStore.getState().customAlarmTypes.configured).length, MAX_CUSTOM_ALARM_TYPES)
+    // Updating an existing type (not adding a new one) is still allowed once the registry is full.
+    assert.equal(store.defineCustomAlarmType('T0', { priority: 'WARNING', messageTemplate: 'updated' }), true)
+  })
 })
 
 function discreteCourseProject(store) {
