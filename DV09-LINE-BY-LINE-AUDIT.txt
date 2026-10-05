@@ -3,15 +3,15 @@ BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
 
 CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS54
 ---------------------------------------------------
-Implementation baseline: PASS54 (hash recorded after commit below).
+Implementation baseline: a68483a, 2026-10-05.
 367 repository tests pass; typecheck, production build, scoped diagnostics and
 whitespace checks pass. The dated history and exact known remaining-work index
 are appended at the end of this report. Earlier release records are historical.
 DV-09 remains incomplete: 9 VERIFIED_SUBSET, 57 PARTIAL, 37 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
-Pass54 is a local commit pending the user's explicit commit/push authorization
-for this session; the 2026-10-04 authorization recorded below covers Pass42-53
-only and does not extend to this later work.
+The user authorized commit and push of Pass54 on 2026-10-05, separate from the
+2026-10-04 authorization that covered Pass42-53 only. Remote delivery is
+verified separately after the push.
 
 SOURCE, SCOPE AND HONEST COMPLETION BOUNDARY
 -------------------------------------------
@@ -2428,5 +2428,6 @@ Browser verification: a temporary standalone Vite preview of the existing
 Result: DV09-058 moves from PARTIAL to VERIFIED_SUBSET (9 VERIFIED_SUBSET/
   57 PARTIAL/37 MISSING/19 BOUNDARY/6 CONTEXT). Native PipesAnim dynamo
   library/System Tree parity and measured physical valve travel remain
-  explicitly out of scope and are not claimed. This pass is a local commit;
-  push requires the user's explicit renewed authorization for this session.
+  explicitly out of scope and are not claimed. The user authorized commit and
+  push of this implementation (commit a68483a) and this dated audit update on
+  2026-10-05; remote delivery is verified separately after the push.
