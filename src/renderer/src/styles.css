@@ -4148,3 +4148,137 @@ button {
 .batch-phase-editor .sfc-canvas {
   overflow: auto;
 }
+
+/* Control Studio: module template document, alarm view and status bar */
+.studio-view-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px 8px 0;
+  background: #e7e9ec;
+  border-bottom: 1px solid var(--dv-border);
+}
+.studio-view-tabs button {
+  padding: 4px 12px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: var(--dv-text-dim);
+}
+.studio-view-tabs button.active {
+  background: #fff;
+  border-color: var(--dv-border);
+  color: var(--dv-text);
+  font-weight: 600;
+}
+.studio-template {
+  overflow: auto;
+  background: #fff;
+}
+.tmpl-document {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 8px 12px 24px;
+  color: #17222b;
+}
+.tmpl-section {
+  border: 1px solid #8a8d90;
+  margin: 8px 0;
+  background: #fff;
+}
+.tmpl-section > h3 {
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: #eceeef;
+  border-bottom: 1px solid #8a8d90;
+}
+.tmpl-section > h3 small {
+  margin-left: 12px;
+  font-weight: 400;
+  color: #5a6670;
+}
+.tmpl-section p,
+.tmpl-section ul,
+.tmpl-section ol {
+  margin: 6px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.tmpl-section ol li {
+  margin-bottom: 4px;
+}
+.tmpl-section svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.tmpl-config {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.tmpl-table {
+  width: calc(100% - 20px);
+  margin: 6px 10px;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.tmpl-table th,
+.tmpl-table td {
+  border: 1px solid #8a8d90;
+  padding: 2px 6px;
+  text-align: left;
+}
+.studio-tree-group {
+  border-top: 1px solid var(--dv-border-light);
+  margin-top: 6px;
+  padding-top: 4px;
+}
+.studio-tree-template {
+  color: var(--dv-text-mute);
+}
+.studio-alarms {
+  height: 120px;
+  border-top: 1px solid var(--dv-border);
+}
+.studio-alarm-scroll {
+  flex: 1;
+  overflow: auto;
+}
+.studio-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 22px;
+  padding: 0 12px;
+  background: #1f6fbf;
+  color: #fff;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.studio-status-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.studio-status-zoom button {
+  padding: 0 6px;
+  line-height: 14px;
+}
+@media (max-width: 1100px) {
+  .tmpl-config {
+    grid-template-columns: 1fr;
+  }
+}
+.studio-center.template-active .studio-params {
+  height: 110px;
+}
+.studio-center.template-active .studio-alarms {
+  height: 96px;
+}
+.studio-template {
+  flex: 1;
+  min-height: 260px;
+}

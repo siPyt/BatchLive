@@ -585,6 +585,8 @@ Ribbon presentation and behavior:
   types not supported by the existing historian.
 - Pane visibility and zoom are presentation state, not module configuration.
 
+Update (Control Studio module template and ribbon): discrete valve/motor modules open on a documented Module Template with narratives and live values; the Function Block Diagram remains a tab and keeps all wiring/editing. Ribbon groups follow IMG_0643 (Insert, Alarms, Algorithm, Diagram Mode, Class, Advanced, Version Control). Diagram Mode maps to the saved-lifecycle online/offline switch. Licensed add-ons and unimplemented commands are disabled with explanations; nothing claims to arbitrate ownership or download to a physical controller.
+
 Regression checks for this revision:
 - Compare both photographs and confirm name-left/icon-right header placement.
 - Check connected graph node/wire counts before and after zoom and pane toggles.

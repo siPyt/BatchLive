@@ -12,6 +12,7 @@ CURRENT RECOVERY / CONNECTED-PLANT MILESTONE
   expanded page's styles were removed; only the overview page was reverted.
   The default pharma project (and New Project > pharma) still installs the
   photographed units; blank projects do not.
+- Control Studio (IMG_0640-0646, 0643): discrete valve/motor modules now open on a documented Module Template (description, Mode Locking, DCC1/EDC1 algorithm, standard interface, user variables, failure propagation, configuration narrative, configured options, revision history) bound to live module state; Function Block Diagram stays as a tab. Ribbon reorganised to the reference groups (Insert, Alarms, Algorithm, Diagram Mode, Class, Advanced, Version Control) using PDF-confirmed meanings: DV-09 five panes (Hierarchy, Diagram, Palette, Parameter, Alarm View), On-Line vs Edit, Assign To Node, licensed Tune with InSight/Predict/Neural and Configuration Audit Trail (Version Control). Unmodeled items (owner arbitration, force setpoints, TP variables, alarm groups, clipboard) are explicit, not faked. Alarm View pane and status bar (Assigned to, zoom slider) added.
 - Plant Overview additions from IMG_0636: live N3/N1/N1BP loop panels, Rooms and Storage Tanks layout (Room 1040/1040A/1042; vessels explicitly not modeled, no fake readings) and the full set of reference navigation boxes as disabled reference-only buttons. WFI Still picture rebuilt in the IMG_0604 layout with new functional modules (PIC103, TIC200, LIC200, TT200, IY100, OIL-TEMP, SV500, XV200, XV202, FCV300).
 - A larger three-tank Photographed WFI Overview (Not In Use, WFI-LVL-CTRL,
   sanitation panels) remains as its own route.
@@ -92,6 +93,7 @@ newImage/newNewImages/IMG_0646.jpeg — 3WFI-8110-YV008 discrete valve
   boxes (CAS/CAS) with two small blue "!" interlock/permissive chips,
   Modelock Override, Device/Operation/Failure State block, Owned by:
   N3_INT_WFI, Unit: blank, Help/Ack Alarm.
+(UPDATE: the Office-ribbon chrome and the module template documentation below were later brought IN scope at the user's request; see the Control Studio entry at the top of this log.)
 newImage/newNewImages/IMG_0640/0641/0643/0644/0645.jpeg — Control Studio
   "PCSD Discrete Valve Module" help/reference diagram pages (DCC/EDC/CND
   function blocks, Mode Locking box, MODELOCK_OVR/OWNER_ID/HOLD_REQ
