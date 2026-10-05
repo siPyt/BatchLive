@@ -3,9 +3,9 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: managed module
-Download Status comparison/indicators (Pass45, LOCAL; pushes paused by user).
-Previous milestone: ce09200, SFC metadata (Pass44, LOCAL).
+DV-09 is NOT complete. Latest implemented milestone: Control Studio
+New FBD/SFC algorithm workflow (Pass46, LOCAL; pushes paused by user).
+Previous milestone: ffaf292, module Download Status (Pass45, LOCAL).
 Last published functional milestone: da59138, PID Detail/trends (Pass41).
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
@@ -18,10 +18,10 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:340 repository tests passed; typecheck, production build,
+Last validation:342 repository tests passed; typecheck, production build,
 edited-file diagnostics, audit validator and diff whitespace checks passed.
-Browser verified yellow/unknown/blue/clear states, saved/draft isolation,
-read-only comparison, shared Explorer/SFC results, Cancel and successful transfer.
+Browser verified Studio File/New, SFC/FBD creation and exact navigation,
+Cancel/duplicate/FlexLock, empty Studio and SFC Properties/Save/Download READY.
 Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
@@ -34,6 +34,7 @@ Most recent delivered functionality:
   - Measured simulator process Test, reviewed manual tuning Update and stale guards.
   - SFC description/equipment membership through Properties, persistence and deployment.
   - Shared module-scoped Download Status comparison and yellow/unknown/blue indicators.
+  - Control Studio File/New and empty-Studio/SFC entry into shared FBD/SFC creation.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1695,3 +1696,43 @@ Final verification:340 full-suite tests, including three Download Status tests
 and the unchanged-PID-Save/Online/live-tuning regression. Typecheck, production
 build, edited-file diagnostics, diff whitespace and regenerated/checkable audit
 ledger passed (575pages,12157records,128groups, zero unmapped records).
+
+PASS 46: CONTROL STUDIO NEW ALGORITHM ENTRY (p289)
+-------------------------------------------------
+Source: original p289 screenshot and pp291/292 rendered locally and inspected,
+not just extracted-text strings. P289 prescribes Studio New and SFC selection.
+P291 prescribes steps/transitions; p292 prescribes Properties/Save/Download/Check.
+Save As appears in the p289 menu but is not the selected workshop operation.
+Line1 - Control Studio: File is enabled for the New command. Existing Home,
+  Diagram and View commands, FBD geometry and Zoom remain unchanged.
+Line2 - Empty Studio: New works even when there is no selected module.
+Line3 - Reuse: all new entry points wrap the existing Explorer creation form;
+  validation, permission guards, metadata and algorithm choices are not duplicated.
+Line4 - Defaults: FBD remains selected initially. Choosing SFC hides unrelated
+  FBD-type/range/template fields and creates the supported SFC algorithm.
+Line5 - Creation: exact named chart opens Offline/READY with zero steps and no
+  saved/deployed copy or implicit persistence, transfer or action execution.
+Line6 - Metadata: Description and same-area Equipment Module carry into the
+  atomic configured chart and subsequently saved/deployed copies.
+Line7 - Cancel/guards: Cancel creates nothing; shared-name duplicates disable
+  Create; engine permission/stale-area guards remain authoritative. FlexLock
+  dismisses/discards the open dialog.
+Line8 - SFC editor: New Control Module opens the same algorithm selector; its
+  existing unmanaged sample-chart creation remains unchanged.
+Line9 - FBD navigation: new FBD modules from these Studio entry points open
+  their exact Control Studio module, rather than selecting an unrelated module.
+Line10 - Lifecycle: browser-created SFC then received an actual Add Step,
+  Properties controller assignment, Save and confirmed Download. Deployment
+  stayed READY/Offline and original FIC-101 SP60 stayed60. No equipment started.
+Browser also verified File/New Cancel, duplicate FIC-101 refusal, STUDIO-SFC
+description/equipment, default FBD, SFC-to-AI creation and exact Studio navigation,
+locked dialog discard and empty-Studio New. Original96-module running plant,
+overview/security and exact saved storage restored; both fixtures removed.
+Two rendering regressions verify form choices/defaults/metadata/Cancel and
+creation entry points without side effects; existing lifecycle tests cover
+atomic managed creation, name/reference/permission/lock guards and persistence.
+Boundary: native UNTITLED deferred naming, Start From Existing, template library,
+Save As, graph palette/layout, restart/NVM and full course parity remain absent.
+DV09-069/070 remain PARTIAL. Local commits only; no push authorization.
+Final verification:342 full-suite tests;16 focused creation/SFC-lifecycle
+regressions; typecheck, production build and scoped editor diagnostics passed.

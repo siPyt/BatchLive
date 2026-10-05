@@ -24,6 +24,7 @@ import {
 } from '../engine/sfc'
 import type { AnyModule, PlantState } from '../engine/types'
 import { useUi } from '../ui/uiStore'
+import { NewControlModuleDialog } from './ExplorerDisplay'
 
 const STATUS_COLOR: Record<SfcDef['status'], string> = {
   READY: '#9aa0a7',
@@ -43,13 +44,16 @@ export function SfcDisplay(): JSX.Element {
   const setSelected = useUi(s => s.openSfc)
   const [newName, setNewName] = useState('')
   const [newArea, setNewArea] = useState('FEED')
+  const [showNew, setShowNew] = useState(false)
 
   const runtime = sfcs[selected]
   const sfc = runtime ? sfcEditorDefinition(runtime, lifecycles[selected]) : undefined
 
   return (
     <div className="display sfc">
+      {showNew && <NewControlModuleDialog initialArea={sfc?.area ?? areas[0] ?? ''} onClose={() => setShowNew(false)} />}
       <div className="sfc-list">
+        <div className="exp-toolbar"><button className="tbtn sm" onClick={() => setShowNew(true)}>New Control Module...</button></div>
         <div className="exp-toolbar" style={{ display: 'flex', gap: 6 }}>
           <input
             className="sfc-newinput"

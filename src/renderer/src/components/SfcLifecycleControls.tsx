@@ -49,7 +49,7 @@ export function SfcLifecycleControls({ name }: { name: string }): JSX.Element {
       {' '}Deployed description: {lifecycle.deployed?.description || '(none)'}.
       {' '}Deployed Equipment Module: {lifecycle.deployed?.equipmentModule || '(unassigned)'}.</p>
     <p>This is the simulated SFC/browser-save subset, including return/selective routes and independent parallel legs with all-predecessor joins.
-      Explorer New Control Module supports FBD/SFC algorithm selection; native dialog/template, graph palette/layout and nested/selective parallel legs,
+      Explorer New Control Module and Studio File/New support FBD/SFC algorithm selection; native dialog/template, graph palette/layout and nested/selective parallel legs,
       arbitrary parameter types and controller restart/nonvolatile restoration remain unsupported.
       Downloaded copies are session-local; loading a saved draft does not deploy it.</p>
     {properties && <SfcModuleProperties configuration={properties} onClose={() => setProperties(null)} />}

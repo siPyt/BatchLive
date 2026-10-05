@@ -331,6 +331,14 @@ The selected equipment must exist in the same area. Explorer displays configured
 descriptions and nests assigned SFCs under their equipment group; counts include
 both FBD and SFC modules. This remains a supported algorithm-choice/metadata
 subset, not native dialog/template or Save As parity.
+The same creation form is available from **Control Studio → File → New...**
+and **SFC Charts → New Control Module...**. An empty Studio also provides New.
+It starts with Function Block Diagram selected; choosing Sequential Function
+Chart creates and opens the named Offline SFC. Cancel creates nothing and
+FlexLock discards an open dialog. FBD creation from these Studio entry points
+opens the exact new module in Studio; Explorer's existing creation behavior
+is unchanged. This covers the p289 named-creation operation, not native
+UNTITLED objects, Start From Existing, template-library or Save As workflows.
 
 ### Managed module download status (DV-09 pp92–95 subset)
 
@@ -353,6 +361,8 @@ clears it. Checks are session-local and reset with New Project.
 Live/unmanaged modules do not receive a fabricated native status. This is not
 a whole-controller/network comparison, whole-controller Total/Full download
 or card download implementation.
+
+### SFC saved/deployed lifecycle
 
 Reset an existing sample SFC and choose **Use Save/Download lifecycle** to opt it into isolated
 configured, saved and deployed linear algorithms. **Module Properties**

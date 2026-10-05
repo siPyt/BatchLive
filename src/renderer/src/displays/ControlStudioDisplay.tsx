@@ -21,6 +21,7 @@ import { appliedPidOutput, pidIo, readAnalogSignal, signalError } from '../engin
 import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
 import { deviceInterlockSignal, devicePermissiveSignal } from '../engine/simulate'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
+import { NewControlModuleDialog } from './ExplorerDisplay'
 import type {
   AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
   PidBlockName, PidIoPatch, SplitterPatch, SplitterState, FbInputRef,
@@ -50,11 +51,16 @@ export function ControlStudioDisplay(): JSX.Element {
   const [showParameters, setShowParameters] = useState(true)
   const [showPalette, setShowPalette] = useState(true)
   const [blockSelection, setBlockSelection] = useState<{ tag: string; block: PidBlockName } | null>(null)
+  const [showNew, setShowNew] = useState(false)
+  const areas = useStore(s => s.areas)
 
   if (!m) {
     return (
       <div className="display studio">
-        <div className="exp-empty">Open a module from DeltaV Explorer or a graphic to view it online.</div>
+        <div className="exp-empty">Open a module from DeltaV Explorer or a graphic, or create a new algorithm.
+          {' '}<button className="tbtn" onClick={() => setShowNew(true)}>New...</button>
+        </div>
+        {showNew && <NewControlModuleDialog initialArea={areas[0] ?? ''} onClose={() => setShowNew(false)} />}
       </div>
     )
   }
@@ -66,6 +72,7 @@ export function ControlStudioDisplay(): JSX.Element {
     <div className="display studio">
       <StudioRibbon
         tag={m.tag}
+        onNew={() => setShowNew(true)}
         onFaceplate={() => openFaceplate(m.tag.split('/')[0])}
         zoom={zoom}
         onZoom={(value) => setZoom(Math.max(0.5, Math.min(1.5, Math.round(value * 10) / 10)))}
@@ -76,6 +83,7 @@ export function ControlStudioDisplay(): JSX.Element {
           else setShowPalette((value) => !value)
         }}
       />
+      {showNew && <NewControlModuleDialog initialArea={m.area} onClose={() => setShowNew(false)} />}
       <div className="studio-main">
         {showHierarchy && <HierarchyView module={m} selectedBlock={selectedBlock}
           onSelect={(block) => setBlockSelection({ tag: m.tag, block })} />}
@@ -1371,7 +1379,8 @@ function RibbonIcon({ kind }: { kind: RibbonIconKind }): JSX.Element {
   )
 }
 
-function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
+function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle }: {
+  onNew: () => void
   tag: string; onFaceplate: () => void; zoom: number; onZoom: (value: number) => void
   panes: Record<StudioPane, boolean>; onToggle: (pane: StudioPane) => void
 }): JSX.Element {
@@ -1403,8 +1412,7 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
       <div className="ribbon-tabs">
         {RIBBON_TABS.map((t) => (
           <button key={t} type="button" className={'ribbon-tab' + (t === 'File' ? ' file' : t === tab ? ' active' : '')}
-            disabled={t === 'File'}
-            title={t === 'File' ? 'File ribbon commands are not implemented' : `${t} commands`}
+            title={`${t} commands`}
             aria-pressed={t === tab} onClick={() => setTab(t)}>
             {t}
           </button>
@@ -1412,11 +1420,14 @@ function StudioRibbon({ tag, onFaceplate, zoom, onZoom, panes, onToggle }: {
         <span className="ribbon-title">{Math.round(zoom * 100)}%</span>
       </div>
       <div className="ribbon-body">
+        {tab === 'File' && <RibbonGroup label="Create">
+          <RibbonBtn ic="module" label="New..." onClick={onNew} />
+        </RibbonGroup>}
         {tab === 'Home' && <RibbonGroup label="Clipboard">
           <RibbonBtn ic="parameters" label="Copy" unavailable="Block clipboard operations are not implemented" />
           <RibbonBtn ic="parameters" label="Paste" unavailable="Block clipboard operations are not implemented" />
         </RibbonGroup>}
-        {tab !== 'View' && <>
+        {tab !== 'View' && tab !== 'File' && <>
           <RibbonGroup label="Module">
             <RibbonBtn ic="download" label="Download" onClick={() => {
               if (pidRecord) {

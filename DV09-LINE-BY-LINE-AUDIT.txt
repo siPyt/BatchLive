@@ -1147,6 +1147,7 @@ Pages: 286-290
 Status: PARTIAL
 Required: Case-sensitive NS-T101 with visible/selectable STARTUP=1 and visible,
   non-selectable SELECT SEQUENCE=255; MESSAGE parameter references that set.
+  Use Control Studio New and choose Sequential Function Chart (p289).
 Evidence: Explorer Setup > Named Sets supports case-sensitive custom sets,
   Properties > Add/Modify/Rename/Delete and nested State Properties drafts.
   NS-T101 STARTUP=1 and SELECT SEQUENCE=255 preserve independent Visible and
@@ -1160,6 +1161,14 @@ Evidence: Explorer Setup > Named Sets supports case-sensitive custom sets,
   Original p290 parameter screenshot reviewed locally. Native category/restart/
   instance/Browse/context operations, defaults, reference tracking and global
   Setup Data parity are not claimed; this entry remains PARTIAL.
+  Pass46: original p289 image inspected. Control Studio File/New and empty
+  Studio, plus SFC Charts New Control Module, open the reused FBD/SFC creation
+  form. FBD remains default; choosing SFC creates/opens the exact named empty
+  Offline managed chart with no implicit Save, deployment or execution.
+  Description/equipment metadata carry through. Cancel/duplicate/FlexLock
+  behavior and subsequent Properties/Save/Download verified in browser.
+  New FBD creation from these entry points opens its exact Studio module.
+  Native UNTITLED/Start From Existing/template-library behavior remains absent.
 Acceptance: Test exact names/values, visibility versus selection, numeric
   conversion and protection against selecting the reserved prompt.
   Validation: seven setup tests plus eight MESSAGE regressions, live parameter/
@@ -1204,8 +1213,12 @@ Evidence: Generic structured motor/valve/SP/out transitions and supported
   deletion clears draft membership without rewriting deployed snapshots;
   persisted missing references reject Load. Optional-field compatibility is
   tested with legacy files. Browser creation, Cancel/OK, nested hierarchy/count,
-  Save/Download, stale rejection, Load and FlexLock verified. Save As remains
-  unsupported; native graph/template/restart gaps above still prevent completion.
+  Save/Download, stale rejection, Load and FlexLock verified. Pass46 wires the
+  p289 Studio New algorithm-choice entry into this same guarded lifecycle.
+  Original pp289/291/292 distinguish New, Properties, Save, Download and Check.
+  Save As appears as an unselected p289 menu item, not a prescribed p291/292
+  workshop operation; it remains unavailable. Native graph/template/restart
+  gaps above still prevent completion.
 Acceptance: Execute each state in the exact dependency order with real
   feedback; failed confirmation must hold the appropriate transition.
 

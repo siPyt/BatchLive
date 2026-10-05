@@ -14,6 +14,7 @@ import { sfcConfiguredMetadata } from '../engine/sfcLifecycle'
 import type { SfcDef } from '../engine/sfc'
 import { LicensingProperties } from '../components/LicensingProperties'
 import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
+import { SimulatorDialog } from '../components/SimulatorDialog'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -656,14 +657,24 @@ function ModuleProperties({
   )
 }
 
+export function NewControlModuleDialog({ initialArea, onClose }: {
+  initialArea: string; onClose: () => void
+}): JSX.Element {
+  return <SimulatorDialog className="module-download-dialog" label="New Control Module" onClose={onClose}>
+    <NewModuleForm initialArea={initialArea} onDone={onClose} openCreated />
+  </SimulatorDialog>
+}
+
 function NewModuleForm({
   onDone,
   initialArea,
-  initialEquipment
+  initialEquipment,
+  openCreated = false
 }: {
   onDone: () => void
   initialArea: string
   initialEquipment?: string
+  openCreated?: boolean
 }): JSX.Element {
   const createModule = useStore((s) => s.createModule)
   const areas = useStore((s) => s.areas)
@@ -725,6 +736,7 @@ function NewModuleForm({
     if (!createModule(spec)) return
     select(normTag)
     onDone()
+    if (openCreated) useUi.getState().openStudio(normTag)
   }
 
   return (
