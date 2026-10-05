@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 48 VERIFIED_SUBSET, 55 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 49 VERIFIED_SUBSET, 54 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -872,11 +872,23 @@ Acceptance (Pass65): tests/area-alarm-eligibility.test.cjs exercises all four
 
 [DV09-045]
 Pages: 205-208
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Enable/download workstation Event Chronicle, name/subscriptions/SOE
   configuration and persistent process history.
-Evidence: STORE/JOURNAL have an in-memory, bounded event list with
-  category/tag/user/search filters, not configured persistent history.
+Evidence (Pass77): engine/eventChronicle.ts adds a workstation Event Chronicle on
+  the Event Journal display: Enable, workstation name, subscribed event types
+  (alarm, return to normal, acknowledge, operator, diagnostic, security, batch,
+  configuration) and sequence-of-events stamping, validated and active only
+  after Download Event Chronicle (Can Configure to set, Can Download to
+  deploy). Subscribed journal events are archived with simulation time,
+  wall-clock time, workstation, type, tag, user and text in a persistent archive
+  saved in the browser profile (rolling window of 5000 with the total count),
+  reloaded after a restart, and each record is chained to the previous one with
+  SHA-256 so edits, deletions, insertions, reordering and a truncated tail fail
+  Verify archive. Clearing needs System Admin. This is a training archive: it
+  is not a compliant or tamper-proof 21 CFR Part 11 record because the browser
+  profile owner can rewrite the entire chain. Verified in the browser (an
+  operator SP write archived).
 Acceptance: Save/reload events and workstation options with correct timestamps;
   do not call a transient array a compliant or tamper-evident archive.
 
@@ -3804,3 +3816,26 @@ Validation: 524 repository tests run locally (523 pass; the remaining failure
   is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
 Result: DV09-042 PARTIAL -> VERIFIED_SUBSET. Totals 48 VERIFIED_SUBSET/
   55 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 77 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: DV09-045 workstation Event Chronicle (pages 205-208).
+Engine: new eventChronicle.ts (configuration with configured/deployed states,
+  SHA-256, hash-chained archive with rollover and anchor, verify, persistence,
+  a subscriber that archives new journal entries). securityTargets.ts registers
+  the configure/download/clear functions.
+UI: ChroniclePanel on the Event Journal display; App imports the chronicle so it
+  starts with the application.
+Tests: tests/event-chronicle.test.cjs (7): SHA-256 vectors against node crypto,
+  validation and keys, not-active-before-download and subscription filtering,
+  save/reload with timestamps, six tamper cases, 5000-record rollover, and
+  clear.
+Browser: enabling and downloading the chronicle then writing a setpoint showed
+  "recording · 1 archived record(s)".
+Boundary (honest): a hash chain in browser storage is not a compliant audit
+  archive; there is no historian, OPC, SOE hardware time source or workstation
+  download to a real node.
+Validation: 531 repository tests run locally (530 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
+Result: DV09-045 PARTIAL -> VERIFIED_SUBSET. Totals 49 VERIFIED_SUBSET/
+  54 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

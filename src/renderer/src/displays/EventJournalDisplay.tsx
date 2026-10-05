@@ -3,6 +3,7 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { clockString, dateString } from '../utils/format'
 import type { EventCategory } from '../engine/types'
+import { ChroniclePanel } from '../components/ChroniclePanel'
 
 type Filter = 'ALL' | EventCategory
 
@@ -40,6 +41,7 @@ export function EventJournalDisplay(): JSX.Element {
           Entries: <b>{eventLog.length}</b>
         </span>
       </div>
+      <ChroniclePanel />
       <div className="toolbar-row">
         {(['ALL', 'ALARM', 'RTN', 'ACK', 'OPERATOR', 'DIAGNOSTIC', 'SECURITY', 'BATCH', 'CONFIGURE'] as Filter[]).map((f) => (
           <button key={f} className={'tbtn sm' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)}>

@@ -2577,3 +2577,12 @@ Line2 - Codes: 0 normal, 1 active unacknowledged, 2 active acknowledged, 3
 Line3 - Suppression: OPSUP/SUPTMO/SUPTMR work on the shelving engine and are
   distinct from acknowledge and disable; locks follow the course.
 Line4 - Tests: tests/alarm-composites.test.cjs.
+
+PASS 77: WORKSTATION EVENT CHRONICLE (pp205-208)
+-----------------------------------------------------------------------
+Line1 - Setup: enable, workstation name, subscribed event types and SOE
+  stamping; active only after Download Event Chronicle.
+Line2 - Archive: subscribed events persist with simulation and wall-clock time,
+  survive a restart and are hash-chained; Verify archive detects tampering.
+Line3 - Not a compliant archive; training use only.
+Line4 - Tests: tests/event-chronicle.test.cjs.
