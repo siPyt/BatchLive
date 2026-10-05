@@ -56,6 +56,8 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
       `${record.deployed.feedbackUnavailable ? 'Unavailable (self-confirmed)' : record.deployed.feedbackInverted ? 'Inverted (bit1=active)' : 'Normal (bit0=active)'}` :
       '(not deployed)'}</td>
     <td>DV09-048 device state mask: confirmation-bit polarity/availability</td></tr>
+    <tr><td>DEPLOYED PASSIVE ON TIMEOUT</td><td>{record.deployed?.passiveOnTimeout ? 'Fail-safe to Passive' : 'Report Failed-Active'}</td>
+    <td>DV09-049: behavior when a commanded Active transition does not confirm in time</td></tr>
     {!record.online && <>
       <DeviceDescriptorDraftRows key={`${tag}:${JSON.stringify(c.descriptors)}`} tag={tag} descriptors={c.descriptors} />
       <tr><td>DRAFT CONTROLLER</td><td><select aria-label={`${tag} device controller`} value={c.controllerTag}
@@ -86,6 +88,9 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
       <tr><td>DRAFT FEEDBACK UNAVAILABLE</td><td><input type="checkbox" aria-label={`${tag} draft feedback unavailable`}
         checked={c.feedbackUnavailable ?? false} onChange={e => edit(tag, { feedbackUnavailable: e.target.checked })} /></td>
         <td>No physical confirmation bit wired: self-confirms by elapsed Confirm Time instead of real DI feedback.</td></tr>
+      <tr><td>DRAFT PASSIVE ON TIMEOUT</td><td><input type="checkbox" aria-label={`${tag} draft passive on timeout`}
+        checked={c.passiveOnTimeout ?? false} onChange={e => edit(tag, { passiveOnTimeout: e.target.checked })} /></td>
+        <td>Selected: an unconfirmed Active command automatically reverts to Passive. Unselected: reports Failed-Active.</td></tr>
       {(['interlockSource', 'permissiveSource', 'commandSource'] as const).map(source => <tr key={source}><td>DRAFT {source}</td><td>
         <select aria-label={`${tag} draft ${source}`} value={c[source] ?? ''} onChange={e => edit(tag, { [source]: e.target.value || undefined })}>
           <option value="">(manual/operator)</option>

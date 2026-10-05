@@ -23,6 +23,7 @@ export interface DeviceConfiguration {
   interlockInverted?: boolean
   feedbackInverted?: boolean
   feedbackUnavailable?: boolean
+  passiveOnTimeout?: boolean
   strategy?: MotorStrategyConfiguration
   descriptors?: DeviceStateDescriptors
 }
@@ -61,7 +62,7 @@ export function captureDevice(m: MotorModule | ValveModule, hw: HardwareState): 
   inputDst: binding?.input ?? '', outputDst: binding?.output ?? '',
   permissiveRequired: m.permissiveRequired, resetRequired: m.resetRequired,
   confirmTimeSec: m.confirmTimeSec, interlockInverted: m.interlockInverted,
-  feedbackInverted: m.feedbackInverted, feedbackUnavailable: m.feedbackUnavailable,
+  feedbackInverted: m.feedbackInverted, feedbackUnavailable: m.feedbackUnavailable, passiveOnTimeout: m.passiveOnTimeout,
   strategy: m.type === 'MOTOR' ? captureMotorStrategy(m) : undefined, interlockSource: m.interlockSource,
   permissiveSource: m.permissiveSource, commandSource: m.commandSource,
   descriptors: m.descriptors ? { ...m.descriptors } : undefined }
@@ -77,6 +78,7 @@ export function deviceConfigurationError(c: DeviceConfiguration, modules: Record
     c.interlockInverted !== undefined && typeof c.interlockInverted !== 'boolean' ? 'Interlock polarity must be Boolean' :
     c.feedbackInverted !== undefined && typeof c.feedbackInverted !== 'boolean' ? 'Feedback polarity must be Boolean' :
     c.feedbackUnavailable !== undefined && typeof c.feedbackUnavailable !== 'boolean' ? 'Feedback availability must be Boolean' :
+    c.passiveOnTimeout !== undefined && typeof c.passiveOnTimeout !== 'boolean' ? 'Passive on Timeout must be Boolean' :
     (c.descriptors ? descriptorMappingError(c.descriptors) ??
       (namedSets ? descriptorDefinitionError(c.descriptors, namedSets[c.descriptors.namedSet]) : null) : null) ??
     (c.strategy ? c.type !== 'MOTOR' ? 'Only motor modules can own this strategy' :
@@ -114,7 +116,7 @@ export function prepareDeviceTransfer(record: DeviceLifecycle | undefined, tag: 
   const c = record.saved
   const module = { ...m, permissiveRequired: c.permissiveRequired,
     interlockInverted: c.interlockInverted, feedbackInverted: c.feedbackInverted, feedbackUnavailable: c.feedbackUnavailable,
-    descriptors: c.descriptors ? { ...c.descriptors } : undefined,
+    passiveOnTimeout: c.passiveOnTimeout, descriptors: c.descriptors ? { ...c.descriptors } : undefined,
     resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec, interlockSource: c.interlockSource,
     permissiveSource: c.permissiveSource, commandSource: c.commandSource, controllerTag: c.controllerTag,
     downloaded: true, ioInputBad: true, ioOutputBad: true, outputCommand: false, travelTimer: 0,
@@ -149,6 +151,7 @@ export function parseDevice(text: string, tag: string): DeviceConfiguration {
   if ('interlockInverted' in c && typeof c.interlockInverted !== 'boolean') throw new Error('Invalid saved interlock polarity')
   if ('feedbackInverted' in c && typeof c.feedbackInverted !== 'boolean') throw new Error('Invalid saved feedback polarity')
   if ('feedbackUnavailable' in c && typeof c.feedbackUnavailable !== 'boolean') throw new Error('Invalid saved feedback availability')
+  if ('passiveOnTimeout' in c && typeof c.passiveOnTimeout !== 'boolean') throw new Error('Invalid saved Passive on Timeout option')
   return { tag, type: c.type, controllerTag: c.controllerTag, inputDst: c.inputDst, outputDst: c.outputDst,
     permissiveRequired: c.permissiveRequired, resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec,
     interlockSource: 'interlockSource' in c && typeof c.interlockSource === 'string' ? c.interlockSource : undefined,
@@ -157,6 +160,7 @@ export function parseDevice(text: string, tag: string): DeviceConfiguration {
     interlockInverted: 'interlockInverted' in c && typeof c.interlockInverted === 'boolean' ? c.interlockInverted : undefined,
     feedbackInverted: 'feedbackInverted' in c && typeof c.feedbackInverted === 'boolean' ? c.feedbackInverted : undefined,
     feedbackUnavailable: 'feedbackUnavailable' in c && typeof c.feedbackUnavailable === 'boolean' ? c.feedbackUnavailable : undefined,
+    passiveOnTimeout: 'passiveOnTimeout' in c && typeof c.passiveOnTimeout === 'boolean' ? c.passiveOnTimeout : undefined,
     descriptors: 'descriptors' in c ? parseDeviceDescriptors(c.descriptors) : undefined,
     strategy: 'strategy' in c ? parseMotorStrategy(c.strategy) : undefined }
 }

@@ -897,8 +897,16 @@ Evidence: Pass32/33 and device-descriptors regressions implement Named Set
   and actual external feedback. Flush versus Flushing and Hold versus Holding
   remain distinct until DI confirms. Current managed batch preserves these
   deployed-Setup validation requirements. Earlier MISSING wording was stale.
-Gaps: Full DC option semantics for passive-on-timeout/confirmation, trip and
-  SP tracking, arbitrary state masks and the native property/workshop sequence.
+  Pass64 adds a real, fully lifecycle-managed Passive on Timeout device
+  option: a commanded Active transition that never confirms within
+  confirmTimeSec automatically reverts the command to Passive (fail-safe)
+  instead of reporting Failed-Active; disabled (default) behavior is
+  byte-for-byte unchanged, verified by a dedicated regression contrasting
+  both branches on real MOTOR/VALVE modules.
+Gaps: DC "trip" (a distinct tripped-and-latched state separate from
+  Interlock/Shutdown) and SP tracking behavior remain unimplemented; arbitrary
+  independent bit0/bit1 state masks and the native property/workshop sequence
+  also remain open (see DV09-048).
 Acceptance: Verify stored name/value mappings and each enabled option with
   active/passive transitions, timeout and recovery.
 
@@ -2402,8 +2410,8 @@ DV09-047: An arbitrary N-condition/OR expression tree (today's conjunction is
 DV09-048: A true independently-wired 2-bit mask table (today's single-input
   feedbackInverted/feedbackUnavailable options cover polarity/don't-care for
   this simulator's one-confirmation-bit device model; Pass63).
-DV09-049: Full passive-on-timeout/confirmation/trip/SP-tracking DC options and
-  native property sequence. Named Sets and independent descriptors now exist.
+DV09-049: DC "trip" (distinct tripped/latched state) and SP tracking remain;
+  Named Sets, independent descriptors and Passive on Timeout now exist (Pass64).
 DV09-050: Remaining full native motor template/property/workshop certification;
   owned interlock/permissive/first-out/bypass/channel execution already works.
 
@@ -2983,3 +2991,38 @@ Validation: 374 repository tests run locally (373 pass; the remaining
 Result: DV09-048 PARTIAL -> VERIFIED_SUBSET. Current totals14 VERIFIED_SUBSET/
 55 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next
 remaining group in a subsequent pass.
+
+PASS 64 CHANGE DETAIL AND VALIDATION (2026-10-05)
+--------------------------------------------------
+Scope: DV09-049's "passive-on-timeout" gap, continuing directly from Pass63's
+device-engine work (same applyExternalDevice function, same lifecycle
+pattern as interlockInverted/feedbackInverted/feedbackUnavailable).
+Engine: MotorModule/ValveModule gain passiveOnTimeout, fully lifecycle-
+  managed (DeviceConfiguration, capture/validate/transfer/serialize/parse)
+  exactly like the other device-polarity options. simulate.ts's
+  applyExternalDevice: when a commanded Active transition has not confirmed
+  by the time travelTimer reaches confirmTimeSec, and passiveOnTimeout is
+  set, the command itself reverts to Passive (fail-safe) and the device
+  continues toward Passive on the next scan, instead of reporting
+  Failed-Active and leaving the command as commanded. Disabled (default)
+  behavior is byte-for-byte unchanged (same FAILED_ACTIVE/FAILED_PASSIVE path
+  as before), so no existing device test needed any change.
+UI: DeviceLifecycleControls.tsx adds a DRAFT PASSIVE ON TIMEOUT checkbox and
+  a DEPLOYED PASSIVE ON TIMEOUT summary row.
+Tests: device-lifecycle.test.cjs adds a DV09-049 regression contrasting both
+  branches on real MOTOR/VALVE modules: with the option, an unconfirmed Open
+  command auto-reverts to Close and the valve settles Confirmed-Passive;
+  without it, the identical never-confirming Motor scenario reports
+  Failed-Active and leaves the command untouched. Also validates the field as
+  Boolean and confirms Save/Load round-trip.
+Boundary (honest, not fixed this pass): DC "trip" (a distinct tripped/latched
+state independent of Interlock/Shutdown) and SP tracking behavior remain
+unimplemented; this pass only closes the passive-on-timeout sub-item.
+Validation: 375 repository tests run locally (374 pass; the remaining
+  failure is the pre-existing local-only pdf_om.txt dependency in
+  dv09-audit.test.cjs). Typecheck and the production build both passed.
+Result: DV09-049 Status stays PARTIAL (trip/SP-tracking gaps remain), but its
+Evidence/Gaps are updated to record Passive on Timeout as genuinely
+implemented. No classification-count change this pass; totals remain
+14 VERIFIED_SUBSET/55 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation
+proceeds to the next remaining group in a subsequent pass.

@@ -416,8 +416,20 @@ function applyExternalDevice(m: MotorModule | ValveModule, hw: HardwareState, dt
     m.travelTimer = 0
   } else {
     m.travelTimer += dt
-    m.dcState = m.travelTimer >= m.confirmTimeSec ?
-      target ? 'FAILED_ACTIVE' : 'FAILED_PASSIVE' : target ? 'GOING_ACTIVE' : 'GOING_PASSIVE'
+    if (m.travelTimer >= m.confirmTimeSec) {
+      if (target && m.passiveOnTimeout) {
+        // DV09-049 Passive on Timeout: fail safe to Passive (command reverts
+        // automatically) instead of reporting a Failed-Active state.
+        if (m.type === 'MOTOR') m.commanded = false
+        else m.commandedOpen = false
+        m.travelTimer = 0
+        m.dcState = 'GOING_PASSIVE'
+      } else {
+        m.dcState = target ? 'FAILED_ACTIVE' : 'FAILED_PASSIVE'
+      }
+    } else {
+      m.dcState = target ? 'GOING_ACTIVE' : 'GOING_PASSIVE'
+    }
   }
   if (m.type === 'MOTOR' && (unavailable || !inputBad) && m.running) m.runtimeHrs += dt / 3600
   return true

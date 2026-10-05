@@ -355,6 +355,10 @@ export interface MotorModule extends ModuleDisplayProperties {
   /** DV09-048 device state mask: no physical confirmation bit is wired; the
    * device self-confirms by elapsed travel time instead of real feedback. */
   feedbackUnavailable?: boolean
+  /** DV09-049 Passive on Timeout: automatically reverts the command to
+   * Passive (fail-safe) instead of reporting Failed-Active when a commanded
+   * Active transition does not confirm within confirmTimeSec. */
+  passiveOnTimeout?: boolean
   tag: string
   type: 'MOTOR'
   description: string
@@ -405,6 +409,10 @@ export interface ValveModule extends ModuleDisplayProperties {
   /** DV09-048 device state mask: no physical confirmation bit is wired; the
    * device self-confirms by elapsed travel time instead of real feedback. */
   feedbackUnavailable?: boolean
+  /** DV09-049 Passive on Timeout: automatically reverts the command to
+   * Passive (fail-safe) instead of reporting Failed-Active when a commanded
+   * Active transition does not confirm within confirmTimeSec. */
+  passiveOnTimeout?: boolean
   tag: string
   type: 'VALVE'
   description: string

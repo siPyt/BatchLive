@@ -143,6 +143,36 @@ test('DV09-048 device state masks: feedback bit inversion and unavailable self-c
   // Round-trip through Save/Load: the saved blob genuinely persists the configured mask.
   assert.equal(parseDevice(database.get(savedDeviceKey('MTR')), 'MTR').feedbackInverted, true)
 }))
+test('DV09-049 Passive on Timeout reverts an unconfirmed Active command to Passive instead of reporting Failed-Active', () => fixture((s, alerts, database) => {
+  prepare(s, 'XV', 'CTLR')
+  s.editDeviceDraft('XV', { passiveOnTimeout: true, confirmTimeSec: 1 })
+  s.saveDeviceConfiguration('XV')
+  assert.equal(s.downloadDeviceConfiguration('XV'), true)
+  s.tick(.1)
+  s.openValve('XV')
+  for (let i = 0; i < 9; i++) s.tick(.1)
+  assert.equal(m('XV').open, false)
+  assert.equal(m('XV').dcState, 'GOING_ACTIVE')
+  assert.equal(m('XV').commandedOpen, true)
+  for (let i = 0; i < 5; i++) s.tick(.1)
+  assert.equal(m('XV').commandedOpen, false, 'Passive on Timeout auto-reverts the command once the 1s Confirm Time elapses')
+  s.tick(.1)
+  assert.equal(m('XV').open, false)
+  assert.equal(m('XV').dcState, 'CONFIRMED_PASSIVE')
+
+  // Without the option, the identical never-confirming scenario reports Failed-Active and leaves the command alone.
+  prepare(s, 'OTHER', 'CTLR2')
+  assert.equal(s.downloadDeviceConfiguration('OTHER'), true)
+  s.tick(.1)
+  s.startMotor('OTHER')
+  for (let i = 0; i < 21; i++) s.tick(.1)
+  assert.equal(m('OTHER').running, false)
+  assert.equal(m('OTHER').dcState, 'FAILED_ACTIVE')
+  assert.equal(m('OTHER').commanded, true, 'without the option the command is left exactly as commanded, not auto-reverted')
+
+  assert.match(deviceConfigurationError({ ...record('XV').draft, passiveOnTimeout: 'yes' }, useStore.getState().modules), /Passive on Timeout must be Boolean/)
+  assert.equal(parseDevice(database.get(savedDeviceKey('XV')), 'XV').passiveOnTimeout, true)
+}))
 test('an existing passive live binding can enter saved lifecycle without poisoning healthy physical channel quality', () => fixture(s => {
   assert.equal(s.bindDeviceDst('MTR', 'input', 'CTLR-IN'), true)
   assert.equal(s.bindDeviceDst('MTR', 'output', 'CTLR-OUT'), true)

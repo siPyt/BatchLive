@@ -2374,5 +2374,24 @@ Result: DV09-048 PARTIAL -> VERIFIED_SUBSET. Current totals14 VERIFIED_SUBSET/
 (373 pass; pre-existing pdf_om.txt failure unrelated). Typecheck and
 production build both passed.
 
+PASS 64: DV09-049 PASSIVE ON TIMEOUT DEVICE OPTION
+-----------------------------------------------------
+Line1 - Engine: MotorModule/ValveModule gain passiveOnTimeout, fully
+  lifecycle-managed like interlockInverted/feedbackInverted/
+  feedbackUnavailable. applyExternalDevice: when a commanded Active
+  transition has not confirmed by confirmTimeSec and passiveOnTimeout is
+  set, the command itself reverts to Passive instead of reporting
+  Failed-Active. Disabled (default) behavior is unchanged.
+Line2 - UI: DeviceLifecycleControls.tsx adds the draft checkbox and a
+  deployed-state summary row.
+Line3 - Tests: a regression contrasts both branches on real MOTOR/VALVE
+  modules (auto-revert-and-settle-Passive vs report-Failed-Active), plus
+  Boolean validation and Save/Load round-trip.
+Result: DV09-049 Status stays PARTIAL (DC trip/SP-tracking remain), Evidence
+updated. Totals unchanged at14 VERIFIED_SUBSET/55 PARTIAL/34 MISSING/
+19 BOUNDARY/6 CONTEXT. 375 repository tests run locally (374 pass;
+pre-existing pdf_om.txt failure unrelated). Typecheck and production build
+both passed.
+
 Commit/push authorization for this pass follows the same 2026-10-05
 instruction already recorded for Pass54.
