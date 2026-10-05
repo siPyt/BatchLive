@@ -3,9 +3,9 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: immutable last-good
-AO module download replay (Pass47, LOCAL; pushes paused by user).
-Previous milestone: 16a2903, Studio New FBD/SFC workflow (Pass46, LOCAL).
+DV-09 is NOT complete. Latest implemented milestone: opt-in controller-owned
+AO restart-memory-only update (Pass48, LOCAL; pushes paused by user).
+Previous milestone: d9310c8, immutable AO replay (Pass47, LOCAL).
 Last published functional milestone: da59138, PID Detail/trends (Pass41).
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
@@ -18,10 +18,10 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:345 repository tests passed; typecheck, production build,
+Last validation:348 repository tests passed; typecheck, production build,
 edited-file diagnostics, audit validator and diff whitespace checks passed.
-Browser verified replay Cancel retaining700; confirmation restores snapshot500
-and applied50%/PV500 while saved/stored900 remains900 and status is not cleared.
+Browser verified Physical Network memory update retaining live700/saved900,
+capturing500 without working changes; actual restart restored500/50% output.
 Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
@@ -36,6 +36,7 @@ Most recent delivered functionality:
   - Shared module-scoped Download Status comparison and yellow/unknown/blue indicators.
   - Control Studio File/New and empty-Studio/SFC entry into shared FBD/SFC creation.
   - Immutable AO replay excluding newer saved/live values and guarding recommission.
+  - Atomic AO memory-only transfer capture consumed by actual cold restart.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1780,3 +1781,35 @@ regressions, typecheck, production build, scoped diagnostics and regenerated
 line ledger passed. Initial full validation found stale line dispositions after
 the intentional DV09-018 status change; regeneration and final full run passed.
 Local commits only; pushes remain paused.
+
+PASS 48: OPT-IN AO CONTROLLER RESTART-MEMORY UPDATE (p97)
+-------------------------------------------------------
+Line1 - Scope: commissioned available controller's managed downloaded AOs only.
+  Empty/missing/down controller and invalid owned module reject the entire update.
+Line2 - Memory-only: captures independent last-good transfer configurations;
+  never reads current saved edits into restart memory.
+Line3 - Working isolation: modules, hardware/bindings, saved/draft/deployed
+  configurations, revisions and live-parameter NVM retain their prior values.
+Line4 - Consumption: manual Cold Restart Module and in-window power restoration
+  consume the transfer snapshot; deployed restore flags may overlay separate
+  live parameter NVM. Existing unenrolled restart behavior remains unchanged.
+Line5 - Partial: opted-in memory becomes stale after subsequent Partial transfer.
+  Manual restart rejects; stale power recovery inhibits the AO with an explicit
+  diagnostic and requires fresh Full. Refresh before outage permits restart.
+Line6 - Full: automatically refreshes opted-in restart transfer memory.
+Line7 - Decommission: clears restart snapshot; fresh Full enrollment remains
+  required, preserving prior recommission guard.
+Line8 - Permissions: unlocked Download required; failures log/notify explicitly
+  and cannot partially update memory for otherwise-valid modules.
+Line9 - UI: Physical Network Update AO Cold Restart Memory confirms bounded
+  scope and opt-in semantics. Studio reports Not enabled/Ready/Update required.
+Line10 - Browser measured update: live700 and saved900 retained, memory500;
+  runtime/hardware/saved references unchanged. Actual restart restored500 and
+  applied50%. Original96-module running plant/UI/security/storage restored.
+Three new regressions verify snapshot/default/live separation, actual manual/
+power consumption, Full/Partial refresh, decommission and atomic/key/lock failure.
+Boundary: session-local managed-AO subset only. No full native controller script,
+upgrade recovery or PID/device/SFC/card/Setup restart memory is claimed.
+DV09-018 remains PARTIAL. No push without explicit authorization.
+Validation:348 full-suite tests, targeted restart/memory tests, typecheck,
+production build, scoped diagnostics, audit validator and diff whitespace pass.

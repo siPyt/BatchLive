@@ -26,6 +26,8 @@ export interface AoLifecycle {
   deployed?: AoConfiguration
   lastGoodDownload?: AoConfiguration
   replayFullRequired?: boolean
+  restartDownload?: AoConfiguration
+  restartMemoryRequired?: boolean
   nvm?: AoMemory
   online: boolean
   savedRevision: number
@@ -133,8 +135,8 @@ export function deployedAo(c: AoConfiguration, runtime: AnalogOutputModule, beha
   return m
 }
 export function restartAo(record: AoLifecycle, runtime: AnalogOutputModule, hw: HardwareState): AnalogOutputModule {
-  if (!record.deployed || record.replayFullRequired) return { ...runtime, downloaded: false, bad: true, actualMode: 'OOS' }
-  const c = record.deployed
+  if (!record.deployed || record.replayFullRequired || record.restartMemoryRequired) return { ...runtime, downloaded: false, bad: true, actualMode: 'OOS' }
+  const c = record.restartDownload ?? record.deployed
   const m = deployedAo(c, runtime, 'CONFIGURED', hw)
   if (c.restoreModule && record.nvm) {
     const memory = record.nvm

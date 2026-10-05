@@ -55,6 +55,9 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
     <td>{record.online ? 'Online runtime' : 'Offline draft'}; {status}</td></tr>
     <tr><td>SAVED / DOWNLOADED REVISION</td><td>{record.savedRevision} / {record.deployedRevision}</td>
       <td>Local browser database / simulated controller</td></tr>
+    <tr><td>AO DOWNLOAD RESTART MEMORY</td><td>{record.restartMemoryRequired ? 'Update required after Partial Download' :
+      record.restartDownload ? 'Transfer snapshot ready' : 'Not enabled; existing default restart'}</td>
+      <td>Physical Network: Update AO Cold Restart Memory; separate from live parameter NVM</td></tr>
     {!record.online && <>
       <tr><td>ASSIGNED CONTROLLER</td><td><select aria-label={`${tag} assigned controller`}
         value={c.controllerTag} onChange={e => edit(tag, { controllerTag: e.target.value })}>

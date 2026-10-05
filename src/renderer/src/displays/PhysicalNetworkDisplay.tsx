@@ -313,6 +313,11 @@ function ControllerPanel({
           </button>
         )}
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={autoSense}>Auto-sense I/O</button>
+        <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
+          if (window.confirm('Capture last-good downloads for managed AO modules on this controller into separate simulated restart memory? Running configuration and saved database stay unchanged. This opts those modules into transfer-snapshot restart; Partial downloads then require another memory update. Other module types and native controller scripts are not included.')) {
+            useStore.getState().updateControllerAoRestartMemory(c.tag)
+          }
+        }}>Update AO Cold Restart Memory</button>
         <button className="tbtn sm" disabled={!c.commissioned || down || c.powerDownAt !== null} onClick={powerLoss}>Power Loss</button>
         {c.powerDownAt !== null ? (
           <button className="tbtn sm" onClick={restorePowerNow}>Restore Power</button>

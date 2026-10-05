@@ -1507,6 +1507,104 @@ function savedAoCourseProject(store) {
   store.tick(0.1)
 }
 
+test('p97 AO restart-memory-only update captures last transfers, not newer saved or working values, and powers real restart', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.editModuleDraft('LEVEL-101', { downloadBehavior: 'ALL' })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.setStandaloneAoMode('LEVEL-101', 'AUTO')
+    store.setStandaloneAoValue('LEVEL-101', 600)
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 555)
+    store.downloadModule('LEVEL-101', 'PARTIAL')
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 900 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 777)
+    const before = useStore.getState()
+    const record = before.moduleLifecycle['LEVEL-101']
+    const stored = window.localStorage.getItem(savedAoStorageKey('LEVEL-101'))
+    assert.equal(store.updateControllerAoRestartMemory('CTRL1'), true)
+    const after = useStore.getState()
+    assert.equal(after.modules, before.modules)
+    assert.equal(after.hardware, before.hardware)
+    assert.equal(after.sfcs, before.sfcs)
+    const memory = after.moduleLifecycle['LEVEL-101']
+    for (const key of ['draft', 'saved', 'deployed', 'nvm', 'lastGoodDownload']) assert.equal(memory[key], record[key])
+    assert.notEqual(memory.restartDownload, record.lastGoodDownload)
+    assert.deepEqual([memory.restartDownload.module.mode, memory.restartDownload.module.sp,
+      memory.restartDownload.module.parameters.CAS_SP.value], ['AUTO', 600, 555])
+    assert.equal(window.localStorage.getItem(savedAoStorageKey('LEVEL-101')), stored)
+    assert.equal(store.restartModule('LEVEL-101'), true)
+    assert.deepEqual([useStore.getState().modules['LEVEL-101'].mode,
+      useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value], ['AUTO', 555])
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].saved.module.parameters.CAS_SP.value, 900)
+    store.tick(.1)
+    assert.equal(useStore.getState().modules['LEVEL-101'].out, 60)
+  })
+})
+
+test('opt-in AO restart snapshot requires refresh after Partial; Full refreshes and power recovery consumes it', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    store.updateControllerAoRestartMemory('CTRL1')
+    const initialMemory = useStore.getState().moduleLifecycle['LEVEL-101'].restartDownload
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 800 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.downloadModule('LEVEL-101', 'PARTIAL')
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].restartDownload, initialMemory)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].restartMemoryRequired, true)
+    const runtime = useStore.getState().modules['LEVEL-101']
+    assert.equal(store.restartModule('LEVEL-101'), false)
+    assert.equal(useStore.getState().modules['LEVEL-101'], runtime)
+    assert.equal(store.updateControllerAoRestartMemory('CTRL1'), true)
+    assert.equal(store.restartModule('LEVEL-101'), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value, 800)
+    store.editModuleDraft('LEVEL-101', { parameter: { name: 'CAS_SP', value: 400 } })
+    store.saveModuleConfiguration('LEVEL-101')
+    store.downloadModule('LEVEL-101', 'FULL')
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].restartDownload.module.parameters.CAS_SP.value, 400)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].restartMemoryRequired, false)
+    const hardware = useStore.getState().hardware
+    useStore.setState({ hardware: { ...hardware, controllers: { ...hardware.controllers,
+      CTRL1: { ...hardware.controllers.CTRL1, coldRestartMinutes: 5 } } } })
+    store.setAoParameter('LEVEL-101', 'CAS_SP', 700)
+    assert.equal(store.simulateControllerPowerLoss('CTRL1'), true)
+    assert.equal(store.restoreControllerPower('CTRL1'), true)
+    assert.equal(useStore.getState().modules['LEVEL-101'].parameters.CAS_SP.value, 400)
+    assert.equal(store.decommissionController('CTRL1'), true)
+    assert.equal(useStore.getState().moduleLifecycle['LEVEL-101'].restartDownload, undefined)
+  })
+})
+
+test('AO memory update rejects missing/empty/down/locked/denied controllers atomically', () => {
+  withAreaProject(store => {
+    savedAoCourseProject(store)
+    const before = useStore.getState()
+    assert.equal(store.updateControllerAoRestartMemory('MISSING'), false)
+    const hardware = before.hardware
+    useStore.setState({ hardware: { ...hardware, controllers: { ...hardware.controllers,
+      CTRL1: { ...hardware.controllers.CTRL1, primary: 'FAILED', secondary: 'FAILED' } } } })
+    assert.equal(store.updateControllerAoRestartMemory('CTRL1'), false)
+    useStore.setState({ hardware })
+    useSecurity.setState({ currentUser: 'OperatorA' })
+    assert.equal(store.updateControllerAoRestartMemory('CTRL1'), false)
+    useSecurity.setState({ currentUser: 'admin', locked: true })
+    assert.equal(store.updateControllerAoRestartMemory('CTRL1'), false)
+    useSecurity.setState({ locked: false })
+    assert.equal(useStore.getState().moduleLifecycle, before.moduleLifecycle)
+    assert.equal(useStore.getState().modules, before.modules)
+    store.createController('EMPTY-CTRL', 'No managed AO')
+    store.commissionController('EMPTY-CTRL')
+    assert.equal(store.updateControllerAoRestartMemory('EMPTY-CTRL'), false)
+    const record = useStore.getState().moduleLifecycle['LEVEL-101']
+    useStore.setState({ moduleLifecycle: { ...useStore.getState().moduleLifecycle,
+      'SECOND-AO': { ...record, lastGoodDownload: undefined } } })
+    const recordsBefore = useStore.getState().moduleLifecycle
+    assert.equal(store.updateControllerAoRestartMemory('CTRL1'), false,
+      'one invalid owned module rejects the entire memory update')
+    assert.equal(useStore.getState().moduleLifecycle, recordsBefore)
+  })
+})
+
 test('p98 AO last-good replay excludes subsequent saved/draft edits and restores actual transferred defaults only', () => {
   withAreaProject(store => {
     savedAoCourseProject(store)

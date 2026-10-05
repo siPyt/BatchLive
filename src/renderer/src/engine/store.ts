@@ -161,6 +161,7 @@ interface StoreState extends PlantState {
   loadSavedModuleConfiguration: (tag: string) => boolean
   downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL') => boolean
   resendLastGoodModuleDownload: (tag: string) => boolean
+  updateControllerAoRestartMemory: (tag: string) => boolean
   uploadModule: (tag: string) => boolean
   restartModule: (tag: string) => boolean
   enablePidLifecycle: (tag: string) => boolean
@@ -1159,7 +1160,8 @@ export const useStore = create<StoreState>((set, get) => ({
         },
         moduleLifecycle: Object.fromEntries(Object.entries(s.moduleLifecycle).map(([moduleTag, record]) =>
           [moduleTag, record.deployed?.controllerTag === tag
-            ? { ...record, lastGoodDownload: undefined, replayFullRequired: true } : record])),
+            ? { ...record, lastGoodDownload: undefined, restartDownload: undefined,
+              restartMemoryRequired: false, replayFullRequired: true } : record])),
         modules: Object.fromEntries(Object.entries(s.modules).map(([moduleTag, module]) =>
           [moduleTag, module.type === 'AO' && s.moduleLifecycle[moduleTag]?.deployed?.controllerTag === tag
             ? { ...module, downloaded: false, bad: true, actualMode: 'OOS' as const } : module])),
@@ -1298,6 +1300,12 @@ export const useStore = create<StoreState>((set, get) => ({
         ? `Cold restart succeeded after ${outageMinutes.toFixed(2)} minutes; controller returned to service`
         : `Cold restart unavailable after ${outageMinutes.toFixed(2)} minutes; controller requires commissioning and download`
       get().logEvent('DIAGNOSTIC', tag, message)
+      for (const [moduleTag, record] of Object.entries(get().moduleLifecycle)) {
+        if (record.deployed?.controllerTag === tag && record.restartMemoryRequired) {
+          get().logEvent('DIAGNOSTIC', moduleTag,
+            'AO restart inhibited: transfer memory was not refreshed after Partial download; fresh Full module download required')
+        }
+      }
     }
     return restored
   },
@@ -1914,9 +1922,38 @@ export const useStore = create<StoreState>((set, get) => ({
       moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record,
         deployed: cloneConfiguration(saved), deployedRevision: record.savedRevision,
         lastGoodDownload: capturedAoDownload(saved, module), replayFullRequired: false,
+        ...(record.restartDownload ? scope === 'FULL' ?
+          { restartDownload: capturedAoDownload(saved, module), restartMemoryRequired: false } :
+          { restartMemoryRequired: true } : {}),
         nvm: memoryOf(module) } }, rev: s.rev + 1
     }))
     get().logEvent('CONFIGURE', tag, `${scope} simulated module download committed atomically (${behavior}); NVM updated`)
+    return true
+  },
+
+  updateControllerAoRestartMemory: tag => {
+    if (!requireUnlockedKey('CAN_DOWNLOAD', `Update AO cold-restart memory ${tag}`)) return false
+    const state = get()
+    const controller = state.hardware.controllers[tag]
+    if (!controller || !controller.commissioned || controllerIsDown(controller)) {
+      return rejectAo(get, tag, 'AO restart-memory update requires a commissioned available controller')
+    }
+    const records = Object.entries(state.moduleLifecycle).filter(([, record]) =>
+      record.deployed?.controllerTag === tag)
+    if (!records.length) return rejectAo(get, tag, 'No downloaded managed AO modules belong to this controller')
+    for (const [moduleTag, record] of records) {
+      const runtime = state.modules[moduleTag]
+      const error = !record.lastGoodDownload || record.replayFullRequired || runtime?.type !== 'AO' || !runtime.downloaded
+        ? 'Fresh Full module download required' : downloadError(record.lastGoodDownload, state.hardware)
+      if (error) return rejectAo(get, tag, `AO restart-memory update rejected for ${moduleTag}: ${error}; no memory changed`)
+    }
+    const updated = { ...state.moduleLifecycle }
+    for (const [moduleTag, record] of records) {
+      if (record.lastGoodDownload) updated[moduleTag] = { ...record,
+        restartDownload: cloneConfiguration(record.lastGoodDownload), restartMemoryRequired: false }
+    }
+    set({ moduleLifecycle: updated })
+    get().logEvent('CONFIGURE', tag, `AO cold-restart download memory updated for ${records.length} managed modules; working configuration and saved database unchanged`)
     return true
   },
 
@@ -1973,6 +2010,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const record = state.moduleLifecycle[tag]
     const runtime = state.modules[tag]
     const controller = record?.deployed ? state.hardware.controllers[record.deployed.controllerTag] : undefined
+    if (record?.restartMemoryRequired) return rejectAo(get, tag, 'Update controller AO cold-restart memory after the Partial download before restarting')
     if (!record?.deployed || runtime?.type !== 'AO' || !runtime.downloaded ||
         !controller || controllerIsDown(controller)) return rejectAo(get, tag, 'Cold restart requires an available downloaded module')
     const module = restartAo(record, runtime, state.hardware)

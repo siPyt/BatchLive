@@ -323,10 +323,21 @@ Verified AO subset (Pass47): each successful managed AO Full/Partial download
   Browser saved900/live700/snapshot500: Cancel retained700; confirmed replay
   returned applied50%/PV500 while saved/stored900 remained900. Original state
   restored. Existing dynamic AO parameter NVM/restore flags remain separate.
-Gaps: whole-controller full-plus-partial script replay, separate controller
+Pass48 adds opt-in managed-AO controller memory-only update: captures independent
+  last-transfer restart snapshots atomically for that controller's managed AOs.
+  No working/saved configuration, output, binding, deployment revision or live
+  parameter NVM changes. Actual manual restart and in-window power recovery
+  consume these snapshots. Partial transfers mark opted-in memory stale;
+  manual restart rejects and power recovery inhibits with diagnostics until
+  fresh Full. Update before outage clears staleness; Full refreshes memory.
+  Decommission clears it. Missing/down/empty/denied/locked and invalid-module
+  updates reject atomically. Existing unenrolled restart behavior is preserved.
+  Browser UI update left live700/saved900 unchanged and captured500; real
+  restart produced500/50%. Fixture and original plant/storage restored.
+Gaps: whole-controller full-plus-partial script replay, general controller
   memory-only script update, upgrade/workstation replay, other module types and
   native persistent download scripts are absent. AO replay snapshots are
-  session-local; this is not controller cold-restart memory parity.
+  session-local; AO memory-only functionality is not whole-controller parity.
 Acceptance: Test an undownloaded edit, memory-only update and last-good replay;
   ensure configured data and live control are not silently overwritten.
 

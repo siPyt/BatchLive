@@ -576,6 +576,21 @@ whole-controller full-plus-partial script, controller-memory-only update,
 workstation recovery or native persistent download script. Existing live
 parameter NVM/restore flags remain a separate simulation.
 
+In Physical Network, **Update AO Cold Restart Memory** atomically captures the
+last successful transfers for managed AO modules assigned to that controller.
+It requires an unlocked workstation and Download permission. It changes only
+separate session-local restart snapshots and logs the update—not working
+configuration, live outputs, saved defaults, bindings or revisions.
+Later database edits are excluded. This explicitly opts those AO modules into
+transfer-snapshot restart, consumed by Cold Restart Module and in-window power
+recovery. Deployed parameter restore flags can still overlay live parameter NVM.
+After another Partial download, refresh memory before restarting. A stale
+snapshot rejects manual restart and inhibits power-recovered AO execution with
+a diagnostic; a fresh Full is then required. Full downloads refresh opted-in
+memory. Decommission clears eligibility. Unenrolled modules retain their prior
+restart behavior. This is the p97 managed-AO subset, not a native full-controller
+script, upgrade recovery or memory for PID/device/SFC/Setup Data.
+
 Save persists only this AO configuration in the local browser profile; Load Saved
 requires the module and its plant area to exist. Controller/card prerequisites
 must be recreated before Download. Deployed state and simulated NVM remain
