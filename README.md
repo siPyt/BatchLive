@@ -587,8 +587,18 @@ differences are not cleared by replay. Decommissioning invalidates managed AO
 deployments and their replay eligibility. Recommission requires a fresh Full,
 not Partial or replay, before those modules can operate again.
 Cold power recovery cannot bypass that fresh-Full requirement.
-Snapshots are session-local. This is a p98 single-AO replay subset, not a
-whole-controller full-plus-partial script, controller-memory-only update,
+Physical Network's **Re-send Last Good Managed AOs** replays every deployed
+managed AO on the selected controller in one atomic update. Its named confirmation
+captures exact last-good snapshots and membership; any changed transfer/scope,
+invalid member or unavailable target aborts all replay. Scope follows deployed
+ownership, not later database reassignments, and excludes newly saved modules
+that have never been downloaded. It preserves newer saved/draft data, nominal
+deployment/revisions and outstanding status differences. Each module restores
+its last Full plus subsequently preserved Partial values rather than current
+live values. Recommissioning still requires fresh Full. Existing opted-in restart
+memory/staleness is not refreshed by replay; use the separate memory update.
+Snapshots are session-local. These are bounded AO replay subsets, not a native
+whole-controller full-plus-partial script, general controller-memory-only update,
 workstation recovery or native persistent download script. Existing live
 parameter NVM/restore flags remain a separate simulation.
 

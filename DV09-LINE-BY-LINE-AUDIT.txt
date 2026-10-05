@@ -344,6 +344,18 @@ Pass48 adds opt-in managed-AO controller memory-only update: captures independen
   updates reject atomically. Existing unenrolled restart behavior is preserved.
   Browser UI update left live700/saved900 unchanged and captured500; real
   restart produced500/50%. Fixture and original plant/storage restored.
+Pass51 adds atomic controller-owned AO replay: all deployed managed AOs on the
+  selected controller restore immutable last-good transfers in one commit.
+  Scope follows deployed ownership, excluding newer saved reassignments and
+  never-downloaded additions. Changed confirmation scope/transfer, any invalid
+  member, unavailable controller, denied key/lock and recommission reject the
+  whole batch. Saved/draft/nominal deployment/revisions/status remain unchanged.
+  Final Partial-preserved values are replayed, not current live/default values.
+  Three engine regressions and existing UI regression validate isolation, one
+  commit, AUTO600/CAS_SP555 plus second AO250, access and atomic failure.
+  Browser actual Physical Network fixture replay confirmation listed two names;
+  Cancel retained70% each; confirm restored25/50% while both saved900 remained.
+  Original plant/storage restored. Restart memory/staleness remains separate.
 Gaps: whole-controller full-plus-partial script replay, general controller
   memory-only script update, upgrade/workstation replay, other module types and
   native persistent download scripts are absent. AO replay snapshots are

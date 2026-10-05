@@ -30,7 +30,8 @@ import { clonePidIo, configurePidIo, pidIoPatchError, signalError } from './anal
 import { aoConfigurationError, aoEngineeringValue } from './standaloneAo'
 import {
   aoOperatorError, cloneAo, cloneConfiguration, configurationError, deployedAo, downloadError, lifecycleDirty,
-  memoryOf, committedAoTransfer, controllerAoRecords, prepareAoTransfer, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
+  memoryOf, committedAoTransfer, controllerAoRecords, controllerDeployedAoRecords, prepareAoReplay,
+  prepareAoTransfer, parseSavedAo, restartAo, savedAoStorageKey, serializeSavedAo, withProjectMembership,
   type AoConfiguration, type AoDraftPatch, type AoLifecycle
 } from './moduleLifecycle'
 import {
@@ -163,6 +164,7 @@ interface StoreState extends PlantState {
   downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL', expected?: AoConfiguration) => boolean
   downloadControllerAos: (tag: string, expected?: Record<string, AoConfiguration | undefined>) => boolean
   resendLastGoodModuleDownload: (tag: string) => boolean
+  resendControllerAoDownloads: (tag: string, expected?: Record<string, AoConfiguration | undefined>) => boolean
   updateControllerAoRestartMemory: (tag: string) => boolean
   uploadModule: (tag: string) => boolean
   restartModule: (tag: string) => boolean
@@ -1965,8 +1967,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!controller || !controller.commissioned || controllerIsDown(controller)) {
       return rejectAo(get, tag, 'AO restart-memory update requires a commissioned available controller')
     }
-    const records = Object.entries(state.moduleLifecycle).filter(([, record]) =>
-      record.deployed?.controllerTag === tag)
+    const records = controllerDeployedAoRecords(state.moduleLifecycle, tag)
     if (!records.length) return rejectAo(get, tag, 'No downloaded managed AO modules belong to this controller')
     for (const [moduleTag, record] of records) {
       const runtime = state.modules[moduleTag]
@@ -1989,13 +1990,10 @@ export const useStore = create<StoreState>((set, get) => ({
     const state = get()
     const record = state.moduleLifecycle[tag]
     const runtime = state.modules[tag]
-    if (!record?.lastGoodDownload || record.replayFullRequired || runtime?.type !== 'AO') {
-      return rejectAo(get, tag, 'Perform a fresh Full AO module download before re-sending a last-good snapshot')
-    }
-    const snapshot = record.lastGoodDownload
-    const error = downloadError(snapshot, state.hardware)
-    if (error) return rejectAo(get, tag, `Last-good module replay failed; runtime unchanged: ${error}`)
-    const module = deployedAo(snapshot, runtime, 'CONFIGURED', state.hardware)
+    const prepared = prepareAoReplay(record, runtime, state.hardware)
+    if ('error' in prepared) return rejectAo(get, tag, prepared.error)
+    if (!record) return rejectAo(get, tag, 'Managed AO lifecycle no longer exists')
+    const { snapshot, module } = prepared
     set(s => ({
       modules: { ...s.modules, [tag]: module },
       hardware: { ...s.hardware, analogBindings: { ...s.hardware.analogBindings, [tag]: { output: snapshot.outputDst } } },
@@ -2003,6 +2001,40 @@ export const useStore = create<StoreState>((set, get) => ({
       rev: s.rev + 1
     }))
     get().logEvent('CONFIGURE', tag, `Last-good AO module transfer re-sent to ${snapshot.controllerTag}; saved/draft edits not downloaded`)
+    return true
+  },
+
+  resendControllerAoDownloads: (tag, expected) => {
+    if (!requireUnlockedKey('CAN_DOWNLOAD', `Re-send controller-owned AO transfers ${tag}`)) return false
+    const state = get()
+    const controller = state.hardware.controllers[tag]
+    if (!controller || !controller.commissioned || controllerIsDown(controller)) {
+      return rejectAo(get, tag, 'Controller-owned AO replay requires a commissioned available controller')
+    }
+    const records = controllerDeployedAoRecords(state.moduleLifecycle, tag)
+    if (!records.length) return rejectAo(get, tag, 'No deployed managed AOs belong to this controller')
+    if (expected && (Object.keys(expected).length !== records.length ||
+      records.some(([moduleTag, record]) => !(moduleTag in expected) || expected[moduleTag] !== record.lastGoodDownload))) {
+      return rejectAo(get, tag, 'Controller-owned AO replay scope or last-good transfer changed after confirmation opened; no modules replayed')
+    }
+    const modules = { ...state.modules }
+    const moduleLifecycle = { ...state.moduleLifecycle }
+    const analogBindings = { ...state.hardware.analogBindings }
+    for (const [moduleTag, record] of records) {
+      const prepared = prepareAoReplay(record, state.modules[moduleTag], state.hardware)
+      if ('error' in prepared) {
+        return rejectAo(get, tag, `Controller-owned AO replay rejected for ${moduleTag}: ${prepared.error}; no modules replayed`)
+      }
+      const { snapshot, module } = prepared
+      if (snapshot.controllerTag !== tag) {
+        return rejectAo(get, tag, `Last-good target for ${moduleTag} does not match ${tag}; no modules replayed`)
+      }
+      modules[moduleTag] = module
+      moduleLifecycle[moduleTag] = { ...record, nvm: memoryOf(module) }
+      analogBindings[moduleTag] = { output: snapshot.outputDst }
+    }
+    set({ modules, moduleLifecycle, hardware: { ...state.hardware, analogBindings }, rev: state.rev + 1 })
+    get().logEvent('CONFIGURE', tag, `Last-good AO transfers re-sent atomically for ${records.length} modules: ${records.map(([name]) => name).join(', ')}; newer saved/draft edits excluded; other algorithms/cards/Setup not replayed`)
     return true
   },
 

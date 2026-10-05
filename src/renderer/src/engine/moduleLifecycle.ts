@@ -160,6 +160,19 @@ export function controllerAoRecords(records: Record<string, AoLifecycle>, contro
   return Object.entries(records).filter(([, record]) =>
     record.saved?.controllerTag === controllerTag || record.draft.controllerTag === controllerTag)
 }
+export function controllerDeployedAoRecords(records: Record<string, AoLifecycle>, controllerTag: string): [string, AoLifecycle][] {
+  return Object.entries(records).filter(([, record]) => record.deployed?.controllerTag === controllerTag)
+}
+export function prepareAoReplay(record: AoLifecycle | undefined, runtime: AnyModule | undefined,
+  hardware: HardwareState): { error: string } | { snapshot: AoConfiguration; module: AnalogOutputModule } {
+  if (!record?.lastGoodDownload || record.replayFullRequired || runtime?.type !== 'AO') {
+    return { error: 'Perform a fresh Full AO module download before re-sending a last-good snapshot' }
+  }
+  const snapshot = record.lastGoodDownload
+  const error = downloadError(snapshot, hardware)
+  return error ? { error: `Last-good module replay failed; runtime unchanged: ${error}` } :
+    { snapshot, module: deployedAo(snapshot, runtime, 'CONFIGURED', hardware) }
+}
 export function committedAoTransfer(record: AoLifecycle, saved: AoConfiguration,
   module: AnalogOutputModule, scope: 'FULL' | 'PARTIAL'): AoLifecycle {
   return { ...record, deployed: cloneConfiguration(saved), deployedRevision: record.savedRevision,

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useStore } from '../engine/store'
-import { controllerAoRecords } from '../engine/moduleLifecycle'
+import { controllerAoRecords, controllerDeployedAoRecords } from '../engine/moduleLifecycle'
 import { useUi } from '../ui/uiStore'
 import { TraditionalIoPanel } from './TraditionalIoPanel'
 import {
@@ -321,6 +321,13 @@ function ControllerPanel({
             useStore.getState().downloadControllerAos(c.tag, reviewed)
           }
         }}>Full Download Managed AOs</button>
+        <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
+          const records = controllerDeployedAoRecords(useStore.getState().moduleLifecycle, c.tag)
+          const reviewed = Object.fromEntries(records.map(([tag, record]) => [tag, record.lastGoodDownload]))
+          if (window.confirm(`Re-send last-good transfers for deployed managed AOs on ${c.tag}: ${records.map(([tag]) => tag).join(', ') || '(none)'}. Later saved/draft edits are excluded. This changes running modes/outputs atomically. Cancel aborts all replay. Recommissioning requires fresh Full. Other algorithms/cards/Setup and native controller scripts are excluded.`)) {
+            useStore.getState().resendControllerAoDownloads(c.tag, reviewed)
+          }
+        }}>Re-send Last Good Managed AOs</button>
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
           if (window.confirm('Capture last-good downloads for managed AO modules on this controller into separate simulated restart memory? Running configuration and saved database stay unchanged. This opts those modules into transfer-snapshot restart; Partial downloads then require another memory update. Other module types and native controller scripts are not included.')) {
             useStore.getState().updateControllerAoRestartMemory(c.tag)

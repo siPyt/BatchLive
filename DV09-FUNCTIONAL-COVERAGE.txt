@@ -3,10 +3,11 @@ BATCHLIVE: DV-09 FUNCTIONAL COVERAGE
 
 CURRENT IMPLEMENTATION SNAPSHOT - 2026-10-04
 -------------------------------------------
-DV-09 is NOT complete. Latest implemented milestone: controller-owned managed-AO
-atomic Full batch (Pass50, LOCAL; pushes paused by user).
-Previous milestone: be34b68, AO verification/caution/results (Pass49, LOCAL).
-Last published functional milestone: da59138, PID Detail/trends (Pass41).
+DV-09 is NOT complete. Latest implemented milestone: atomic controller-owned
+AO last-good replay (Pass51, LOCAL).
+Previous milestone: c65d49d, controller-owned AO Full batch (Pass50, PUSHED).
+Last published functional milestone: c65d49d, verified on GitHub main after the
+user authorized push. Pass42-50 and all related TXT/ledger/docs were published.
 
 Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
   VERIFIED_SUBSET   8 - bounded verified operations, not complete chapters
@@ -18,10 +19,11 @@ Requirement-group counts from DV09-LINE-BY-LINE-AUDIT.txt:
 These groups have unequal scope. Do not turn their counts, test counts, reviewed
 pages or workshop checkmarks into a percentage of functional completion.
 
-Last validation:355 repository tests passed; typecheck, production build,
+Last validation:358 repository tests passed; typecheck, production build,
 edited-file diagnostics, audit validator and diff whitespace checks passed.
-Browser verified actual PhysicalNetworkDisplay fixture: confirmation listed
-two AO names; Cancel left both undeployed; Full produced25/50% outputs.
+Browser verified actual PhysicalNetworkDisplay replay fixture: confirmation
+listed two deployed AOs; Cancel retained70% each; replay restored25/50% outputs
+while both newer saved900 defaults and nominal deployments remained unchanged.
 Original96-module running plant/UI/security and saved browser storage restored.
 
 Most recent delivered functionality:
@@ -40,6 +42,7 @@ Most recent delivered functionality:
   - AO readonly download verification, caution/abort, exact-saved confirmation,
     transfer-time target/access recheck and actual synchronous result stages.
   - Atomic controller-owned managed-AO Full batch with whole-scope validation.
+  - Atomic deployed-controller AO last-good replay excluding newer database edits.
 
 Remaining adjacent regulatory/picture requirements:
   DV09-058 pp256-257: OUT ramp and native PipesAnim parity.
@@ -1877,3 +1880,39 @@ Boundary: explicitly not native whole-controller Total Download. PID/device/SFC,
 card configuration and Setup remain excluded. DV09-017/019 remain PARTIAL.
 Validation:355 repository tests, typecheck, production build, scoped diagnostics,
 audit validator and diff whitespace passed. No push without authorization.
+
+PASS 51: ATOMIC CONTROLLER-OWNED AO LAST-GOOD REPLAY (p98)
+-------------------------------------------------------
+Line1 - Source: last-good replay excludes later database edits and includes
+  successful Full plus subsequent Partial transfers; recommission requires Full.
+Line2 - Scope: all deployed managed AOs on selected controller, independent of
+  later saved/draft assignment; never-downloaded additions are not replayed.
+Line3 - Preparation: validate every immutable snapshot/target before changing
+  any runtime. One invalid later member rejects the entire batch.
+Line4 - Confirmation: actual Physical Network button lists names and warns
+  running modes/outputs change, newer saved edits and other algorithms excluded.
+  Cancel changes nothing; changed membership/snapshot rejects stale confirmation.
+Line5 - Commit: one state update restores runtime/bindings/NVM for every member.
+  Saved/draft/nominal deployment/revisions and last-good snapshots stay unchanged.
+  Outstanding saved/deployed differences are not falsely cleared.
+Line6 - Partial: replay restores values actually preserved at transfer, e.g.
+  AUTO/SP600/CAS_SP555 despite later saved900/live700, plus second AO250.
+Line7 - Restart memory: replay neither refreshes opted-in restart snapshot nor
+  clears staleness. Separate memory update/fresh Full remains explicit.
+Line8 - Guards: missing/down/uncommissioned/empty controller, denied Download,
+  FlexLock, invalid member and recommission all reject before deployment.
+Line9 - Regression: three new engine tests verify final Full/Partial replay,
+  single commit/reference/storage/status isolation, deployed ownership, unsent
+  new-module exclusion, stale membership/snapshot, atomic failures and guards.
+  Existing Physical Network rendering test now checks the replay entry too.
+Line10 - Browser mounted actual PhysicalNetworkDisplay in a temporary fixture
+  and dispatched the real React replay button. Warning listed REPLAY-AO1/AO2.
+  Cancel retained70% each; confirm plus running scan restored25/50%. Both
+  newer saved900 defaults and nominal deployment references remained unchanged.
+  Original96-module running plant/security/exact storage restored; root removed.
+Boundary: session-local AO-only snapshots, not native all-algorithm controller
+script history, workstation/upgrade recovery or persisted restart scripts.
+DV09-018 remains PARTIAL. Pass50 and prior milestones pushed as authorized;
+subsequent implementation is committed locally until next push instruction.
+Validation:358 full-suite tests, typecheck, production build, scoped diagnostics,
+audit validator and diff whitespace passed.
