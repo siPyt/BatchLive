@@ -46,6 +46,70 @@ export function compareAlarmRank(a: ActiveAlarm, b: ActiveAlarm): number {
   return b.time - a.time
 }
 
+/**
+ * The real parameter each alarm type monitors, mirroring what simulate.ts
+ * actually evaluates (DV09-040: "do not populate missing fields with
+ * fabricated labels" — this is a lookup over genuine evaluation code paths,
+ * not an invented taxonomy).
+ */
+const ALARM_PARAMETER: Partial<Record<ActiveAlarm['type'], string>> = {
+  HI: 'PV', HI_HI: 'PV', LO: 'PV', LO_LO: 'PV', DV_HI: 'PV', DV_LO: 'PV',
+  PVBAD: 'PV', FAIL: 'STATUS', INTERLOCK: 'STATUS'
+}
+
+export function alarmParameter(a: ActiveAlarm): string {
+  return ALARM_PARAMETER[a.type] ?? '—'
+}
+
+/** DV09-040 alarm list columns: a typed, selectable/reorderable set. Ack and
+ * Shelve stay as dedicated interactive cells; everything else renders through
+ * alarmColumnText so the same logic is unit-testable outside React. */
+export type AlarmColumnKey =
+  | 'timeIn' | 'module' | 'description' | 'alarm' | 'value' | 'priority' | 'rank'
+  | 'area' | 'node' | 'partOf' | 'parameter'
+
+export interface AlarmColumnDef {
+  key: AlarmColumnKey
+  label: string
+  defaultVisible: boolean
+}
+
+// Order here is also the default column order (DV09-040: reorderable, not fixed).
+export const ALARM_COLUMNS: AlarmColumnDef[] = [
+  { key: 'timeIn', label: 'Time In', defaultVisible: true },
+  { key: 'module', label: 'Module/Param', defaultVisible: true },
+  { key: 'description', label: 'Description', defaultVisible: true },
+  { key: 'alarm', label: 'Alarm', defaultVisible: true },
+  { key: 'value', label: 'Value', defaultVisible: true },
+  { key: 'priority', label: 'Priority', defaultVisible: true },
+  { key: 'rank', label: 'Rank', defaultVisible: false },
+  { key: 'area', label: 'Area', defaultVisible: false },
+  { key: 'node', label: 'Node', defaultVisible: false },
+  { key: 'partOf', label: 'Part Of', defaultVisible: false },
+  { key: 'parameter', label: 'Parameter', defaultVisible: false }
+]
+
+/**
+ * Truthful text value for a given alarm-list column. `m` is the live module
+ * the alarm belongs to, if it still exists (area/node/part-of come from the
+ * real module record, never invented when the module or field is absent).
+ */
+export function alarmColumnText(key: AlarmColumnKey, a: ActiveAlarm, m: AnyModule | undefined): string {
+  switch (key) {
+    case 'timeIn': return clockString(a.time)
+    case 'module': return a.moduleTag
+    case 'description': return a.moduleDesc
+    case 'alarm': return a.label + (a.customType ? ` (${a.customType})` : '') + (!a.active ? ' (RTN)' : '')
+    case 'value': return a.unit ? `${a.value.toFixed(1)} ${a.unit}` : '—'
+    case 'priority': return a.priority
+    case 'rank': return String(alarmRank(a))
+    case 'area': return m?.area ?? '—'
+    case 'node': return (m && 'controllerTag' in m && m.controllerTag) || '—'
+    case 'partOf': return m?.equipmentModule ?? '—'
+    case 'parameter': return alarmParameter(a)
+  }
+}
+
 /** Highest-priority ACTIVE alarm for a given module tag, or null. */
 export function moduleAlarm(tag: string, alarms: ActiveAlarm[]): ActiveAlarm | null {
   let best: ActiveAlarm | null = null

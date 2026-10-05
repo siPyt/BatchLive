@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { isSfcAlarm } from '../engine/sfcBlocks'
 import { useUi } from '../ui/uiStore'
-import { compareAlarmRank, clockString } from '../utils/format'
-import type { ActiveAlarm, AlarmPriority } from '../engine/types'
+import { compareAlarmRank, alarmColumnText, ALARM_COLUMNS } from '../utils/format'
+import type { ActiveAlarm, AlarmPriority, AnyModule } from '../engine/types'
+import type { AlarmColumnKey } from '../utils/format'
 
 type Filter = 'ALL' | AlarmPriority | 'UNACK' | 'SHELVED'
 
+const DEFAULT_COLUMNS: AlarmColumnKey[] = ALARM_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key)
+
 export function AlarmSummary(): JSX.Element {
   const alarms = useStore((s) => s.alarms)
+  const modules = useStore((s) => s.modules)
   const ackAlarm = useStore((s) => s.ackAlarm)
   const ackAll = useStore((s) => s.ackAll)
   const shelveAlarm = useStore((s) => s.shelveAlarm)
@@ -17,6 +21,22 @@ export function AlarmSummary(): JSX.Element {
   const openSfc = useUi(s => s.openSfc)
   const [filter, setFilter] = useState<Filter>('ALL')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [columns, setColumns] = useState<AlarmColumnKey[]>(DEFAULT_COLUMNS)
+  const [columnPickerOpen, setColumnPickerOpen] = useState(false)
+
+  function toggleColumn(key: AlarmColumnKey): void {
+    setColumns((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]))
+  }
+  function moveColumn(key: AlarmColumnKey, dir: -1 | 1): void {
+    setColumns((cur) => {
+      const i = cur.indexOf(key)
+      const j = i + dir
+      if (i === -1 || j < 0 || j >= cur.length) return cur
+      const next = [...cur]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  }
 
   const alarmFocusTag = useUi((s) => s.alarmFocusTag)
   const clearAlarmFocus = useUi((s) => s.clearAlarmFocus)
@@ -58,6 +78,34 @@ export function AlarmSummary(): JSX.Element {
           </button>
         )}
         <span style={{ flex: 1 }} />
+        <div style={{ position: 'relative' }}>
+          <button className={'tbtn sm' + (columnPickerOpen ? ' active' : '')}
+            onClick={() => setColumnPickerOpen((v) => !v)}>
+            Columns ▾
+          </button>
+          {columnPickerOpen && (
+            <div className="alm-colpicker">
+              {ALARM_COLUMNS.map((c) => {
+                const idx = columns.indexOf(c.key)
+                return (
+                  <div key={c.key} className="alm-colpicker-row">
+                    <label>
+                      <input type="checkbox" checked={idx !== -1} onChange={() => toggleColumn(c.key)} />
+                      {c.label}
+                    </label>
+                    {idx !== -1 && (
+                      <span className="alm-colpicker-move">
+                        <button className="tbtn sm" disabled={idx === 0} onClick={() => moveColumn(c.key, -1)}>↑</button>
+                        <button className="tbtn sm" disabled={idx === columns.length - 1}
+                          onClick={() => moveColumn(c.key, 1)}>↓</button>
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
         <button className="tbtn sm" onClick={ackAll} disabled={unack === 0}>
           Acknowledge All ({unack})
         </button>
@@ -68,19 +116,16 @@ export function AlarmSummary(): JSX.Element {
           <thead>
             <tr>
               <th style={{ width: 44 }}>Ack</th>
-              <th style={{ width: 118 }}>Time In</th>
-              <th style={{ width: 112 }}>Module/Param</th>
-              <th>Description</th>
-              <th style={{ width: 70 }}>Alarm</th>
-              <th style={{ width: 104 }}>Value</th>
-              <th style={{ width: 96 }}>Priority</th>
+              {columns.map((key) => (
+                <th key={key}>{ALARM_COLUMNS.find((c) => c.key === key)?.label}</th>
+              ))}
               <th style={{ width: 90 }}>Shelve</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', color: 'var(--dv-text-mute)', padding: 24 }}>
+                <td colSpan={columns.length + 2} style={{ textAlign: 'center', color: 'var(--dv-text-mute)', padding: 24 }}>
                   No alarms match this filter
                 </td>
               </tr>
@@ -89,6 +134,8 @@ export function AlarmSummary(): JSX.Element {
               <AlarmRow
                 key={a.id}
                 a={a}
+                columns={columns}
+                module={modules[a.moduleTag]}
                 onAck={() => ackAlarm(a.id)}
                 onOpen={() => isSfcAlarm(a) ? openSfc(a.moduleTag) : openFaceplate(a.moduleTag)}
                 onShelve={() => shelveAlarm(a.id, 60)}
@@ -104,12 +151,16 @@ export function AlarmSummary(): JSX.Element {
 
 function AlarmRow({
   a,
+  columns,
+  module,
   onAck,
   onOpen,
   onShelve,
   onUnshelve
 }: {
   a: ActiveAlarm
+  columns: AlarmColumnKey[]
+  module: AnyModule | undefined
   onAck: () => void
   onOpen: () => void
   onShelve: () => void
@@ -118,24 +169,25 @@ function AlarmRow({
   const shelved = a.shelvedUntil !== undefined
   const cls = a.priority.toLowerCase() + (a.active ? '' : ' rtn') + (a.acknowledged ? '' : ' unack')
   const linkColor = a.priority === 'WARNING' ? '#0a4a85' : '#fff'
+  const boldColumns: AlarmColumnKey[] = ['alarm', 'priority']
   return (
     <tr className={cls} style={shelved ? { opacity: 0.55 } : undefined}>
       <td className="alm-ack" onClick={onAck} title={a.acknowledged ? 'Acknowledged' : 'Acknowledge'}>
         <span className="alm-ackbox">{a.acknowledged ? '✓' : ''}</span>
       </td>
-      <td style={{ opacity: 0.9 }}>{clockString(a.time)}</td>
-      <td>
-        <a style={{ color: linkColor, cursor: 'pointer', fontWeight: 700 }} onClick={onOpen}>
-          {a.moduleTag}
-        </a>
-      </td>
-      <td>{a.moduleDesc}</td>
-      <td style={{ fontWeight: 700 }}>
-        {a.label}{a.customType ? ` (${a.customType})` : ''}
-        {!a.active ? ' (RTN)' : ''}
-      </td>
-      <td>{a.unit ? `${a.value.toFixed(1)} ${a.unit}` : '—'}</td>
-      <td style={{ fontWeight: 700 }}>{a.priority}</td>
+      {columns.map((key) =>
+        key === 'module' ? (
+          <td key={key}>
+            <a style={{ color: linkColor, cursor: 'pointer', fontWeight: 700 }} onClick={onOpen}>
+              {alarmColumnText(key, a, module)}
+            </a>
+          </td>
+        ) : (
+          <td key={key} style={boldColumns.includes(key) ? { fontWeight: 700 } : undefined}>
+            {alarmColumnText(key, a, module)}
+          </td>
+        )
+      )}
       <td>
         {shelved ? (
           <button className="tbtn sm" onClick={onUnshelve} title="Unshelve">

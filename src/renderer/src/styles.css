@@ -1148,6 +1148,37 @@ button {
 .alarm-table tr.advisory td a {
   color: #fff;
 }
+.alm-colpicker {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  margin-top: 4px;
+  padding: 8px;
+  min-width: 190px;
+  background: var(--dv-bg-2);
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+.alm-colpicker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 2px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.alm-colpicker-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.alm-colpicker-move {
+  display: flex;
+  gap: 2px;
+}
 .prio-chip {
   display: inline-block;
   width: 10px;

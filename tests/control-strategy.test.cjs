@@ -30,7 +30,7 @@ const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const { nextAreaName } = require('../src/renderer/src/engine/areas.ts')
 const { usePictures, resolvePictureTarget } = require('../src/renderer/src/engine/pictureStore.ts')
 const { moduleNameError, isValidDeltaVTag } = require('../src/renderer/src/engine/naming.ts')
-const { compareAlarmRank, alarmRank, priorityRank } = require('../src/renderer/src/utils/format.ts')
+const { compareAlarmRank, alarmRank, priorityRank, alarmColumnText, alarmParameter, ALARM_COLUMNS } = require('../src/renderer/src/utils/format.ts')
 const { findDst, channelConfigurationError, advanceTraditionalIo, sampleAnalogInputs } = require('../src/renderer/src/engine/traditionalIo.ts')
 const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const { savedAoStorageKey } = require('../src/renderer/src/engine/moduleLifecycle.ts')
@@ -752,6 +752,36 @@ test('DV09-038/039 setAlarmLimit validates and applies an explicit numeric prior
     assert.equal(useStore.getState().modules['LI-101'].alarms.find(a => a.type === 'HI').rank, undefined,
       'rank: null clears the explicit override back to the class default')
   })
+})
+
+test('DV09-040 alarm list columns expose typed, selectable/reorderable, truthful values', () => {
+  const alarm = { id: 'LI-101.HI', moduleTag: 'LI-101', moduleDesc: 'Course tank level', type: 'HI',
+    label: 'HI', priority: 'WARNING', rank: 13, value: 950, unit: 'gal',
+    active: true, acknowledged: false, time: Date.UTC(2026, 0, 1, 12, 0, 0) }
+  const module = { tag: 'LI-101', type: 'AI', description: 'Course tank level', area: 'FEED',
+    equipmentModule: 'EM-FEED-SUPPLY', pv: 950, unit: 'gal', pvMin: 0, pvMax: 1000, decimals: 0, alarms: [] }
+  assert.equal(alarmColumnText('module', alarm, module), 'LI-101')
+  assert.equal(alarmColumnText('description', alarm, module), 'Course tank level')
+  assert.equal(alarmColumnText('alarm', alarm, module), 'HI')
+  assert.equal(alarmColumnText('value', alarm, module), '950.0 gal')
+  assert.equal(alarmColumnText('priority', alarm, module), 'WARNING')
+  assert.equal(alarmColumnText('rank', alarm, module), '13')
+  assert.equal(alarmColumnText('area', alarm, module), 'FEED')
+  assert.equal(alarmColumnText('partOf', alarm, module), 'EM-FEED-SUPPLY')
+  assert.equal(alarmColumnText('parameter', alarm, module), 'PV')
+  // AI modules carry no controllerTag in this model; Node is truthfully "—", never fabricated.
+  assert.equal(alarmColumnText('node', alarm, module), '—')
+  // A deployed AO/PID/MOTOR/VALVE module's real controllerTag is shown when present.
+  const deployed = { ...module, type: 'AO', controllerTag: 'CTLR-01' }
+  assert.equal(alarmColumnText('node', alarm, deployed), 'CTLR-01')
+  // An alarm whose module no longer exists (e.g. deleted) never fabricates area/node/part-of.
+  assert.equal(alarmColumnText('area', alarm, undefined), '—')
+  assert.equal(alarmColumnText('node', alarm, undefined), '—')
+  assert.equal(alarmColumnText('partOf', alarm, undefined), '—')
+  assert.equal(alarmParameter({ ...alarm, type: 'FAIL' }), 'STATUS')
+  assert.equal(alarmParameter({ ...alarm, type: 'CUSTOM' }), '—')
+  assert.deepEqual(ALARM_COLUMNS.map(c => c.key),
+    ['timeIn', 'module', 'description', 'alarm', 'value', 'priority', 'rank', 'area', 'node', 'partOf', 'parameter'])
 })
 
 function discreteCourseProject(store) {
