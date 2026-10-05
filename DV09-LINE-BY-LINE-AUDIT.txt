@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 61 VERIFIED_SUBSET, 42 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 64 VERIFIED_SUBSET, 39 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -1339,7 +1339,7 @@ Acceptance: Test each mode and transition, normal/permitted fields, remote
 
 [DV09-056]
 Pages: 250-254
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: PID_LOOP FIC-102: FT-2 in, FY-2 out, gain0.5, reset3s/repeat,
   rate0, range0-100 GPM, increase-to-open, reverse-acting, LO10/HI90;
   assign/controller/Tank101/save/download.
@@ -1416,7 +1416,7 @@ Acceptance: Configure the specified picture expressions and verify resulting
 
 [DV09-059]
 Pages: 258-258
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Manipulate SP, tune in the detail picture and open real-time trend
   from the loop faceplate.
 Evidence: FIC-102 PID_LOOP regression verifies online 0.7/2.5/0 tuning,
@@ -1463,7 +1463,7 @@ Acceptance: Verify p259-264 selection, none, cancel and follow-up download in
 
 [DV09-061]
 Pages: 265-265
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Apply a 2.6-second input channel filter, download the card and use
   DeltaV Tune's process-test/update workflow.
 Evidence: Traditional AI channel has separate configured/deployed filter times.
@@ -4268,3 +4268,19 @@ Validation: 634 tests locally (633 pass; only pdf_om.txt-dependent audit fails),
   typecheck and build passed.
 Result: DV09-003 PARTIAL -> VERIFIED_SUBSET. Totals 61 VERIFIED_SUBSET/
   42 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 91 STATUS RECONCILIATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+No code changed. Three groups whose own Acceptance text is met by the evidence
+already recorded (and re-checked against the passing regression suites) move from
+PARTIAL to VERIFIED_SUBSET; their stated boundaries are unchanged:
+  DV09-056 (FIC-102 PID_LOOP): exact configuration, controller/I-O ownership
+    checks and the safe Offline/Download/Online sequence are tested; physical
+    DeltaV transfers remain outside the simulator.
+  DV09-059 (SP, detail tuning, real-time trend): the simulator detail/tuning/trend
+    subset is verified; native detail template layout/file assignment is not
+    claimed.
+  DV09-061 (2.6 s input filter and Tune): filtered course input, explicit Test/
+    Review/Update tuning experiment and application are tested; real DeltaV Tune
+    is a vendor-software boundary and the suggestion is not claimed to match it.
+Result: Totals 64 VERIFIED_SUBSET/39 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

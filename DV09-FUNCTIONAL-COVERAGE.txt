@@ -2667,3 +2667,7 @@ PASS 90: DELTAV APPLICATIONS LAUNCHER (pp37-50)
 -----------------------------------------------------------------------
 Line1 - Each application launches its real display; Run and Configure are distinct.
 Line2 - Unsupported native behaviour is listed, not decorated. Tests: applications.test.cjs.
+
+PASS 91: STATUS RECONCILIATION
+-----------------------------------------------------------------------
+DV09-056, DV09-059 and DV09-061 are VERIFIED_SUBSET on existing evidence; boundaries unchanged.
