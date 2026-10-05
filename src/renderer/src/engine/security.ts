@@ -71,6 +71,10 @@ export interface DvUser {
   fullName: string
   password: string
   locks: LockType[]
+  /** DV09-044 area write keys: areas this user is authorized for. Undefined
+   * means authorized for every area (the existing unrestricted default), not
+   * an empty/no-access set — restriction is opt-in per user. */
+  areas?: string[]
 }
 
 interface SecurityState {
@@ -86,7 +90,12 @@ interface SecurityState {
   addUser: (u: DvUser) => boolean
   deleteUser: (name: string) => void
   setUserLocks: (name: string, locks: LockType[]) => void
+  /** DV09-044: set this user's area write keys; undefined restores unrestricted (all areas). */
+  setUserAreas: (name: string, areas: string[] | undefined) => void
   hasLock: (lock: LockType) => boolean
+  /** DV09-044: true if the current user's area write keys authorize this area
+   * (undefined area, e.g. an alarm whose module no longer exists, is never authorized). */
+  hasAreaKey: (area: string | undefined) => boolean
   /** Checks the current user's keys; records an Access Denied reason if missing. */
   requireLock: (lock: LockType, action: string) => boolean
   clearDenied: () => void
@@ -138,10 +147,20 @@ export const useSecurity = create<SecurityState>((set, get) => ({
   setUserLocks: (name, locks) =>
     set((s) => ({ users: s.users.map((u) => (u.name === name ? { ...u, locks } : u)) })),
 
+  setUserAreas: (name, areas) =>
+    set((s) => ({ users: s.users.map((u) => (u.name === name ? { ...u, areas } : u)) })),
+
   hasLock: (lock) => {
     const s = get()
     const u = s.users.find((x) => x.name === s.currentUser)
     return !!u && u.locks.includes(lock)
+  },
+
+  hasAreaKey: (area) => {
+    const s = get()
+    const u = s.users.find((x) => x.name === s.currentUser)
+    if (!u || !u.areas) return true
+    return area !== undefined && u.areas.includes(area)
   },
 
   requireLock: (lock, action) => {

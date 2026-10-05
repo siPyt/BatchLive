@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useStore } from '../engine/store'
 import { useSecurity, ALL_LOCKS, LOCK_LABEL, LOCK_HINT, type LockType, type DvUser } from '../engine/security'
 
 // DeltaV User Manager: accessed from DeltaV Explorer's Lock Key button.
@@ -10,12 +11,15 @@ export function UserManagerDisplay(): JSX.Element {
   const addUser = useSecurity((s) => s.addUser)
   const deleteUser = useSecurity((s) => s.deleteUser)
   const setUserLocks = useSecurity((s) => s.setUserLocks)
+  const setUserAreas = useSecurity((s) => s.setUserAreas)
   const hasLock = useSecurity((s) => s.hasLock)
+  const modules = useStore((s) => s.modules)
   const [creating, setCreating] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const canAdmin = hasLock('SYSTEM_ADMIN')
 
   const sel = users.find((u) => u.name === selected) ?? null
+  const allAreas = Array.from(new Set(Object.values(modules).map((m) => m.area))).sort()
 
   return (
     <div className="display" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -88,6 +92,38 @@ export function UserManagerDisplay(): JSX.Element {
                     />
                     <b style={{ color: 'var(--dv-text)', minWidth: 130 }}>{LOCK_LABEL[lock]}</b>
                     <span style={{ color: 'var(--dv-text-mute)' }}>{LOCK_HINT[lock]}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="fp-row" style={{ marginTop: 4 }}>
+                <span className="fp-label">Area Write Keys</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--dv-text-dim)' }}>
+                  <input
+                    type="checkbox"
+                    disabled={!canAdmin}
+                    checked={sel.areas === undefined}
+                    onChange={() => setUserAreas(sel.name, sel.areas === undefined ? [] : undefined)}
+                  />
+                  <b style={{ color: 'var(--dv-text)', minWidth: 130 }}>All areas (unrestricted)</b>
+                </label>
+                {allAreas.map((area) => (
+                  <label
+                    key={area}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--dv-text-dim)' }}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={!canAdmin || sel.areas === undefined}
+                      checked={sel.areas !== undefined && sel.areas.includes(area)}
+                      onChange={(e) => {
+                        const cur = sel.areas ?? []
+                        const next = e.target.checked ? [...cur, area] : cur.filter((a) => a !== area)
+                        setUserAreas(sel.name, next)
+                      }}
+                    />
+                    <b style={{ color: 'var(--dv-text)', minWidth: 130 }}>{area}</b>
                   </label>
                 ))}
               </div>

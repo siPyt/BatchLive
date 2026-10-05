@@ -71,6 +71,11 @@ interface UiState {
   clearAlarmFocus: () => void
   openPicture: (name: string) => boolean
   openModuleDisplay: (tag: string, kind: 'primary' | 'detail') => boolean
+  /** DV09-044 workstation area subscription: null means subscribed to every
+   * area (the existing unrestricted default); an array restricts this
+   * workstation's alarm banner/audio/acknowledge-all to those areas only. */
+  subscribedAreas: string[] | null
+  setSubscribedAreas: (areas: string[] | null) => void
 }
 
 let cascade = 0
@@ -231,5 +236,8 @@ export const useUi = create<UiState>((set, get) => ({
       return false
     }
     return get().openPicture(name)
-  }
+  },
+
+  subscribedAreas: null,
+  setSubscribedAreas: (areas) => set({ subscribedAreas: areas })
 }))

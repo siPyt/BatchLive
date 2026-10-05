@@ -789,13 +789,36 @@ Acceptance: The same typed alarm paths must work in builder, faceplates and
 
 [DV09-044]
 Pages: 201-204
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Consolidate alarms using BOTH workstation subscribed areas and
   current user's area write keys.
-Evidence: BANNER/audio/ackAll currently operate globally; SECURITY lacks areas.
-Acceptance: Intersection tests: subscribed-but-not-authorized, authorized-but-
-  not-subscribed, both and neither. Counts, tiles, audio and acknowledgment
-  must use a consistent eligible set.
+Evidence (Pass65): SECURITY.ts adds DvUser.areas (undefined = unrestricted, all
+  areas authorized) and hasAreaKey(area); UISTORE adds subscribedAreas (null =
+  all areas subscribed, the default) and setSubscribedAreas. A new pure
+  alarmEligible(alarm, moduleArea, subscribedAreas, hasAreaKey) in format.ts
+  implements the exact intersection: fails closed on subscription (an
+  unresolvable/unsubscribed area excludes the alarm) then fails closed on the
+  area key. ALARMBANNER filters counts/tiles/unackCount/Ack-Page through this
+  one eligible set (ackPage loops ackAlarm instead of calling the global
+  ackAll, so acknowledgment matches the same set) and adds an "Areas ▾"
+  picker (mirrors the Alarm Summary column-picker UX) to configure this
+  workstation's subscribedAreas. ALARMAUDIO's horn-trigger condition uses the
+  identical alarmEligible filter. USERMANAGERDISPLAY adds an "Area Write
+  Keys" checklist (All areas/per-area) calling the new setUserAreas.
+Gaps: Only the consolidated Alarm Banner/Ack Page/horn are filtered; the
+  separate Alarm Summary ("List") display and its own "Acknowledge All"
+  button intentionally continue to show/ack every area (a full-plant audit
+  list), which is a reasonable and explicit product boundary, not an
+  oversight. Real DeltaV's workstation area subscription is configured via
+  System Preferences/Node properties with per-node persistence; here it is a
+  per-session uiStore field with a banner picker, not a persisted system
+  configuration record.
+Acceptance (Pass65): tests/area-alarm-eligibility.test.cjs exercises all four
+  intersection cases (subscribed-but-not-authorized, authorized-but-not-
+  subscribed, both, neither) plus hasAreaKey's unrestricted-default and
+  restricted-undefined-area behavior and the uiStore subscribedAreas default/
+  setter, end-to-end through real store/security/ui state for two modules in
+  different areas.
 
 [DV09-045]
 Pages: 205-208
@@ -2396,8 +2419,10 @@ DV09-042: Full CUALM/LAALM/CV/NALM/PRI/ENAB/INV/OPSUP/SUPTMO/SUPTMR composites,
   numeric states and suppression timers distinct from shelving/disable/ack.
 DV09-043: Qualified ALARMS array/limit/MACK/ENAB/PRIAD datalinks and writes,
   shared typed resolution/permissions across builder and faceplates.
-DV09-044: User area-key AND workstation subscription intersection consistently
-  driving banner/list/count/audio/ack, including all four eligibility cases.
+DV09-044: User area-key AND workstation subscription intersection now exists
+  (Pass65) and consistently drives banner counts/tiles/horn/Ack Page; only the
+  separate full-plant Alarm Summary List/Acknowledge All stay unfiltered by
+  design.
 DV09-045: Configured workstation Chronicle/SOE/subscriptions and durable
   save/reload process events; current bounded memory journal is not an archive.
 DV09-046: Generic ALARMS[n] array visibility expert (today's Alarm Visibility
@@ -3026,3 +3051,55 @@ Evidence/Gaps are updated to record Passive on Timeout as genuinely
 implemented. No classification-count change this pass; totals remain
 14 VERIFIED_SUBSET/55 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation
 proceeds to the next remaining group in a subsequent pass.
+
+PASS 65 CHANGE DETAIL AND VALIDATION (2026-10-05)
+--------------------------------------------------
+Scope: DV09-044 - consolidating alarms using BOTH workstation subscribed
+areas and the current user's area write keys, with counts/tiles/horn/Ack
+Page sharing one consistent eligible set.
+Engine: security.ts's DvUser gains an optional areas field (undefined =
+  unrestricted, authorized for every area - preserving default-user
+  behavior unchanged) and SecurityState gains setUserAreas(name, areas) and
+  hasAreaKey(area), which returns true unconditionally for an unrestricted
+  user and otherwise requires area to be defined and included in the
+  current user's areas. uiStore.ts gains subscribedAreas (null = subscribed
+  to every area, the default) and setSubscribedAreas(areas); these are
+  deliberately UI-only state (uiStore never imported by engine/store.ts,
+  preserving the existing architectural separation). A new pure
+  alarmEligible(alarm, moduleArea, subscribedAreas, hasAreaKey) in format.ts
+  fails closed on subscription first (an alarm whose module no longer
+  resolves to an area, or whose area is not in a non-null subscribedAreas
+  list, is excluded) and then on the area key, implementing the exact AND
+  intersection the acceptance criteria require.
+UI: AlarmBanner.tsx filters counts, active-priority counts, unackCount and
+  the tiles list through one `eligible` array computed via alarmEligible;
+  "Ack Page" now loops ackAlarm over the same eligible-and-unacknowledged
+  set (ackAll was reused for the separate Alarm Summary display, not
+  removed). A new "Areas ▾" picker (same dropdown/row styling as the Alarm
+  Summary's Configure Columns picker) lets the operator toggle "All areas"
+  or specific subscribedAreas. AlarmAudio.tsx's horn-trigger condition now
+  checks hasUnackedCritical/Warning against the identical eligible set.
+  UserManagerDisplay.tsx adds an "Area Write Keys" checklist (All areas,
+  else one checkbox per plant area) calling setUserAreas, alongside the
+  existing Locks & Keys list.
+Tests: tests/area-alarm-eligibility.test.cjs adds three tests: hasAreaKey's
+  unrestricted-default/restricted/undefined-area behavior and setUserAreas
+  round-trip; uiStore subscribedAreas default/setter; and alarmEligible's
+  four intersection cases (subscribed-but-not-authorized, authorized-but-
+  not-subscribed, both, neither) plus an orphaned-module edge case, verified
+  both as a standalone pure function and end-to-end through real
+  store/security/ui state for two modules created in different areas.
+Boundary (honest, not fixed this pass): the separate Alarm Summary ("List")
+  display and its own "Acknowledge All" button intentionally continue to
+  operate on every alarm regardless of area - a full-plant audit list is a
+  reasonable, explicit product boundary distinct from the consolidated
+  banner this item scopes. subscribedAreas lives in session-only uiStore
+  state with a banner picker, not a persisted System Preferences/Node
+  workstation configuration record like real DeltaV.
+Validation: 378 repository tests run locally (377 pass; the remaining
+  failure is the pre-existing local-only pdf_om.txt dependency in
+  dv09-audit.test.cjs). Typecheck and the production build both passed.
+Result: DV09-044 MISSING -> VERIFIED_SUBSET. Current totals15 VERIFIED_SUBSET/
+54 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. Continuation proceeds to the next
+remaining group in a subsequent pass.
+

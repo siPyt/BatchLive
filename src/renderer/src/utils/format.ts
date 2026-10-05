@@ -182,6 +182,23 @@ export function moduleOwnUnacknowledgedAlarms(tag: string, alarms: ActiveAlarm[]
   return alarms.filter((a) => a.moduleTag === tag && a.active && !a.acknowledged)
 }
 
+/** DV09-044: whether an alarm is in this workstation's eligible set for
+ * counts/tiles/horn/Ack-Page — real DeltaV requires BOTH the workstation's
+ * subscribed areas AND the current user's area write keys to admit an alarm.
+ * `subscribedAreas === null` means the workstation is subscribed to every
+ * area (unrestricted default); `hasAreaKey` mirrors the security store's
+ * `hasAreaKey` predicate (undefined user `areas` = unrestricted). */
+export function alarmEligible(
+  alarm: ActiveAlarm,
+  moduleArea: string | undefined,
+  subscribedAreas: string[] | null,
+  hasAreaKey: (area: string | undefined) => boolean
+): boolean {
+  if (subscribedAreas !== null && (moduleArea === undefined || !subscribedAreas.includes(moduleArea)))
+    return false
+  return hasAreaKey(moduleArea)
+}
+
 export function prioClass(p: AlarmPriority): string {
   return p.toLowerCase()
 }

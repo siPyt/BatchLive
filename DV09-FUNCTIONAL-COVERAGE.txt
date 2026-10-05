@@ -2393,5 +2393,32 @@ updated. Totals unchanged at14 VERIFIED_SUBSET/55 PARTIAL/34 MISSING/
 pre-existing pdf_om.txt failure unrelated). Typecheck and production build
 both passed.
 
+PASS 65: DV09-044 AREA-SUBSCRIPTION AND AREA-KEY ALARM ELIGIBILITY
+-----------------------------------------------------
+Line1 - Engine: security.ts's DvUser gains areas (undefined = unrestricted)
+  and SecurityState gains setUserAreas/hasAreaKey. uiStore.ts gains
+  subscribedAreas (null = all areas, the default) and setSubscribedAreas.
+Line2 - Logic: a new pure alarmEligible(alarm, moduleArea, subscribedAreas,
+  hasAreaKey) in format.ts fails closed on subscription then on the area
+  key, implementing the exact AND intersection required.
+Line3 - UI: AlarmBanner.tsx filters counts/active-counts/unackCount/tiles
+  and "Ack Page" (now looping ackAlarm) through one eligible set, and adds
+  an "Areas ▾" picker mirroring the Alarm Summary's column picker.
+  AlarmAudio.tsx's horn trigger uses the identical eligible set.
+  UserManagerDisplay.tsx adds an "Area Write Keys" checklist calling
+  setUserAreas.
+Line4 - Tests: tests/area-alarm-eligibility.test.cjs covers hasAreaKey's
+  unrestricted/restricted/undefined-area behavior, the uiStore setter, and
+  all four subscribed/authorized intersection cases plus an orphaned-module
+  edge case, standalone and end-to-end through real store state.
+Boundary: the separate Alarm Summary "List"/"Acknowledge All" intentionally
+stay unfiltered (full-plant audit list); subscribedAreas is session-only
+uiStore state with a banner picker, not a persisted System Preferences
+workstation record like real DeltaV.
+Result: DV09-044 MISSING -> VERIFIED_SUBSET. Current totals15 VERIFIED_SUBSET/
+54 PARTIAL/34 MISSING/19 BOUNDARY/6 CONTEXT. 378 repository tests run locally
+(377 pass; pre-existing pdf_om.txt failure unrelated). Typecheck and
+production build both passed.
+
 Commit/push authorization for this pass follows the same 2026-10-05
 instruction already recorded for Pass54.
