@@ -6,6 +6,7 @@ import { controllerManagedRecords } from '../engine/controllerModuleTransfer'
 import { useUi } from '../ui/uiStore'
 import { TraditionalIoPanel } from './TraditionalIoPanel'
 import { SerialIoPanel } from '../components/SerialIoPanel'
+import { H1Panel } from '../components/H1Panel'
 import {
   CHARM_TYPE_LABEL,
   controllerIsDown,
@@ -108,6 +109,7 @@ export function PhysicalNetworkDisplay(): JSX.Element {
           >
             <TraditionalIoPanel controllerTag={c.tag} />
             <SerialIoPanel controllerTag={c.tag} />
+            <H1Panel controllerTag={c.tag} />
             {c.carrierIds.map((carrierId) => {
               const carrier = hardware.carriers[carrierId]
               if (!carrier) return null

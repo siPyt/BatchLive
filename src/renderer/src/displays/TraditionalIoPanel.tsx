@@ -9,7 +9,7 @@ export function TraditionalIoPanel({ controllerTag }: { controllerTag: string })
   const downloadFilters = useStore(s => s.downloadInputFilters)
   const [slot, setSlot] = useState(1)
   const [type, setType] = useState<TraditionalCardType>('AI')
-  const cards = Object.values(hardware.traditionalCards ?? {}).filter(card => card.controllerTag === controllerTag && !card.serial)
+  const cards = Object.values(hardware.traditionalCards ?? {}).filter(card => card.controllerTag === controllerTag && !card.serial && !card.fieldbus)
     .sort((a, b) => a.slot - b.slot)
   return (
     <section className="traditional-io" aria-label={`${controllerTag} traditional I/O`}>

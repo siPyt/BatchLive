@@ -2530,3 +2530,16 @@ Line3 - Modules: PID and device IO bind to TAG/R<address> DSTs; value and
   after (retry + 1) x time out.
 Line4 - Tests: tests/serial-modbus.test.cjs. Not claimed: physical wiring,
   a real Modbus stack, MTR-11 template and dynamo exercises.
+
+PASS 73: FOUNDATION FIELDBUS H1 (pp428-515, 570-573)
+-----------------------------------------------------------------------
+Line1 - H1 card: simplex/redundant Series 2 on a controller slot with LEDs and
+  96-block capacity (64 device / 32 card); two ports as segments.
+Line2 - Schedule: requested/calculated/actual macrocycle, rate bands,
+  concurrent macrocycles, VCR limits and the macrocycle viewer.
+Line3 - Devices: generic catalog, placeholders, virtual physical devices,
+  discovery by LAS probing, commissioning with compatibility checks.
+Line4 - Blocks: resource/transducer/function blocks with modes, write lock,
+  extended parameters, calibration and a read-only audit trail with compare.
+Line5 - Tests: tests/fieldbus-h1.test.cjs. Not claimed: real FOUNDATION
+  stack, device descriptions, electrical segment verification.

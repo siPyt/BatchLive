@@ -4,6 +4,7 @@ import type { AnyModule } from './types'
 import { pidIo, samplePidInput } from './analogStrategy'
 import { aoEngineeringValue } from './standaloneAo'
 import { serialDatasetStatus, stepSerialCards, type SerialPortId } from './serialIo'
+import { fieldbusChannelBad, stepH1Cards, type H1PortId } from './fieldbus'
 
 export type AnalogBindingPort = 'input' | 'output' | 'output2'
 export type AnalogDstBindings = Partial<Record<AnalogBindingPort, string>>
@@ -32,6 +33,8 @@ export interface TraditionalCard {
   channels: TraditionalChannel[]
   /** DV09-086..093: a hidden card exposing one serial dataset as DSTs; not user-editable. */
   serial?: { cardId: string; port: SerialPortId; device: string; dataset: string }
+  /** DV09-096..127: a hidden card exposing one commissioned fieldbus function block as a DST. */
+  fieldbus?: { cardId: string; port: H1PortId; device: string; block: string }
 }
 
 export function makeTraditionalCard(controllerTag: string, slot: number, type: TraditionalCardType): TraditionalCard {
@@ -102,6 +105,7 @@ export function discreteBindingError(hw: HardwareState, module: AnyModule | unde
 export function channelBad(hw: HardwareState, card: TraditionalCard, channel: TraditionalChannel): boolean {
   const controller = hw.controllers[card.controllerTag]
   if (card.serial && serialDatasetStatus(hw, card) === 'BAD') return true
+  if (card.fieldbus && fieldbusChannelBad(hw, card)) return true
   return !controller || controllerIsDown(controller) || !channel.enabled || !channel.dst ||
     !Number.isFinite(channel.value) || (card.type === 'AI' &&
       (!Number.isFinite(channel.filterSeconds ?? 0) || (channel.filterSeconds ?? 0) < 0 ||
@@ -287,6 +291,8 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
   }
   const serial = stepSerialCards(next, dt)
   if (serial) next.serialCards = serial
+  const h1 = stepH1Cards(next, dt)
+  if (h1) next.h1Cards = h1
   for (const card of Object.values(cards)) {
     if (card.type !== 'DI' && card.type !== 'AI') continue
     for (const channel of card.channels) {

@@ -1828,7 +1828,8 @@ export const useStore = create<StoreState>((set, get) => ({
     const error = !hw.controllers[controllerTag] ? 'Controller does not exist' :
       !Number.isInteger(slot) || slot < 1 || slot > 8 ? 'Serial card slot must be 1-8' :
       Object.values(hw.traditionalCards ?? {}).some(card => !card.serial && card.controllerTag === controllerTag && card.slot === slot) ||
-      Object.values(hw.serialCards ?? {}).some(card => card.controllerTag === controllerTag && card.slot === slot)
+      Object.values(hw.serialCards ?? {}).some(card => card.controllerTag === controllerTag && card.slot === slot) ||
+      Object.values(h1Slots(hw)).some(slots => slots.controllerTag === controllerTag && slots.slots.includes(slot))
         ? `Slot ${slot} already has a card` : null
     if (error) {
       get().logEvent('DIAGNOSTIC', controllerTag, `Add serial card rejected: ${error}`)
@@ -1986,7 +1987,9 @@ export const useStore = create<StoreState>((set, get) => ({
     const error = !hw.controllers[controllerTag] ? 'Controller does not exist' :
       !Number.isInteger(slot) || slot < 1 || slot > 8 ? 'Training card slot must be 1-8' :
       !['AI', 'AO', 'DI', 'DO'].includes(type) ? 'Unsupported traditional card type' :
-      Object.values(hw.traditionalCards ?? {}).some(card => card.controllerTag === controllerTag && card.slot === slot)
+      Object.values(hw.traditionalCards ?? {}).some(card => card.controllerTag === controllerTag && card.slot === slot) ||
+      Object.values(hw.serialCards ?? {}).some(card => card.controllerTag === controllerTag && card.slot === slot) ||
+      Object.values(h1Slots(hw)).some(slots => slots.controllerTag === controllerTag && slots.slots.includes(slot))
         ? `Slot ${slot} already has a traditional card` : null
     if (error) {
       get().logEvent('DIAGNOSTIC', controllerTag, `Add card rejected: ${error}`)
@@ -3725,4 +3728,9 @@ function gateSignature(
     `Electronic signature required for ${valueText} (${level === 2 ? 'confirm and verify' : 'confirm'}, policy ${policy.name})`
   )
   return true
+}
+
+/** Slots occupied by H1 cards (a redundant card also holds its partner slot). */
+function h1Slots(hw: HardwareState): { controllerTag: string; slots: number[] }[] {
+  return Object.values(hw.h1Cards ?? {}).map(card => ({ controllerTag: card.controllerTag, slots: card.partnerSlot ? [card.slot, card.partnerSlot] : [card.slot] }))
 }

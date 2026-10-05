@@ -36,7 +36,7 @@ function sourceFiles(dir) {
 
 function literalCallSites() {
   const sites = []
-  const call = /(?:requireLock|requireUnlockedKey|requireUnlockedLock)\(\s*'([A-Z_0-9]+)'\s*,\s*([`'])((?:(?!\2).)*)\2/g
+  const call = /(?:requireLock|requireUnlockedKey|requireUnlockedLock|allow)\(\s*'([A-Z_0-9]+)'\s*,\s*([`'])((?:(?!\2).)*)\2/g
   for (const file of sourceFiles(path.join(__dirname, '..', 'src', 'renderer', 'src'))) {
     if (/security(Targets)?\.ts$/.test(file)) continue
     const text = fs.readFileSync(file, 'utf8')

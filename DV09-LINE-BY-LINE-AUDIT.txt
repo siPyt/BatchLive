@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 28 VERIFIED_SUBSET, 56 PARTIAL, 19 MISSING,
+DV-09 remains incomplete: 40 VERIFIED_SUBSET, 56 PARTIAL, 7 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 The user's standing instruction ("finish everything and stop stopping",
 2026-10-05) authorizes continuing to commit and push every pass without
@@ -1999,20 +1999,35 @@ Acceptance: A future model needs multiple device parameters, status and
 
 [DV09-096]
 Pages: 428-433
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Resource, transducer and function blocks, identity/options/write
   locks, OOS/automatic/calibration data, device-specific block inventory.
-Evidence: TYPES has no fieldbus device/resource/transducer objects.
+Evidence (Pass73): engine/fieldbus.ts + fieldbusActions.ts model FF devices from
+  a small catalog of generic virtual instruments (not real devices). Each device
+  has independent Resource (mode, write lock, features), Transducer (mode,
+  calibration trim) and Function blocks (AI, AO, MAI, PID, DI, DO, ISEL) from
+  its type's inventory. Mode rules: resource and transducer are Auto/OOS only,
+  Man applies only to PID/AO; configuration parameters need the block OOS;
+  calibration needs the transducer OOS and an unlocked resource; a block or
+  resource Out of Service gives Bad DST quality. Device resource/transducer
+  configuration needs the Can Calibrate key, placed on the H1 panel
+  (Physical Network). Not claimed: real device calibration or certified device
+  behavior.
 Acceptance: Represent independent block state and parameters; calibration
   requires correct virtual mode without claiming real device calibration.
 
 [DV09-097]
 Pages: 434-437
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Shadow/extended FF blocks, device assignment and manufacturer-specific
   parameters, including AI/AO/MAI/PID variants.
-Evidence: Palette FFMDI/FFMDO names are generic utility blocks, not a fieldbus
-  device model. Manufacturer parameters/assignment absent.
+Evidence (Pass73): extended (shadow) blocks carry standard and manufacturer-
+  specific parameters (for example AI SENSOR_DAMPING, AO TRAVEL_CUTOFF_HI/LO,
+  MAI MAI_UPDATE_RATE, PID FF_GAIN, ISEL MIN_GOOD) validated for type, range,
+  enum membership and the OOS requirement; a block executes in its device or is
+  assigned to the H1 card (capacity limited); a commissioned block's output is a
+  DST (TAG/BLOCK/OUT) that PID/AI/AO/DI/DO modules bind to and read with quality.
+  Names alone do not imply FOUNDATION support.
 Acceptance: Verify every supported extended parameter and actual device
   execution context; names alone must not imply FOUNDATION support.
 
@@ -2027,28 +2042,46 @@ Acceptance: A virtual catalog must validate manufacturer/type/revision and
 
 [DV09-099]
 Pages: 444-447
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Separate execution/scheduled/unscheduled communication and PID
   assignment locations; requested macrocycle options and module-driven rates.
-Evidence: HW's controller scanTimeMs is metadata, not an H1 schedule.
+Evidence (Pass73): bus time is separate from module execution: a port has a
+  requested macrocycle (0.5/1/2/4 s), each block is scheduled in the band its
+  module rate maps to, a calculated time is derived from the scheduled blocks,
+  publishers and minimum CD spacing, and the actual cycle is max(requested,
+  calculated). Fast and slow bands run concurrently; delivery of a value to the
+  DST happens only when its band completes a cycle (tested within one 1 s and one
+  2 s macrocycle). Blocks execute in the device or in the H1 card.
 Acceptance: Simulate bus time separately from internal execution, requested
   versus calculated rates and concurrent fast/slow loops.
 
 [DV09-100]
 Pages: 448-451
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: LAS/link master/basic devices, compel-data publish/subscribe,
   probe/live-list maintenance, pass-token traffic and backup LAS.
-Evidence: No link scheduler or device network state.
+Evidence (Pass73): the H1 card is the LAS (address 1). Each macrocycle counts
+  pass-token traffic and probes eight addresses, so a newly attached device joins
+  the live list only after being probed and a removed or silent device drops out
+  at once. Unscheduled requests are queued and served at most four per
+  macrocycle. When the card fails, a link-master device (the positioner type)
+  becomes LAS after three macrocycles; basic devices cannot, and with no link
+  master the segment has no scheduler. Values for the failed card's DSTs stay
+  Bad. Timing is simulated bus time, not a protocol stack.
 Acceptance: Test device add/remove, scheduled delivery, unscheduled access
   and takeover, with measurable timing rather than static diagrams.
 
 [DV09-101]
 Pages: 452-456
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: AMS audit trail for standby/commissioned devices and resource/
   transducer changes, date/time/user/type/reason/methods; read-only detail.
-Evidence: JOURNAL is not a device configuration archive or AMS history.
+Evidence (Pass73): every configuration change to a device (commission,
+  decommission, mode, parameter, calibration, write lock, transfer) appends an
+  audit entry with time, user, type, block, parameter, old/new value, reason,
+  method and a snapshot of the configuration after the change. Entries are
+  deep-frozen (read-only), a reason is required once a device is commissioned or
+  in standby, and the trail is shown per device. Real AMS is a vendor boundary.
 Acceptance: Record actual virtual device changes and methods, immutable detail
   and state transitions. Real AMS installation is a vendor boundary.
 
@@ -2067,11 +2100,16 @@ Acceptance: If implemented, provide a virtual checked design exercise; real
 
 [DV09-103]
 Pages: 465-467
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Calculate trunk plus all spurs and mixed-cable length budgets.
   Course examples distinguish acceptable 0.99 from unacceptable 1.28;
   maximum lengths A1900/B1200/C400/D200 meters.
-Evidence: No cable/topology calculator.
+Evidence (Pass73): cableBudget() sums length / maximum length over the trunk and
+  every spur (A 1900 m, B 1200 m, C 400 m, D 200 m): 1881 m of A is 0.99
+  (acceptable), 1536 m of B is 1.28 (not acceptable), exactly 1.0 is acceptable,
+  zero is acceptable, negative/NaN/unknown types are rejected, feet convert to
+  meters. A lesson calculator appears on the H1 panel; it does not certify an
+  installation.
 Acceptance: In a training-only calculator, test exact numeric examples, zero,
   negative values, unit conversion and the strict mixed-budget comparison.
 
@@ -2137,48 +2175,71 @@ Acceptance: Only an explicitly virtual connection exercise is possible here;
 
 [DV09-111]
 Pages: 498-502
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: H1 power/failure/port LEDs, simplex/redundant Series2, class/type/
   series/slot and odd-slot redundancy placement; 96 total blocks split into
   at most 64 device and 32 H1 card blocks.
-Evidence: HW has no H1 card/port/block resource inventory.
+Evidence (Pass73): Series 2 H1 card, simplex or redundant pair (odd slot, partner
+  slot reserved, slot conflicts with traditional/serial cards refused), power /
+  failure / per-port LEDs derived from real controller, download, LAS and live
+  list state, and exact capacity: 96 blocks = at most 64 in devices and 32 in the
+  card, both enforced. LED appearance versus the manual's screenshots was not
+  compared (image-only review remains outstanding).
 Acceptance: Test exact capacity boundaries and LED meanings from actual
   virtual states; validate screenshots before claiming indicator fidelity.
 
 [DV09-112]
 Pages: 503-506
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Enable H1 port, description, requested/default1s/calculated/actual
   macrocycle; actual is max(requested, calculated).
-Evidence: Controller scan metadata is not this port scheduler.
+Evidence (Pass73): port enable, description, requested macrocycle, minimum CD
+  spacing, calculated and actual macrocycle shown on the H1 panel;
+  actualMacrocycleMs is max(requested, calculated) (1/1.2 -> 1.2, 0.5/0.8 ->
+  0.8, 1/0.6 -> 1) and a real 11-device schedule calculated 1.5 s overrides a
+  0.5 s request.
 Acceptance: Test all four course rows, including requested1/calculated1.2
   yielding1.2 and requested0.5/calculated0.8 yielding0.8 seconds.
 
 [DV09-113]
 Pages: 507-507
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Module-driven block rates map into 500/1000/2000/4000ms bands;
   up to four simultaneous macrocycles and a viewer.
-Evidence: No independent block scheduling/H1 viewer.
+Evidence (Pass73): module scan periods map to the 500/1000/2000/4000 ms bands
+  with inclusive upper boundaries (500 -> 500, 501 -> 1000, 4000 -> 4000, 4001
+  rejected); up to four concurrent macrocycles run and the viewer lists each band
+  with its blocks and calculated/actual time.
 Acceptance: Test rate bands at each inclusive/exclusive boundary and
   concurrent schedules; do not just display rounded scan numbers.
 
 [DV09-114]
 Pages: 508-512
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Configure minimum CD spacing; inspect schedule/resource totals,
   publisher/subscriber VCRs and device/H1 blocks. Port maximums include
   35 publishers, 50 subscribers and 50 total VCRs.
-Evidence: No VCR/link resource accounting.
+Evidence (Pass73): minimum CD spacing (0-1000 ms) is configurable and feeds the
+  calculated macrocycle; VCRs are counted per port by actual block placement
+  (device-to-controller output = publisher, controller-to-device input =
+  subscriber, device-to-device = both) and the limits 35 publishers, 50
+  subscribers and 50 total are enforced: mixed 35+15 and 5+45 pass, 36
+  publishers, 51 subscribers and a 51st VCR fail.
 Acceptance: Enforce BOTH category and total limits and count direction by
   actual block placement; test mixed35+15 and5+45 examples.
 
 [DV09-115]
 Pages: 513-515
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Autosense H1 card, enable port, document macros/resources,
   download card5, rescan device port and show integrity/state/ID/address/revision.
-Evidence: CHARM scan is not fieldbus scan and lacks device identity/revision.
+Evidence (Pass73): downloading the H1 card and rescanning shows what the virtual
+  segment reports: address, device ID, tag, state (Commissioned, Standby,
+  Unknown, Placeholder, Not communicating), integrity, model and revision/DD.
+  Devices appear only after the LAS probes their address, unknown types are
+  Bad/Unknown, silent or removed devices become Not communicating; commissioning
+  checks type, revision, DD revision and address. Verified in the browser
+  (attach, rescan to Standby/Good, Commission, audit entry).
 Acceptance: Observe real virtual inventory and failed/unknown discovery;
   no fixed table should claim all devices communicating.
 
@@ -2299,11 +2360,18 @@ Acceptance: Ensure settings truly execute on initialization and affect actual
 
 [DV09-127]
 Pages: 570-573
-Status: MISSING
+Status: VERIFIED_SUBSET
 Required: Compare same-type/revision devices/placeholders and historical/current
   resource/transducer configurations; transfer selected values, show differences
   and modified field/tab highlighting.
-Evidence: No device configurations/history/compare/transfer model.
+Evidence (Pass73): compareFfDevices compares same-type, same-revision devices
+  (placeholder, standby or commissioned) and historical or current resource,
+  transducer and block configurations, listing each difference; transferFfValues
+  copies only the selected differing values into the current configuration
+  (history stays read-only), refuses different types/revisions or a write-locked
+  target, requires a reason for commissioned devices and writes a TRANSFER audit
+  entry per value. Highlighting of modified fields/tabs is not rendered; the
+  compare/transfer functions are exercised by tests, not yet by a panel.
 Acceptance: Validate compatibility, each allowed comparison pair, read-only
   historical state and explicit transfer results with audit events.
 
@@ -3536,3 +3604,36 @@ Validation: 483 repository tests run locally (482 pass; the remaining failure
 Result: DV09-086..091 MISSING -> VERIFIED_SUBSET; DV09-092/093 MISSING ->
   PARTIAL. Totals 28 VERIFIED_SUBSET/56 PARTIAL/19 MISSING/19 BOUNDARY/6
   CONTEXT.
+
+PASS 73 CHANGE DETAIL AND VALIDATION (2026-10-05, overnight continuation)
+-----------------------------------------------------------------------
+Scope: chapters 10-12 virtual FOUNDATION fieldbus: DV09-096, 097, 099, 100,
+101, 103, 111, 112, 113, 114, 115 and 127 (pages 428-515 and 570-573).
+Engine: new fieldbus.ts (H1 card/port/device/block types, generic catalog, block
+  parameter definitions, capacity, macrocycle and VCR maths, cable budget,
+  compare, hidden DST cards, virtual bus with LAS, probing, delivery and
+  takeover) and fieldbusActions.ts (all operations, audit trail with frozen
+  entries, compare/transfer). hardware.ts adds h1Cards; traditionalIo.ts adds
+  TraditionalCard.fieldbus, quality from the bus and the scan step, so AI/AO/
+  DI/DO module binding works unchanged. securityTargets.ts registers the H1
+  configure/download/field-device functions; slot checks now span H1, serial
+  and traditional cards. The audit scan test also recognizes the allow() helper.
+UI: components/H1Panel.tsx under each controller (card, LEDs, block counts,
+  ports, macrocycle viewer, live inventory, device placeholders/virtual
+  devices/commissioning, modes, calibration, audit trail, cable budget).
+Tests: tests/fieldbus-h1.test.cjs (17): placement/redundancy, capacity 64/32,
+  macrocycle rows and calculated schedule, rate bands, VCR limits, discovery,
+  catalog matching, block modes/locks/calibration, extended parameters, audit
+  trail and immutability, compare/transfer, scheduled delivery and unscheduled
+  access, backup LAS, DST quality and module reads, cable budget and keys.
+Browser: H1 panel created a card, enabled P01, attached a virtual device that
+  rescanned to Standby/Good, commissioned it and showed the audit entry; the
+  cable calculator showed 0.99 acceptable and 1.28 not acceptable.
+Boundary (honest): no FOUNDATION stack or real device descriptions; catalog
+  devices are generic; the compare/transfer and link editors are engine-level
+  (no panel yet); electrical segment checkout (resistance, capacitance, DC, AC)
+  remains a BOUNDARY; screenshots of LEDs were not compared.
+Validation: 500 repository tests run locally (499 pass; the remaining failure
+  is the pre-existing local-only pdf_om.txt dependency). Typecheck/build passed.
+Result: the twelve groups MISSING -> VERIFIED_SUBSET. Totals 40 VERIFIED_SUBSET/
+  56 PARTIAL/7 MISSING/19 BOUNDARY/6 CONTEXT.
