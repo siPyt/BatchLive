@@ -1201,16 +1201,17 @@ function ParamStepper({
   decimals: number
   onChange: (v: number) => void
 }): JSX.Element {
+  const current = Number.isFinite(value) ? value : 0
   return (
     <span className="fb-stepper">
-      <button onClick={() => onChange(value - step)}>−</button>
+      <button onClick={() => onChange(current - step)}>−</button>
       <input
         className="fb-numinput"
         type="number"
-        value={Number(value.toFixed(decimals))}
+        value={Number(current.toFixed(decimals))}
         onChange={(e) => onChange(Number(e.target.value))}
       />
-      <button onClick={() => onChange(value + step)}>+</button>
+      <button onClick={() => onChange(current + step)}>+</button>
     </span>
   )
 }

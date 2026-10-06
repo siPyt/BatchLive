@@ -61,9 +61,9 @@ function value(m: AnyModule | undefined, row: Row): string {
   if (m.type === 'PID') {
     const n = row === 'PV' ? m.pv : row === 'SP' ? m.sp : m.out
     const unit = row === 'OUT' ? '%' : m.unit
-    return `${n.toFixed(row === 'OUT' ? 1 : m.decimals ?? 1)}${unit}`
+    return Number.isFinite(n) ? `${n.toFixed(row === 'OUT' ? 1 : m.decimals ?? 1)}${unit}` : '—'
   }
-  if (m.type === 'AI') return `${m.pv.toFixed(m.decimals ?? 1)}${m.unit}`
+  if (m.type === 'AI') return Number.isFinite(m.pv) ? `${m.pv.toFixed(m.decimals ?? 1)}${m.unit}` : '—'
   return '—'
 }
 
