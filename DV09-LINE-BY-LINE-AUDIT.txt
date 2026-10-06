@@ -1,15 +1,15 @@
 BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
 =============================================
 
-CURRENT FUNCTIONAL REVIEW - 2026-10-05, AFTER PASS95
+CURRENT FUNCTIONAL REVIEW - 2026-10-06, AFTER PASS98
 ---------------------------------------------------
-Implementation baseline: f160b69, 2026-10-05 (overnight continuation).
-657 repository tests run locally (656 pass); typecheck and production build
+Implementation baseline: Pass 98 (see git log), 2026-10-06.
+707 repository tests run locally (706 pass); typecheck and production build
 pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 75 VERIFIED_SUBSET, 28 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 76 VERIFIED_SUBSET, 27 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -1564,8 +1564,13 @@ Evidence: SFC has structured assignments/conditions and COMPLETE state.
   Download/Online/RUN/HOLD/RESTART/STOP verified runtime/default isolation.
   Original p274 image reviewed. Pass23 adds Non-Boolean local ALARM-block
   references with qualified execution and real custom timed alarms.
-  Universal expressions and general block palettes/activation remain missing;
-  this entry stays PARTIAL rather than certifying every native block.
+  Pass98 adds the full SFC expression language (sfcLogic.ts): AND/OR/XOR/NOT,
+  parentheses, comparisons of any two values, + - * /, ABS/SQRT/ROUND/MIN/MAX/IF,
+  '//TAG/BLOCK/PARAM' and '^/TAG/...' paths, local Boolean/Named Set parameters
+  and step parameters, with three-valued Bad handling and numeric SP/OUT
+  assignment expressions executed every scan. General non-Boolean block
+  palettes/activation remain missing; this entry stays PARTIAL rather than
+  certifying every native block.
 Acceptance: Verify all three action classes and termination independently;
   command assignment alone is not every type of SFC action.
 
@@ -1631,7 +1636,7 @@ Acceptance: Model a validated graph, concurrent active steps and correct joins;
 
 [DV09-067]
 Pages: 281-283
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Add action/transition via context properties and Expression Assistant.
 Evidence: Original pp281-283 screenshots reviewed locally. Select step and
   right-click its Action window -> Add opens an isolated draft. Existing
@@ -1646,7 +1651,9 @@ Evidence: Original pp281-283 screenshots reviewed locally. Select step and
   discard drafts; nested Browser Escape restores parent-dialog focus.
   Configured Named Set MESSAGE assignment/condition expressions and Browser
   paths now resolve to actual runtime parameters. Full expression language, native
-  Confirm tab and general non-Boolean action types remain missing. Boolean parameter
+  Confirm tab and general non-Boolean action types remain missing (Pass98: the
+  full expression language, Confirm tab and Validate Condition now exist, see
+  the Pass 98 detail). Boolean parameter
   Type/reference and its Browser now have real lifecycle behavior. Pass23 adds
   local ALARM-block Non-Boolean Type/reference and Browser; its stored action
   executes the shared block engine, not an alarm-only proxy. Opt-in
@@ -1656,8 +1663,15 @@ Evidence: Original pp281-283 screenshots reviewed locally. Select step and
   atomically and opens the specified algorithm, rather than an unrelated first
   chart. Native dialog/template, graph and restart boundaries remain missing.
   The screenshot's exact MESSAGE
-  expressions are executable; full native property workflows and the exact
-  graph-based workshop remain PARTIAL.
+  expressions are executable. Pass98 (course 7009-8 pp8-12/13/21/23/24/26 and the
+  Control Studio screenshots 2001/2002 reviewed): Action Properties has General and
+  Confirm tabs (Confirm checkbox named for the qualifier, Confirm expression, Confirm
+  Timeout as time value or expression), the Delay section takes a time or an
+  expression, Transition Properties has Validate Condition with a results box, and
+  the Expression Assistant inserts step parameters and logic operators. The
+  startup/shutdown workshop (Named Set messages, Pulse delay expression, Confirm,
+  Pending_Confirms = 0, divergent paths) is executable. Boundary: no native
+  function-block palette beyond local ALARM blocks, no drag-and-drop connectors.
 Acceptance: Configure resolvable parameter expressions and explicit validation
   failures using the same path model as operator/configuration tools.
 
@@ -4454,3 +4468,45 @@ Boundary (honest): selective routes that leave a leg or enter another leg, a leg
   between forks remain refused; no connector dragging; default 5 s route conditions.
 Validation: 680 tests locally (679 pass; only pdf_om.txt-dependent audit fails), typecheck passed.
 Result: no status change (DV09-066 stays VERIFIED_SUBSET, boundary narrowed). Totals 75 VERIFIED_SUBSET/28 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 98 CHANGE DETAIL AND VALIDATION (2026-10-06, SFC expression language, Confirm tab and Control Studio chart style)
+-----------------------------------------------------------------------
+Sources: Course 7009-8 "Sequential Function Charts" (pp8-4..8-26: steps/actions/qualifiers, divergence and
+  convergence drawings, Action Properties General and Confirm tabs, Transition Properties with Validate Condition,
+  Startup & Shutdown workshop) and Control Studio screenshots 2001/2002 (AC_OLSTRIN chart: transitions drawn as
+  crosses named T1D/T2/T3/T3A..., selective rails, double bars). The PDF stays local; the two PNGs are committed.
+Scope: DV09-064/065/066/067 (067 PARTIAL -> VERIFIED_SUBSET; 064/065 stay PARTIAL).
+Expression language: new engine/sfcLogic.ts - tokenizer, recursive-descent parser (OR/XOR < AND < NOT < comparison <
+  + - < * / < unary -), typed compile and evaluation, no JavaScript evaluation. Operands: numbers, TRUE/FALSE, T_ACTIVE,
+  module paths ('^/TAG/BLOCK/PARAM', '//TAG/...', '/TAG/...': PID/AI/AO PV, SP, OUT, MODE.ACTUAL/TARGET; MOTOR/VALVE
+  DC1/PV_D and OUT_D; DI1/PV_D; DO1/SP_D), local Boolean and Named Set parameters ('MESSAGE.CV' = 'NS-T101:STARTUP'),
+  step parameters. Functions ABS SQRT ROUND MIN MAX IF. Three-valued logic: Bad/OOS/unknown never satisfies a transition,
+  AND/OR still resolve when the other operand decides. Division by zero and SQRT of a negative are unknown. Limits: 500
+  characters, nesting depth 40. Simple single-clause forms keep their dedicated condition kinds and error messages; the
+  language is the fallback (sfcExpressions.ts), so every earlier saved chart is unchanged. SP/OUT assignments accept a
+  numeric expression ('^/FIC-101/PID1/SP.CV' := IF(...)) evaluated on every execution. Saved schema, clone, Check and
+  describe/round-trip updated; new SfcCondition kind 'expression' and optional action 'expression'.
+Confirm tab (course p8-23/24): actions carry optional confirm { expression, timeout | timeoutExpression }. The
+  confirmation starts when the action first runs (so delayed/pulse actions are measured from activation), resolves to
+  confirmed when the expression is TRUE or failed when the timeout elapses first (0 waits indefinitely). Step
+  parameters ACTIVE, TIME, PENDING_CONFIRMS, FAILED_CONFIRMS, CONFIRM_FAIL and DISABLED are readable as
+  'STEP_NAME/PENDING_CONFIRMS.CV' or bare for the transition's own step. Check enforces the course rule that a step with
+  confirmed actions must test one of them in its transition; reset actions cannot be confirmed. Works in linear charts
+  and inside parallel legs.
+UI: Action Properties General/Confirm tabs (checkbox named for the qualifier, Confirm expression, Confirm Timeout as
+  time value or expression); Transition Properties Validate Condition + Validation results; Expression Assistant inserts
+  step parameters and AND/OR/NOT/parentheses; stale "arbitrary expressions unsupported" notes replaced. The legacy
+  condition dropdown shows expression transitions read-only instead of overwriting them.
+Chart: SfcChart now follows Control Studio - every route carries a cross-shaped transition named T<n> (T3A, T3B for
+  selective alternatives; "Show transition expressions" toggle, expression always in the tooltip), one rail under a
+  selective divergence and above a selective convergence, a double bar for parallel divergence and convergence, thin
+  lines on a white canvas, initial step double-bordered. Also fixed invalid <title> children (FbdCanvas, SfcChart).
+Tests: tests/sfc-logic.test.cjs (14), sfc-confirm.test.cjs (11), sfc-chart.test.cjs (2); four older tests that pinned
+  now-lifted boundaries (50 + 1, FALSE, = 30, A AND B, OUT_D read, MODE.TARGET read, ... OR TRUE) were updated to assert
+  the new accepted behaviour while keeping every genuinely invalid case rejected. Browser: opened an SFC, enabled Confirm
+  on an action - rejected with the course wording until the transition tested PENDING_CONFIRMS, then applied, persisted
+  across reopen, and the chart ran to COMPLETE.
+Boundary (honest): no native function-block palette beyond local ALARM blocks; no connector dragging; the join is a
+  step (the course draws a bar then a transition); DISABLED is always FALSE; confirmation timeout 0 means no timeout.
+Validation: 707 tests locally (706 pass; only the pdf_om.txt-dependent audit fails), typecheck and build passed.
+Result: DV09-067 PARTIAL -> VERIFIED_SUBSET. Totals 76 VERIFIED_SUBSET/27 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

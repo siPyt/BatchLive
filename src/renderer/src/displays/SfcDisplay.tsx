@@ -706,7 +706,7 @@ export function TransitionEditor({
   const tags = cond.kind === 'pv' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AI'), ...tagsOf(modules, 'AO')] :
     cond.kind === 'out' || cond.kind === 'mode' ? [...tagsOf(modules, 'PID'), ...tagsOf(modules, 'AO')] : tagsOf(modules, tagType)
 
-  if (cond.kind === 'namedSet' || cond.kind === 'boolean') return <div className="sfc-edit-row sfc-trans-edit">{describeCondition(cond)}</div>
+  if (cond.kind === 'namedSet' || cond.kind === 'boolean' || cond.kind === 'expression') return <div className="sfc-edit-row sfc-trans-edit">{describeCondition(cond)}</div>
   return (
     <div className="sfc-edit-row sfc-trans-edit">
       <span className="sfc-trans-arrow">⟶</span>

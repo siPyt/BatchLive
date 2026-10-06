@@ -208,6 +208,36 @@ interface Compiled {
 /** Module paths accept the course's '//TAG/BLOCK/PARAM' absolute form as well as '^/TAG/...' and '/TAG/...'. */
 const PATH = /^(?:\^\/|\/\/|\/)?([A-Za-z0-9_$-]+)\/([A-Za-z0-9_/.]+)$/
 const LOCAL = /^([A-Za-z0-9_$-]+?)(?:\.CV)?$/i
+const STEP_PARAMETERS: Record<string, Kind> = {
+  ACTIVE: 'boolean', CONFIRM_FAIL: 'boolean', DISABLED: 'boolean',
+  FAILED_CONFIRMS: 'number', PENDING_CONFIRMS: 'number', TIME: 'number'
+}
+const STEP_PATH = /^(?:\^\/|\/\/|\/)?([A-Za-z0-9_$ -]+)\/(ACTIVE|CONFIRM_FAIL|DISABLED|FAILED_CONFIRMS|PENDING_CONFIRMS|TIME)(?:\.CV)?$/i
+const stepKey = (text: string): string => text.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_')
+
+/** A step parameter by step name ('CLOSE_BLK/PENDING_CONFIRMS.CV'), or the transition's own step when the name is omitted. */
+function stepReference(stepName: string | undefined, parameter: string, context?: SfcExpressionContext): Compiled | null {
+  const name = parameter.toUpperCase().replace(/\.CV$/, '')
+  const kind = STEP_PARAMETERS[name]
+  if (!kind || !context?.steps) return null
+  const target = stepName === undefined ? context.steps.find(step => step.id === context.stepId) :
+    context.steps.find(step => stepKey(step.name) === stepKey(stepName))
+  if (!target) return null
+  const id = target.id
+  return { kind, parameter: name, eval: (env) => {
+    const view = env.context?.steps?.find(step => step.id === id)
+    if (!view) return null
+    switch (name) {
+      case 'ACTIVE': return view.active
+      case 'CONFIRM_FAIL': return view.failedConfirms > 0
+      case 'DISABLED': return false
+      case 'FAILED_CONFIRMS': return view.failedConfirms
+      case 'PENDING_CONFIRMS': return view.pendingConfirms
+      default: return view.time
+    }
+  } }
+}
+
 const eq = (a: number, b: number): boolean => Math.abs(a - b) <= EPSILON * Math.max(1, Math.abs(a), Math.abs(b))
 
 function finite(value: number, bad: boolean): Value {
@@ -271,6 +301,12 @@ function readPath(state: PlantState, tag: string, parameter: string): Value {
 }
 
 function reference(text: string, modules: Record<string, AnyModule>, context?: SfcExpressionContext): Compiled {
+  const stepPath = text.trim().match(STEP_PATH)
+  if (stepPath && !modules[stepPath[1].trim().toUpperCase()]) {
+    const found = stepReference(stepPath[1], stepPath[2], context)
+    if (found) return found
+    throw new LogicError(`Step ${stepPath[1].trim()} does not exist in this SFC`)
+  }
   const path = text.trim().match(PATH)
   if (path) {
     const tag = path[1].toUpperCase()
@@ -290,6 +326,10 @@ function reference(text: string, modules: Record<string, AnyModule>, context?: S
         return live?.type === 'BOOLEAN' ? live.value : null
       } } :
       { kind: 'named', parameter: name, eval: () => null }
+  }
+  if (name) {
+    const own = stepReference(undefined, name, context)
+    if (own) return own
   }
   return { kind: 'text', literal: text.trim(), eval: () => text.trim() }
 }

@@ -53,7 +53,8 @@ export function cloneSfcConfiguration(configuration: SfcConfiguration): SfcConfi
     ...(step.parallelNextSteps ? { parallelNextSteps: [...step.parallelNextSteps] } : {}),
     ...(step.joinFrom ? { joinFrom: [...step.joinFrom] } : {}),
     transition: { ...step.transition }, actions: step.actions.map(action => ({
-      ...action, timingCondition: action.timingCondition ? { ...action.timingCondition } : undefined
+      ...action, timingCondition: action.timingCondition ? { ...action.timingCondition } : undefined,
+      ...(action.confirm ? { confirm: { ...action.confirm } } : {})
     }))
   })) }
 }
@@ -143,13 +144,20 @@ function condition(value: unknown): value is SfcCondition {
     ['>', '<', '>=', '<='].includes(String(value.op))
 }
 
+function confirmShape(value: unknown): boolean {
+  return record(value) && typeof value.expression === 'string' && value.expression.length > 0 && value.expression.length <= 500 &&
+    (value.timeout === undefined || typeof value.timeout === 'number') &&
+    (value.timeoutExpression === undefined || typeof value.timeoutExpression === 'string' && value.timeoutExpression.length <= 500)
+}
+
 function action(value: unknown): value is SfcAction {
   if (!record(value) || typeof value.tag !== 'string') return false
   if (value.qualifier !== undefined && !['N', 'R', 'L', 'D', 'P', 'S', 'SD', 'DS', 'SL'].includes(String(value.qualifier))) return false
   if (value.name !== undefined && typeof value.name !== 'string' ||
     value.description !== undefined && typeof value.description !== 'string' ||
     value.seconds !== undefined && typeof value.seconds !== 'number' ||
-    value.timingCondition !== undefined && !condition(value.timingCondition)) return false
+    value.timingCondition !== undefined && !condition(value.timingCondition) ||
+    value.confirm !== undefined && !confirmShape(value.confirm)) return false
   if (value.kind === 'sp' || value.kind === 'out') {
     return typeof value.value === 'number' && (value.expression === undefined || typeof value.expression === 'string' && value.expression.length <= 500)
   }

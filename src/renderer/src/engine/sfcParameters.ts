@@ -13,11 +13,29 @@ export interface SfcBooleanParameter {
 }
 export type SfcParameter = SfcNamedParameter | SfcBooleanParameter
 export type SfcParameters = Record<string, SfcParameter>
+/** Live view of a step's built-in parameters (ACTIVE, TIME, PENDING_CONFIRMS, FAILED_CONFIRMS, CONFIRM_FAIL, DISABLED). */
+export interface SfcStepView {
+  id: string
+  name: string
+  active: boolean
+  time: number
+  pendingConfirms: number
+  failedConfirms: number
+}
+
 export interface SfcExpressionContext {
   name: string
   parameters: SfcParameters
   sets: Record<string, NamedSetDefinition>
   blocks?: Record<string, SfcFunctionBlock>
+  /** Steps of this SFC, so expressions can read their parameters. */
+  steps?: SfcStepView[]
+  /** The step whose transition/action is being evaluated; bare 'PENDING_CONFIRMS' refers to it. */
+  stepId?: string
+}
+
+export function placeholderStepViews(steps: { id: string; name: string }[]): SfcStepView[] {
+  return steps.map(step => ({ id: step.id, name: step.name, active: false, time: 0, pendingConfirms: 0, failedConfirms: 0 }))
 }
 
 export function cloneSfcParameters(parameters?: SfcParameters): SfcParameters | undefined {

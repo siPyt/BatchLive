@@ -2731,3 +2731,45 @@ Boundary (honest): selective routes that leave a leg or enter another leg, a leg
   between forks remain refused; no connector dragging; default 5 s route conditions.
 Validation: 680 tests locally (679 pass; only pdf_om.txt-dependent audit fails), typecheck passed.
 Result: no status change (DV09-066 stays VERIFIED_SUBSET, boundary narrowed). Totals 75 VERIFIED_SUBSET/28 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 98 CHANGE DETAIL AND VALIDATION (2026-10-06, SFC expression language, Confirm tab and Control Studio chart style)
+-----------------------------------------------------------------------
+Sources: Course 7009-8 "Sequential Function Charts" (pp8-4..8-26: steps/actions/qualifiers, divergence and
+  convergence drawings, Action Properties General and Confirm tabs, Transition Properties with Validate Condition,
+  Startup & Shutdown workshop) and Control Studio screenshots 2001/2002 (AC_OLSTRIN chart: transitions drawn as
+  crosses named T1D/T2/T3/T3A..., selective rails, double bars). The PDF stays local; the two PNGs are committed.
+Scope: DV09-064/065/066/067 (067 PARTIAL -> VERIFIED_SUBSET; 064/065 stay PARTIAL).
+Expression language: new engine/sfcLogic.ts - tokenizer, recursive-descent parser (OR/XOR < AND < NOT < comparison <
+  + - < * / < unary -), typed compile and evaluation, no JavaScript evaluation. Operands: numbers, TRUE/FALSE, T_ACTIVE,
+  module paths ('^/TAG/BLOCK/PARAM', '//TAG/...', '/TAG/...': PID/AI/AO PV, SP, OUT, MODE.ACTUAL/TARGET; MOTOR/VALVE
+  DC1/PV_D and OUT_D; DI1/PV_D; DO1/SP_D), local Boolean and Named Set parameters ('MESSAGE.CV' = 'NS-T101:STARTUP'),
+  step parameters. Functions ABS SQRT ROUND MIN MAX IF. Three-valued logic: Bad/OOS/unknown never satisfies a transition,
+  AND/OR still resolve when the other operand decides. Division by zero and SQRT of a negative are unknown. Limits: 500
+  characters, nesting depth 40. Simple single-clause forms keep their dedicated condition kinds and error messages; the
+  language is the fallback (sfcExpressions.ts), so every earlier saved chart is unchanged. SP/OUT assignments accept a
+  numeric expression ('^/FIC-101/PID1/SP.CV' := IF(...)) evaluated on every execution. Saved schema, clone, Check and
+  describe/round-trip updated; new SfcCondition kind 'expression' and optional action 'expression'.
+Confirm tab (course p8-23/24): actions carry optional confirm { expression, timeout | timeoutExpression }. The
+  confirmation starts when the action first runs (so delayed/pulse actions are measured from activation), resolves to
+  confirmed when the expression is TRUE or failed when the timeout elapses first (0 waits indefinitely). Step
+  parameters ACTIVE, TIME, PENDING_CONFIRMS, FAILED_CONFIRMS, CONFIRM_FAIL and DISABLED are readable as
+  'STEP_NAME/PENDING_CONFIRMS.CV' or bare for the transition's own step. Check enforces the course rule that a step with
+  confirmed actions must test one of them in its transition; reset actions cannot be confirmed. Works in linear charts
+  and inside parallel legs.
+UI: Action Properties General/Confirm tabs (checkbox named for the qualifier, Confirm expression, Confirm Timeout as
+  time value or expression); Transition Properties Validate Condition + Validation results; Expression Assistant inserts
+  step parameters and AND/OR/NOT/parentheses; stale "arbitrary expressions unsupported" notes replaced. The legacy
+  condition dropdown shows expression transitions read-only instead of overwriting them.
+Chart: SfcChart now follows Control Studio - every route carries a cross-shaped transition named T<n> (T3A, T3B for
+  selective alternatives; "Show transition expressions" toggle, expression always in the tooltip), one rail under a
+  selective divergence and above a selective convergence, a double bar for parallel divergence and convergence, thin
+  lines on a white canvas, initial step double-bordered. Also fixed invalid <title> children (FbdCanvas, SfcChart).
+Tests: tests/sfc-logic.test.cjs (14), sfc-confirm.test.cjs (11), sfc-chart.test.cjs (2); four older tests that pinned
+  now-lifted boundaries (50 + 1, FALSE, = 30, A AND B, OUT_D read, MODE.TARGET read, ... OR TRUE) were updated to assert
+  the new accepted behaviour while keeping every genuinely invalid case rejected. Browser: opened an SFC, enabled Confirm
+  on an action - rejected with the course wording until the transition tested PENDING_CONFIRMS, then applied, persisted
+  across reopen, and the chart ran to COMPLETE.
+Boundary (honest): no native function-block palette beyond local ALARM blocks; no connector dragging; the join is a
+  step (the course draws a bar then a transition); DISABLED is always FALSE; confirmation timeout 0 means no timeout.
+Validation: 707 tests locally (706 pass; only the pdf_om.txt-dependent audit fails), typecheck and build passed.
+Result: DV09-067 PARTIAL -> VERIFIED_SUBSET. Totals 76 VERIFIED_SUBSET/27 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

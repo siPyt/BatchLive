@@ -1,7 +1,7 @@
 import type { PlantState, AnyModule, PidModule, ControlMode, PidTargetMode } from './types'
 import { isPidTargetMode, PID_ACTUAL_MODES, pidExecutionBad, pidTargetAllowed } from './pidModes'
 import { readAnalogSignal } from './analogStrategy'
-import { booleanParameterReferenceError, cloneSfcParameters, namedParameterReferenceError, type SfcExpressionContext, type SfcParameters } from './sfcParameters'
+import { booleanParameterReferenceError, cloneSfcParameters, namedParameterReferenceError, placeholderStepViews, type SfcExpressionContext, type SfcParameters, type SfcStepView } from './sfcParameters'
 import type { NamedSetDefinition } from './namedSets'
 import { executeSfcBlock, syncSfcBlockActivation, type SfcBlockConfiguration, type SfcBlockState } from './sfcBlocks'
 import { resetDeviceLock } from './simulate'
@@ -19,7 +19,17 @@ export type SfcActualMode = ControlMode | 'OOS'
 export type ActionQualifier = 'N' | 'P' | 'S' | 'R' | 'D' | 'L' | 'SD' | 'DS' | 'SL'
 export const TIMED_QUALIFIERS: ActionQualifier[] = ['P', 'D', 'L', 'SD', 'DS', 'SL']
 
+/** Action Properties > Confirm tab: the action is confirmed when the expression becomes TRUE, and fails if the timeout elapses first. */
+export interface SfcActionConfirm {
+  expression: string
+  /** Seconds; 0 or absent waits indefinitely. */
+  timeout?: number
+  /** Alternative to the time value: the confirmation fails when this expression becomes TRUE. */
+  timeoutExpression?: string
+}
+
 interface ActionBase {
+  confirm?: SfcActionConfirm
   qualifier?: ActionQualifier
   name?: string
   description?: string
@@ -92,6 +102,29 @@ export interface SfcActionState {
   pending: boolean
   fired: boolean
   resetStep?: string
+  confirmStatus?: 'pending' | 'confirmed' | 'failed'
+  /** Action runtime clock value when its confirmation started. */
+  confirmStart?: number
+}
+
+const withStep = (context: SfcExpressionContext | undefined, stepId: string): SfcExpressionContext | undefined =>
+  context && { ...context, stepId }
+
+/** Per-step built-in parameters derived from the live action runtime and the active step clocks. */
+export function buildStepViews(steps: SfcStep[], actionStates: Record<string, SfcActionState>,
+  elapsedOf: (id: string) => number | undefined): SfcStepView[] {
+  return steps.map(step => {
+    const confirmed = Object.values(actionStates).filter(runtime => runtime.stepId === step.id && runtime.confirmStatus !== undefined)
+    const time = elapsedOf(step.id)
+    return { id: step.id, name: step.name, active: time !== undefined, time: time ?? 0,
+      pendingConfirms: confirmed.filter(runtime => runtime.confirmStatus === 'pending').length,
+      failedConfirms: confirmed.filter(runtime => runtime.confirmStatus === 'failed').length }
+  })
+}
+
+export function sfcStepViews(sfc: SfcDef): SfcStepView[] {
+  return buildStepViews(sfc.steps, sfc.actionStates ?? {}, id =>
+    sfc.status === 'RUNNING' || sfc.status === 'HELD' ? sfcStepElapsed(sfc, sfc.steps.findIndex(step => step.id === id)) : undefined)
 }
 
 export function actionIdentity(action: SfcAction): string {
@@ -723,6 +756,7 @@ function conditionError(condition: SfcCondition, modules: Record<string, AnyModu
 export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModule>, context?: SfcExpressionContext): string | null {
   const graphError = parallelGraphError(steps)
   if (graphError) return graphError
+  const viewContext = context && { ...context, steps: placeholderStepViews(steps) }
   const ids = new Set<string>()
   const stored = new Set(steps.flatMap(step => step.actions.filter(isStored).map(actionIdentity)))
   const blocks = steps.flatMap(step => step.actions.filter(action => action.kind === 'block' && action.qualifier !== 'R').map(actionOutput))
@@ -730,6 +764,7 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
   for (const step of steps) {
     if (!step.id || ids.has(step.id)) return 'SFC step IDs must be nonempty and unique'
     ids.add(step.id)
+    const stepContext = withStep(viewContext, step.id)
     if (step.nextStep !== undefined && step.nextStep !== null &&
       (typeof step.nextStep !== 'string' || !steps.some(candidate => candidate.id === step.nextStep))) {
       return `Missing transition target for step ${step.name}`
@@ -739,10 +774,10 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
       if (!route.nextStep || !steps.some(candidate => candidate.id === route.nextStep)) {
         return `Missing selective transition target for step ${step.name}`
       }
-      const error = conditionError(route.condition, modules, context)
+      const error = conditionError(route.condition, modules, stepContext)
       if (error) return error
     }
-    const transitionError = conditionError(step.transition, modules, context)
+    const transitionError = conditionError(step.transition, modules, stepContext)
     if (transitionError) return transitionError
     const names = new Set<string>()
     for (const action of step.actions) {
@@ -753,6 +788,7 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
         return 'Unsupported action qualifier'
       }
       if (action.qualifier === 'R') {
+        if (action.confirm) return 'A reset action cannot be confirmed'
         if (!stored.has(identity)) return `Reset target ${identity} has no stored action`
         continue
       }
@@ -790,10 +826,27 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
       }
       if (TIMED_QUALIFIERS.includes(action.qualifier ?? 'N')) {
         if (action.timingCondition) {
-          const error = conditionError(action.timingCondition, modules, context)
+          const error = conditionError(action.timingCondition, modules, stepContext)
           if (error) return error
         } else if (!Number.isFinite(action.seconds ?? 0) || (action.seconds ?? 0) < 0) return 'Action time must be finite and nonnegative'
       }
+      if (action.confirm) {
+        const confirm = action.confirm
+        const problem = typeof confirm.expression !== 'string' ? 'Confirm requires an expression' :
+          logicError(confirm.expression, modules, stepContext, 'boolean')
+        if (problem) return `Confirm expression: ${problem}`
+        if (confirm.timeout !== undefined && confirm.timeoutExpression !== undefined) return 'Confirm timeout is a time value or an expression, not both'
+        if (confirm.timeout !== undefined && (!Number.isFinite(confirm.timeout) || confirm.timeout < 0)) return 'Confirm timeout must be finite and nonnegative'
+        if (confirm.timeoutExpression !== undefined) {
+          const timeoutProblem = logicError(confirm.timeoutExpression, modules, stepContext, 'boolean')
+          if (timeoutProblem) return `Confirm timeout expression: ${timeoutProblem}`
+        }
+      }
+    }
+    // Course 7009-8 p8-24: a step with confirmed actions must follow with a transition that lets the confirmation complete.
+    if (step.actions.some(action => action.confirm) &&
+      !(step.transition.kind === 'expression' && /\b(PENDING_CONFIRMS|FAILED_CONFIRMS|CONFIRM_FAIL)\b/i.test(step.transition.text))) {
+      return `Step ${step.name} has confirmed actions; its transition must test PENDING_CONFIRMS, FAILED_CONFIRMS or CONFIRM_FAIL`
     }
   }
   return null
@@ -802,7 +855,7 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
 function updateActionState(runtime: SfcActionState, state: PlantState, stepActive: boolean, context?: SfcExpressionContext): SfcActionState {
   const action = runtime.action
   const q = action.qualifier
-  const reached = action.timingCondition ? evalCondition(action.timingCondition, state, runtime.elapsed, context) :
+  const reached = action.timingCondition ? evalCondition(action.timingCondition, state, runtime.elapsed, withStep(context, runtime.stepId)) :
     timeReached(runtime.elapsed, action.seconds ?? 0)
   const next = { ...runtime }
   if (!stepActive && !isStored(action)) {
@@ -823,7 +876,20 @@ function updateActionState(runtime: SfcActionState, state: PlantState, stepActiv
     next.active = !runtime.fired
     next.pending = false
   }
-  return next
+  return updateConfirm(next, state, context)
+}
+
+/** A confirmation starts when the action first runs, then resolves to confirmed (expression TRUE) or failed (timeout first). */
+function updateConfirm(runtime: SfcActionState, state: PlantState, context?: SfcExpressionContext): SfcActionState {
+  const confirm = runtime.action.confirm
+  if (!confirm || runtime.confirmStatus !== 'pending' || !(runtime.active || runtime.fired)) return runtime
+  const start = runtime.confirmStart ?? runtime.elapsed
+  const since = runtime.elapsed - start
+  const scope = withStep(context, runtime.stepId)
+  if (evalLogicBoolean(confirm.expression, state, since, scope)) return { ...runtime, confirmStatus: 'confirmed', confirmStart: start }
+  const timedOut = confirm.timeoutExpression !== undefined ? evalLogicBoolean(confirm.timeoutExpression, state, since, scope) :
+    (confirm.timeout ?? 0) > 0 && timeReached(since, confirm.timeout ?? 0)
+  return { ...runtime, confirmStatus: timedOut ? 'failed' : 'pending', confirmStart: start }
 }
 
 function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>, elapsed: number, entering = false, parallel = false): void {
@@ -836,7 +902,8 @@ function beginStepActions(step: SfcStep, states: Record<string, SfcActionState>,
     } else if (!states[identity] || states[identity].stepId !== step.id ||
       entering && !(isStored(action) && (states[identity].active || states[identity].pending))) {
       states[identity] = { action: { ...action }, stepId: step.id,
-        elapsed, active: false, pending: true, fired: false }
+        elapsed, active: false, pending: true, fired: false,
+        ...(action.confirm ? { confirmStatus: 'pending' as const } : {}) }
     }
   }
 }
@@ -852,6 +919,7 @@ function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
     beginStepActions(step, actionStates, active[id], false, true)
     active[id] += dt
   }
+  context.steps = buildStepViews(sfc.steps, actionStates, id => active[id])
   const reset = new Set(original.flatMap(id => sfc.steps.find(step => step.id === id)!.actions
     .filter(action => action.qualifier === 'R').map(actionIdentity)))
   for (const [key, runtime] of Object.entries(actionStates)) {
@@ -862,6 +930,7 @@ function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
     if (updated.active) execute(updated.action, updated.elapsed)
   }
   syncSfcBooleanActions(sfc)
+  context.steps = buildStepViews(sfc.steps, actionStates, id => active[id])
   const entering = new Set<string>()
   const arrive = (id: string, source: string): void => {
     const target = sfc.steps.find(step => step.id === id)!
@@ -877,8 +946,9 @@ function advanceParallelSfc(sfc: SfcDef, state: PlantState, dt: number,
   for (const id of original) {
     const index = sfc.steps.findIndex(step => step.id === id)
     const step = sfc.steps[index]
-    const primary = evalCondition(step.transition, state, active[id], context)
-    const alternate = !primary ? step.alternatives?.find(route => evalCondition(route.condition, state, active[id], context)) : undefined
+    const scope = withStep(context, id)
+    const primary = evalCondition(step.transition, state, active[id], scope)
+    const alternate = !primary ? step.alternatives?.find(route => evalCondition(route.condition, state, active[id], scope)) : undefined
     if (!primary && !alternate) continue
     delete active[id]
     for (const [key, runtime] of Object.entries(actionStates)) {
@@ -961,6 +1031,7 @@ export function advanceSfcs(
     const step = sfc.steps[Math.min(sfc.active, sfc.steps.length - 1)]
     next.elapsed = sfc.elapsed + dt
     beginStepActions(step, actionStates, sfc.elapsed)
+    context.steps = buildStepViews(sfc.steps, actionStates, id => id === step.id ? next.elapsed : undefined)
     for (const [identity, runtime] of Object.entries(actionStates)) {
       const stepActive = runtime.stepId === step.id
       const reset = step.actions.some(action => action.qualifier === 'R' && actionIdentity(action) === identity)
@@ -971,8 +1042,10 @@ export function advanceSfcs(
       if (updated.active) execute(updated.action, updated.elapsed)
     }
     syncSfcBooleanActions(next)
-    const primary = evalCondition(step.transition, state, next.elapsed, context)
-    const alternate = !primary ? step.alternatives?.find(route => evalCondition(route.condition, state, next.elapsed, context)) : undefined
+    context.steps = buildStepViews(sfc.steps, actionStates, id => id === step.id ? next.elapsed : undefined)
+    const scope = withStep(context, step.id)
+    const primary = evalCondition(step.transition, state, next.elapsed, scope)
+    const alternate = !primary ? step.alternatives?.find(route => evalCondition(route.condition, state, next.elapsed, scope)) : undefined
     if (primary || alternate) {
       const target = alternate ? alternate.nextStep : step.nextStep
       const destination = target === null ? -1 : target !== undefined ?

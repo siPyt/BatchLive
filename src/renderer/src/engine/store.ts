@@ -100,7 +100,7 @@ import { registerAreaResolver, requireUnlockedKey, useSecurity } from './securit
 import { ALARM_FIELD_LOCK, DEFAULT_SUPPRESS_MINUTES, alarmFieldWriteError, parseAlarmFieldPath, readAlarmField } from './alarmFields'
 import { compareModuleDownload, type DownloadStatusCheck } from './downloadStatus'
 import {
-  cloneSfcParameters, controllerNamedSets, sfcParameterError, type SfcExpressionContext, type SfcParameter
+  cloneSfcParameters, controllerNamedSets, placeholderStepViews, sfcParameterError, type SfcExpressionContext, type SfcParameter
 } from './sfcParameters'
 import {
   cloneSfcConfiguration, parseSavedSfc, savedSfcKey, serializeSavedSfc,
@@ -156,7 +156,8 @@ export function sfcExpressionContext(state: StoreState, name: string, online = f
   const configuration = online ? state.sfcLifecycle[name]?.deployed : state.sfcLifecycle[name]?.draft
   return { name, parameters: (online ? state.sfcs[name]?.parameters : (configuration ?? state.sfcs[name])?.parameters) ?? {},
     blocks: online ? state.sfcs[name]?.blocks : (configuration ?? state.sfcs[name])?.blocks,
-    sets: online ? controllerNamedSets(state.namedSets, configuration?.controllerTag ?? '') : state.namedSets.configured }
+    sets: online ? controllerNamedSets(state.namedSets, configuration?.controllerTag ?? '') : state.namedSets.configured,
+    steps: placeholderStepViews((online ? state.sfcs[name] : (configuration ?? state.sfcs[name]))?.steps ?? []) }
 }
 
 interface StoreState extends PlantState {
