@@ -1,15 +1,16 @@
 BATCHLIVE: COMPLETE DV-09 EXTRACTED-TEXT AUDIT
 =============================================
 
-CURRENT FUNCTIONAL REVIEW - 2026-10-06, AFTER PASS98
+CURRENT FUNCTIONAL REVIEW - 2026-10-06, AFTER PASS99
 ---------------------------------------------------
-Implementation baseline: Pass 98 (see git log), 2026-10-06.
-707 repository tests run locally (706 pass); typecheck and production build
+Implementation baseline: Pass 99 (see git log), 2026-10-06. RESUME HERE: see the
+"24-HOUR LOG AND RESUME POINT" section at the end of this file.
+717 repository tests run locally (716 pass); typecheck and production build
 pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 76 VERIFIED_SUBSET, 27 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 81 VERIFIED_SUBSET, 22 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -667,7 +668,7 @@ Acceptance: Reproduce the functional editing/operating distinction and
 
 [DV09-027]
 Pages: 129-133
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Start a picture from the main template, change background, remove
   default title and save the resulting picture.
 Evidence: PICTURES/BUILDER create basic custom pictures; native template,
@@ -687,7 +688,7 @@ Acceptance: Preserve existing navigation and explicit errors when adding saves.
 
 [DV09-029]
 Pages: 137-144
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Configure datalink expressions/type/field, numeric layout, error
   table, refresh/history/browser and in-place entry with confirmation, including
   discrete SP_D/PV_D paths.
@@ -697,7 +698,7 @@ Acceptance: Test typed expression resolution, write permissions/confirmation,
 
 [DV09-030]
 Pages: 145-150
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Configure text content, fonts/styles/color and position through
   course text/dialog tools.
 Evidence: Basic content, fontSize, bold and movement work. Color is stored
@@ -1229,7 +1230,7 @@ Acceptance: Test timing reset, first-out ordering, permissive versus interlock,
 
 [DV09-051]
 Pages: 231-233
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Configure multi-item SP_D entry, active-alarm visibility and custom
   pump animation using the course's white/yellow example.
 Evidence: No named-set multi-item data entry/custom animation in BUILDER.
@@ -1523,7 +1524,7 @@ Acceptance: Model/test a filtered course input and explicit tuning experiment,
 
 [DV09-062]
 Pages: 266-267
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Shared flow_color threshold table affecting all linked objects,
   and red flashing actual-mode indication only when mode is not normal AUTO.
 Evidence: A custom-picture MODE.A_ACTUAL datalink can be configured to hide
@@ -4510,3 +4511,77 @@ Boundary (honest): no native function-block palette beyond local ALARM blocks; n
   step (the course draws a bar then a transition); DISABLED is always FALSE; confirmation timeout 0 means no timeout.
 Validation: 707 tests locally (706 pass; only the pdf_om.txt-dependent audit fails), typecheck and build passed.
 Result: DV09-067 PARTIAL -> VERIFIED_SUBSET. Totals 76 VERIFIED_SUBSET/27 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+PASS 99 CHANGE DETAIL AND VALIDATION (2026-10-06, picture builder: template, text, datalink and course dynamos)
+-----------------------------------------------------------------------
+Scope: DV09-027/029/030/051/062 PARTIAL -> VERIFIED_SUBSET; DV09-031 stays PARTIAL. All additions are in custom
+  (Display Builder) pictures; protected plant mechanical symbols, colours and piping are untouched.
+Engine: new engine/pictureObjects.ts (pure, tested) plus pictureStore/pictureDynamics model, validation and saved-schema
+  extensions; CourseDynamos.tsx renders the course library; DisplayBuilder.tsx exposes everything.
+DV09-030 text: font family (7 families), italic, underline, bold, size 6-96, hex colour; edits that fail validation change
+  nothing; text, buttons and course dynamos are kept inside the 1000 x 640 picture (drag is clamped, saved pictures
+  re-validated); all properties persist through Save/Load.
+DV09-027 template: "Create from Main Template" gives a picture with a TITLE group (name + subtitle), background colour and
+  size; Picture Properties changes the background and has Remove Default Title (removes only the TITLE group); template,
+  background and size are saved and schema-checked.
+DV09-029 datalinks: numeric layout (fixed width 3-24, decimals 0-6, asterisks on overflow), error table text for Bad and
+  error states, refresh rate (held display), history offset (value N seconds back from the trend buffer; PV only,
+  read-only), Source Path Browser, confirmation before write for numeric, mode, Named Set, OUT ramp and discrete entry,
+  discrete paths DC1/SP_D, DC1/PV_D, DO1/SP_D, DO1/PV_D, DI1/PV_D with command and feedback shown and labelled separately
+  (PV_D can never be written), Multiple-Item Select dialog for SP_D with optional custom item names.
+DV09-051/062 course dynamos (isolated, opt-in): Valve17, PumpsAnim, PipesAnim, ValveHorizontalControlD1 bound to
+  MOTOR/VALVE/PID/AO with the course's white (stopped/closed) and yellow (running/open) animation, editable colours, grey
+  for Bad feedback, control-valve position bar from applied OUT, turning impeller / moving flow marks, and red
+  active-alarm outline. Navigation button object (picture, Ovw_ref.grf, alarmList.grf) added.
+Security registry: "Change picture background" and "Remove picture objects" registered under fn-picture-edit.
+Tests: tests/picture-objects.test.cjs (10). Browser check: template picture created, PumpsAnim added (yellow while P-101
+  runs), Remove Default Title removed both title objects.
+Boundary (honest): no native .grf template file or background expert; no System Tree browser; DV09-031 reverse link
+  Overview -> Tank101 is not implemented because the Overview is not an editable builder picture (a picture button can
+  link back to Ovw_ref.grf, and every picture is reachable from the Current display list); datalink "history" is the
+  in-memory trend buffer, not the historian.
+Validation: 717 tests locally (716 pass; only the pdf_om.txt-dependent dv09-audit fails), typecheck and build passed.
+Result: totals 81 VERIFIED_SUBSET/22 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.
+
+
+24-HOUR LOG AND RESUME POINT (written 2026-10-06 ~09:45, after Pass 99)
+-----------------------------------------------------------------------
+What was done since 2026-10-05 morning (about 75 commits, all pushed to origin/main):
+ * Visual recovery: operator ribbons, photo-plant overview matching IMG_0616, Control Studio ribbon matching IMG_0643-0646,
+   Control Studio module-logic page (real logic for the looked-up module), Feed/Reactor display = the 8001 picture only,
+   scaled to fit, now interactive (22 clickable hotspots open faceplates, live values over the baked boxes,
+   live batch/phase banner; displays/FeedReactorPicture.tsx).
+ * DV09 overnight passes 67-95: security (Locks & Keys, signatures, area keys, password policy), export, serial/Modbus,
+   FOUNDATION fieldbus, device alarms, System Preferences, alarm composites/priorities/columns, Event Chronicle, simulator
+   init/scale, module scan order, Recipe Studio, cold restart, controller LEDs/identify, contextual help, commissioning,
+   DO options, DST licensing, RCAS/ROUT remote host, equipment hierarchy, DeltaV Applications, Modbus failure tests.
+ * Pass 96: SFC graph editor (sfcGraph.ts layout + edit operations + palette).
+ * Pass 97: nested parallel forks and selective routes inside parallel legs (sfcForkStructures resolver).
+ * Pass 98: SFC expression language (sfcLogic.ts), Confirm tab, step parameters (PENDING_CONFIRMS etc.), Validate
+   Condition, Control Studio chart style (T<n> cross transitions, selective rails, double bars) from Course 7009-8 and
+   the 2001/2002 screenshots; DV09-067 verified subset.
+ * Pass 99: picture builder (this section's entry above).
+ * Docs: this audit, DV09-FUNCTIONAL-COVERAGE.txt, DV09-LINE-DISPOSITIONS.csv (kept in sync by the docpass helper),
+   VISUAL-FIDELITY-LOG.txt and GRAPHICS-APPEARANCE-AND-BEHAVIOR.txt updated for the visual changes.
+Totals now: 81 VERIFIED_SUBSET, 22 PARTIAL, 0 MISSING, 19 BOUNDARY, 6 CONTEXT. Not a course-completion percentage.
+
+WHERE TO START AGAIN
+ 1. git pull; npm install if needed; npm run typecheck; npm run build; run the suite:
+      $t=(Get-ChildItem tests\*.test.cjs).FullName; node --test @t
+    Expected: only tests/dv09-audit.test.cjs fails (needs the local pdf_om.txt, deliberately not in the repo).
+ 2. Browser check: serve out\renderer (the dev page used port 5179), rebuild, reload; navigate with the Current display
+    list (ids: feed, reactor, explorer, sfc, builder, applications, hardware ...).
+ 3. Remaining PARTIAL groups (22), suggested order:
+    - DV09-031 (reverse Overview -> Tank101 link; needs an Overview link mechanism that leaves the IMG_0616 look intact)
+    - DV09-064/065/069/070/071/072 (SFC: general non-Boolean block palette/activation, exact startup/shutdown workshop
+      procedures, restart semantics) - the expression language, Confirm tab and graph editor now exist
+    - DV09-017/018/019/023 (download orchestration and status), DV09-012/022 (templates), DV09-025/026/033 (explorer/
+      configuration workflows), DV09-049/050/053/060 (see each group's Gaps/Evidence), DV09-021 (scan multiples), DV09-040
+      (alarm Zone column)
+ 4. After each pass: update the three DV09 files with the helper (session file docpass.ps1: Set-Group, Sync-Totals,
+    Add-Pass) or manually, keep CRLF, commit with the Co-authored-by trailer, push.
+ 5. Reference PDFs and pdf_extracted/ are LOCAL ONLY and are not committed: the repository is public and they are
+    copyrighted training material (.gitignore: *.pdf, pdf_extracted/). Keep them in the repo folder to run dv09-audit.
+ 6. Style rules that still apply: protected plant graphics are never recoloured or redesigned; the 8001 picture is the
+    only picture on Feed/Reactor; every change is logged in these txt files; zustand selectors must not return fresh
+    arrays/objects; every literal requireLock/requireUnlockedKey action string needs a securityTargets.ts entry.

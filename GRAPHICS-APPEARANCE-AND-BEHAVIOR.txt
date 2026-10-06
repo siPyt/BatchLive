@@ -1711,3 +1711,14 @@ Existing-picture follow-up:
   Unmodeled destinations remain explicitly disabled/reference-only.
 - Incomplete area pictures must identify missing required modules in
   both standalone and embedded views, never silently render blank.
+
+
+UPDATE 2026-10-06 (behaviour and appearance added since 2026-10-05)
+-----------------------------------------------------------------------
+- Feed/Reactor pictures are clickable (hotspots -> faceplates) with live values; they remain the single 8001 picture.
+- SFC charts: Control Studio look and behaviour (named transitions, rails, double bars); expressions (AND/OR/NOT,
+  arithmetic, functions, //TAG paths), Confirm tab, step parameters, Validate Condition; nested parallel/selective legs.
+- Display Builder: template/background/title group, text font/style/colour with in-bounds checks, datalink layout, error
+  table, refresh, history and path browser, confirmation before in-place entry, discrete SP_D/PV_D (command and feedback
+  distinct), course dynamo library, navigation buttons.
+- Protected plant equipment is unchanged by all of the above.

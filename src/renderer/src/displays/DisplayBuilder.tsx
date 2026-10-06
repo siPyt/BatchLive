@@ -14,6 +14,9 @@ import { appliedPidOutput } from '../engine/analogStrategy'
 import { pictureFlowColor } from '../engine/pictureFlow'
 import { useFlowColors } from '../engine/flowColorStore'
 import { FlowAnimationControls, FlowTablesDialog } from '../components/PictureFlowControls'
+import { CourseDynamo } from '../components/CourseDynamos'
+import { DYNAMO_SETS, FONT_FAMILIES, TITLE_GROUP, clampPosition, formatLayout, historicalValue, pictureDiscretePath,
+  pictureDiscreteSignal, pictureSourcePaths, refreshedSample, type DynamoSetName } from '../engine/pictureObjects'
 
 const PARAMS: PicParam[] = ['PV', 'SP', 'OUT', 'MODE', 'STATE']
 
@@ -44,6 +47,7 @@ export function DisplayBuilder(): JSX.Element {
   const addElement = usePictures((s) => s.addElement)
   const savePicture = usePictures(s => s.savePicture)
   const loadPicture = usePictures(s => s.loadPicture)
+  const createFromTemplate = usePictures(s => s.createPictureFromTemplate)
   const modules = useStore(s => s.modules)
   const names = Object.keys(pictures)
   const [selected, setSelected] = useState<string>(names[0] ?? '')
@@ -87,7 +91,8 @@ export function DisplayBuilder(): JSX.Element {
 
   const add = (type: PicElement['type']): void => {
     if (!pic) return
-    const base = { x: 40, y: 40 }
+    const base = { x: 40, y: 60 }
+    if (type === 'button') { setSelEl(addElement(selected, { type, ...base, content: 'Overview', target: 'Ovw_ref.grf' })); return }
     const tag = type === 'pump' ? Object.values(modules).find(module => module.type === 'MOTOR')?.tag :
       type === 'valve' ? Object.values(modules).find(module => module.type === 'PID' || module.type === 'VALVE')?.tag :
         modules['LIC-101'] ? 'LIC-101' : Object.values(modules).find(m => m.type === 'AI')?.tag ?? Object.keys(modules)[0]
@@ -98,6 +103,14 @@ export function DisplayBuilder(): JSX.Element {
           ...(type === 'rectangle' ? { width: 64, height: 160 } :
             type === 'pipe' ? { width: 120, height: 12 } : {}) })
     setSelEl(id)
+  }
+
+  const addDynamoSet = (set: DynamoSetName): void => {
+    if (!pic) return
+    const types = DYNAMO_SETS[set].modules
+    const tag = Object.values(modules).find(module => types.includes(module.type))?.tag
+    if (!tag) { window.alert(`Create a ${types.join(' or ')} module before adding ${DYNAMO_SETS[set].label}`); return }
+    setSelEl(addElement(selected, { type: 'dynamo', x: 40, y: 60, tag, dynamoSet: set }))
   }
 
   return (
@@ -128,6 +141,13 @@ export function DisplayBuilder(): JSX.Element {
         >
           Create
         </button>
+        <button className="tbtn sm" disabled={!newName.trim()} title="Start from the main template: grouped title, background, size"
+          onClick={() => {
+            if (createFromTemplate(newName, 'MAIN')) {
+              setSelected(newName.trim().toUpperCase())
+              setNewName('')
+            }
+          }}>Create from Main Template</button>
         <span style={{ width: 12 }} />
         <button className={'tbtn sm' + (edit ? ' active' : '')} onClick={() => setEdit((v) => !v)}>
           {edit ? '✎ Configure' : '▷ Run'}
@@ -164,6 +184,13 @@ export function DisplayBuilder(): JSX.Element {
             <button className="tbtn sm" onClick={() => add('pipe')}>+ Pipe</button>
             <button className="tbtn sm" onClick={() => add('pump')}>+ Pump</button>
             <button className="tbtn sm" onClick={() => add('valve')}>+ Valve</button>
+            <button className="tbtn sm" onClick={() => add('button')}>+ Button</button>
+            <select className="exp-alm-select" aria-label="Add course dynamo" value=""
+              onChange={e => { if (e.target.value) addDynamoSet(e.target.value as DynamoSetName) }}>
+              <option value="">+ Course Dynamo…</option>
+              {(Object.keys(DYNAMO_SETS) as DynamoSetName[]).map(set => <option key={set} value={set}>{DYNAMO_SETS[set].label}</option>)}
+            </select>
+            <button className="tbtn sm" onClick={() => setPictureProperties(true)}>Picture Properties</button>
             <button className="tbtn sm" onClick={() => setFlowTablesOpen(true)}>User Flow Tables</button>
           </>
         )}
@@ -195,11 +222,22 @@ export function DisplayBuilder(): JSX.Element {
 function PictureProperties({ picture, onClose }: { picture: string; onClose: () => void }): JSX.Element {
   const pic = usePictures(s => s.pictures[picture])
   const setPictureLinks = usePictures(s => s.setPictureLinks)
+  const setBackground = usePictures(s => s.setPictureBackground)
+  const removeGroup = usePictures(s => s.removeElementGroup)
+  const titleCount = pic.elements.filter(element => element.group === TITLE_GROUP).length
   const [previous, setPrevious] = useState(pic.previousPicture ?? '')
   const [next, setNext] = useState(pic.nextPicture ?? '')
   const [error, setError] = useState('')
   return (
     <div className="bld-props">
+      <div className="bld-props-head"><b>Picture</b></div>
+      <div className="bld-f" data-picture-template={pic.template}>Template: {pic.template ? 'Main template' : 'none (blank picture)'}</div>
+      <label className="bld-f">Background
+        <input type="color" aria-label="Picture background" value={pic.background ?? '#eef2f5'}
+          onChange={e => setBackground(picture, e.target.value)} />
+      </label>
+      {titleCount > 0 && <button className="tbtn sm" onClick={() => removeGroup(picture, TITLE_GROUP)}>
+        Remove Default Title ({titleCount} objects)</button>}
       <div className="bld-props-head"><b>Previous / Next Picture</b></div>
       <label className="bld-f">Previous Picture Name
         <input value={previous} onChange={e => setPrevious(e.target.value)} placeholder="Ovw_ref.grf" />
@@ -232,6 +270,10 @@ function Canvas({
   setSelEl: (id: string | null) => void
 }): JSX.Element {
   const els = usePictures((s) => s.pictures[picture]?.elements ?? [])
+  const background = usePictures((s) => s.pictures[picture]?.background)
+  const allPictures = usePictures((s) => s.pictures)
+  const navigate = useUi((s) => s.navigate)
+  const openPicture = useUi((s) => s.openPicture)
   const updateElement = usePictures((s) => s.updateElement)
   const modules = useStore((s) => s.modules)
   const flowTables = useFlowColors(state => state.tables)
@@ -244,10 +286,11 @@ function Canvas({
   useEffect(() => {
     function onMove(e: MouseEvent): void {
       if (!drag.current) return
-      updateElement(picture, drag.current.id, {
-        x: Math.max(0, e.clientX - drag.current.dx),
-        y: Math.max(0, e.clientY - drag.current.dy)
-      })
+      const current = usePictures.getState().pictures[picture]
+      const moving = current?.elements.find(item => item.id === drag.current?.id)
+      const x = e.clientX - drag.current.dx
+      const y = e.clientY - drag.current.dy
+      updateElement(picture, drag.current.id, moving ? clampPosition(moving, x, y, current) : { x: Math.max(0, x), y: Math.max(0, y) })
     }
     function onUp(): void {
       drag.current = null
@@ -261,7 +304,8 @@ function Canvas({
   }, [picture, updateElement])
 
   return (
-    <div className="bld-canvas" onMouseDown={() => edit && setSelEl(null)}>
+    <div className="bld-canvas" style={background ? { background } : undefined} data-picture-background={background}
+      onMouseDown={() => edit && setSelEl(null)}>
       {els.map((el) => {
         const m = el.tag ? modules[el.tag] : undefined
         const startDrag = (e: React.MouseEvent): void => {
@@ -342,12 +386,34 @@ function Canvas({
             <div
               key={el.id}
               className={'bld-el bld-text' + (sel ? ' sel' : '')}
-              style={{ left: el.x, top: el.y, fontSize: el.fontSize, fontWeight: el.bold ? 800 : 500, color: el.color }}
+              style={{ left: el.x, top: el.y, fontSize: el.fontSize, fontWeight: el.bold ? 800 : 500, color: el.color,
+                fontFamily: el.fontFamily, fontStyle: el.italic ? 'italic' : undefined, textDecoration: el.underline ? 'underline' : undefined }}
+              data-group={el.group}
               onMouseDown={startDrag}
             >
               {el.content}
             </div>
           )
+        }
+        if (el.type === 'button') {
+          return <button key={el.id} className={'tbtn bld-el bld-button' + (sel ? ' sel' : '')}
+            style={{ left: el.x, top: el.y, width: 140, height: 30 }} onMouseDown={startDrag}
+            title={`Opens ${el.target}`} data-target={el.target}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (edit) return
+              const target = resolvePictureTarget(el.target ?? '', allPictures)
+              if (!target) {
+                const message = `Navigation picture not found: ${el.target || '(not configured)'}`
+                useStore.getState().logEvent('DIAGNOSTIC', picture, message)
+                window.alert(message)
+              } else if (target.kind === 'display') navigate(target.display)
+              else openPicture(target.name)
+            }}>{el.content}</button>
+        }
+        if (el.type === 'dynamo' && el.dynamoSet) {
+          return <CourseDynamo key={el.id} element={el} modules={modules} alarms={alarms} selected={sel} onMouseDown={startDrag}
+            onClick={(event) => { event.stopPropagation(); if (!edit && el.tag) openFaceplate(el.tag) }} />
         }
         if (el.type === 'dynamo') {
           return (
@@ -379,12 +445,28 @@ function Canvas({
         const alarmState = isAlarmPath && el.alarmVisibility ? highestRankedAlarmState(el.tag ?? '', alarms) : null
         const alarmHidden = alarmState !== null ? alarmState === 'NORMAL' : !!(alarm && !('error' in alarm) && !alarm.active)
         if (!edit && (hideNormalMode || alarmHidden)) return null
-        const signal = !named && !mode && !alarm && (el.path || el.entry) ? pictureSignal(el, modules) : null
-        const value = named ? 'error' in named ? named.error : `${named.text}${named.bad ? ' (Bad)' : ''}` :
-          mode ? 'error' in mode ? mode.error : mode.current :
-            alarm ? 'error' in alarm ? alarm.error : alarmState !== null ? pictureAlarmStateText(alarmState) : alarm.text :
-              signal ? 'error' in signal ? signal.error : `${fmt(signal.value, 2)} ${signal.unit}${signal.bad ? ' (Bad)' : ''}` :
-                paramValue(m, el.param ?? 'PV')
+        const discrete = !named && !mode && !alarm && (pictureDiscretePath(el.path) || el.entry?.method === 'DISCRETE') ?
+          pictureDiscreteSignal(el, modules) : null
+        const signal = !named && !mode && !alarm && !discrete && (el.path || el.entry || el.layout || el.historySeconds !== undefined) ?
+          pictureSignal(el, modules) : null
+        const failed = (text: string): string => el.errorText?.error ?? text
+        let value: string
+        if (named) value = 'error' in named ? failed(named.error) : `${named.text}${named.bad ? ' (Bad)' : ''}`
+        else if (mode) value = 'error' in mode ? failed(mode.error) : mode.current
+        else if (alarm) value = 'error' in alarm ? failed(alarm.error) : alarmState !== null ? pictureAlarmStateText(alarmState) : alarm.text
+        else if (discrete) value = 'error' in discrete ? failed(discrete.error) : discrete.bad ? el.errorText?.bad ?? `${discrete.text} (Bad)` : discrete.text
+        else if (signal) {
+          if ('error' in signal) value = failed(signal.error)
+          else if (signal.bad && el.errorText?.bad) value = el.errorText.bad
+          else {
+            const shown = el.historySeconds !== undefined ? historicalValue(useStore.getState().trend, el.tag ?? '', el.historySeconds) : signal.value
+            value = shown === undefined ? 'No history' :
+              `${el.layout ? formatLayout(shown, el.layout) : fmt(shown, 2)} ${signal.unit}${signal.bad ? ' (Bad)' : ''}`
+          }
+        } else value = paramValue(m, el.param ?? 'PV')
+        const role = discrete && !('error' in discrete) ? discrete.role : null
+        const valueStyle = { color: abnormalMode ? undefined : el.color,
+          ...(el.layout ? { fontFamily: 'Consolas, monospace', whiteSpace: 'pre' as const } : {}) }
         return (
           <div
             key={el.id}
@@ -398,9 +480,10 @@ function Canvas({
                 {el.tag}/{el.path ?? el.param}
               </span>
             )}
+            {role && <span className="bld-dl-role" data-role={role}>{role === 'command' ? 'SP_D command' : 'PV_D feedback'}</span>}
             {el.entry && !edit ? <button className="bld-entry-value" aria-label={`Enter ${el.tag}/${el.path ?? el.param}`}
-              style={{ color: el.color }} onClick={() => setEntryId(el.id)}>{value}</button> :
-              <span className="bld-dl-val" style={{ color: abnormalMode ? undefined : el.color }}>{value}</span>}
+              style={valueStyle} onClick={() => setEntryId(el.id)}><HeldText text={value} seconds={el.refreshSeconds} /></button> :
+              <span className="bld-dl-val" style={valueStyle}><HeldText text={value} seconds={el.refreshSeconds} /></span>}
           </div>
         )
       })}
@@ -411,9 +494,18 @@ function Canvas({
           <ModeEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} /> :
           els.find(el => el.id === entryId)?.entry?.method === 'RAMP' ?
             <RampEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} /> :
+            els.find(el => el.id === entryId)?.entry?.method === 'DISCRETE' ?
+              <DiscreteEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} /> :
             <NumericEntryDialog picture={picture} id={entryId} onClose={() => setEntryId(null)} />)}
     </div>
   )
+}
+
+/** Holds a displayed datalink value for its Refresh Rate; with no interval every update shows immediately. */
+function HeldText({ text, seconds }: { text: string; seconds?: number }): JSX.Element {
+  const held = useRef<{ at: number; value: string }>()
+  held.current = refreshedSample(held.current, Date.now(), seconds, text)
+  return <>{held.current.value}</>
 }
 
 function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Element | null {
@@ -442,7 +534,7 @@ function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Eleme
           <label className="bld-f">
             Font size
             <input
-              type="number"
+              type="number" min={6} max={96}
               value={el.fontSize ?? 14}
               onChange={(e) => updateElement(picture, id, { fontSize: Number(e.target.value) })}
             />
@@ -455,6 +547,32 @@ function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Eleme
             />
             Bold
           </label>
+          <label className="bld-f bld-f-row"><input type="checkbox" aria-label="Italic" checked={!!el.italic}
+            onChange={(e) => updateElement(picture, id, { italic: e.target.checked })} />Italic</label>
+          <label className="bld-f bld-f-row"><input type="checkbox" aria-label="Underline" checked={!!el.underline}
+            onChange={(e) => updateElement(picture, id, { underline: e.target.checked })} />Underline</label>
+          <label className="bld-f">Font
+            <select aria-label="Font family" value={el.fontFamily ?? ''}
+              onChange={(e) => updateElement(picture, id, { fontFamily: e.target.value || undefined })}>
+              <option value="">Default</option>
+              {FONT_FAMILIES.map(family => <option key={family} value={family}>{family}</option>)}
+            </select>
+          </label>
+          <label className="bld-f">Color
+            <input type="color" aria-label="Text color" value={el.color ?? '#1a1a1a'}
+              onChange={(e) => updateElement(picture, id, { color: e.target.value })} />
+          </label>
+        </>
+      ) : el.type === 'button' ? (
+        <>
+          <label className="bld-f">Caption
+            <input aria-label="Button caption" value={el.content ?? ''} onChange={(e) => updateElement(picture, id, { content: e.target.value })} />
+          </label>
+          <label className="bld-f">Target picture
+            <input aria-label="Button target" value={el.target ?? ''} placeholder="Ovw_ref.grf"
+              onChange={(e) => updateElement(picture, id, { target: e.target.value })} />
+          </label>
+          <p>Opens a created picture, Ovw_ref.grf (Overview) or alarmList.grf (Alarm List) in Run.</p>
         </>
       ) : (
         <>
@@ -471,6 +589,27 @@ function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Eleme
               ))}
             </select>
           </label>
+          {el.type === 'dynamo' && <label className="bld-f">Dynamo set
+            <select aria-label="Course dynamo set" value={el.dynamoSet ?? ''}
+              onChange={(e) => updateElement(picture, id, e.target.value ?
+                { dynamoSet: e.target.value as DynamoSetName } : { dynamoSet: undefined, dynamoColors: undefined, showActiveAlarm: undefined })}>
+              <option value="">Generic value box</option>
+              {(Object.keys(DYNAMO_SETS) as DynamoSetName[]).map(set => <option key={set} value={set}>{DYNAMO_SETS[set].label}</option>)}
+            </select>
+          </label>}
+          {el.type === 'dynamo' && el.dynamoSet && <>
+            <label className="bld-f">Inactive color
+              <input type="color" aria-label="Dynamo inactive color" value={el.dynamoColors?.inactive ?? DYNAMO_SETS[el.dynamoSet].defaults[0]}
+                onChange={(e) => updateElement(picture, id, { dynamoColors: { active: el.dynamoColors?.active ?? DYNAMO_SETS[el.dynamoSet!].defaults[1], inactive: e.target.value } })} />
+            </label>
+            <label className="bld-f">Active color
+              <input type="color" aria-label="Dynamo active color" value={el.dynamoColors?.active ?? DYNAMO_SETS[el.dynamoSet].defaults[1]}
+                onChange={(e) => updateElement(picture, id, { dynamoColors: { inactive: el.dynamoColors?.inactive ?? DYNAMO_SETS[el.dynamoSet!].defaults[0], active: e.target.value } })} />
+            </label>
+            <label className="bld-f bld-f-row"><input type="checkbox" aria-label="Show active alarm" checked={!!el.showActiveAlarm}
+              onChange={(e) => updateElement(picture, id, { showActiveAlarm: e.target.checked || undefined })} />Show active alarm (red outline)</label>
+            <p>{DYNAMO_SETS[el.dynamoSet].hint}. Course library objects are isolated; plant mechanical symbols are unchanged.</p>
+          </>}
           {el.type === 'datalink' && (
             <>
               <label className="bld-f">
@@ -525,6 +664,7 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
   const [flashWhenNotNormal, setFlashWhenNotNormal] = useState(el.flashWhenNotNormal ?? false)
   const [alarmVisibility, setAlarmVisibility] = useState(el.alarmVisibility ?? false)
   const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET' | 'PID_MODE' | 'RAMP' | 'DISCRETE'>(el.entry?.method ?? 'NUMERIC')
+  const moduleType = modules[el.tag ?? '']?.type
   const settings = el.entry?.method === 'NUMERIC' ? el.entry : el.fill
   const [fetchLimits, setFetchLimits] = useState(settings?.fetchLimits ?? el.type === 'rectangle')
   const [low, setLow] = useState(String(settings?.low ?? 0))
@@ -535,6 +675,19 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
   const [height, setHeight] = useState(String(el.height ?? 160))
   const [color, setColor] = useState(el.color ?? (el.type === 'rectangle' ? '#5f7f94' : PALE_TEXT))
   const [background, setBackground] = useState(el.backgroundColor ?? '#eef2f5')
+  const [layoutOn, setLayoutOn] = useState(!!el.layout)
+  const [layoutWidth, setLayoutWidth] = useState(String(el.layout?.width ?? 8))
+  const [layoutDecimals, setLayoutDecimals] = useState(String(el.layout?.decimals ?? 2))
+  const [errBad, setErrBad] = useState(el.errorText?.bad ?? '')
+  const [errError, setErrError] = useState(el.errorText?.error ?? '')
+  const [refresh, setRefresh] = useState(el.refreshSeconds === undefined ? '' : String(el.refreshSeconds))
+  const [history, setHistory] = useState(el.historySeconds === undefined ? '' : String(el.historySeconds))
+  const [confirm, setConfirm] = useState(el.entry?.confirm ?? false)
+  const discreteLabels = el.entry?.method === 'DISCRETE' ? el.entry.labels : undefined
+  const [labelsOn, setLabelsOn] = useState(!!discreteLabels)
+  const [label0, setLabel0] = useState(discreteLabels?.[0] ?? 'Stop')
+  const [label1, setLabel1] = useState(discreteLabels?.[1] ?? 'Start')
+  const [browsing, setBrowsing] = useState(false)
   const numeric = (value: string): number => value.trim() ? Number(value) : NaN
   const rectangle = el.type === 'rectangle'
   return <>
@@ -547,6 +700,13 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
         if (!/^ALARMS\[1\]\.A_LAALM$/i.test(next.trim())) setAlarmVisibility(false)
       }} />
     </label>
+    <button className="tbtn sm" onClick={() => setBrowsing(true)}>Browser…</button>
+    {browsing && <SimulatorDialog className="bld-entry-dialog" label="Source Path Browser" onClose={() => setBrowsing(false)}>
+      <h3>{el.tag}</h3>
+      {pictureSourcePaths(modules[el.tag ?? '']).map(item => <button key={item.path} className="ctx-item"
+        onClick={() => { setPath(item.path); setBrowsing(false) }}>{item.path} — {item.description}</button>)}
+      <button className="tbtn sm" onClick={() => setBrowsing(false)}>Cancel</button>
+    </SimulatorDialog>}
     {!rectangle && <label className="bld-f bld-f-row">
       <input type="checkbox" checked={flashWhenNotNormal}
         disabled={!/^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(path.trim())}
@@ -567,6 +727,8 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
         setMethod(next)
         if (next === 'PID_MODE') setPath('PID1/MODE.A_TARGET')
         else if (next === 'RAMP') setPath('PID1/OUT')
+        else if (next === 'DISCRETE') setPath(moduleType === 'DO' ? 'DO1/SP_D' : 'DC1/SP_D')
+        else if (method === 'DISCRETE') setPath('PV')
         else if (method === 'PID_MODE' || method === 'RAMP') setPath('PID1/SP')
       }}>
       <option value="NUMERIC">Numeric Entry</option><option value="NAMED_SET">Named Set</option>
@@ -574,6 +736,8 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
         <option value="PID_MODE">Multiple-Item Select (PID Target)</option>}
       {(modules[el.tag ?? '']?.type === 'PID' || method === 'RAMP') &&
         <option value="RAMP">OUT Ramp (Raise/Lower)</option>}
+      {(['MOTOR', 'VALVE', 'DO'].includes(moduleType ?? '') || method === 'DISCRETE') &&
+        <option value="DISCRETE">Multiple-Item Select (SP_D command)</option>}
     </select></label>}
     {rectangle && <label className="bld-f bld-f-row"><input type="checkbox" checked={vertical}
       onChange={e => setVertical(e.target.checked)} />Vertical Direction</label>}
@@ -591,15 +755,44 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
       <label className="bld-f">Height<input type="number" value={height} onChange={e => setHeight(e.target.value)} /></label>
       <label className="bld-f">Background<input type="color" value={background} onChange={e => setBackground(e.target.value)} /></label>
     </>}
+    {!rectangle && <>
+      <label className="bld-f bld-f-row"><input type="checkbox" aria-label="Numeric layout" checked={layoutOn}
+        onChange={e => setLayoutOn(e.target.checked)} />Numeric layout (fixed-width field)</label>
+      {layoutOn && <div className="bld-f bld-f-row">
+        <label>Width <input aria-label="Field width" type="number" min={3} max={24} value={layoutWidth} onChange={e => setLayoutWidth(e.target.value)} /></label>
+        <label>Decimals <input aria-label="Decimal places" type="number" min={0} max={6} value={layoutDecimals} onChange={e => setLayoutDecimals(e.target.value)} /></label>
+      </div>}
+      <label className="bld-f">Error table: Bad quality text<input aria-label="Error text bad" value={errBad} maxLength={24} onChange={e => setErrBad(e.target.value)} /></label>
+      <label className="bld-f">Error table: Error text<input aria-label="Error text error" value={errError} maxLength={24} onChange={e => setErrError(e.target.value)} /></label>
+      <label className="bld-f">Refresh rate (seconds, blank = every update)<input aria-label="Refresh seconds" type="number" step="any" value={refresh} onChange={e => setRefresh(e.target.value)} /></label>
+      <label className="bld-f">History offset (seconds back, blank = current)<input aria-label="History seconds" type="number" step="any" value={history} onChange={e => setHistory(e.target.value)} /></label>
+      {enabled && <label className="bld-f bld-f-row"><input type="checkbox" aria-label="Confirm entry" checked={confirm}
+        onChange={e => setConfirm(e.target.checked)} />Confirm before writing</label>}
+      {enabled && method === 'DISCRETE' && <>
+        <label className="bld-f bld-f-row"><input type="checkbox" aria-label="Custom item names" checked={labelsOn}
+          onChange={e => setLabelsOn(e.target.checked)} />Custom item names</label>
+        {labelsOn && <div className="bld-f bld-f-row">
+          <label>Off <input aria-label="Item name off" value={label0} maxLength={20} onChange={e => setLabel0(e.target.value)} /></label>
+          <label>On <input aria-label="Item name on" value={label1} maxLength={20} onChange={e => setLabel1(e.target.value)} /></label>
+        </div>}
+      </>}
+    </>}
     <label className="bld-f">Foreground<input type="color" value={color} onChange={e => setColor(e.target.value)} /></label>
     <button className="tbtn sm" onClick={() => {
       const limits = { fetchLimits, low: numeric(low), high: numeric(high) }
+      const baseEntry: PicElement['entry'] = enabled ? method === 'NAMED_SET' ? { method: 'NAMED_SET' } :
+        method === 'PID_MODE' ? { method: 'PID_MODE' } :
+        method === 'RAMP' ? { method: 'RAMP', rate: numeric(rate) } :
+        method === 'DISCRETE' ? { method: 'DISCRETE', ...(labelsOn ? { labels: [label0, label1] as [string, string] } : {}) } :
+        { ...limits, method: 'NUMERIC' } : undefined
       configure(picture, el.id, { path, color, ...(rectangle ? {
         width: numeric(width), height: numeric(height), backgroundColor: background,
         fill: enabled ? { ...limits, vertical } : undefined
-      } : { entry: enabled ? method === 'NAMED_SET' ? { method: 'NAMED_SET' } :
-        method === 'PID_MODE' ? { method: 'PID_MODE' } :
-        method === 'RAMP' ? { method: 'RAMP', rate: numeric(rate) } : { ...limits, method: 'NUMERIC' } : undefined,
+      } : { entry: baseEntry && confirm ? { ...baseEntry, confirm: true } : baseEntry,
+        layout: layoutOn ? { width: numeric(layoutWidth), decimals: numeric(layoutDecimals) } : undefined,
+        errorText: errBad.trim() || errError.trim() ? { ...(errBad.trim() ? { bad: errBad.trim() } : {}), ...(errError.trim() ? { error: errError.trim() } : {}) } : undefined,
+        refreshSeconds: refresh.trim() ? numeric(refresh) : undefined,
+        historySeconds: history.trim() ? numeric(history) : undefined,
         flashWhenNotNormal: flashWhenNotNormal &&
           /^(?:PID1\/)?MODE\.A_ACTUAL(?:\.CV)?$/i.test(path.trim()) ? true : undefined,
         alarmVisibility: alarmVisibility &&
@@ -613,6 +806,17 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
   </>
 }
 
+function ConfirmPanel({ message, onConfirm, onBack }: { message: string; onConfirm: () => void; onBack: () => void }): JSX.Element {
+  return <div role="group" aria-label="Confirm data entry" className="bld-confirm">
+    <p><b>Confirm data entry</b></p>
+    <p>{message}</p>
+    <div className="sfc-edit-row">
+      <button className="tbtn sm" onClick={onConfirm}>Confirm</button>
+      <button className="tbtn sm" onClick={onBack}>Back</button>
+    </div>
+  </div>
+}
+
 function NumericEntryDialog({ picture, id, onClose }: { picture: string; id: string; onClose: () => void }): JSX.Element {
   const el = usePictures(s => s.pictures[picture]?.elements.find(e => e.id === id))
   const modules = useStore(s => s.modules)
@@ -620,10 +824,15 @@ function NumericEntryDialog({ picture, id, onClose }: { picture: string; id: str
   const source = el ? pictureSignal(el, modules) : { error: 'Datalink removed' }
   const limits = el?.entry?.method === 'NUMERIC' && !('error' in source) ? pictureLimits(el.entry, source) : undefined
   const [value, setValue] = useState('error' in source ? '' : String(source.value))
+  const [pending, setPending] = useState(false)
+  const number = value.trim() ? Number(value) : NaN
   return <SimulatorDialog className="bld-entry-dialog" label="Numeric Data Entry" onClose={onClose}>
+    {pending ? <ConfirmPanel message={`Change ${el?.tag}/${el?.path ?? el?.param} to ${value}?`}
+      onConfirm={() => { if (write(picture, id, number, true)) onClose(); else setPending(false) }} onBack={() => setPending(false)} /> :
     <form noValidate onSubmit={e => {
       e.preventDefault()
-      if (write(picture, id, value.trim() ? Number(value) : NaN)) onClose()
+      if (el?.entry?.confirm) setPending(true)
+      else if (write(picture, id, number)) onClose()
     }}>
       <b>{el?.tag}/{el?.path ?? el?.param}</b>
       <p>{limits ? 'error' in limits ? limits.error : `Allowed: ${limits.low} to ${limits.high}` : 'No valid limits'}</p>
@@ -635,7 +844,7 @@ function NumericEntryDialog({ picture, id, onClose }: { picture: string; id: str
         <button className="tbtn sm" type="submit">Apply Value</button>
         <button className="tbtn sm" type="button" onClick={onClose}>Cancel Entry</button>
       </div>
-    </form>
+    </form>}
   </SimulatorDialog>
 }
 
@@ -649,7 +858,13 @@ function ModeEntryDialog({ picture, id, onClose }: { picture: string; id: string
     ? source.current : ''
   const [value, setValue] = useState(currentChoice)
   const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+  const applyMode = (confirmed?: boolean): void => {
+    if (usePictures.getState().writeModeValue(picture, id, value, expected, confirmed)) onClose()
+    else { setPending(false); setError('Mode was not applied; see the reported permission, lifecycle or permitted-mode error.') }
+  }
   return <SimulatorDialog className="bld-entry-dialog" label="Multiple-Item Select" onClose={onClose}>
+    {pending && <ConfirmPanel message={`Change ${el?.tag}/${el?.path} to ${value}?`} onConfirm={() => applyMode(true)} onBack={() => setPending(false)} />}
     <h3>{el?.tag}/{el?.path}</h3>
     {'error' in source ? <p role="alert">{source.error}</p> : <>
       <p>Current target: {source.current}</p>
@@ -661,11 +876,8 @@ function ModeEntryDialog({ picture, id, onClose }: { picture: string; id: string
     </>}
     {error && <p role="alert">{error}</p>}
     <div className="sfc-edit-row">
-      <button className="tbtn sm" disabled={!value || 'error' in source}
-        onClick={() => {
-          if (usePictures.getState().writeModeValue(picture, id, value, expected)) onClose()
-          else setError('Mode was not applied; see the reported permission, lifecycle or permitted-mode error.')
-        }}>Apply Mode</button>
+      <button className="tbtn sm" disabled={!value || 'error' in source || pending}
+        onClick={() => { if (el?.entry?.confirm) setPending(true); else applyMode() }}>Apply Mode</button>
       <button className="tbtn sm" onClick={onClose}>Cancel Entry</button>
     </div>
   </SimulatorDialog>
@@ -678,6 +890,7 @@ function RampEntryDialog({ picture, id, onClose }: { picture: string; id: string
   const source = el ? pictureSignal(el, modules) : { error: 'Datalink removed' }
   const [error, setError] = useState('')
   const [holding, setHolding] = useState<1 | -1 | null>(null)
+  const [confirmed, setConfirmed] = useState(!el?.entry?.confirm)
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
   const tickSeconds = 0.2
   const stop = (): void => {
@@ -689,7 +902,7 @@ function RampEntryDialog({ picture, id, onClose }: { picture: string; id: string
     stop()
     setHolding(direction)
     const nudge = (): void => {
-      if (!usePictures.getState().rampOutput(picture, id, direction, tickSeconds, expected)) {
+      if (!usePictures.getState().rampOutput(picture, id, direction, tickSeconds, expected, confirmed)) {
         setError('OUT was not ramped; see the reported permission, mode or lifecycle error.')
         stop()
       }
@@ -703,13 +916,14 @@ function RampEntryDialog({ picture, id, onClose }: { picture: string; id: string
     {'error' in source ? <p role="alert">{source.error}</p> :
       <p>Current OUT: {fmt(source.value, 1)} {source.unit}{source.bad ? ' (Bad)' : ''}
         {holding ? ` — ${holding > 0 ? 'Raising' : 'Lowering'}…` : ''}</p>}
+    {!confirmed && <ConfirmPanel message={`Enable OUT ramp of ${el?.tag} at ${rate}%/second?`} onConfirm={() => setConfirmed(true)} onBack={onClose} />}
     <p>Hold Raise or Lower to ramp the output at {rate}%/second; release to stop immediately.
       The PID must be MAN/ROUT and outside LO/OOS.</p>
     {error && <p role="alert">{error}</p>}
     <div className="sfc-edit-row">
-      <button className="tbtn sm" disabled={'error' in source}
+      <button className="tbtn sm" disabled={'error' in source || !confirmed}
         onMouseDown={() => start(-1)} onMouseUp={stop} onMouseLeave={stop}>▼ Lower</button>
-      <button className="tbtn sm" disabled={'error' in source}
+      <button className="tbtn sm" disabled={'error' in source || !confirmed}
         onMouseDown={() => start(1)} onMouseUp={stop} onMouseLeave={stop}>▲ Raise</button>
       <button className="tbtn sm" type="button" onClick={() => { stop(); onClose() }}>Close</button>
     </div>
@@ -723,7 +937,13 @@ function NamedSetEntryDialog({ picture, id, onClose }: { picture: string; id: st
   const source = el ? pictureNamedSignal(el, state) : { error: 'Datalink removed' }
   const [value, setValue] = useState('')
   const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+  const applyNamed = (confirmed?: boolean): void => {
+    if (usePictures.getState().writeNamedValue(picture, id, Number(value), expected, confirmed)) onClose()
+    else { setPending(false); setError('Value was not applied; see the reported permission, staleness or setup error.') }
+  }
   return <SimulatorDialog className="bld-entry-dialog" label="Named Set Data Entry" onClose={onClose}>
+    {pending && <ConfirmPanel message={`Write ${el?.tag}/${el?.path} = ${value}?`} onConfirm={() => applyNamed(true)} onBack={() => setPending(false)} />}
     <h3>{el?.tag}/{el?.path}</h3>
     {'error' in source ? <p role="alert">{source.error}</p> : <>
       <p>Current: {source.text} ({source.value}){source.bad ? ' — Bad/unavailable setup or controller' : ''}</p>
@@ -735,10 +955,43 @@ function NamedSetEntryDialog({ picture, id, onClose }: { picture: string; id: st
     </>}
     {error && <p role="alert">{error}</p>}
     <div className="sfc-edit-row">
-      <button className="tbtn sm" disabled={!value || 'error' in source || source.bad} onClick={() => {
-        if (usePictures.getState().writeNamedValue(picture, id, Number(value), expected)) onClose()
-        else setError('Value was not applied; see the reported permission, staleness or setup error.')
-      }}>Apply Value</button>
+      <button className="tbtn sm" disabled={!value || 'error' in source || source.bad || pending}
+        onClick={() => { if (el?.entry?.confirm) setPending(true); else applyNamed() }}>Apply Value</button>
+      <button className="tbtn sm" onClick={onClose}>Cancel Entry</button>
+    </div>
+  </SimulatorDialog>
+}
+
+function DiscreteEntryDialog({ picture, id, onClose }: { picture: string; id: string; onClose: () => void }): JSX.Element {
+  const el = usePictures(s => s.pictures[picture]?.elements.find(item => item.id === id))
+  const [expected] = useState(el)
+  const modules = useStore(s => s.modules)
+  const command = el ? pictureDiscreteSignal(el, modules) : { error: 'Datalink removed' }
+  const feedback = el?.path ? pictureDiscreteSignal({ ...el, entry: undefined, path: el.path.replace(/SP_D/i, 'PV_D') }, modules) : { error: 'No feedback path' }
+  const [choice, setChoice] = useState<'' | '0' | '1'>('')
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState('')
+  const apply = (confirmed?: boolean): void => {
+    if (usePictures.getState().writeDiscreteValue(picture, id, choice === '1', expected, confirmed)) onClose()
+    else { setPending(false); setError('The command was not applied; see the reported permission, signature or device error.') }
+  }
+  const labels = 'error' in command ? ['', ''] : command.labels
+  return <SimulatorDialog className="bld-entry-dialog" label="Multiple-Item Select (SP_D)" onClose={onClose}>
+    <h3>{el?.tag}/{el?.path}</h3>
+    {'error' in command ? <p role="alert">{command.error}</p> : <>
+      <p>SP_D command: <b>{command.text}</b>{'error' in feedback ? '' : <> · PV_D feedback: <b>{feedback.text}</b>{feedback.bad ? ' (Bad)' : ''}</>}</p>
+      <label>Select command<select aria-label="Discrete command" value={choice} onChange={e => setChoice(e.target.value as '' | '0' | '1')}>
+        <option value="">Select a command</option>
+        <option value="0">{labels[0]}</option>
+        <option value="1">{labels[1]}</option>
+      </select></label>
+      <p>The selection writes the SP_D command; PV_D feedback follows the device and is never written.</p>
+    </>}
+    {pending && <ConfirmPanel message={`Send ${choice === '1' ? labels[1] : labels[0]} to ${el?.tag}?`} onConfirm={() => apply(true)} onBack={() => setPending(false)} />}
+    {error && <p role="alert">{error}</p>}
+    <div className="sfc-edit-row">
+      <button className="tbtn sm" disabled={!choice || 'error' in command || pending}
+        onClick={() => { if (el?.entry?.confirm) setPending(true); else apply() }}>Apply Command</button>
       <button className="tbtn sm" onClick={onClose}>Cancel Entry</button>
     </div>
   </SimulatorDialog>

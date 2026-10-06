@@ -384,3 +384,22 @@ only failure is the existing dv09-audit dependency on the missing local pdf_om.t
   were replaced. Commit: see git log.
 Validation baseline through 15:40: typecheck and build pass; full suite 424 tests,
 423 passing; the only failure is the existing dv09-audit missing local pdf_om.txt.
+
+
+UPDATE 2026-10-06 (visual changes since the 2026-10-05 15:40 baseline)
+-----------------------------------------------------------------------
+- Feed System and Reactor displays: still ONLY the 8001 picture (src/renderer/public/feed-reactor-picture.png,
+  byte-identical to newImage/newNewImages/8001.png), scaled to fit. It is now an SVG layer: live values over patched
+  tag boxes (checked against a render of the real component: patches cover the baked numbers), 22 transparent hotspots
+  that open faceplates, alarm-coloured outlines, live batch/phase banner. Coordinates are tied to the 817x507 image.
+- SFC chart (SFC Charts display) now follows Control Studio (Course 7009-8 slides 8-9/8-10 and screenshots
+  newImage/newNewImages/sfcImages/2001.png and 2002.png): cross-shaped transitions named T<n> (T3, T3A, T3B for
+  selective alternatives; a toggle shows expressions), one thin rail for selective divergence and convergence, a double
+  bar for parallel divergence and convergence, double-bordered initial step, thin dark lines on a white canvas.
+- Display Builder: custom pictures can start from a main template (grouped title, background colour) and use the isolated
+  course dynamos Valve17, PumpsAnim, PipesAnim and ValveHorizontalControlD1 (white stopped/closed, yellow running/open,
+  grey Bad, red active-alarm outline). These never replace or recolour the approved plant mechanical symbols.
+- Fixes: invalid <title> children in FbdCanvas and the SFC chart; Control Studio number stepper no longer crashes on an
+  undefined value.
+Next visual check to make by eye: Feed/Reactor overlay after any change to the 8001 picture; SFC chart on a large nested
+chart (tests cover structure, not every pixel).

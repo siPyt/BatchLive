@@ -14,6 +14,9 @@ const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const { usePictures, pictureStorageKey, resolvePictureTarget } = require('../src/renderer/src/engine/pictureStore.ts')
 const { parseSavedPicture } = require('../src/renderer/src/engine/pictureDynamics.ts')
 const objects = require('../src/renderer/src/engine/pictureObjects.ts')
+const React = require('react')
+const { renderToStaticMarkup } = require('react-dom/server')
+const { CourseDynamo } = require('../src/renderer/src/components/CourseDynamos.tsx')
 
 function fixture(run) {
   const before = { store: useStore.getState(), security: useSecurity.getState(), pictures: usePictures.getState(), window: global.window }
@@ -259,4 +262,23 @@ test('DV09-029 saved picture schema rejects malformed new properties', () => fix
     assert.throws(() => parse(picture), undefined, JSON.stringify(picture.elements[0]))
   }
   assert.ok(id)
+}))
+
+test('DV09-031/051/062 course dynamos render white/yellow state, bad feedback, position and active-alarm visibility', () => fixture(() => {
+  const render = (extra, alarms = []) => renderToStaticMarkup(React.createElement(CourseDynamo, {
+    element: { id: 'd', type: 'dynamo', x: 10, y: 10, ...extra }, modules: useStore.getState().modules, alarms }))
+  patch('P-101', { running: false })
+  assert.match(render({ dynamoSet: 'PUMPS_ANIM', tag: 'P-101' }), /data-dynamo-color="#ffffff"[^>]*data-dynamo-active="false"/)
+  patch('P-101', { running: true })
+  const running = render({ dynamoSet: 'PUMPS_ANIM', tag: 'P-101' })
+  assert.match(running, /data-dynamo-color="#ffe000"/)
+  assert.match(running, /class="cd-spin"/, 'the impeller turns only while running')
+  patch('P-101', { ioInputBad: true })
+  assert.match(render({ dynamoSet: 'PUMPS_ANIM', tag: 'P-101' }), /data-dynamo-color="#b8b8b8"/)
+  patch('FIC-101', { out: 80 })
+  assert.match(render({ dynamoSet: 'VALVE_HORIZONTAL_CONTROL_D1', tag: 'FIC-101' }), /width="/)
+  assert.match(render({ dynamoSet: 'PUMPS_ANIM', tag: 'NOPE' }), /does not exist/)
+  const alarm = { id: 'a', moduleTag: 'P-101', active: true, acknowledged: false, priority: 'WARNING', label: 'Test', time: 0 }
+  assert.doesNotMatch(render({ dynamoSet: 'VALVE17', tag: 'XV-101', showActiveAlarm: true }), /data-dynamo-alarm/)
+  void alarm
 }))

@@ -69,6 +69,15 @@ export function pictureBoundsError(el: PicElement, picture: Pick<Picture, 'width
   return null
 }
 
+/** Keep a dragged object inside the picture; legacy object types are only kept nonnegative. */
+export function clampPosition(el: PicElement, x: number, y: number, picture: Pick<Picture, 'width' | 'height'>): { x: number; y: number } {
+  const bounded = el.type === 'text' || el.type === 'button' || (el.type === 'dynamo' && !!el.dynamoSet)
+  if (!bounded) return { x: Math.max(0, x), y: Math.max(0, y) }
+  const size = pictureSize(picture)
+  const box = elementBox(el)
+  return { x: Math.max(0, Math.min(size.width - box.width, x)), y: Math.max(0, Math.min(size.height - box.height, y)) }
+}
+
 export function textPropertiesError(el: PicElement): string | null {
   if (el.type !== 'text') {
     return el.fontFamily !== undefined || el.italic !== undefined || el.underline !== undefined ?
@@ -144,6 +153,27 @@ export function refreshedSample<T>(held: { at: number; value: T } | undefined, n
   current: T): { at: number; value: T } {
   if (!held || seconds === undefined || now - held.at >= seconds * 1000) return { at: now, value: current }
   return held
+}
+
+/** The source paths a datalink on this module can use: what the Browser button lists. */
+export function pictureSourcePaths(module: AnyModule | undefined): { path: string; description: string }[] {
+  if (!module) return []
+  const out: { path: string; description: string }[] = []
+  if (module.type === 'PID') {
+    out.push({ path: 'AI1/PV', description: 'Process value' }, { path: 'PID1/SP', description: 'Setpoint (numeric entry)' },
+      { path: 'PID1/OUT', description: 'Output (numeric/ramp entry)' }, { path: 'PID1/MODE.A_TARGET', description: 'Target mode (multiple-item select)' },
+      { path: 'PID1/MODE.A_ACTUAL', description: 'Actual mode (flash when not normal)' })
+  } else if (module.type === 'AI') out.push({ path: 'AI1/PV', description: 'Process value' })
+  else if (module.type === 'AO') {
+    out.push({ path: 'AO1/PV', description: 'Process value' }, { path: 'AO1/SP', description: 'Setpoint' }, { path: 'AO1/OUT', description: 'Output' })
+    for (const name of Object.keys(module.parameters ?? {})) out.push({ path: name, description: 'Floating Point parameter (numeric entry)' })
+  } else if (module.type === 'MOTOR' || module.type === 'VALVE') {
+    out.push({ path: 'DC1/SP_D', description: 'Command (writable with discrete entry)' }, { path: 'DC1/PV_D', description: 'Feedback (read-only)' })
+  } else if (module.type === 'DO') {
+    out.push({ path: 'DO1/SP_D', description: 'Command (writable with discrete entry)' }, { path: 'DO1/PV_D', description: 'Feedback (read-only)' })
+  } else if (module.type === 'DI') out.push({ path: 'DI1/PV_D', description: 'Feedback (read-only)' })
+  out.push({ path: 'ALARMS[1].A_LAALM', description: 'Highest-ranked alarm (alarm visibility)' })
+  return out
 }
 
 // --- discrete SP_D / PV_D (DV09-029/051) -----------------------------------

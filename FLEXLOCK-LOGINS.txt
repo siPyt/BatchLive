@@ -1,0 +1,26 @@
+BATCHLIVE FLEXLOCK / LOG ON ACCOUNTS
+====================================
+These are the built-in SIMULATOR training accounts (defined in
+src/renderer/src/engine/security.ts as DEFAULT_USERS). They are not real
+plant or Emerson credentials. Names are not case sensitive; passwords are.
+
+Name         Password      Full name          Keys (permissions)
+-----------  ------------  -----------------  ---------------------------------
+admin        admin123      Administrator      ALL keys
+ENGINEER     engineer      System Engineer    ALL keys
+Supervisor1  supervisor1   Sarge Supervisor   CONTROL, RESTRICTED_CONTROL,
+                                              TUNING, ALARMS, BATCH_OPERATE,
+                                              CAN_DOWNLOAD
+OperatorA    operatora     Alpha Operator     CONTROL, ALARMS, BATCH_OPERATE
+
+Notes
+-----
+- The app starts logged on as "admin" with the workstation unlocked.
+- FlexLock (lock workstation) asks for any account's name and password to
+  return to the desktop.
+- Configuration actions (for example New Project, adding photographed WFI
+  units, editing modules) need the CAN_CONFIGURE key: admin or ENGINEER.
+- Control actions (start/stop equipment, setpoints, sanitation) need CONTROL.
+- Accounts added or changed in User Manager exist only for the running
+  session and revert to the list above on restart.
+- This file is a local reference only and is not committed to git.
