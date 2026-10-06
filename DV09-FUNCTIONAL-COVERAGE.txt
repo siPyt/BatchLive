@@ -2690,3 +2690,8 @@ PASS 95: MODBUS WORKSHOP FAILURE/SCALE/STATUS TESTS (pp405-410)
 -----------------------------------------------------------------------
 Line1 - Dead link: motor not running, PV Bad, loop leaves AUTO; recovery restores both.
 Line2 - INT16 quantization and dataset status verified. Tests: serial-modbus.test.cjs.
+
+PASS 96: SFC GRAPH EDITOR (pp279-280)
+-----------------------------------------------------------------------
+Line1 - Layered graph layout and palette for steps, selective routes and parallel legs.
+Line2 - Every edit re-validated by engine rules and executed in tests. Tests: sfc-graph.test.cjs.

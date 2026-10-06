@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { layoutSfc } from '../engine/sfcGraph'
+import { SfcGraphPalette } from '../components/SfcGraphPalette'
 import { SfcPropertiesDialog, type SfcPropertiesTarget } from '../components/SfcPropertiesDialog'
 import { SfcLifecycleControls } from '../components/SfcLifecycleControls'
 import { sfcEditorDefinition } from '../engine/sfcLifecycle'
@@ -173,6 +175,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
         not arbitrary expressions, nested parallel graphs or controller downloads.
       </div>}
 
+      {editable && <SfcGraphPalette steps={sfc.steps} selected={selected} onChange={update} onSelect={setSelected} />}
       <div className="sfc-canvas-wrap">
         {sfc.steps.length === 0 ? (
           <div className="exp-empty">No steps. Add the first step below.</div>
@@ -196,7 +199,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
           <div>{step.name}: {describeCondition(step.transition, 'tag' in step.transition ? modules[step.transition.tag] : undefined)} → {sfc.steps.find(item => item.id === step.nextStep)?.name ?? 'Complete'}</div>
           {step.alternatives?.map((route, index) => <div key={index}>Route {index + 1}: {describeCondition(route.condition, 'tag' in route.condition ? modules[route.condition.tag] : undefined)} → {sfc.steps.find(item => item.id === route.nextStep)?.name ?? '(missing target)'}</div>)}
         </div>)}
-        <p>Selective convergence uses shared destination IDs. Parallel joins have explicit predecessor lists. This is not the native graph palette/layout.</p>
+        <p>Selective convergence uses shared destination IDs. Parallel joins have explicit predecessor lists. Edit routes with the graph palette above the chart.</p>
       </div>}
       {hasParallelSteps(sfc.steps) && <div className="traditional-note" role="status" aria-label="Parallel SFC execution">
         <strong>Parallel steps and synchronization joins</strong>
@@ -210,7 +213,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
         <div>Active: {sfc.status === 'RUNNING' || sfc.status === 'HELD' ?
           sfc.steps.filter((_, index) => sfcStepElapsed(sfc, index) !== undefined).map(step => step.name).join(', ') || 'waiting for join' : 'none'}</div>
         <p>Independent acyclic legs execute concurrently and wait for all predecessors. Nested/selective legs and conflicting writes are rejected.
-          Native graph palette/layout remains unsupported.</p>
+          Use the graph palette to add legs or collapse the structure.</p>
       </div>}
 
       {editable && selected !== null && sfc.steps[selected] && (
@@ -256,16 +259,23 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
   const STEP_W = 120
   const STEP_H = 50
   const GAP = 70
-  const CENTER_X = 170
-  const rowY = (i: number): number => 30 + i * (STEP_H + GAP)
-  const height = 30 + sfc.steps.length * (STEP_H + GAP) + 40
+  const COL_W = 400
+  const X0 = 190
+  const layout = useMemo(() => layoutSfc(sfc.steps), [sfc.steps])
+  const colX = (col: number): number => X0 + col * COL_W
+  const rowY = (row: number): number => 30 + row * (STEP_H + GAP)
+  const gutterX = (e: { from: string; to: string }): number => 30 + (layout.edges.filter(x => x.back).findIndex(x => x.from === e.from && x.to === e.to) % 6) * 10
+  const height = 30 + Math.max(layout.rows, 1) * (STEP_H + GAP) + 40
+  const width = Math.max(760, colX(layout.cols - 1) + 340)
   const parallel = hasParallelSteps(sfc.steps)
   const routed = parallel || sfc.steps.some(step => step.nextStep !== undefined)
 
   return (
-    <svg width="100%" height={height} viewBox={`0 0 760 ${height}`} className="sfc-svg">
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="sfc-svg">
       {sfc.steps.map((step, i) => {
-        const y = rowY(i)
+        const pos = layout.nodes[step.id] ?? { row: i, col: 0, reachable: true }
+        const y = rowY(pos.row)
+        const CENTER_X = colX(pos.col)
         const elapsed = sfcStepElapsed(sfc, i)
         const isActive = sfc.status === 'RUNNING' && elapsed !== undefined
         const isPast = !routed && (sfc.active > i || sfc.status === 'COMPLETE')
@@ -276,43 +286,29 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
           sfc.steps.findIndex(candidate => candidate.id === step.nextStep) : isLast ? -1 : i + 1
         return (
           <g key={step.id}>
-            {/* flow line: step bottom -> transition -> next step top */}
-            {!isLast && step.nextStep === undefined && !step.parallelNextSteps?.length && (
-              <line
-                x1={CENTER_X}
-                y1={y + STEP_H}
-                x2={CENTER_X}
-                y2={y + STEP_H + GAP}
-                className={isPast ? 'sfc-line-active' : 'sfc-line'}
-              />
-            )}
-            {step.parallelNextSteps?.map((id, index) => {
-              const destination = sfc.steps.findIndex(item => item.id === id)
-              if (destination === -1) return null
-              return <path key={`parallel:${id}`}
-                d={`M ${CENTER_X} ${transY} H ${32 + index * 12} V ${rowY(destination) - 12} H ${CENTER_X} V ${rowY(destination)}`}
-                fill="none" className={transTrue ? 'sfc-line-active' : 'sfc-line'}>
-                <title>Parallel path to {sfc.steps[destination].name}</title>
+            {layout.edges.filter(e => e.from === step.id).map((e) => {
+              const to = layout.nodes[e.to]
+              const dx = colX(to.col)
+              const dy = rowY(to.row)
+              const sy = y + STEP_H
+              const blocked = Object.values(layout.nodes).some(n => n.col === pos.col && n.row > pos.row && n.row < to.row)
+              let d: string
+              if (e.back) d = `M ${CENTER_X} ${sy} V ${transY + 12} H ${gutterX(e)} V ${dy - 16} H ${dx} V ${dy}`
+              else if (dx === CENTER_X && !blocked) d = `M ${CENTER_X} ${sy} V ${dy}`
+              else if (dx === CENTER_X) d = `M ${CENTER_X} ${sy} V ${transY + 12} H ${CENTER_X - STEP_W / 2 - 16} V ${dy - 16} H ${CENTER_X} V ${dy}`
+              else d = `M ${CENTER_X} ${sy} V ${transY + (e.kind === 'selective' ? 8 + e.index * 6 : 0)} H ${dx} V ${dy}`
+              const selectiveTrue = e.kind === 'selective' && isActive && !transTrue &&
+                !step.alternatives?.slice(0, e.index).some(item => evalCondition(item.condition, state, elapsed ?? 0, context)) &&
+                evalCondition(step.alternatives![e.index].condition, state, elapsed ?? 0, context)
+              const lit = e.kind === 'selective' ? selectiveTrue : (isPast || transTrue)
+              const route = step.alternatives?.[e.index]
+              return <path key={`${e.kind}:${e.index}:${e.to}`} d={d} fill="none" className={lit ? 'sfc-line-active' : 'sfc-line'}
+                data-edge={`${e.from}>${e.to}`} data-edge-kind={e.kind}>
+                <title>{e.kind === 'parallel' ? `Parallel path to ${sfc.steps.find(s => s.id === e.to)?.name}` :
+                  e.kind === 'selective' && route ? `Alternate ${e.index + 1}: ${describeCondition(route.condition, 'tag' in route.condition ? modules[route.condition.tag] : undefined)} to ${sfc.steps.find(s => s.id === e.to)?.name}` :
+                    `Transition to ${sfc.steps.find(s => s.id === e.to)?.name}`}{e.back ? ' (return)' : ''}</title>
               </path>
-            })}
-            {step.nextStep !== undefined && destination >= 0 && <path
-              d={`M ${CENTER_X} ${y + STEP_H} V ${transY + 12} H ${60 + i * 4} V ${rowY(destination) - 16} H ${CENTER_X} V ${rowY(destination)}`}
-              fill="none" className={transTrue ? 'sfc-line-active' : 'sfc-line'}>
-              <title>Transition to {sfc.steps[destination].name}</title>
-            </path>}
-            {step.alternatives?.map((route, index) => {
-              const target = sfc.steps.findIndex(candidate => candidate.id === route.nextStep)
-              if (target === -1) return null
-              const trueRoute = isActive && !transTrue &&
-                !step.alternatives?.slice(0, index).some(item => evalCondition(item.condition, state, elapsed ?? 0, context)) &&
-                evalCondition(route.condition, state, elapsed ?? 0, context)
-              return <path key={index}
-                d={`M ${CENTER_X} ${transY} H ${40 + index * 8} V ${rowY(target) - 12} H ${CENTER_X} V ${rowY(target)}`}
-                fill="none" className={trueRoute ? 'sfc-line-active' : 'sfc-line'}>
-                <title>Alternate {index + 1}: {describeCondition(route.condition, 'tag' in route.condition ? modules[route.condition.tag] : undefined)} to {sfc.steps[target].name}</title>
-              </path>
-            })}
-            {/* step box */}
+            })}            {/* step box */}
             <g onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
               onContextMenu={e => { e.preventDefault(); onContext({ kind: 'action', step, index: null }, e.clientX, e.clientY) }}>
               {i === 0 && (
@@ -387,7 +383,7 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
         )
       })}
       {sfc.status === 'COMPLETE' && (
-        <circle cx={CENTER_X} cy={rowY(sfc.steps.length - 1) + STEP_H + 20} r={8} fill="none" stroke="#2e6b4f" strokeWidth={2} />
+        <circle cx={colX(layout.nodes[sfc.steps[sfc.steps.length - 1].id]?.col ?? 0)} cy={rowY(layout.nodes[sfc.steps[sfc.steps.length - 1].id]?.row ?? sfc.steps.length - 1) + STEP_H + 20} r={8} fill="none" stroke="#2e6b4f" strokeWidth={2} />
       )}
     </svg>
   )

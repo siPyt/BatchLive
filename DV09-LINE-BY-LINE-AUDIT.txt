@@ -9,7 +9,7 @@ pass. The one failure is the pre-existing local-only pdf_om.txt dependency
 in dv09-audit.test.cjs (not bundled with the repo by design), not a
 regression. The dated history and exact known remaining-work index are
 appended at the end of this report. Earlier release records are historical.
-DV-09 remains incomplete: 74 VERIFIED_SUBSET, 29 PARTIAL, 0 MISSING,
+DV-09 remains incomplete: 75 VERIFIED_SUBSET, 28 PARTIAL, 0 MISSING,
 19 BOUNDARY and 6 CONTEXT groups. None is a course-completion percentage.
 No group is MISSING any more: every group has at least a bounded executable
 subset or is classified as a physical/vendor boundary. The earlier header
@@ -1595,22 +1595,35 @@ Acceptance: Build action lifecycle state separate from output assignments.
 
 [DV09-066]
 Pages: 279-280
-Status: PARTIAL
+Status: VERIFIED_SUBSET
 Required: Selective divergence/convergence and parallel divergence/convergence.
-Evidence: Explicit return/selective routes support one active step, first-true
-  branching and convergence to shared step IDs. Conditions/destinations are
-  configured in isolated Transition Properties, validated and saved/deployed.
-  Original pp279/280/291/294 figures reviewed locally. Pass21 adds concurrent
-  active-step tokens with independent clocks/action runtime and synchronization
-  arrivals. Disjoint acyclic legs enter together; a completed leg waits while
-  others run, and the common join activates only after all predecessor
-  transitions pass. Properties commit fork/join atomically; Check/Save/Download
-  validate paths, predecessor lists and conflicting writes. Saved/deployed lists
-  are deep-cloned; HOLD/outage pause all tokens, reset/completion/download clear
-  runtime. Ten regressions and real saved/deployed live three-cycle acceptance
-  cover unequal waits, simultaneous arrivals, three multi-step legs, stored
-  clocks, stale/locked edits and faults. Native graph palette/layout and
-  nested/selective parallel legs remain missing; this entry remains PARTIAL.
+Evidence (Pass21 + Pass96): explicit return/selective routes support one active
+  step, first-true branching and convergence to shared step IDs; Pass21 adds
+  concurrent active-step tokens with independent clocks/action runtime, disjoint
+  acyclic parallel legs, synchronization joins that wait for every predecessor,
+  validated Check/Save/Download, and HOLD/outage/reset/completion rules.
+  Pass96 adds the graph editor (sfcGraph.ts, SfcGraphPalette): an automatic
+  layered layout (rows by longest forward path, branches and parallel legs in
+  their own columns, convergence returning to the leftmost incoming column,
+  return edges flagged and routed through a gutter, unique cells) now drives the
+  chart, so selective and parallel structure is drawn as a graph instead of one
+  column; a palette edits the real step routes - insert a step after the
+  selection, delete with reconnection, add/remove selective routes, route or
+  loop to any step or terminate, create a parallel divergence with 2-6 legs and
+  its convergence, add a leg, remove the whole structure - each normalized,
+  applied, re-checked with the engine's own parallel-graph rules and compacted
+  back to the ordinary stored form, so every edited chart is executable.
+  Structural analysis reports unreachable steps, dangling references, structure
+  errors and charts with no terminating step. Fourteen regressions execute the
+  edited charts through the real engine (concurrent legs, join waits for the
+  slower leg, first-true selective route, loops that never complete, termination,
+  insertion inside a leg updating the join) and cover layout and every refusal;
+  the browser turned a step of LYO-CYCLE-2 into a three-leg divergence (6 -> 10
+  steps, three parallel edges).
+  Boundary: nested or selective routes inside parallel legs are still refused by
+  the engine, the palette works through buttons on a selected step rather than
+  dragging connectors, and new routes start with a 5 s timer condition edited in
+  the existing transition properties.
 Acceptance: Model a validated graph, concurrent active steps and correct joins;
   a UI fork or extra linear steps cannot simulate concurrent execution.
 
@@ -4387,3 +4400,19 @@ Tests: four regressions added to tests/serial-modbus.test.cjs (now 21): MTR-MODB
 Result: DV09-092 and DV09-093 PARTIAL -> VERIFIED_SUBSET (MTR-11 template and
   dynamos remain boundaries). Totals 74 VERIFIED_SUBSET/29 PARTIAL/0 MISSING/
   19 BOUNDARY/6 CONTEXT.
+
+PASS 96 CHANGE DETAIL AND VALIDATION (2026-10-06, SFC graph editor)
+-----------------------------------------------------------------------
+Scope: DV09-066 (also supports 064/065/067/070/071) - SFC graph palette and automatic layout.
+Engine: new sfcGraph.ts (edges, layered layout, structural analysis, edit operations
+  addStepAfter, deleteStepHealing, add/removeSelectiveRoute, setPrimaryRoute,
+  makeParallel, addParallelLeg, removeParallel); sfc.ts exports sequentialTarget and
+  parallelGraphError.
+UI: SfcChart now draws from the layout (columns, routed edges, gutters for returns);
+  SfcGraphPalette above the chart with findings list.
+Tests: tests/sfc-graph.test.cjs (14), including execution through advanceSfcs.
+Browser: LYO-CYCLE-2 step turned into a 3-leg parallel divergence; 10 steps, 3 parallel edges.
+Boundary (honest): no nested/selective routes inside parallel legs (engine refuses), no
+  connector dragging, default 5 s route conditions.
+Validation: 671 tests locally (670 pass; only pdf_om.txt-dependent audit fails), typecheck and build passed.
+Result: DV09-066 PARTIAL -> VERIFIED_SUBSET. Totals 75 VERIFIED_SUBSET/28 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

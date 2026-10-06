@@ -130,7 +130,7 @@ export function sfcStepElapsed(sfc: SfcDef, index: number): number | undefined {
     sfc.active === index ? sfc.elapsed : undefined
 }
 
-function sequentialTarget(steps: SfcStep[], index: number): string | null {
+export function sequentialTarget(steps: SfcStep[], index: number): string | null {
   return steps[index].nextStep === undefined ? steps[index + 1]?.id ?? null : steps[index].nextStep ?? null
 }
 
@@ -151,7 +151,7 @@ export function sfcParallelJoin(steps: SfcStep[], fork: SfcStep): SfcStep | unde
   return undefined
 }
 
-function parallelGraphError(steps: SfcStep[]): string | null {
+export function parallelGraphError(steps: SfcStep[]): string | null {
   if (steps.some(step => step.parallelNextSteps !== undefined && step.parallelNextSteps.length < 2 ||
     step.joinFrom !== undefined && step.joinFrom.length < 2)) return 'Parallel destinations and join predecessors require at least two steps'
   const joins = new Set<string>()
