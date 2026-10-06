@@ -97,7 +97,8 @@ test('MESSAGE exact expressions roundtrip case-sensitive states and reject wrong
     ]) assert.ok(parseSfcAssignment(expression, state.modules, context).error, expression)
     assert.ok(parseSfcAssignment("'MESSAGE' := 'NS-T101:STARTUP'", state.modules).error)
     assert.ok(parseSfcCondition("'MESSAGE' = 'NS-T101:startup'", state.modules, context).error)
-    assert.ok(parseSfcCondition("'MESSAGE' = 'NS-T101:STARTUP' OR TRUE", state.modules, context).error)
+    assert.equal(parseSfcCondition("'MESSAGE' = 'NS-T101:STARTUP' OR TRUE", state.modules, context).value.kind, 'expression')
+    assert.ok(parseSfcCondition("'MESSAGE' = 'NS-T101:STARTUP' OR 'MISSING' = 'NS-T101:STARTUP'", state.modules, context).error)
   })
 })
 

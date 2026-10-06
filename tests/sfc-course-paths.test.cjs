@@ -71,9 +71,11 @@ test('course DI feedback and actual-mode paths roundtrip while command paths and
     }
     for (const expression of ["'^/XVSTAT-101/DI1/SP_D.CV' = 1", "'^/XVSTAT-101/DI1/PV_D.CV' = 2",
       "'^/XVSTAT-101/DI1/PV_D.CV' > 0", "'^/XV-101/DI1/PV_D.CV' = 1",
-      "'^/FIC-102/PID1/MODE.TARGET' = AUTO", "'^/FIC-102/PID1/MODE.ACTUAL' = INVALID"]) {
+      "'^/FIC-102/PID1/MODE.ACTUAL' = INVALID"]) {
       assert.ok(parseSfcCondition(expression, modules).error, expression)
     }
+    // Reading MODE.TARGET is an explicit target read in the expression language; it never answers an ACTUAL comparison.
+    assert.equal(parseSfcCondition("'^/FIC-102/PID1/MODE.TARGET' = AUTO", modules).value.kind, 'expression')
     assert.ok(parseSfcAssignment("'^/XVSTAT-101/DI1/PV_D.CV' := 1", modules).error)
     assert.equal(parseSfcAssignment("'^/MODE-AO/AO1/MODE.TARGET' := OOS", modules).value.mode, 'OOS')
     assert.ok(parseSfcCondition("'^/MODE-AO/AO1/MODE.ACTUAL' = IMAN", modules).error)

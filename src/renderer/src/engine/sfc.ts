@@ -5,6 +5,7 @@ import { booleanParameterReferenceError, cloneSfcParameters, namedParameterRefer
 import type { NamedSetDefinition } from './namedSets'
 import { executeSfcBlock, syncSfcBlockActivation, type SfcBlockConfiguration, type SfcBlockState } from './sfcBlocks'
 import { resetDeviceLock } from './simulate'
+import { evalLogicBoolean, evalLogicNumber, logicError } from './sfcLogic'
 
 // ---------------------------------------------------------------------------
 // Sequential Function Chart (SFC) engine — mirrors DeltaV Control Studio SFCs.
@@ -29,8 +30,8 @@ interface ActionBase {
 export type SfcAction = ActionBase &
   (
     | { kind: 'mode'; tag: string; mode: PidTargetMode }
-    | { kind: 'sp'; tag: string; value: number }
-    | { kind: 'out'; tag: string; value: number }
+    | { kind: 'sp'; tag: string; value: number; /** Numeric expression evaluated on every execution; `value` is its unused placeholder. */ expression?: string }
+    | { kind: 'out'; tag: string; value: number; expression?: string }
     | { kind: 'motor'; tag: string; run: boolean }
     | { kind: 'deviceReset'; tag: string; reset: boolean }
     | { kind: 'valve'; tag: string; open: boolean }
@@ -51,6 +52,7 @@ export type SfcCondition =
   | { kind: 'mode'; tag: string; mode: SfcActualMode }
   | { kind: 'namedSet'; parameter: string; namedSet: string; entry: string }
   | { kind: 'boolean'; parameter: string; value: boolean }
+  | { kind: 'expression'; text: string }
 
 export interface SfcStep {
   id: string
@@ -335,9 +337,9 @@ export function describeAction(a: SfcAction, module?: AnyModule): string {
     case 'mode':
       return `${q}^/${a.tag}/${block}/MODE.TARGET := ${a.mode}`
     case 'sp':
-      return `${q}^/${a.tag}/${block}/SP.CV := ${a.value}`
+      return `${q}^/${a.tag}/${block}/SP.CV := ${a.expression ?? a.value}`
     case 'out':
-      return `${q}^/${a.tag}/${block}/OUT.CV := ${a.value}`
+      return `${q}^/${a.tag}/${block}/OUT.CV := ${a.expression ?? a.value}`
     case 'motor':
       return `${q}^/${a.tag}/DC1/OUT_D.CV := ${a.run ? 1 : 0} (${a.run ? 'START' : 'STOP'})`
     case 'deviceReset':
@@ -377,6 +379,8 @@ export function describeCondition(c: SfcCondition, module?: AnyModule): string {
       return `'${c.parameter}' = '${c.namedSet}:${c.entry}'`
     case 'boolean':
       return `'${c.parameter}.CV' = ${c.value ? 'TRUE' : 'FALSE'}`
+    case 'expression':
+      return c.text
   }
 }
 
@@ -385,6 +389,8 @@ export function evalCondition(c: SfcCondition, state: PlantState, elapsed: numbe
   switch (c.kind) {
     case 'always':
       return true
+    case 'expression':
+      return evalLogicBoolean(c.text, state, elapsed, context)
     case 'timer':
       return timeReached(elapsed, c.seconds)
     case 'namedSet': {
@@ -700,6 +706,7 @@ function conditionError(condition: SfcCondition, modules: Record<string, AnyModu
     return !Number.isFinite(condition.seconds) || condition.seconds < 0 ? 'Timer must be finite and nonnegative' : null
   }
   if (condition.kind === 'always') return null
+  if (condition.kind === 'expression') return logicError(condition.text, modules, context, 'boolean')
   const module = modules[condition.tag]
   if (!module) return `Missing condition module ${condition.tag}`
   if (condition.kind === 'motorRunning') return module.type !== 'MOTOR' ? 'Running condition requires a motor' : null
@@ -773,7 +780,10 @@ export function sfcStepsError(steps: SfcStep[], modules: Record<string, AnyModul
           const required = action.kind === 'motor' ? 'MOTOR' : action.kind === 'valve' ? 'VALVE' : action.kind === 'do' ? 'DO' : null
           if (required ? module.type !== required : module.type !== 'PID' && module.type !== 'AO') return 'Action/module type mismatch'
         }
-        if ((action.kind === 'sp' || action.kind === 'out') && !Number.isFinite(action.value)) return 'Action value must be finite'
+        if ((action.kind === 'sp' || action.kind === 'out') && action.expression !== undefined) {
+          const problem = logicError(action.expression, modules, context, 'number')
+          if (problem) return problem
+        } else if ((action.kind === 'sp' || action.kind === 'out') && !Number.isFinite(action.value)) return 'Action value must be finite'
         if (action.kind === 'mode' && (module.type === 'AO' ?
           !['MAN', 'AUTO', 'CAS', 'OOS'].includes(action.mode) :
           module.type !== 'PID' || !pidTargetAllowed(module, action.mode))) return 'Invalid or non-permitted target mode'
@@ -938,7 +948,10 @@ export function advanceSfcs(
         executeSfcBlock(next, action.block, elapsed, state.modules)
       } else {
         const module = modules[action.tag]
-        if (module) applyAction(module, action)
+        if (module && (action.kind === 'sp' || action.kind === 'out') && action.expression !== undefined) {
+          const value = evalLogicNumber(action.expression, state, elapsed, context)
+          if (value !== null) applyAction(module, { ...action, value })
+        } else if (module) applyAction(module, action)
       }
     }
     if (hasParallelSteps(sfc.steps)) {

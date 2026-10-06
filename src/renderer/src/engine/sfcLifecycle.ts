@@ -133,6 +133,7 @@ function condition(value: unknown): value is SfcCondition {
   if (value.kind === 'timer') return typeof value.seconds === 'number'
   if (value.kind === 'namedSet') return ['parameter', 'namedSet', 'entry'].every(key => typeof value[key] === 'string')
   if (value.kind === 'boolean') return typeof value.parameter === 'string' && typeof value.value === 'boolean'
+  if (value.kind === 'expression') return typeof value.text === 'string' && value.text.length > 0 && value.text.length <= 500
   if (typeof value.tag !== 'string') return false
   if (value.kind === 'motorRunning') return typeof value.running === 'boolean'
   if (value.kind === 'valveOpen') return typeof value.open === 'boolean'
@@ -149,7 +150,9 @@ function action(value: unknown): value is SfcAction {
     value.description !== undefined && typeof value.description !== 'string' ||
     value.seconds !== undefined && typeof value.seconds !== 'number' ||
     value.timingCondition !== undefined && !condition(value.timingCondition)) return false
-  if (value.kind === 'sp' || value.kind === 'out') return typeof value.value === 'number'
+  if (value.kind === 'sp' || value.kind === 'out') {
+    return typeof value.value === 'number' && (value.expression === undefined || typeof value.expression === 'string' && value.expression.length <= 500)
+  }
   if (value.kind === 'namedSet') return ['parameter', 'namedSet', 'entry'].every(key => typeof value[key] === 'string')
   if (value.kind === 'boolean') return typeof value.parameter === 'string'
   if (value.kind === 'block') return typeof value.block === 'string'

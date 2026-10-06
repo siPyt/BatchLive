@@ -38,12 +38,15 @@ test('SFC expression assignments roundtrip real command paths without changing v
     "'P-101/DC1/PV_D.CV' := 1", "'XV-101/DC1/PV_D.CV' := 0",
     "'FIC-101/AI1/PV.CV' := 50", "'LEVEL-101/PID1/SP.CV' := 500",
     "'HS-201/DO1/SP_D.CV' := 2", "'P-101/DC1/OUT_D.CV' := true",
-    "'LEVEL-101/AO1/MODE.TARGET' := ROUT", "'FIC-101/PID1/SP.CV' := 50 + 1",
+    "'LEVEL-101/AO1/MODE.TARGET' := ROUT",
     "'FIC-101/PID1/SP.CV' := Infinity", "'FIC-101/PID1/SP.CV' := NaN",
     "'FIC-101/PID1/SP.CV' := ''", "'FIC-101/PID1/SP.CV' := 0x10",
     "'FIC-101/PID1/SP.CV\" := 50", "'UNKNOWN/PID1/SP.CV' := 50",
     "'MESSAGE' := 'NS-T101:SELECT SEQUENCE'"
   ]) assert.ok(parseSfcAssignment(expression, modules).error, expression)
+  // The full expression language: a numeric expression is a valid SP/OUT assignment.
+  assert.deepEqual(parseSfcAssignment("'FIC-101/PID1/SP.CV' := 50 + 1", modules).value,
+    { kind: 'sp', tag: 'FIC-101', value: 0, expression: '50 + 1' })
   assert.equal(JSON.stringify(modules), before)
 })
 
@@ -64,13 +67,17 @@ test('SFC transition and timing expressions roundtrip confirmed conditions and r
     assert.deepEqual(parseSfcCondition(conditionExpression(condition, modules[condition.tag]), modules), { value: condition })
   }
   for (const expression of [
-    'FALSE', 'T_ACTIVE >= -1', 'T_ACTIVE >= Infinity', 'T_ACTIVE >= 1e',
-    "'P-101/DC1/OUT_D.CV' = 1", "'XV-101/DC1/PV_D.CV' = 2",
+    'T_ACTIVE >= -1', 'T_ACTIVE >= Infinity', 'T_ACTIVE >= 1e',
+    "'XV-101/DC1/PV_D.CV' = 2",
     "'FIC-101/PID1/OUT.CV' > NaN", "'FIC-101/PID1/OUT.CV' > 0x10",
-    "'FIC-101/PID1/OUT.CV' = 30", "'LEVEL-101/PID1/OUT.CV' > 30",
-    "'MISSING/DC1/PV_D.CV' = 1", "'MESSAGE' = 'NS-T101:STARTUP'",
-    "'P-101/DC1/PV_D.CV' = 1 AND 'XV-101/DC1/PV_D.CV' = 1"
+    "'LEVEL-101/PID1/OUT.CV' > 30",
+    "'MISSING/DC1/PV_D.CV' = 1", "'MESSAGE' = 'NS-T101:STARTUP'"
   ]) assert.ok(parseSfcCondition(expression, modules).error, expression)
+  // Previously refused simple-form limits that the full expression language now accepts, stored as expressions.
+  for (const expression of ['FALSE', "'FIC-101/PID1/OUT.CV' = 30", "'P-101/DC1/OUT_D.CV' = 1",
+    "'P-101/DC1/PV_D.CV' = 1 AND 'XV-101/DC1/PV_D.CV' = 1"]) {
+    assert.deepEqual(parseSfcCondition(expression, modules), { value: { kind: 'expression', text: expression } }, expression)
+  }
 })
 
 function withSfc(run) {

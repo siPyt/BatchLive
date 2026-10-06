@@ -2,11 +2,12 @@ import type { AnyModule } from './types'
 import type { SfcAction, SfcCondition, CompareOp } from './sfc'
 import { parsePidActualMode, parsePidTargetMode, pidTargetAllowed } from './pidModes'
 import { booleanParameterReferenceError, namedParameterReferenceError, type SfcExpressionContext } from './sfcParameters'
+import { logicError, looksLikeLogic } from './sfcLogic'
 
 export type ExpressionResult<T> = { value: T; error?: never } | { error: string; value?: never }
 
 function path(text: string): { tag: string; parameter: string } | null {
-  const match = unquote(text).match(/^\^?\/?([A-Za-z0-9_$-]+)\/([A-Za-z0-9_/.]+)$/)
+  const match = unquote(text).match(/^(?:\^\/|\/\/|\/)?([A-Za-z0-9_$-]+)\/([A-Za-z0-9_/.]+)$/)
   return match ? { tag: match[1].toUpperCase(), parameter: match[2].toUpperCase() } : null
 }
 
@@ -53,9 +54,15 @@ export function parseSfcAssignment(text: string, modules: Record<string, AnyModu
     return { value: { kind: 'mode', tag, mode } }
   }
   if (analogBlock && [`${analogBlock}/SP.CV`, `${analogBlock}/OUT.CV`].includes(parameter)) {
+    const kind = parameter.endsWith('/SP.CV') ? 'sp' : 'out'
     const numeric = numericLiteral(value)
-    if (!Number.isFinite(numeric)) return { error: 'Assignment requires a finite numeric literal' }
-    return { value: { kind: parameter.endsWith('/SP.CV') ? 'sp' : 'out', tag, value: numeric } }
+    if (!Number.isFinite(numeric)) {
+      const raw = match[2].trim()
+      const problem = logicError(raw, modules, context, 'number')
+      if (problem === null) return { value: { kind, tag, value: 0, expression: raw } }
+      return { error: /['"]/.test(raw) || looksLikeLogic(raw) ? problem : 'Assignment requires a finite numeric literal' }
+    }
+    return { value: { kind, tag, value: numeric } }
   }
   if (value !== '0' && value !== '1') return { error: 'Discrete assignment requires 0 or 1' }
   const on = value === '1'
@@ -68,7 +75,18 @@ export function parseSfcAssignment(text: string, modules: Record<string, AnyModu
   return { error: `Unsupported assignment path ${tag}/${parameter}; use a supported module path or configured Named Set expression` }
 }
 
+/** Simple forms keep their dedicated condition kinds; anything else is tried as a full SFC expression. */
 export function parseSfcCondition(text: string, modules: Record<string, AnyModule>, context?: SfcExpressionContext): ExpressionResult<SfcCondition> {
+  const simple = parseSimpleCondition(text, modules, context)
+  if (simple.error === undefined) return simple
+  // A malformed or negative T_ACTIVE threshold keeps its dedicated timer error instead of becoming an expression.
+  if (/^T_ACTIVE\s*>=\s*[+\-0-9.eE]*\s*s?$/i.test(text.trim())) return simple
+  const problem = logicError(text, modules, context, 'boolean')
+  if (problem === null) return { value: { kind: 'expression', text: text.trim() } }
+  return looksLikeLogic(text) ? { error: problem } : simple
+}
+
+function parseSimpleCondition(text: string, modules: Record<string, AnyModule>, context?: SfcExpressionContext): ExpressionResult<SfcCondition> {
   const boolean = text.trim().match(/^'([A-Za-z0-9_$-]+)(?:\.CV)?'\s*=\s*(TRUE|FALSE|0|1)$/i)
   if (boolean) {
     const parameter = boolean[1].toUpperCase()
@@ -140,13 +158,14 @@ export function assignmentExpression(action: SfcAction, module?: AnyModule): str
   if (action.kind === 'namedSet') return `'${action.parameter}' := '${action.namedSet}:${action.entry}'`
   const block = module?.type === 'AO' ? 'AO1' : 'PID1'
   if (action.kind === 'mode') return `'^/${action.tag}/${block}/MODE.TARGET' := ${action.mode}`
-  if (action.kind === 'sp' || action.kind === 'out') return `'^/${action.tag}/${block}/${action.kind.toUpperCase()}.CV' := ${action.value}`
+  if (action.kind === 'sp' || action.kind === 'out') return `'^/${action.tag}/${block}/${action.kind.toUpperCase()}.CV' := ${action.expression ?? action.value}`
   if (action.kind === 'do') return `'^/${action.tag}/DO1/SP_D.CV' := ${Number(action.on)}`
   if (action.kind === 'deviceReset') return `'^/${action.tag}/DC1/RESET_D.CV' := ${Number(action.reset)}`
   return `'^/${action.tag}/DC1/OUT_D.CV' := ${Number(action.kind === 'motor' ? action.run : action.open)}`
 }
 
 export function conditionExpression(condition: SfcCondition, module?: AnyModule): string {
+  if (condition.kind === 'expression') return condition.text
   if (condition.kind === 'boolean') return `'${condition.parameter}.CV' = ${condition.value ? 'TRUE' : 'FALSE'}`
   if (condition.kind === 'namedSet') return `'${condition.parameter}' = '${condition.namedSet}:${condition.entry}'`
   if (condition.kind === 'always') return 'TRUE'
