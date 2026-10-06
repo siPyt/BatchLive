@@ -74,7 +74,7 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
   t('function', 'fn-sanitation', 'Start and cancel sanitation', 'CONTROL', /^(Start|Cancel) sanitation /),
   t('function', 'fn-flow-colors', 'Shared flow color tables', 'CAN_CONFIGURE', /flow color table/),
   t('function', 'fn-picture-edit', 'Edit dynamic pictures and dynamics', 'CAN_CONFIGURE',
-    /^(Delete dynamic picture|Create dynamic picture element|Edit dynamic picture element|Remove dynamic picture element|Configure picture dynamics) /),
+    /^(Delete dynamic picture|Create dynamic picture element|Edit dynamic picture element|Remove dynamic picture element|Configure picture dynamics|Change picture background|Remove picture objects) /),
   t('function', 'fn-picture-file', 'Save and load pictures', 'CAN_CONFIGURE', /^(Save|Load) picture /),
   t('function', 'fn-picture-assign', 'Assign module displays', 'CAN_CONFIGURE', /^Assign module displays /),
   t('function', 'fn-picture-nav', 'Picture navigation', 'CAN_CONFIGURE', /^Configure picture navigation /),
