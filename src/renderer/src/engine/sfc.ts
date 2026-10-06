@@ -138,7 +138,141 @@ export function sfcJoinPredecessors(steps: SfcStep[], join: string): string[] {
   return steps.filter((_, index) => sequentialTarget(steps, index) === join).map(step => step.id)
 }
 
+/** Every destination a step can route to: its parallel legs, or its primary and selective targets. */
+export function sfcStepRoutes(steps: SfcStep[], index: number): string[] {
+  const step = steps[index]
+  if (step.parallelNextSteps?.length) return [...step.parallelNextSteps]
+  return [sequentialTarget(steps, index), ...(step.alternatives ?? []).map(route => route.nextStep)]
+    .filter((id): id is string => !!id)
+}
+
+/** A resolved parallel divergence: its disjoint legs (nested structures included), the one join and each leg's tail. */
+export interface SfcForkStructure {
+  join: string
+  tails: string[]
+  legs: Set<string>[]
+  region: Set<string>
+}
+
+class SfcGraphError extends Error {}
+
+/**
+ * Resolve every parallel divergence to its legs, convergence and tails. A leg may branch selectively (including loops
+ * back inside the leg) and may contain further divergences; each divergence is resolved innermost first and then treated
+ * as one atomic region of its enclosing leg. Stops at the first structural error.
+ */
+export function sfcForkStructures(steps: SfcStep[]): { forks: Map<string, SfcForkStructure>; error: string | null } {
+  const forks = new Map<string, SfcForkStructure>()
+  const consumed = new Set<string>()
+  const resolving = new Set<string>()
+  const indexOf = (id: string): number => steps.findIndex(step => step.id === id)
+  const converge = 'Parallel legs must converge through the same join after independent steps'
+  const disjoint = 'Parallel legs must be disjoint and acyclic before their join'
+
+  const resolve = (forkId: string): SfcForkStructure => {
+    const cached = forks.get(forkId)
+    if (cached) return cached
+    if (resolving.has(forkId)) throw new SfcGraphError(disjoint)
+    resolving.add(forkId)
+    const fork = steps[indexOf(forkId)]
+    const targets = fork.parallelNextSteps ?? []
+    if (targets.length < 2 || new Set(targets).size !== targets.length || targets.some(id => indexOf(id) < 0)) {
+      throw new SfcGraphError('Parallel fork requires at least two distinct existing destinations')
+    }
+    if (fork.nextStep !== undefined || fork.alternatives?.length) {
+      throw new SfcGraphError('Parallel fork cannot also have sequential/selective destinations')
+    }
+    let join: string | undefined
+    const legs: Set<string>[] = []
+    const tails: string[] = []
+    for (const target of targets) {
+      if (steps[indexOf(target)].joinFrom?.length && !consumed.has(target)) throw new SfcGraphError(converge)
+      const leg = new Set<string>()
+      const legTails = new Set<string>()
+      const queue = [target]
+      while (queue.length) {
+        const id = queue.pop() as string
+        if (leg.has(id)) continue
+        if (id === forkId) throw new SfcGraphError(disjoint)
+        const index = indexOf(id)
+        const step = steps[index]
+        leg.add(id)
+        if (step.parallelNextSteps?.length) {
+          const inner = resolve(id)
+          for (const member of inner.region) leg.add(member)
+          queue.push(inner.join)
+          continue
+        }
+        if (sequentialTarget(steps, index) === null) throw new SfcGraphError('Every parallel leg must reach its synchronization join')
+        for (const next of sfcStepRoutes(steps, index)) {
+          const nextIndex = indexOf(next)
+          if (nextIndex < 0) throw new SfcGraphError('Parallel leg references a missing destination')
+          if (steps[nextIndex].joinFrom?.length && !consumed.has(next)) {
+            join ??= next
+            if (join !== next) throw new SfcGraphError(converge)
+            legTails.add(id)
+          } else queue.push(next)
+        }
+      }
+      if (legTails.size === 0) throw new SfcGraphError('Every parallel leg must reach its synchronization join')
+      if (legTails.size > 1) throw new SfcGraphError('Each parallel leg must end in exactly one step that feeds the join')
+      tails.push([...legTails][0])
+      legs.push(leg)
+    }
+    const region = new Set<string>()
+    for (const leg of legs) for (const id of leg) {
+      if (region.has(id)) throw new SfcGraphError(disjoint)
+      region.add(id)
+    }
+    const joinStep = steps.find(step => step.id === join)
+    if (!joinStep || !joinStep.joinFrom || joinStep.joinFrom.length !== tails.length ||
+      tails.some(id => !joinStep.joinFrom?.includes(id)) || consumed.has(joinStep.id)) {
+      throw new SfcGraphError('Join must list exactly the independent leg-ending steps of one fork')
+    }
+    const writers = new Map<string, number>()
+    const identities = new Map<string, number>()
+    for (const [legIndex, leg] of legs.entries()) for (const id of leg) {
+      for (const action of steps[indexOf(id)].actions) {
+        const identity = actionIdentity(action)
+        if (identities.has(identity) && identities.get(identity) !== legIndex) {
+          throw new SfcGraphError('Parallel legs cannot share action/reset identities')
+        }
+        identities.set(identity, legIndex)
+        if (action.qualifier === 'R') continue
+        const output = actionOutput(action)
+        if (writers.has(output) && writers.get(output) !== legIndex) throw new SfcGraphError('Parallel legs cannot write the same output')
+        writers.set(output, legIndex)
+      }
+    }
+    if (region.has(steps[0].id)) throw new SfcGraphError('Initial step cannot be inside a parallel leg')
+    for (const [index, source] of steps.entries()) {
+      const routes = sfcStepRoutes(steps, index)
+      if (routes.includes(joinStep.id) && !tails.includes(source.id)) {
+        throw new SfcGraphError('Synchronization join cannot have additional incoming routes')
+      }
+      if (source.id !== forkId && !region.has(source.id) && routes.some(id => region.has(id))) {
+        throw new SfcGraphError('Parallel legs cannot have incoming routes that bypass their fork')
+      }
+    }
+    consumed.add(joinStep.id)
+    resolving.delete(forkId)
+    const structure = { join: joinStep.id, tails, legs, region }
+    forks.set(forkId, structure)
+    return structure
+  }
+
+  try {
+    for (const fork of steps.filter(step => step.parallelNextSteps?.length)) resolve(fork.id)
+  } catch (error) {
+    if (error instanceof SfcGraphError) return { forks, error: error.message }
+    throw error
+  }
+  return { forks, error: null }
+}
+
 export function sfcParallelJoin(steps: SfcStep[], fork: SfcStep): SfcStep | undefined {
+  const resolved = sfcForkStructures(steps).forks.get(fork.id)
+  if (resolved) return steps.find(step => step.id === resolved.join)
   let id = fork.parallelNextSteps?.[0]
   const visited = new Set<string>()
   while (id && !visited.has(id)) {
@@ -154,64 +288,9 @@ export function sfcParallelJoin(steps: SfcStep[], fork: SfcStep): SfcStep | unde
 export function parallelGraphError(steps: SfcStep[]): string | null {
   if (steps.some(step => step.parallelNextSteps !== undefined && step.parallelNextSteps.length < 2 ||
     step.joinFrom !== undefined && step.joinFrom.length < 2)) return 'Parallel destinations and join predecessors require at least two steps'
-  const joins = new Set<string>()
-  for (const fork of steps.filter(step => step.parallelNextSteps?.length)) {
-    const targets = fork.parallelNextSteps ?? []
-    if (targets.length < 2 || new Set(targets).size !== targets.length ||
-      targets.some(id => !steps.some(step => step.id === id))) return 'Parallel fork requires at least two distinct existing destinations'
-    if (fork.nextStep !== undefined || fork.alternatives?.length) return 'Parallel fork cannot also have sequential/selective destinations'
-    const visited = new Set<string>([fork.id])
-    const writers = new Map<string, number>()
-    const identities = new Map<string, number>()
-    const tails: string[] = []
-    let join: string | undefined
-    for (const [leg, target] of targets.entries()) {
-      let id: string | null = target
-      let previous = fork.id
-      while (id) {
-        const index = steps.findIndex(step => step.id === id)
-        if (index < 0) return 'Parallel leg references a missing destination'
-        const step = steps[index]
-        if (step.joinFrom?.length) {
-          if (!join) join = id
-          if (join !== id || previous === fork.id) return 'Parallel legs must converge through the same join after independent steps'
-          tails.push(previous)
-          break
-        }
-        if (visited.has(id)) return 'Parallel legs must be disjoint and acyclic before their join'
-        visited.add(id)
-        if (step.parallelNextSteps?.length || step.alternatives?.length) return 'Nested/selective parallel legs are not supported'
-        for (const action of step.actions) {
-          const identity = actionIdentity(action)
-          if (identities.has(identity) && identities.get(identity) !== leg) return 'Parallel legs cannot share action/reset identities'
-          identities.set(identity, leg)
-          if (action.qualifier === 'R') continue
-          const output = actionOutput(action)
-          if (writers.has(output) && writers.get(output) !== leg) return 'Parallel legs cannot write the same output'
-          writers.set(output, leg)
-        }
-        previous = id
-        id = sequentialTarget(steps, index)
-      }
-      if (!id) return 'Every parallel leg must reach its synchronization join'
-    }
-    const joinStep = steps.find(step => step.id === join)
-    if (!joinStep || !joinStep.joinFrom || joinStep.joinFrom.length !== tails.length ||
-      tails.some(id => !joinStep.joinFrom?.includes(id)) || joins.has(joinStep.id)) return 'Join must list exactly the independent leg-ending steps of one fork'
-    joins.add(joinStep.id)
-    if (visited.has(steps[0].id) && steps[0].id !== fork.id) return 'Initial step cannot be inside a parallel leg'
-    for (const [index, source] of steps.entries()) {
-      if ((sequentialTarget(steps, index) === joinStep.id ||
-        source.alternatives?.some(route => route.nextStep === joinStep.id)) && !tails.includes(source.id)) {
-        return 'Synchronization join cannot have additional incoming routes'
-      }
-      const destinations = source.parallelNextSteps ?? [sequentialTarget(steps, index),
-        ...(source.alternatives ?? []).map(route => route.nextStep)]
-      if (!visited.has(source.id) && destinations.some(id => id && id !== fork.id && visited.has(id))) {
-        return 'Parallel legs cannot have incoming routes that bypass their fork'
-      }
-    }
-  }
+  const { forks, error } = sfcForkStructures(steps)
+  if (error) return error
+  const joins = new Set([...forks.values()].map(fork => fork.join))
   if (steps.some((step, index) => step.joinFrom?.length &&
     (index === 0 || !joins.has(step.id) || new Set(step.joinFrom).size !== step.joinFrom.length))) {
     return 'Join requires a matching parallel fork and distinct predecessor steps; initial step cannot be a join'

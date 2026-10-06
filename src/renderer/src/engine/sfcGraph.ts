@@ -1,4 +1,4 @@
-import { newStep, parallelGraphError, sequentialTarget, type SfcCondition, type SfcStep } from './sfc'
+import { newStep, parallelGraphError, sequentialTarget, sfcForkStructures, sfcStepRoutes, type SfcCondition, type SfcStep } from './sfc'
 
 /**
  * DV09-064..067 SFC graph model: edges, automatic layout, structural analysis and edit operations over the existing
@@ -240,6 +240,7 @@ export function makeParallel(steps: SfcStep[], atId: string, legs = 2): EditResu
   join.joinFrom = legSteps.map((l) => l.id)
   fork.parallelNextSteps = legSteps.map((l) => l.id)
   delete fork.nextStep
+  for (const s of work) if (oldTarget === s.id && s.joinFrom?.includes(fork.id)) s.joinFrom = s.joinFrom.map((id) => (id === fork.id ? join.id : id))
   work.splice(i + 1, 0, ...legSteps, join)
   return finish(work)
 }
@@ -251,7 +252,8 @@ export function addParallelLeg(steps: SfcStep[], forkId: string): EditResult {
   if (!fork) return missing(forkId)
   if (!isFork(fork)) return { error: 'Select a parallel divergence step' }
   if ((fork.parallelNextSteps?.length ?? 0) >= 6) return { error: 'A parallel divergence has at most 6 legs' }
-  const join = work.find((s) => s.joinFrom?.length && fork.parallelNextSteps?.some((id) => reaches(work, id, s.id)))
+  const structure = sfcForkStructures(work).forks.get(fork.id)
+  const join = work.find((s) => s.id === structure?.join)
   if (!join) return { error: 'The parallel divergence has no convergence' }
   const leg = newStep(`LEG ${(fork.parallelNextSteps?.length ?? 0) + 1}`)
   leg.nextStep = join.id
@@ -261,34 +263,21 @@ export function addParallelLeg(steps: SfcStep[], forkId: string): EditResult {
   return finish(work)
 }
 
-function reaches(steps: SfcStep[], from: string, to: string): boolean {
-  const seen = new Set<string>()
-  const walk = (id: string): boolean => {
-    if (id === to) return true
-    if (seen.has(id)) return false
-    seen.add(id)
-    const s = steps.find((x) => x.id === id)
-    return !!s && (s.nextStep ? walk(s.nextStep) : false)
-  }
-  return walk(from)
-}
-
 /** Collapse a parallel structure back to one step: legs and the convergence are removed, the divergence continues. */
 export function removeParallel(steps: SfcStep[], forkId: string): EditResult {
   const work = normalize(steps)
   const fork = work.find((s) => s.id === forkId)
   if (!fork) return missing(forkId)
   if (!isFork(fork)) return { error: 'Select a parallel divergence step' }
-  const join = work.find((s) => s.joinFrom?.length && fork.parallelNextSteps?.some((id) => reaches(work, id, s.id)))
-  if (!join) return { error: 'The parallel divergence has no convergence' }
-  const doomed = new Set<string>([join.id])
-  for (const id of fork.parallelNextSteps ?? []) {
-    let cur: string | null = id
-    while (cur && cur !== join.id && !doomed.has(cur)) { doomed.add(cur); cur = work.find((s) => s.id === cur)?.nextStep ?? null }
-  }
-  if (work.some((s) => !doomed.has(s.id) && s.id !== fork.id && (s.nextStep && doomed.has(s.nextStep) || s.alternatives?.some((a) => doomed.has(a.nextStep)))))
+  const structure = sfcForkStructures(work).forks.get(fork.id)
+  const join = work.find((s) => s.id === structure?.join)
+  if (!structure || !join) return { error: 'The parallel divergence has no convergence' }
+  if (join.alternatives?.length) return { error: 'Remove the selective routes from the convergence step first' }
+  const doomed = new Set<string>([join.id, ...structure.region])
+  if (work.some((s, i) => !doomed.has(s.id) && s.id !== fork.id && sfcStepRoutes(work, i).some((id) => doomed.has(id))))
     return { error: 'Other steps route into the parallel legs; reconnect them first' }
   fork.nextStep = join.nextStep ?? null
   delete fork.parallelNextSteps
+  for (const s of work) if (!doomed.has(s.id) && s.joinFrom?.includes(join.id)) s.joinFrom = s.joinFrom.map((id) => (id === join.id ? fork.id : id))
   return finish(work.filter((s) => !doomed.has(s.id)))
 }

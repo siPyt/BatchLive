@@ -479,7 +479,7 @@ function FbNode({
 
   return (
     <g transform={`translate(${x},${y})`} data-block-id={block.id} data-block-type={badge}>
-      <title>{m.description}{block.part ? ` — ${m.tag}/${block.part}` : ''}</title>
+      <title>{m.description + (block.part ? ` — ${m.tag}/${block.part}` : '')}</title>
       <text x={NODE_W / 2} y={-7} fontSize={10} fill="#303030" textAnchor="middle">{badge}</text>
       <rect x={0} y={0} width={NODE_W} height={h} fill="#eceeef" stroke={selected ? '#005FB8' : '#414141'} strokeWidth={selected ? 2 : 1} />
       <rect x={0} y={0} width={NODE_W} height={HEADER_H} fill="#e4e6e7" stroke="#626262" style={{ cursor: 'grab' }} onMouseDown={onHeaderDown} />

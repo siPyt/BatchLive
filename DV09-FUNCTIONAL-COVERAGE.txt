@@ -2705,3 +2705,29 @@ newImage/newNewImages/8001.png, scaled to fit) but it is now an SVG layer: live-
 outlines, and a live batch/phase banner. Files: displays/FeedReactorPicture.tsx, AreaDisplay.tsx, styles.css,
 tests/operator-ribbons.test.cjs (2 tests). Not a DV09 group; no status totals changed (75/28/0/19/6).
 Boundary: values are overlaid on the baked picture, so coordinates are tied to the 817x507 image.
+
+PASS 97 CHANGE DETAIL AND VALIDATION (2026-10-06, nested and selective SFC parallel legs)
+-----------------------------------------------------------------------
+Scope: DV09-066 (also supports 064/065/067/070/071) - removes the "nested/selective routes inside parallel legs" boundary.
+Engine: sfc.ts replaces the linear leg walk with sfcForkStructures(): every parallel divergence is resolved
+  innermost first to its legs, its single join and one tail per leg; a leg may branch selectively (including retry
+  loops that stay inside the leg) and may contain further divergences, which are treated as one atomic region of
+  the enclosing leg. Rules kept: legs are disjoint, no outside route may enter a leg except through its fork, the
+  join lists exactly the leg tails, no extra incoming routes to a join, no shared outputs/action identities across
+  legs, initial step outside every leg. New: sfcStepRoutes, sfcForkStructures, structure-based sfcParallelJoin.
+  The runtime (advanceParallelSfc) already handled per-token alternatives and arrivals, so execution needed no change.
+Editor: sfcGraph.ts addParallelLeg/removeParallel find their own join through the resolver (not "first join
+  reachable"); makeParallel inside a leg hands the tail role to the new join; removeParallel on an inner fork
+  hands it back and removes the nested region; refusing a join that carries selective routes.
+UI: stale "not nested parallel graphs" note removed; invalid <title> children fixed in SfcChart edges and FbdCanvas.
+  Also guarded ParamStepper and the Feed/Reactor readouts against non-finite values.
+Tests: tests/sfc-nested.test.cjs (8): structure resolution, execution of a fork inside a fork (inner join waits for
+  both inner legs, outer join waits for A and for the whole nested leg, concurrent outer legs), selective leg
+  taking the 0.2 s alternative, retry loop validity, nine rejected shapes, editor make/extend/collapse nested,
+  in-leg selective routes accepted/refused, layout and analysis. Existing sfc-parallel/sfc-graph suites unchanged.
+Browser/visual: the nested chart renders every step in its own cell with the inner legs converging into the inner
+  join and both branches into the outer join.
+Boundary (honest): selective routes that leave a leg or enter another leg, a leg with two tails, and joins shared
+  between forks remain refused; no connector dragging; default 5 s route conditions.
+Validation: 680 tests locally (679 pass; only pdf_om.txt-dependent audit fails), typecheck passed.
+Result: no status change (DV09-066 stays VERIFIED_SUBSET, boundary narrowed). Totals 75 VERIFIED_SUBSET/28 PARTIAL/0 MISSING/19 BOUNDARY/6 CONTEXT.

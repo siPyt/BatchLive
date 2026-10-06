@@ -172,7 +172,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
       {check && check.steps === sfc.steps && <div role={check.error ? 'alert' : 'status'} className="traditional-note">
         {check.error ? `Check failed: ${check.error}` : 'Check passed for supported actions, conditions, routes and synchronized parallel legs.'}
         {' '}This validates configured Named Set/Boolean and supported block/alarm references, route targets and joins,
-        not arbitrary expressions, nested parallel graphs or controller downloads.
+        not arbitrary expressions or controller downloads.
       </div>}
 
       {editable && <SfcGraphPalette steps={sfc.steps} selected={selected} onChange={update} onSelect={setSelected} />}
@@ -304,9 +304,9 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
               const route = step.alternatives?.[e.index]
               return <path key={`${e.kind}:${e.index}:${e.to}`} d={d} fill="none" className={lit ? 'sfc-line-active' : 'sfc-line'}
                 data-edge={`${e.from}>${e.to}`} data-edge-kind={e.kind}>
-                <title>{e.kind === 'parallel' ? `Parallel path to ${sfc.steps.find(s => s.id === e.to)?.name}` :
+                <title>{(e.kind === 'parallel' ? `Parallel path to ${sfc.steps.find(s => s.id === e.to)?.name}` :
                   e.kind === 'selective' && route ? `Alternate ${e.index + 1}: ${describeCondition(route.condition, 'tag' in route.condition ? modules[route.condition.tag] : undefined)} to ${sfc.steps.find(s => s.id === e.to)?.name}` :
-                    `Transition to ${sfc.steps.find(s => s.id === e.to)?.name}`}{e.back ? ' (return)' : ''}</title>
+                    `Transition to ${sfc.steps.find(s => s.id === e.to)?.name}`) + (e.back ? ' (return)' : '')}</title>
               </path>
             })}            {/* step box */}
             <g onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
