@@ -4548,3 +4548,21 @@ button {
 .studio-bottom {
   height: 200px;
 }
+
+/* Feed and Reactor displays: the 8001 picture scaled to fit, with live values and clickable equipment */
+.static-picture .feed-reactor-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+.feed-reactor-svg .pic-live { font: 700 6.6px "Segoe UI", Arial, sans-serif; fill: #17222b; pointer-events: none; }
+.feed-reactor-svg .pic-right { text-anchor: end; }
+.feed-reactor-svg .pic-center { text-anchor: middle; }
+.feed-reactor-svg .pic-dim { font-weight: 400; fill: #4c5a66; font-size: 5.8px; }
+.feed-reactor-svg .pic-hot { fill: transparent; stroke: transparent; stroke-width: 1.6; cursor: pointer; outline: none; }
+.feed-reactor-svg .pic-hot:hover, .feed-reactor-svg .pic-hot:focus-visible { stroke: var(--dv-accent, #1aa7ec); fill: rgba(26, 167, 236, 0.12); }
+.feed-reactor-svg .pic-alarm-critical { stroke: #e8232c; }
+.feed-reactor-svg .pic-alarm-warning { stroke: #f2c313; }
+.feed-reactor-svg .pic-alarm-advisory { stroke: #8f56c4; }

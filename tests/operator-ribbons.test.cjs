@@ -90,17 +90,33 @@ test('picture navigation and reset affect UI only, never live process state or f
   }
 })
 
-test('Feed and Reactor displays show only the 8001 picture, scaled to fit, with nothing else', () => {
+test('Feed and Reactor displays show only the 8001 picture, scaled to fit, as live clickable hotspots', () => {
+  const { HOTSPOTS, READOUTS, PICTURE_W, PICTURE_H } = require('../src/renderer/src/displays/FeedReactorPicture.tsx')
   for (const area of ['FEED', 'REACTOR']) {
     const html = render(AreaDisplay, { area })
-    assert.equal(html, `<div class="display static-picture"><img src="./feed-reactor-picture.png" alt="${area === 'FEED' ? 'Feed tank and supply' : 'Reactor train'} process picture" draggable="false"/></div>`, area)
-    assert.ok(!html.includes('<svg') && !html.includes('plant-directory') && !html.includes('<h1'), area)
+    assert.equal(html.match(/<image /g).length, 1, `${area}: exactly one picture`)
+    assert.ok(html.includes('href="./feed-reactor-picture.png"'), area)
+    assert.ok(!html.includes('<img') && !html.includes('plant-directory') && !html.includes('<h1'), area)
+    assert.ok(html.includes(`viewBox="0 0 ${PICTURE_W} ${PICTURE_H}"`), `${area}: scales to fit`)
+    assert.equal(html.match(/class="pic-hot/g).length, HOTSPOTS.length, `${area}: every hotspot rendered`)
+    for (const spot of HOTSPOTS) assert.ok(html.includes(`aria-label="${spot.label}`), spot.label)
+    for (const readout of READOUTS) assert.ok(html.includes(`data-readout="${readout.tag}"`), readout.tag)
   }
   const bytes = fs.readFileSync(require('node:path').join(__dirname, '..', 'src', 'renderer', 'public', 'feed-reactor-picture.png'))
   const original = fs.readFileSync(require('node:path').join(__dirname, '..', 'newImage', 'newNewImages', '8001.png'))
   assert.ok(bytes.equals(original), 'the shipped picture is the 8001 image')
 })
 
+test('Feed and Reactor picture hotspots map to real modules and show live values', () => {
+  const { HOTSPOTS, READOUTS } = require('../src/renderer/src/displays/FeedReactorPicture.tsx')
+  const modules = useStore.getState().modules
+  for (const spot of HOTSPOTS) assert.ok(modules[spot.tag], `${spot.tag} exists in the plant`)
+  for (const readout of READOUTS) assert.ok(modules[readout.tag], `${readout.tag} exists in the plant`)
+  const html = render(AreaDisplay, { area: 'FEED' })
+  assert.match(html, /data-value="FIC-101\.PV">[\d.]+m3\/h</)
+  assert.match(html, /data-value="TIC-201\.PV">[\d.]+degC</)
+  assert.match(html, /data-value="LSH-101\.ST">[A-Z]+</)
+})
 test('all other process areas render graphics with collapsed, still-accessible module directories', () => {
   for (const area of ['PRODUCT', 'WFI', 'AUTOCLAVE', 'LYO', 'CIP', 'TCU']) {
     const html = render(AreaDisplay, { area })

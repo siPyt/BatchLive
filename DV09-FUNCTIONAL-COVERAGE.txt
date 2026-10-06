@@ -2695,3 +2695,13 @@ PASS 96: SFC GRAPH EDITOR (pp279-280)
 -----------------------------------------------------------------------
 Line1 - Layered graph layout and palette for steps, selective routes and parallel legs.
 Line2 - Every edit re-validated by engine rules and executed in tests. Tests: sfc-graph.test.cjs.
+
+
+=== VIEWER CHANGE (2026-10-06, after Pass 96): Feed tank / Reactor train picture is interactive ===
+Request: "feed tank and supply and reactor train, when clicked on, are just static images".
+Change: the FEED and REACTOR displays still show ONLY the 8001 picture (feed-reactor-picture.png, byte-identical to
+newImage/newNewImages/8001.png, scaled to fit) but it is now an SVG layer: live-value text over patched tag boxes,
+22 clickable hotspots (tanks, valves, pumps, controllers, agitator, analyzer) that open the module faceplate, alarm-coloured
+outlines, and a live batch/phase banner. Files: displays/FeedReactorPicture.tsx, AreaDisplay.tsx, styles.css,
+tests/operator-ribbons.test.cjs (2 tests). Not a DV09 group; no status totals changed (75/28/0/19/6).
+Boundary: values are overlaid on the baked picture, so coordinates are tied to the 817x507 image.

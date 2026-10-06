@@ -4,7 +4,7 @@ import { moduleAlarm, fmt, isPid } from '../utils/format'
 import type { AnyModule } from '../engine/types'
 import { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } from './PharmaDiagrams'
 import { OverviewDisplay } from './OverviewDisplay'
-import { StaticPictureDisplay, FEED_REACTOR_PICTURE } from './StaticPictureDisplay'
+import { FeedReactorPicture } from './FeedReactorPicture'
 
 const AREA_TITLE: Record<string, string> = {
   FEED: 'FEED SYSTEM',
@@ -31,7 +31,7 @@ export function AreaDisplay({ area }: { area: string }): JSX.Element {
   const Diagram = AREA_DIAGRAM[area]
 
   if (area === 'FEED' || area === 'REACTOR') {
-    return <StaticPictureDisplay src={FEED_REACTOR_PICTURE} label={area === 'FEED' ? 'Feed tank and supply process picture' : 'Reactor train process picture'} />
+    return <FeedReactorPicture label={area === 'FEED' ? 'Feed tank and supply process picture' : 'Reactor train process picture'} />
   }
 
   if (area === 'PRODUCT') {
