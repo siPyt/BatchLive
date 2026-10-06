@@ -2761,24 +2761,52 @@ button {
 }
 .sfc-svg {
   display: block;
-  background: var(--dv-canvas-bg, #eaeaea);
+  background: #ffffff;
   border: 1px solid var(--dv-border);
   border-radius: 4px;
 }
 .sfc-svg .sfc-line {
-  stroke: #2b2b2b;
-  stroke-width: 2;
+  stroke: #3a3a3a;
+  stroke-width: 1.25;
   fill: none;
 }
 .sfc-svg .sfc-line-active {
   stroke: #007acc;
-  stroke-width: 2.5;
+  stroke-width: 2;
   fill: none;
 }
+/* Control Studio draws selective branches on one rail and parallel branches on a double bar. */
+.sfc-svg .sfc-rail {
+  stroke: #3a3a3a;
+  stroke-width: 1.25;
+}
+.sfc-svg .sfc-rail-active {
+  stroke: #007acc;
+}
+/* A transition is a small cross on its route, named T<n> (T3, T3A, T3B for selective alternatives). */
+.sfc-svg .sfc-cross-halo {
+  stroke: #ffffff;
+  stroke-width: 5;
+  fill: none;
+}
+.sfc-svg .sfc-cross {
+  stroke: #333333;
+  stroke-width: 2.4;
+  fill: none;
+}
+.sfc-svg .sfc-cross-true {
+  stroke: #2e6b4f;
+}
+.sfc-label-toggle {
+  display: block;
+  font-size: 11px;
+  color: #444;
+  margin: 2px 0 4px;
+}
 .sfc-svg .sfc-step-box {
-  fill: #e8e8e8;
-  stroke: #404040;
-  stroke-width: 1.5;
+  fill: #e6e6e6;
+  stroke: #4a4a4a;
+  stroke-width: 1.25;
 }
 .sfc-svg .sfc-step-active {
   fill: #e6f3fa;
@@ -2798,15 +2826,9 @@ button {
   text-anchor: middle;
 }
 .sfc-svg .trans-label {
-  font-family: 'Consolas', monospace;
-  font-size: 9.5px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 10px;
   font-weight: 600;
-}
-.sfc-svg .sfc-trans-bar {
-  fill: #333333;
-}
-.sfc-svg .sfc-trans-true {
-  fill: #2e6b4f;
 }
 .sfc-svg .action-box {
   fill: #f5f5f5;

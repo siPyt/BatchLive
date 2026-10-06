@@ -253,6 +253,7 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
   onProperties: (target: SfcPropertiesTarget) => void
 }): JSX.Element {
   const modules = useStore((s) => s.modules)
+  const [showExpr, setShowExpr] = useState(false)
   const state = { modules } as PlantState
   const context = { ...sfcExpressionContext(useStore.getState(), sfc.name,
     !!useStore.getState().sfcLifecycle[sfc.name]?.online), parameters: sfc.parameters ?? {} }
@@ -271,6 +272,8 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
   const routed = parallel || sfc.steps.some(step => step.nextStep !== undefined)
 
   return (
+    <>
+    <label className="sfc-label-toggle"><input type="checkbox" checked={showExpr} onChange={e => setShowExpr(e.target.checked)} /> Show transition expressions (default shows names, as in Control Studio)</label>
     <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="sfc-svg">
       {sfc.steps.map((step, i) => {
         const pos = layout.nodes[step.id] ?? { row: i, col: 0, reachable: true }
@@ -286,29 +289,82 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
           sfc.steps.findIndex(candidate => candidate.id === step.nextStep) : isLast ? -1 : i + 1
         return (
           <g key={step.id}>
-            {layout.edges.filter(e => e.from === step.id).map((e) => {
-              const to = layout.nodes[e.to]
-              const dx = colX(to.col)
-              const dy = rowY(to.row)
+            {(() => {
               const sy = y + STEP_H
-              const blocked = Object.values(layout.nodes).some(n => n.col === pos.col && n.row > pos.row && n.row < to.row)
-              let d: string
-              if (e.back) d = `M ${CENTER_X} ${sy} V ${transY + 12} H ${gutterX(e)} V ${dy - 16} H ${dx} V ${dy}`
-              else if (dx === CENTER_X && !blocked) d = `M ${CENTER_X} ${sy} V ${dy}`
-              else if (dx === CENTER_X) d = `M ${CENTER_X} ${sy} V ${transY + 12} H ${CENTER_X - STEP_W / 2 - 16} V ${dy - 16} H ${CENTER_X} V ${dy}`
-              else d = `M ${CENTER_X} ${sy} V ${transY + (e.kind === 'selective' ? 8 + e.index * 6 : 0)} H ${dx} V ${dy}`
-              const selectiveTrue = e.kind === 'selective' && isActive && !transTrue &&
-                !step.alternatives?.slice(0, e.index).some(item => evalCondition(item.condition, state, elapsed ?? 0, context)) &&
-                evalCondition(step.alternatives![e.index].condition, state, elapsed ?? 0, context)
-              const lit = e.kind === 'selective' ? selectiveTrue : (isPast || transTrue)
-              const route = step.alternatives?.[e.index]
-              return <path key={`${e.kind}:${e.index}:${e.to}`} d={d} fill="none" className={lit ? 'sfc-line-active' : 'sfc-line'}
-                data-edge={`${e.from}>${e.to}`} data-edge-kind={e.kind}>
-                <title>{(e.kind === 'parallel' ? `Parallel path to ${sfc.steps.find(s => s.id === e.to)?.name}` :
-                  e.kind === 'selective' && route ? `Alternate ${e.index + 1}: ${describeCondition(route.condition, 'tag' in route.condition ? modules[route.condition.tag] : undefined)} to ${sfc.steps.find(s => s.id === e.to)?.name}` :
-                    `Transition to ${sfc.steps.find(s => s.id === e.to)?.name}`) + (e.back ? ' (return)' : '')}</title>
-              </path>
-            })}            {/* step box */}
+              const outs = layout.edges.filter(e => e.from === step.id)
+              const forward = outs.filter(e => !e.back)
+              const diverges = forward.length > 1
+              const fork = !!step.parallelNextSteps?.length
+              const railOut = sy + (fork ? 38 : 14)
+              const xOf = (id: string): number => colX(layout.nodes[id].col)
+              const nodes: JSX.Element[] = []
+              const rail = (key: string, x1: number, x2: number, ry: number, double: boolean, lit: boolean): void => {
+                const cls = lit ? 'sfc-rail sfc-rail-active' : 'sfc-rail'
+                nodes.push(<line key={key} x1={Math.min(x1, x2)} x2={Math.max(x1, x2)} y1={ry} y2={ry} className={cls} data-rail={double ? 'parallel' : 'selective'} />)
+                if (double) nodes.push(<line key={key + '-2'} x1={Math.min(x1, x2)} x2={Math.max(x1, x2)} y1={ry + 4} y2={ry + 4} className={cls} />)
+              }
+              const tCross = (key: string, cx: number, cy: number, lit: boolean, label: string, tip: string, kind: string): void => {
+                nodes.push(
+                  <g key={key} transform={`translate(${cx}, ${cy})`} className="sfc-transition" data-transition={kind}
+                    onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
+                    onDoubleClick={() => onProperties({ kind: 'transition', step })}
+                    onContextMenu={ev => { ev.preventDefault(); onContext({ kind: 'transition', step }, ev.clientX, ev.clientY) }}>
+                    <title>{tip}</title>
+                    <path d="M -8 0 H 8 M 0 -8 V 8" className="sfc-cross-halo" />
+                    <path d="M -8 0 H 8 M 0 -8 V 8" className={lit ? 'sfc-cross sfc-cross-true' : 'sfc-cross'} />
+                    <text x={13} y={3.5} className="trans-label" fill={lit ? '#2e6b4f' : '#444'}>{label}</text>
+                  </g>
+                )
+              }
+              const expressionOf = (c: SfcCondition): string => describeCondition(c, 'tag' in c ? modules[c.tag] : undefined)
+              const incoming = layout.edges.filter(e => !e.back && e.to === step.id)
+              const joinStep = !!step.joinFrom?.length
+              if (fork) nodes.push(<line key="stem" x1={CENTER_X} x2={CENTER_X} y1={sy} y2={railOut} className={isPast || transTrue ? 'sfc-line-active' : 'sfc-line'} />)
+              outs.forEach((e) => {
+                const to = layout.nodes[e.to]
+                const dx = colX(to.col)
+                const dy = rowY(to.row)
+                const target = sfc.steps.find(s => s.id === e.to)
+                const railIn = dy - (target?.joinFrom?.length ? 26 : 20)
+                const converges = !e.back && layout.edges.filter(x => !x.back && x.to === e.to).length > 1
+                const blocked = Object.values(layout.nodes).some(n => n.col === pos.col && n.row > pos.row && n.row < to.row)
+                let d: string
+                if (e.back) d = `M ${CENTER_X} ${sy} V ${transY + 12} H ${gutterX(e)} V ${dy - 16} H ${dx} V ${dy}`
+                else if (diverges) d = `M ${CENTER_X} ${sy} V ${railOut} H ${dx} V ${converges ? railIn : dy}${converges ? ` H ${dx} V ${dy}` : ''}`
+                else if (dx === CENTER_X && !blocked && !converges) d = `M ${CENTER_X} ${sy} V ${dy}`
+                else if (dx === CENTER_X && blocked) d = `M ${CENTER_X} ${sy} V ${transY + 12} H ${CENTER_X - STEP_W / 2 - 16} V ${dy - 16} H ${CENTER_X} V ${dy}`
+                else d = `M ${CENTER_X} ${sy} V ${railIn} H ${dx} V ${dy}`
+                const selectiveTrue = e.kind === 'selective' && isActive && !transTrue &&
+                  !step.alternatives?.slice(0, e.index).some(item => evalCondition(item.condition, state, elapsed ?? 0, context)) &&
+                  evalCondition(step.alternatives![e.index].condition, state, elapsed ?? 0, context)
+                const lit = e.kind === 'selective' ? selectiveTrue : (isPast || transTrue)
+                const route = step.alternatives?.[e.index]
+                nodes.push(
+                  <path key={`${e.kind}:${e.index}:${e.to}`} d={d} fill="none" className={lit ? 'sfc-line-active' : 'sfc-line'}
+                    data-edge={`${e.from}>${e.to}`} data-edge-kind={e.kind}>
+                    <title>{(e.kind === 'parallel' ? `Parallel path to ${target?.name}` :
+                      e.kind === 'selective' && route ? `Alternate ${e.index + 1}: ${expressionOf(route.condition)} to ${target?.name}` :
+                        `Transition to ${target?.name}`) + (e.back ? ' (return)' : '')}</title>
+                  </path>
+                )
+                if (e.kind === 'parallel') return
+                const alt = e.kind === 'selective' ? e.index : undefined
+                const condition = route ? route.condition : step.transition
+                const label = transitionName(i, alt) + (showExpr ? `: ${expressionOf(condition)}` : '')
+                const tip = `${transitionName(i, alt)}: ${expressionOf(condition)}`
+                if (diverges) tCross(`x:${e.kind}:${e.index}:${e.to}`, dx, railOut + 24, lit, label, tip, alt === undefined ? 'primary' : `alternate-${alt}`)
+                else tCross(`x:${e.kind}:${e.index}:${e.to}`, CENTER_X, e.back || dx !== CENTER_X || blocked ? sy + 22 : transY, lit, label, tip, 'primary')
+              })
+              if (fork) tCross('x:fork', CENTER_X, sy + 18, isPast || transTrue, transitionName(i) + (showExpr ? `: ${expressionOf(step.transition)}` : ''),
+                `${transitionName(i)}: ${expressionOf(step.transition)}`, 'primary')
+              if (diverges) rail('rail-out', ...[CENTER_X, ...forward.map(e => xOf(e.to))].reduce<[number, number]>(([lo, hi], v) => [Math.min(lo, v), Math.max(hi, v)], [CENTER_X, CENTER_X]), railOut, fork, isPast || transTrue)
+              if (incoming.length > 1) {
+                const arrivals = incoming.map(e => layout.edges.filter(x => !x.back && x.from === e.from).length > 1 ? CENTER_X : xOf(e.from))
+                const [lo, hi] = [CENTER_X, ...arrivals].reduce<[number, number]>(([a, b], v) => [Math.min(a, v), Math.max(b, v)], [CENTER_X, CENTER_X])
+                rail('rail-in', lo, hi, y - (joinStep ? 26 : 20), joinStep, false)
+              }
+              return nodes
+            })()}            {/* step box */}
             <g onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
               onContextMenu={e => { e.preventDefault(); onContext({ kind: 'action', step, index: null }, e.clientX, e.clientY) }}>
               {i === 0 && (
@@ -368,14 +424,17 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
               </g>
             )}
 
-            {/* transition cross-bar + live boolean condition text */}
-            {(!isLast || step.nextStep !== undefined || step.parallelNextSteps?.length) && (
+            {/* a terminating step has no routed edge, so its transition is drawn directly under it */}
+            {!layout.edges.some(e => e.from === step.id) && (!isLast || step.nextStep !== undefined || step.parallelNextSteps?.length) && (
               <g transform={`translate(${CENTER_X}, ${transY})`} onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
+                className="sfc-transition" data-transition="primary"
                 onDoubleClick={() => onProperties({ kind: 'transition', step })}
                 onContextMenu={e => { e.preventDefault(); onContext({ kind: 'transition', step }, e.clientX, e.clientY) }}>
-                <rect x={-20} y={-2} width={40} height={4} className={transTrue ? 'sfc-trans-bar sfc-trans-true' : 'sfc-trans-bar'} />
-                <text x={28} y={3} className="trans-label" fill={transTrue ? '#2e6b4f' : '#555'}>
-                  T{String(i + 1).padStart(2, '0')}: {describeCondition(step.transition, 'tag' in step.transition ? modules[step.transition.tag] : undefined)}
+                <title>{`${transitionName(i)}: ${describeCondition(step.transition, 'tag' in step.transition ? modules[step.transition.tag] : undefined)}`}</title>
+                <path d="M -8 0 H 8 M 0 -8 V 8" className="sfc-cross-halo" />
+                <path d="M -8 0 H 8 M 0 -8 V 8" className={transTrue ? 'sfc-cross sfc-cross-true' : 'sfc-cross'} />
+                <text x={13} y={3.5} className="trans-label" fill={transTrue ? '#2e6b4f' : '#444'}>
+                  {transitionName(i)}{showExpr ? `: ${describeCondition(step.transition, 'tag' in step.transition ? modules[step.transition.tag] : undefined)}` : ''}
                 </text>
               </g>
             )}
@@ -386,7 +445,13 @@ function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
         <circle cx={colX(layout.nodes[sfc.steps[sfc.steps.length - 1].id]?.col ?? 0)} cy={rowY(layout.nodes[sfc.steps[sfc.steps.length - 1].id]?.row ?? sfc.steps.length - 1) + STEP_H + 20} r={8} fill="none" stroke="#2e6b4f" strokeWidth={2} />
       )}
     </svg>
+    </>
   )
+}
+
+/** DeltaV names transitions T<n>; selective alternatives of the same step carry a letter suffix (T3, T3A, T3B). */
+export function transitionName(stepIndex: number, alternate?: number): string {
+  return `T${stepIndex + 1}${alternate === undefined ? '' : String.fromCharCode(65 + alternate)}`
 }
 
 /** Splits a described action into [parameter path, assigned value] for the
