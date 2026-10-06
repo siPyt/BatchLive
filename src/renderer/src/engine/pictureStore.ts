@@ -6,6 +6,8 @@ import { parseSavedPicture, pictureElementError, pictureLimits, pictureModeSigna
 import { pictureNamedSignal } from './pictureNamedSets'
 import { useFlowColors } from './flowColorStore'
 import type { FlowAnimation } from './pictureFlow'
+import { PICTURE_TEMPLATES, pictureDiscreteSignal, staticElementError, templateElements,
+  type DatalinkErrorText, type DatalinkLayout, type DynamoSetName, type PictureTemplateName } from './pictureObjects'
 
 // Operator-display builder model (DV-09 "Creating a New Picture / Datalink / Dynamo / Text").
 
@@ -13,14 +15,19 @@ export type PicParam = 'PV' | 'SP' | 'OUT' | 'MODE' | 'STATE'
 
 export interface PicElement {
   id: string
-  type: 'text' | 'datalink' | 'dynamo' | 'rectangle' | 'tank' | 'pipe' | 'pump' | 'valve'
+  type: 'text' | 'datalink' | 'dynamo' | 'rectangle' | 'tank' | 'pipe' | 'pump' | 'valve' | 'button'
   x: number
   y: number
   // text
   content?: string
   fontSize?: number
   bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  fontFamily?: string
   color?: string
+  /** Objects created together by a picture template share a group (the main template's TITLE block). */
+  group?: string
   // datalink / dynamo
   tag?: string
   param?: PicParam
@@ -30,8 +37,22 @@ export interface PicElement {
   /** DV09-046: hide this ALARMS[1].A_LAALM datalink when Normal; show it with
    * distinct Active/RTN text otherwise (highestRankedAlarmState). */
   alarmVisibility?: boolean
-  entry?: { method: 'NUMERIC'; fetchLimits: boolean; low: number; high: number } |
-    { method: 'NAMED_SET' } | { method: 'PID_MODE' } | { method: 'RAMP'; rate: number }
+  entry?: ({ method: 'NUMERIC'; fetchLimits: boolean; low: number; high: number } |
+    { method: 'NAMED_SET' } | { method: 'PID_MODE' } | { method: 'RAMP'; rate: number } |
+    { method: 'DISCRETE'; labels?: [string, string] }) & {
+    /** In-place entry asks the operator to confirm the change before it is written. */
+    confirm?: boolean }
+  /** DV09-029 numeric field layout, error table, refresh rate and history offset. */
+  layout?: DatalinkLayout
+  errorText?: DatalinkErrorText
+  refreshSeconds?: number
+  historySeconds?: number
+  /** DV09-031/051/062 isolated course dynamo library (Valve17, PumpsAnim, PipesAnim, ValveHorizontalControlD1). */
+  dynamoSet?: DynamoSetName
+  dynamoColors?: { inactive: string; active: string }
+  showActiveAlarm?: boolean
+  /** Navigation button target: a picture name, Ovw_ref.grf (Overview) or alarmList.grf. */
+  target?: string
   fill?: { vertical: boolean; fetchLimits: boolean; low: number; high: number }
   width?: number
   height?: number
@@ -43,6 +64,11 @@ export interface PicElement {
 export interface Picture {
   name: string
   elements: PicElement[]
+  /** DV09-027 picture template, background color and size (default 1000 x 640). */
+  template?: PictureTemplateName
+  background?: string
+  width?: number
+  height?: number
   previousPicture?: string
   nextPicture?: string
 }
@@ -62,15 +88,19 @@ interface PictureState {
   pictures: Record<string, Picture>
   createPicture: (name: string) => void
   deletePicture: (name: string) => void
+  createPictureFromTemplate: (name: string, template: PictureTemplateName) => boolean
+  setPictureBackground: (pic: string, color: string) => boolean
+  removeElementGroup: (pic: string, group: string) => number
   addElement: (pic: string, el: Omit<PicElement, 'id'>) => string | null
   updateElement: (pic: string, id: string, patch: Partial<PicElement>) => boolean
   removeElement: (pic: string, id: string) => void
   setPictureLinks: (pic: string, previous: string, next: string) => boolean
   configureDynamics: (pic: string, id: string, patch: PictureDynamicPatch) => boolean
-  writeNumericValue: (pic: string, id: string, value: number) => boolean
-  writeNamedValue: (pic: string, id: string, value: number, expected?: PicElement) => boolean
-  writeModeValue: (pic: string, id: string, value: string, expected?: PicElement) => boolean
-  rampOutput: (pic: string, id: string, direction: 1 | -1, seconds: number, expected?: PicElement) => boolean
+  writeNumericValue: (pic: string, id: string, value: number, confirmed?: boolean) => boolean
+  writeNamedValue: (pic: string, id: string, value: number, expected?: PicElement, confirmed?: boolean) => boolean
+  writeModeValue: (pic: string, id: string, value: string, expected?: PicElement, confirmed?: boolean) => boolean
+  rampOutput: (pic: string, id: string, direction: 1 | -1, seconds: number, expected?: PicElement, confirmed?: boolean) => boolean
+  writeDiscreteValue: (pic: string, id: string, on: boolean, expected?: PicElement, confirmed?: boolean) => boolean
   savePicture: (pic: string) => boolean
   loadPicture: (pic: string) => boolean
   assignModuleDisplays: (tag: string, primary: string, detail: string) => boolean
@@ -82,8 +112,13 @@ function rejectPicture(pic: string, message: string): false {
   window.alert(message)
   return false
 }
-function dynamicElement(el: Pick<PicElement, 'type' | 'path' | 'entry' | 'fill' | 'flowAnimation' | 'actuatorFlowAnimation'>): boolean {
-  return el.type === 'rectangle' || el.type === 'tank' || el.path !== undefined ||
+function confirmationError(el: PicElement, confirmed: boolean | undefined): string | null {
+  return el.entry?.confirm && confirmed !== true ? 'This data entry requires confirmation before it is written' : null
+}
+
+function dynamicElement(el: Pick<PicElement, 'type' | 'path' | 'entry' | 'fill' | 'flowAnimation' | 'actuatorFlowAnimation' | 'dynamoSet' | 'dynamoColors' | 'showActiveAlarm' | 'layout' | 'errorText' | 'refreshSeconds' | 'historySeconds'>): boolean {
+  return el.type === 'rectangle' || el.dynamoSet !== undefined || el.dynamoColors !== undefined || el.showActiveAlarm !== undefined ||
+    el.layout !== undefined || el.errorText !== undefined || el.refreshSeconds !== undefined || el.historySeconds !== undefined || el.type === 'tank' || el.path !== undefined ||
     el.entry !== undefined || el.fill !== undefined || el.flowAnimation !== undefined || el.actuatorFlowAnimation !== undefined ||
     el.type === 'pipe' || el.type === 'pump' || el.type === 'valve'
 }
@@ -117,6 +152,39 @@ export const usePictures = create<PictureState>((set, get) => ({
       return { pictures: { ...s.pictures, [key]: { name: key, elements: [] } } }
     }),
 
+  createPictureFromTemplate: (name, template) => {
+    const key = name.trim().toUpperCase()
+    const info = PICTURE_TEMPLATES[template]
+    if (!key) return rejectPicture(name, 'Picture name is required')
+    if (!info) return rejectPicture(key, 'Unknown picture template')
+    if (get().pictures[key]) return rejectPicture(key, 'A picture with this name already exists')
+    const elements = templateElements(template, key).map(el => ({ ...el, id: uid() }))
+    set(s => ({ pictures: { ...s.pictures, [key]: { name: key, template, background: info.background,
+      width: info.width, height: info.height, elements } } }))
+    useStore.getState().logEvent('CONFIGURE', key, `Picture created from the ${info.label}`)
+    return true
+  },
+
+  setPictureBackground: (pic, color) => {
+    if (!requireUnlockedKey('CAN_CONFIGURE', `Change picture background ${pic}`)) return false
+    if (!get().pictures[pic]) return rejectPicture(pic, 'Picture does not exist')
+    if (!/^#[0-9a-f]{6}$/i.test(color)) return rejectPicture(pic, 'Background requires a six-digit hex color')
+    set(s => ({ pictures: { ...s.pictures, [pic]: { ...s.pictures[pic], background: color } } }))
+    useStore.getState().logEvent('CONFIGURE', pic, `Picture background set to ${color}`)
+    return true
+  },
+
+  removeElementGroup: (pic, group) => {
+    if (!requireUnlockedKey('CAN_CONFIGURE', `Remove picture objects ${pic}`)) return 0
+    const picture = get().pictures[pic]
+    if (!picture) { rejectPicture(pic, 'Picture does not exist'); return 0 }
+    const doomed = picture.elements.filter(element => element.group === group)
+    if (!doomed.length) return 0
+    set(s => ({ pictures: { ...s.pictures, [pic]: { ...picture, elements: picture.elements.filter(element => element.group !== group) } } }))
+    useStore.getState().logEvent('CONFIGURE', pic, `Removed ${doomed.length} ${group} object(s)`)
+    return doomed.length
+  },
+
   deletePicture: (name) =>
     set((s) => {
       if (!s.pictures[name]) return {}
@@ -129,6 +197,8 @@ export const usePictures = create<PictureState>((set, get) => ({
 
   addElement: (pic, el) => {
     if (!get().pictures[pic]) { rejectPicture(pic, 'Picture does not exist'); return null }
+    const staticError = staticElementError({ ...el, id: '' }, get().pictures[pic])
+    if (staticError) { rejectPicture(pic, staticError); return null }
     if (dynamicElement(el)) {
       if (!requireUnlockedKey('CAN_CONFIGURE', `Create dynamic picture element ${pic}`)) return null
       const error = missingFlowTable(el) ?? pictureElementError({ ...el, id: '' }, useStore.getState().modules, useStore.getState())
@@ -148,6 +218,8 @@ export const usePictures = create<PictureState>((set, get) => ({
     const element = p?.elements.find(e => e.id === id)
     if (!element) return rejectPicture(pic, 'Picture element does not exist')
     const candidate = { ...element, ...patch }
+    const staticError = staticElementError(candidate, p)
+    if (staticError) return rejectPicture(pic, staticError)
     if (dynamicElement(element) || dynamicElement(candidate)) {
       if (!requireUnlockedKey('CAN_CONFIGURE', `Edit dynamic picture element ${pic}`)) return false
       const error = missingFlowTable(candidate) ?? pictureElementError(candidate, useStore.getState().modules, useStore.getState())
@@ -182,10 +254,12 @@ export const usePictures = create<PictureState>((set, get) => ({
     return true
   },
 
-  writeNumericValue: (pic, id, value) => {
+  writeNumericValue: (pic, id, value, confirmed) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Picture numeric entry ${pic}`)) return false
     const element = get().pictures[pic]?.elements.find(e => e.id === id)
     if (element?.entry?.method !== 'NUMERIC' || element.type !== 'datalink') return rejectPicture(pic, 'Datalink has no numeric entry configuration')
+    const unconfirmed = confirmationError(element, confirmed)
+    if (unconfirmed) return rejectPicture(pic, unconfirmed)
     const source = pictureSignal(element, useStore.getState().modules)
     if ('error' in source) return rejectPicture(pic, source.error)
     if (!source.parameter || !element.tag) return rejectPicture(pic, 'This source is read-only')
@@ -198,20 +272,24 @@ export const usePictures = create<PictureState>((set, get) => ({
     return useStore.getState().setAoParameter(element.tag, source.parameter, value)
   },
 
-  writeNamedValue: (pic, id, value, expected) => {
+  writeNamedValue: (pic, id, value, expected, confirmed) => {
     const element = get().pictures[pic]?.elements.find(e => e.id === id)
     if (!element || element.entry?.method !== 'NAMED_SET') return rejectPicture(pic, 'Datalink has no Named Set data entry configuration')
+    const unconfirmed = confirmationError(element, confirmed)
+    if (unconfirmed) return rejectPicture(pic, unconfirmed)
     if (expected && element !== expected) return rejectPicture(pic, 'Datalink changed while entry was open; reopen data entry')
     const source = pictureNamedSignal(element, useStore.getState())
     if ('error' in source) return rejectPicture(pic, source.error)
     return useStore.getState().writeSfcNamedValue(element.tag ?? '', source.parameter, value)
   },
 
-  writeModeValue: (pic, id, value, expected) => {
+  writeModeValue: (pic, id, value, expected, confirmed) => {
     const element = get().pictures[pic]?.elements.find(item => item.id === id)
     if (!element || element.entry?.method !== 'PID_MODE') {
       return rejectPicture(pic, 'Datalink has no Multiple-Item Select mode entry')
     }
+    const unconfirmed = confirmationError(element, confirmed)
+    if (unconfirmed) return rejectPicture(pic, unconfirmed)
     if (expected && element !== expected) return rejectPicture(pic, 'Datalink changed while entry was open; reopen data entry')
     const source = pictureModeSignal(element, useStore.getState().modules)
     if ('error' in source) return rejectPicture(pic, source.error)
@@ -220,11 +298,13 @@ export const usePictures = create<PictureState>((set, get) => ({
     return useStore.getState().setMode(element.tag ?? '', target)
   },
 
-  rampOutput: (pic, id, direction, seconds, expected) => {
+  rampOutput: (pic, id, direction, seconds, expected, confirmed) => {
     const element = get().pictures[pic]?.elements.find(e => e.id === id)
     if (!element || element.entry?.method !== 'RAMP' || element.type !== 'datalink' || !element.tag) {
       return rejectPicture(pic, 'Datalink has no OUT ramp entry configuration')
     }
+    const unconfirmed = confirmationError(element, confirmed)
+    if (unconfirmed) return rejectPicture(pic, unconfirmed)
     if (expected && element !== expected) return rejectPicture(pic, 'Datalink changed while entry was open; reopen data entry')
     if (![1, -1].includes(direction) || !Number.isFinite(seconds) || seconds <= 0) {
       return rejectPicture(pic, 'OUT ramp requires a Raise/Lower direction and a positive held duration')
@@ -233,6 +313,27 @@ export const usePictures = create<PictureState>((set, get) => ({
     if (module?.type !== 'PID') return rejectPicture(pic, 'OUT ramp entry requires a PID module')
     const next = module.out + direction * element.entry.rate * seconds
     return useStore.getState().setOutput(element.tag, Math.max(0, Math.min(100, next)))
+  },
+
+  writeDiscreteValue: (pic, id, on, expected, confirmed) => {
+    const element = get().pictures[pic]?.elements.find(e => e.id === id)
+    if (!element || element.entry?.method !== 'DISCRETE' || element.type !== 'datalink' || !element.tag) {
+      return rejectPicture(pic, 'Datalink has no discrete SP_D entry configuration')
+    }
+    if (expected && element !== expected) return rejectPicture(pic, 'Datalink changed while entry was open; reopen data entry')
+    const unconfirmed = confirmationError(element, confirmed)
+    if (unconfirmed) return rejectPicture(pic, unconfirmed)
+    const before = pictureDiscreteSignal(element, useStore.getState().modules)
+    if ('error' in before) return rejectPicture(pic, before.error)
+    if (!before.writable) return rejectPicture(pic, 'PV_D is feedback and cannot be written')
+    const tag = element.tag
+    const module = useStore.getState().modules[tag]
+    const store = useStore.getState()
+    if (module.type === 'MOTOR') { if (on) store.startMotor(tag); else store.stopMotor(tag) }
+    else if (module.type === 'VALVE') { if (on) store.openValve(tag); else store.closeValve(tag) }
+    else if (module.type === 'DO' && module.commanded !== on) store.toggleDO(tag)
+    const after = pictureDiscreteSignal(element, useStore.getState().modules)
+    return !('error' in after) && after.on === on
   },
 
   savePicture: (pic) => {

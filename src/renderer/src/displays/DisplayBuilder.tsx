@@ -524,7 +524,7 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
   const [enabled, setEnabled] = useState(!!(el.entry || el.fill))
   const [flashWhenNotNormal, setFlashWhenNotNormal] = useState(el.flashWhenNotNormal ?? false)
   const [alarmVisibility, setAlarmVisibility] = useState(el.alarmVisibility ?? false)
-  const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET' | 'PID_MODE' | 'RAMP'>(el.entry?.method ?? 'NUMERIC')
+  const [method, setMethod] = useState<'NUMERIC' | 'NAMED_SET' | 'PID_MODE' | 'RAMP' | 'DISCRETE'>(el.entry?.method ?? 'NUMERIC')
   const settings = el.entry?.method === 'NUMERIC' ? el.entry : el.fill
   const [fetchLimits, setFetchLimits] = useState(settings?.fetchLimits ?? el.type === 'rectangle')
   const [low, setLow] = useState(String(settings?.low ?? 0))
@@ -563,7 +563,7 @@ function DynamicsExpert({ picture, element: el }: { picture: string; element: Pi
       onChange={e => setEnabled(e.target.checked)} />{rectangle ? 'Fill Percentage' : 'Data Entry'}</label>
     {!rectangle && <label className="bld-f">Entry Method<select aria-label="Picture entry method" value={method}
       onChange={e => {
-        const next = e.target.value as 'NUMERIC' | 'NAMED_SET' | 'PID_MODE' | 'RAMP'
+        const next = e.target.value as 'NUMERIC' | 'NAMED_SET' | 'PID_MODE' | 'RAMP' | 'DISCRETE'
         setMethod(next)
         if (next === 'PID_MODE') setPath('PID1/MODE.A_TARGET')
         else if (next === 'RAMP') setPath('PID1/OUT')

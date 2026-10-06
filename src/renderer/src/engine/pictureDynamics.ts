@@ -5,6 +5,8 @@ import type { PicElement, Picture } from './pictureStore'
 import { pictureNamedSignal, type PictureNamedContext } from './pictureNamedSets'
 import { flowAnimationError } from './pictureFlow'
 import { alarmRank } from '../utils/format'
+import { HEX_COLOR, buttonError, discreteEntryError, dynamoError, errorTextError, historyError, layoutError, pictureDiscretePath,
+  refreshError, textPropertiesError } from './pictureObjects'
 
 export interface PictureSignal {
   value: number
@@ -27,7 +29,8 @@ export interface PictureAlarmSignal {
 }
 export type PictureAlarmSignalResult = PictureAlarmSignal | { error: string }
 export type PictureDynamicPatch = Pick<Partial<PicElement>,
-  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag' | 'flashWhenNotNormal' | 'alarmVisibility' | 'flowAnimation' | 'actuatorFlowAnimation'>
+  'path' | 'entry' | 'fill' | 'width' | 'height' | 'color' | 'backgroundColor' | 'tag' | 'flashWhenNotNormal' | 'alarmVisibility' | 'flowAnimation' | 'actuatorFlowAnimation' |
+  'layout' | 'errorText' | 'refreshSeconds' | 'historySeconds' | 'dynamoSet' | 'dynamoColors' | 'showActiveAlarm'>
 
 function pictureModePath(path: string): 'target' | 'actual' | null {
   const normalized = path.trim().toUpperCase().replace(/^PID1\//, '').replace(/\.CV$/, '')
@@ -53,6 +56,41 @@ export function pictureModeSignal(el: Pick<PicElement, 'tag' | 'path'>,
   return modePath === 'target'
     ? { current: module.mode, choices: pidPermittedModes(module) }
     : { current: module.actualMode, isNormal: module.actualMode === pidNormalMode(module) }
+}
+
+/** True for datalinks whose displayed value is a plain number (not mode, alarm, discrete or Named Set). */
+function numericDatalink(el: PicElement, context?: PictureNamedContext): boolean {
+  if (el.type !== 'datalink' || el.entry?.method === 'NAMED_SET' || context?.sfcLifecycle[el.tag ?? ''] ||
+    pictureDiscretePath(el.path)) return false
+  if (el.path === undefined) return ['PV', 'SP', 'OUT'].includes(el.param ?? 'PV')
+  return !pictureModePath(el.path) && !pictureAlarmPath(el.path)
+}
+
+function datalinkOptionsError(el: PicElement, context?: PictureNamedContext): string | null {
+  if (el.layout !== undefined) {
+    if (!numericDatalink(el, context)) return 'Numeric layout requires a numeric datalink'
+    const error = layoutError(el.layout)
+    if (error) return error
+  }
+  if (el.errorText !== undefined) {
+    if (el.type !== 'datalink') return 'The error table requires a datalink'
+    const error = errorTextError(el.errorText)
+    if (error) return error
+  }
+  if (el.refreshSeconds !== undefined) {
+    if (el.type !== 'datalink') return 'Refresh rate requires a datalink'
+    const error = refreshError(el.refreshSeconds)
+    if (error) return error
+  }
+  if (el.historySeconds !== undefined) {
+    if (!numericDatalink(el, context)) return 'History requires a numeric PV datalink'
+    const path = (el.path ?? el.param ?? 'PV').toUpperCase().replace(/\.(F_)?CV$/, '')
+    if (!['PV', 'AI1/PV'].includes(path)) return 'History is available for PV only'
+    if (el.entry || el.fill) return 'History datalinks are read-only'
+    const error = historyError(el.historySeconds)
+    if (error) return error
+  }
+  return null
 }
 
 function pictureAlarmPath(path: string): boolean {
@@ -170,6 +208,15 @@ export function pictureElementError(el: PicElement, modules: Record<string, AnyM
   }
   if ([el.color, el.backgroundColor].some(v => v !== undefined && !/^#[0-9a-f]{6}$/i.test(v))) return 'Colors require six-digit hex values'
   if (el.entry && el.type !== 'datalink') return 'Data Entry requires a datalink'
+  const propertyError = textPropertiesError(el) ?? buttonError(el) ?? dynamoError(el, modules) ?? datalinkOptionsError(el, context)
+  if (propertyError) return propertyError
+  if (pictureDiscretePath(el.path) || el.entry?.method === 'DISCRETE') {
+    if (el.type !== 'datalink') return 'Discrete sources require a datalink'
+    if (el.fill) return 'Discrete sources do not support numeric fill animations'
+    if (el.entry && el.entry.method !== 'DISCRETE') return 'Discrete sources require Discrete entry'
+    if (el.entry && !pictureDiscretePath(el.path)) return 'Discrete entry requires an SP_D command path'
+    return discreteEntryError(el, modules)
+  }
   if (el.flashWhenNotNormal && pictureModePath(el.path ?? '') !== 'actual') {
     return 'Flash-when-not-normal requires a PID MODE.A_ACTUAL datalink'
   }
@@ -244,15 +291,24 @@ export function pictureFill(el: PicElement, modules: Record<string, AnyModule>):
 function object(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
+function errorTextShape(v: unknown): boolean {
+  return object(v) && ['bad', 'error'].every(k => v[k] === undefined || typeof v[k] === 'string')
+}
 function limits(v: unknown): boolean {
   return object(v) && typeof v.fetchLimits === 'boolean' &&
     typeof v.low === 'number' && Number.isFinite(v.low) && typeof v.high === 'number' && Number.isFinite(v.high)
 }
 function element(v: unknown): v is PicElement {
   return object(v) && typeof v.id === 'string' && typeof v.type === 'string' &&
-    ['text', 'datalink', 'dynamo', 'rectangle', 'tank', 'pipe', 'pump', 'valve'].includes(v.type) &&
+    ['text', 'datalink', 'dynamo', 'rectangle', 'tank', 'pipe', 'pump', 'valve', 'button'].includes(v.type) &&
     typeof v.x === 'number' && Number.isFinite(v.x) && typeof v.y === 'number' && Number.isFinite(v.y) &&
-    ['content', 'color', 'backgroundColor', 'tag', 'path'].every(k => v[k] === undefined || typeof v[k] === 'string') &&
+    ['content', 'color', 'backgroundColor', 'tag', 'path', 'group', 'fontFamily', 'target'].every(k => v[k] === undefined || typeof v[k] === 'string') &&
+    ['italic', 'underline', 'showActiveAlarm'].every(k => v[k] === undefined || typeof v[k] === 'boolean') &&
+    (v.layout === undefined || object(v.layout) && typeof v.layout.width === 'number' && typeof v.layout.decimals === 'number') &&
+    (v.errorText === undefined || errorTextShape(v.errorText)) &&
+    ['refreshSeconds', 'historySeconds'].every(k => v[k] === undefined || typeof v[k] === 'number' && Number.isFinite(v[k])) &&
+    (v.dynamoSet === undefined || typeof v.dynamoSet === 'string') &&
+    (v.dynamoColors === undefined || object(v.dynamoColors) && typeof v.dynamoColors.active === 'string' && typeof v.dynamoColors.inactive === 'string') &&
     ['fontSize', 'width', 'height'].every(k => v[k] === undefined || typeof v[k] === 'number' && Number.isFinite(v[k])) &&
     ['label', 'bold'].every(k => v[k] === undefined || typeof v[k] === 'boolean') &&
     (v.flashWhenNotNormal === undefined || typeof v.flashWhenNotNormal === 'boolean') &&
@@ -263,8 +319,9 @@ function element(v: unknown): v is PicElement {
         typeof condition.path === 'string' && ['STATE', 'PV', 'PID1/OUT', 'AO1/OUT'].includes(condition.path) &&
         typeof condition.greaterThan === 'number' && Number.isFinite(condition.greaterThan))) &&
     (v.param === undefined || typeof v.param === 'string' && ['PV', 'SP', 'OUT', 'MODE', 'STATE'].includes(v.param)) &&
-    (v.entry === undefined || object(v.entry) &&
+    (v.entry === undefined || object(v.entry) && (v.entry.confirm === undefined || typeof v.entry.confirm === 'boolean') &&
       (v.entry.method === 'NAMED_SET' || v.entry.method === 'PID_MODE' ||
+        v.entry.method === 'DISCRETE' && (v.entry.labels === undefined || Array.isArray(v.entry.labels) && v.entry.labels.length === 2 && v.entry.labels.every(label => typeof label === 'string')) ||
         v.entry.method === 'NUMERIC' && limits(v.entry) ||
         v.entry.method === 'RAMP' && typeof v.entry.rate === 'number' && Number.isFinite(v.entry.rate))) &&
     (v.fill === undefined || object(v.fill) && typeof v.fill.vertical === 'boolean' && limits(v.fill))
@@ -274,7 +331,9 @@ export function parseSavedPicture(text: string, name: string, modules: Record<st
   if (!object(data) || data.version !== 1 || !object(data.picture)) throw new Error('Unsupported saved picture format/version')
   const p = data.picture
   if (p.name !== name || typeof p.name !== 'string' || !Array.isArray(p.elements) || !p.elements.every(element) ||
-      !['previousPicture', 'nextPicture'].every(k => p[k] === undefined || typeof p[k] === 'string')) {
+      !['previousPicture', 'nextPicture', 'template', 'background'].every(k => p[k] === undefined || typeof p[k] === 'string') ||
+      !['width', 'height'].every(k => p[k] === undefined || typeof p[k] === 'number' && Number.isFinite(p[k]) && p[k] >= 200 && p[k] <= 4000) ||
+      p.template !== undefined && p.template !== 'MAIN' || typeof p.background === 'string' && !HEX_COLOR.test(p.background)) {
     throw new Error('Saved picture name/schema is invalid')
   }
   if (new Set(p.elements.map(e => e.id)).size !== p.elements.length) throw new Error('Saved picture has duplicate element IDs')
@@ -283,6 +342,9 @@ export function parseSavedPicture(text: string, name: string, modules: Record<st
     if (error) throw new Error(error)
   }
   return { name: p.name, elements: p.elements,
+    ...(p.template === 'MAIN' ? { template: 'MAIN' as const } : {}),
+    ...(typeof p.background === 'string' ? { background: p.background } : {}),
+    ...(typeof p.width === 'number' ? { width: p.width } : {}), ...(typeof p.height === 'number' ? { height: p.height } : {}),
     previousPicture: typeof p.previousPicture === 'string' ? p.previousPicture : undefined,
     nextPicture: typeof p.nextPicture === 'string' ? p.nextPicture : undefined }
 }
