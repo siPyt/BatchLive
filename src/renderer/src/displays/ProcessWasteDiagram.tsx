@@ -17,7 +17,10 @@ import {
   PALE_BORDER,
   PALE_TEXT
 } from '../components/ClassicGraphics'
-import type { AnalogIndicator, MotorModule, PidModule, ValveModule } from '../engine/types'
+import { pidIo } from '../engine/analogStrategy'
+import { processWasteComplete, processWasteFlows } from '../engine/processWaste'
+import { readModuleValue } from '../engine/fb'
+import type { AnalogIndicator, DiscreteInput, MotorModule, PidModule, ValveModule } from '../engine/types'
 
 /** Process Waste Neutralization (3WT-0001) P&ID mimic, in the same visual
  * language as the GMP pharma area pictures (ClassicGraphics symbols). Standalone
@@ -57,14 +60,21 @@ const PW_TAGS = [
   '3WT-0001-P01',
   '3WT-0001-P02',
   '3WT-0001-XV01',
-  '3WT-0001-XV05'
+  '3WT-0001-XV05',
+  '3WT-0001-XV010',
+  '3CIP-3200-XV025',
+  '3WT-0001-LAHH001',
+  '3WT-0001-LAHH002',
+  '3WT-0001-LAL001',
+  '3WT-0001-LAL002'
 ]
 
 export function ProcessWasteDiagram({ embedded }: { embedded?: boolean } = {}): JSX.Element | null {
   const modules = useStore((s) => s.modules)
+  const time = useStore((s) => s.time)
   const missingTags = PW_TAGS.filter((tag) => !modules[tag])
-  if (missingTags.length) {
-    const message = `Process Waste Neutralization picture is unavailable. Required modules missing: ${missingTags.join(', ')}.`
+  if (missingTags.length || !processWasteComplete(modules)) {
+    const message = `Process Waste Neutralization picture is unavailable. Required modules missing: ${missingTags.join(', ') || 'one or more have the wrong type'}.`
     if (embedded) return <text x={20} y={40} fill={PALE_TEXT} fontSize={12}>{message}</text>
     return <div className="graphic-empty" role="status">{message} Use DeltaV Explorer to configure the 3WT-0001 modules.</div>
   }
@@ -75,15 +85,21 @@ export function ProcessWasteDiagram({ embedded }: { embedded?: boolean } = {}): 
   const p01 = modules['3WT-0001-P01'] as MotorModule
   const p02 = modules['3WT-0001-P02'] as MotorModule
   const xv01 = modules['3WT-0001-XV01'] as ValveModule
+  const xv010 = modules['3WT-0001-XV010'] as ValveModule
+  const xv025 = modules['3CIP-3200-XV025'] as ValveModule
   const xv05 = modules['3WT-0001-XV05'] as ValveModule
+  const lal001 = modules['3WT-0001-LAL001'] as DiscreteInput
+  const lal002 = modules['3WT-0001-LAL002'] as DiscreteInput
 
-  // Split-range dosing direction: below SP the controller adds base, above SP it
-  // adds acid (classic acid/base trim on a 50% null band).
-  const dosingBase = aic.out < 48 && aic.pv < aic.sp
-  const dosingAcid = aic.out > 52 && aic.pv > aic.sp
+  // AIC002 split range: AO1 doses acid (high pH), AO2 doses base (low pH). An empty drum delivers nothing.
+  const io = pidIo(aic)
+  const dosingAcid = !lal002.state && io.ao.out > 1
+  const dosingBase = !lal001.state && (io.ao2?.out ?? 0) > 1
 
-  const flow001 = p01.running && xv01.open ? 'Flow' : 'No Flow'
-  const flow002 = xv05.open ? 'Flow' : 'No Flow'
+  const flows = processWasteFlows(modules, time)
+  const flow001 = flows.transfer > 0 ? 'Flow' : 'No Flow'
+  const flow002 = flows.drain > 0 ? 'Flow' : 'No Flow'
+  const high = (tag: string): string => readModuleValue(modules[tag]) !== 0 ? 'High' : 'Normal'
 
   return (
     <Wrap height={560} embedded={embedded}>
@@ -93,23 +109,23 @@ export function ProcessWasteDiagram({ embedded }: { embedded?: boolean } = {}): 
       {/* ===== inlet sources ===== */}
       <ClassicFlag x={40} y={70} w={78} text="N3026 PW" />
       <ClassicFlag x={40} y={120} w={78} text="3CIP-3200" />
-      <ClassicPipe d="M128,80 H175 V250" width={1.3} />
-      <ClassicPipe d="M128,130 H150 V250" width={1.3} />
-      <ClassicHandValve x={92} y={250} label="3CIP-3200-XV025" orientation="vertical" labelPosition="right" />
-      <ClassicHandValve x={175} y={250} label="3WT-0001-XV010" orientation="vertical" labelPosition="right" />
-      <ClassicPipe d="M92,270 V300 H140" width={1.3} />
-      <ClassicPipe d="M175,270 V300 H140" width={1.3} />
+      <ClassicPipe d="M128,80 H215 V250" width={1.3} />
+      <ClassicPipe d="M128,130 H70 V250" width={1.3} />
+      <ClassicHandValve x={70} y={250} open={xv025.open} tag="3CIP-3200-XV025" label="3CIP-3200-XV025" orientation="vertical" labelPosition="right" />
+      <ClassicHandValve x={215} y={250} open={xv010.open} tag="3WT-0001-XV010" label="3WT-0001-XV010" orientation="vertical" labelPosition="right" />
+      <ClassicPipe d="M70,270 V290 H144 V300" width={1.3} />
+      <ClassicPipe d="M215,270 V290 H144" width={1.3} />
 
       {/* ===== equalization tank ===== */}
       <ClassicTank x={78} y={300} w={132} h={120} level={li001.pv} label="" />
       <ClassicLabel x={144} y={388} text="Equalization" />
       <ClassicReadout tag="3WT-0001-LI001" x={224} y={316} />
-      <ClassicNamedValue x={224} y={372} tag="3WT-0001-LAHH001" value={li001.pv >= 90 ? 'High' : 'Normal'} />
+      <ClassicNamedValue x={224} y={372} tag="3WT-0001-LAHH001" value={high('3WT-0001-LAHH001')} />
 
       {/* ===== equalization transfer pump + discharge valve ===== */}
       <ClassicPipe d="M144,420 V448 H330" width={1.3} />
       <ClassicPump x={360} y={448} running={p01.running} tag="3WT-0001-P01" />
-      <ClassicNamedValue x={312} y={478} tag="3WT-0001-FAL001" value={flow001} />
+      <ClassicNamedValue x={312} y={506} tag="3WT-0001-FAL001" value={flow001} />
       <ClassicPipe d="M373,440 V392 H430" width={1.3} />
       <ClassicControlValve x={430} y={392} position={xv01.open ? 100 : 0} tag="3WT-0001-XV01" labelPosition="above" />
       <ClassicPipe d="M446,392 H610 V430" width={1.3} />
@@ -119,18 +135,18 @@ export function ProcessWasteDiagram({ embedded }: { embedded?: boolean } = {}): 
       <ClassicLabel x={615} y={398} text="Neutralization" />
       <ClassicPump x={596} y={300} running={p02.running} tag="3WT-0001-P02" discharge="up" labelPosition="left" />
       <ClassicReadout tag="3WT-0001-LI002" x={704} y={312} />
-      <ClassicNamedValue x={704} y={372} tag="3WT-0001-LAHH002" value={li002.pv >= 90 ? 'High' : 'Normal'} />
+      <ClassicNamedValue x={704} y={372} tag="3WT-0001-LAHH002" value={high('3WT-0001-LAHH002')} />
       <ClassicReadout tag="3WT-0001-AI02AVG" x={704} y={404} />
 
       {/* ===== pH control + acid/base dosing ===== */}
       <ClassicPidBox tag="3WT-0001-AIC002" x={812} y={300} label="3WT-0001-AIC002" />
-      <ClassicNamedValue x={820} y={356} tag="Ramp Mod" value="3WT-0001-AI02RMP" w={116} />
+      <ClassicNamedValue x={812} y={370} tag="Ramp Mod" value="3WT-0001-AI02RMP" w={116} />
       <DosingDrum x={820} y={430} label="Base" dosing={dosingBase} />
       <DosingDrum x={916} y={430} label="Acid" dosing={dosingAcid} />
       <ClassicPipe d="M848,420 V430" width={1.1} />
       <ClassicPipe d="M944,420 V430" width={1.1} />
-      <ClassicNamedValue x={808} y={512} tag="3WT-0001-LAL001" value="Normal" w={80} />
-      <ClassicNamedValue x={908} y={512} tag="3WT-0001-LAL002" value="Normal" w={80} />
+      <ClassicNamedValue x={808} y={512} tag="3WT-0001-LAL001" value={lal001.state ? 'Low' : 'Normal'} w={80} />
+      <ClassicNamedValue x={908} y={512} tag="3WT-0001-LAL002" value={lal002.state ? 'Low' : 'Normal'} w={80} />
       <ClassicPipe d="M848,340 H812" width={1.1} />
       <ClassicPipe d="M944,340 H936 V300 H690" width={1.1} />
 
@@ -141,7 +157,7 @@ export function ProcessWasteDiagram({ embedded }: { embedded?: boolean } = {}): 
       <ClassicFlag x={922} y={140} w={64} text="Drain" />
       <ClassicReadout tag="3WT-0001-AI001" x={620} y={74} />
       <ClassicReadout tag="3WT-0001-TI001" x={724} y={74} />
-      <ClassicNamedValue x={724} y={178} tag="3WT-0001-FAL002" value={flow002} />
+      <ClassicNamedValue x={776} y={178} tag="3WT-0001-FAL002" value={flow002} />
 
       {/* ===== phase / equipment-module status ===== */}
       <ClassicPanel

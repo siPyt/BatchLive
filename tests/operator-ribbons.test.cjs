@@ -45,7 +45,7 @@ test('three ribbon bands expose every display and preserve the excluded branding
     'Back', 'Forward', 'Up to Plant Overview', 'Home display', 'Search displays and modules']) {
     assert.ok(html.includes(`aria-label="${label}"`), label)
   }
-  assert.equal(new Set(DISPLAY_NAVIGATION.map(display => display.id)).size, 28)
+  assert.equal(new Set(DISPLAY_NAVIGATION.map(display => display.id)).size, 29)
   for (const display of DISPLAY_NAVIGATION) assert.ok(html.includes(`value="${display.id}"`), display.id)
   assert.match(html, /class="brand-name">BatchLive<\/span>/)
   assert.match(html, /class="brand-credit">Charles R\. Freeman, software engineer<\/span>/)

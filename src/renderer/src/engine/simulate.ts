@@ -14,6 +14,7 @@ import type {
   DeviceCondition
 } from './types'
 import { CUSTOM_PHYSICS_TAGS } from './plant'
+import { PWASTE_PHYSICS_TAGS, processWasteComplete, stepProcessWaste } from './processWaste'
 import { PHOTO_TAGS, COUPLED_LEGACY_TAGS, STEAM_USERS, COOLING_USERS, photoMeasurements, stepPhotoPlant } from './photoPlant'
 import { ownedMotorBlock, strategyModules } from './motorStrategy'
 import { FB_NEEDS_IN2, moduleExecutionOrder, readModuleValue, resetConditionTiming } from './fb'
@@ -1075,6 +1076,7 @@ export function stepPlant(
     tic?.type === 'PID' && pic?.type === 'PID' && p101?.type === 'MOTOR' &&
     p201?.type === 'MOTOR' && xv101?.type === 'VALVE' && xv201?.type === 'VALVE' &&
     at301?.type === 'AI' && ti101?.type === 'AI' && lsh101?.type === 'DI'
+  const hasProcessWaste = processWasteComplete(modules)
 
   // Inputs, control algorithms and field outputs execute once in dependency order.
   const scheduling = prev.moduleScheduling ?? {}
@@ -1107,7 +1109,8 @@ export function stepPlant(
     }
     else if (module.type === 'AI' && !boundInput(tag) &&
         !(prev.photoPlant && (PHOTO_TAGS.has(tag) || COUPLED_LEGACY_TAGS.has(tag))) &&
-        !(hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) && !module.pvBad) {
+        !(hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) &&
+        !(hasProcessWaste && PWASTE_PHYSICS_TAGS.has(tag)) && !module.pvBad) {
       const span = module.pvMax - module.pvMin || 1
       const mid = module.pvMin + span / 2
       module.pv = clamp(module.pv + (mid - module.pv) * 0.01 + noise(span * 0.002),
@@ -1171,10 +1174,14 @@ export function stepPlant(
     lsh101.state = proc.feedTankLevel >= 85
   }
 
+  // Process Waste Neutralization (3WT-0001): tank levels, pH loop process and discharge flow.
+  if (hasProcessWaste) stepProcessWaste(modules, dt, now, boundInput, badPvTags)
+
   // --- Generic simulation for operator-created modules -----------------
   for (const tag of Object.keys(modules)) {
     if (prev.photoPlant && (PHOTO_TAGS.has(tag) || COUPLED_LEGACY_TAGS.has(tag))) continue
     if (hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) continue
+    if (hasProcessWaste && PWASTE_PHYSICS_TAGS.has(tag)) continue
     const gm = modules[tag]
     if (gm.type === 'PID' && !boundInput(tag)) {
       const output = appliedPidOutput(gm)
