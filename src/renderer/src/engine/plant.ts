@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_MEMBERSHIP } from './equipment'
 import { configurePidIo, createPidIo } from './analogStrategy'
 import { createSplitter, splitterValue } from './splitter'
+import { PWASTE_TAGS } from './processWaste'
 import { DEFAULT_PLANT_AREAS } from './areas'
 
 // Helper builders keep the plant definition compact and readable.
@@ -132,26 +133,7 @@ export const BUILTIN_TAGS = new Set([
   'P-821',
   'HS-821',
   // Process Waste Neutralization (3WT-0001) — equalization + pH treatment skid
-  '3WT-0001-AIC002',
-  '3WT-0001-LI001',
-  '3WT-0001-LI002',
-  '3WT-0001-AI001',
-  '3WT-0001-AI02AVG',
-  '3WT-0001-TI001',
-  '3WT-0001-P01',
-  '3WT-0001-P02',
-  '3WT-0001-XV01',
-  '3WT-0001-XV05',
-  '3WT-0001-XV010',
-  '3CIP-3200-XV025',
-  '3WT-0001-LAHH001',
-  '3WT-0001-LAHH002',
-  '3WT-0001-LALL001',
-  '3WT-0001-LALL002',
-  '3WT-0001-PHLO',
-  '3WT-0001-PHHI',
-  '3WT-0001-LAL001',
-  '3WT-0001-LAL002'
+  ...PWASTE_TAGS
 ])
 function pid(
   p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>,
@@ -962,16 +944,15 @@ export function buildInitialPlant(): PlantState {
   )
 
   // --- Process Waste Neutralization (3WT-0001) -----------------------------
-  // Equalization tank buffers plant waste + CIP returns, a transfer pump feeds
-  // the Neutralization (treatment) tank where a split-range pH controller doses
-  // acid (AO1) or base (AO2) to hold the batch at its pH setpoint, then discharges
-  // to drain while the tank pH is inside the discharge window. Levels, pH and flows
-  // are driven by processWaste.ts; the device logic below is real DCC1/EDC1 logic
-  // that Control Studio shows live. Partial reference build: the tags, SP and live
-  // values come from the plant screenshots; the interlock set, discharge window
-  // (pH 5.0-9.0), rates and tuning are provisional until the plant's own
-  // Control Studio configuration is documented.
-  // Split-range acid/base curves: AO1 (acid) 100->0 below the dead band, AO2 (base) 0->100 above it.
+  // Digital twin of the operator screens: the area starts in the HOLD state they show (pumps stopped, diverters in
+  // RECIRC, inlets closed, AIC002 in local override tracking 50 %). The process behaviour is in processWaste.ts.
+  //
+  // Built from the plant screenshots: tags, scales, values, valve template structure (2 interlocks and 2 permissives
+  // on XV01, state names RECIRC/TRANSFER), the PCSD split-range PID template (AI1 -> PID1 -> SPLTR1 -> AO1/AO2, SP
+  // limits 6-10, GAIN 0.5, RESET 100, BAL_TIME 10), the three AT1 tracking conditions that force local override, and the
+  // RCAS_IN 8.0 / ROUT_IN 50.0 values the NEUT phase writes. PROVISIONAL (the photos truncate the expressions):
+  // the wording and thresholds of the interlock/permissive/AT1 conditions, the pH discharge window, which AO is acid
+  // and which is base, and the process rates.
   const aic002 = pid({
     tag: '3WT-0001-AIC002',
     description: 'TREATMENT TANK pH CONTROL',
@@ -983,86 +964,45 @@ export function buildInitialPlant(): PlantState {
     decimals: 1,
     sp: 6.0,
     out: 50,
-    mode: 'AUTO',
-    gain: 3,
-    reset: 120,
+    mode: 'RCAS',
+    normalMode: 'RCAS',
+    spLow: 6,
+    spHigh: 10,
+    gain: 0.5,
+    reset: 100,
     direct: false,
-    alarms: [
-      { type: 'HI', label: 'HI', priority: 'ADVISORY', limit: 8.5, enabled: true },
-      { type: 'LO', label: 'LO', priority: 'ADVISORY', limit: 5.5, enabled: true }
-    ]
+    trackEnable: true,
+    trackSource: '3WT-0001-AT1OR2',
+    trackValue: 50,
+    rampModule: '3WT-0001-AI02RMP',
+    remote: {
+      rcasIn: { value: 8.0, good: true, ageSec: 0 },
+      routIn: { value: 50, good: true, ageSec: 0 },
+      timeoutSec: 10
+    }
   }, true)
   aic002.io = configurePidIo(aic002, { actuation: 'HEAT_COOL' })
+  aic002.io.splitter!.balTimeSec = 10
   const aicSplit = aic002.io.splitter!
   aicSplit.out1 = splitterValue(aicSplit, aic002.out, 1)
   aicSplit.out2 = splitterValue(aicSplit, aic002.out, 2)
   aic002.io.ao.out = aic002.io.ao.manualValue = aicSplit.out1
   aic002.io.ao2!.out = aic002.io.ao2!.manualValue = aicSplit.out2
   add(aic002)
-  add(
-    ai({
-      tag: '3WT-0001-LI001',
-      description: 'EQUALIZATION TANK LEVEL',
-      area: 'PWASTE',
-      unit: '%',
-      pv: 69.3,
-      pvMax: 100,
-      alarms: [{ type: 'HI_HI', label: 'LAHH', priority: 'WARNING', limit: 90, enabled: true }]
-    })
-  )
-  add(
-    ai({
-      tag: '3WT-0001-LI002',
-      description: 'NEUTRALIZATION TANK LEVEL',
-      area: 'PWASTE',
-      unit: '%',
-      pv: 79.5,
-      pvMax: 100,
-      alarms: [{ type: 'HI_HI', label: 'LAHH', priority: 'WARNING', limit: 90, enabled: true }]
-    })
-  )
-  add(
-    ai({
-      tag: '3WT-0001-AI02AVG',
-      description: 'NEUTRALIZATION TANK pH (AVG)',
-      area: 'PWASTE',
-      unit: 'pH',
-      pv: 6.1,
-      pvMin: 0,
-      pvMax: 14,
-      decimals: 1
-    })
-  )
-  add(
-    ai({
-      tag: '3WT-0001-AI001',
-      description: 'TREATED EFFLUENT pH (TO DRAIN)',
-      area: 'PWASTE',
-      unit: 'pH',
-      pv: 7.5,
-      pvMin: 0,
-      pvMax: 14,
-      decimals: 1,
-      alarms: [
-        { type: 'HI', label: 'HI (PERMIT)', priority: 'WARNING', limit: 9.0, enabled: true },
-        { type: 'LO', label: 'LO (PERMIT)', priority: 'WARNING', limit: 5.0, enabled: true }
-      ]
-    })
-  )
-  add(
-    ai({
-      tag: '3WT-0001-TI001',
-      description: 'TREATED EFFLUENT TEMPERATURE',
-      area: 'PWASTE',
-      unit: 'degF',
-      pv: 68.9,
-      pvMin: 32,
-      pvMax: 104,
-      decimals: 1
-    })
-  )
 
-  // Level / pH condition sources the device logic reads (visible in Control Studio).
+  const pwLevel = (tag: string, description: string, pv: number): void => {
+    add(ai({
+      tag, description, area: 'PWASTE', unit: '%', pv, pvMax: 100,
+      alarms: [{ type: 'HI_HI', label: 'LAHH', priority: 'WARNING', limit: 90, enabled: true }]
+    }))
+  }
+  pwLevel('3WT-0001-LI001', 'EQUALIZATION TANK LEVEL', 69.3)
+  pwLevel('3WT-0001-LI002', 'NEUTRALIZATION TANK LEVEL', 79.5)
+  add(ai({ tag: '3WT-0001-AI02AVG', description: 'NEUTRALIZATION TANK pH (AVG)', area: 'PWASTE', unit: 'pH', pv: 6.1, pvMin: 0, pvMax: 14 }))
+  add(ai({ tag: '3WT-0001-AI001', description: 'TREATED EFFLUENT pH (TO DRAIN)', area: 'PWASTE', unit: 'pH', pv: 7.5, pvMin: 0, pvMax: 14 }))
+  add(ai({ tag: '3WT-0001-TI001', description: 'TREATED EFFLUENT TEMPERATURE', area: 'PWASTE', unit: 'degF', pv: 68.9, pvMin: 32, pvMax: 104 }))
+
+  // Level and pH-window condition sources read by the device logic.
   const pwCmp = (tag: string, description: string, source: string, op: '<' | '>', limit: number): void => {
     add(fb({
       tag, fbType: 'CMP', description, area: 'PWASTE',
@@ -1076,68 +1016,81 @@ export function buildInitialPlant(): PlantState {
   pwCmp('3WT-0001-PHLO', 'TANK pH BELOW DISCHARGE WINDOW', '3WT-0001-AI02AVG', '<', 5.0)
   pwCmp('3WT-0001-PHHI', 'TANK pH ABOVE DISCHARGE WINDOW', '3WT-0001-AI02AVG', '>', 9.0)
 
-  // Acid / base drum low-level switches (Normal = false).
-  for (const [tag, label] of [['3WT-0001-LAL001', 'BASE'], ['3WT-0001-LAL002', 'ACID']]) {
+  // Discrete switches: drum low-level (alarmed) and pump low-flow (state true = alarm: LOW / No Flow).
+  const pwSwitch = (tag: string, description: string, active: string, inactive: string, initial: boolean, alarmed: boolean): void => {
     add({
-      tag,
-      type: 'DI',
-      description: `${label} DRUM LOW LEVEL`,
-      area: 'PWASTE',
-      state: false,
-      activeDescriptor: 'LOW',
-      inactiveDescriptor: 'NORMAL',
-      alarms: [{ type: 'HI', label: `${label} DRUM LOW`, priority: 'WARNING', enabled: true }]
+      tag, type: 'DI', description, area: 'PWASTE', state: initial, activeDescriptor: active, inactiveDescriptor: inactive,
+      alarms: alarmed ? [{ type: 'HI', label: description, priority: 'WARNING', enabled: true }] : []
     })
   }
+  pwSwitch('3WT-0001-LAL001', 'BASE DRUM LOW LEVEL', 'Low', 'Normal', false, true)
+  pwSwitch('3WT-0001-LAL002', 'ACID DRUM LOW LEVEL', 'Low', 'Normal', false, true)
+  pwSwitch('3WT-0001-FAL001', 'EQUALIZATION TRANSFER LINE LOW FLOW', 'No Flow', 'Flow', true, false)
+  pwSwitch('3WT-0001-FAL002', 'NEUTRALIZATION LOOP LOW FLOW', 'No Flow', 'Flow', true, false)
 
-  const pwCond = (source: string, description: string): { source: string; description: string } => ({ source, description })
+  // AIC002 AT1 block: three conditions that, when true, put the loop in local override (LO) tracking TRK_VAL 50 %.
+  const pwCnd = (tag: string, description: string, expr: string, delaySec: number,
+    in1?: string, in2?: string, active = false): void => {
+    add(fb({
+      tag, fbType: 'CND', description, area: 'PWASTE', expr, delaySec,
+      in1: in1 ? { kind: 'ref', value: 0, tag: in1 } : { kind: 'const', value: 0 },
+      in2: in2 ? { kind: 'ref', value: 0, tag: in2 } : { kind: 'const', value: 0 },
+      // a condition that is already true at startup has already satisfied its delay
+      ...(active ? { _timerElapsed: delaySec, _timerOutput: true, out: 1 } : {})
+    }))
+  }
+  pwCnd('3WT-0001-AT1C1', 'AT1: TREATMENT PUMP NOT RUNNING', 'IN1 = 0', 10, '3WT-0001-P02', undefined, true)
+  pwCnd('3WT-0001-AT1C2', 'AT1: CHANGE IN pH TOO LARGE', '(IN1 - IN2 > 1.5) + (IN2 - IN1 > 1.5)', 5, '3WT-0001-AIC002', '3WT-0001-AI02AVG')
+  pwCnd('3WT-0001-AT1C3', 'AT1: BASE DRUM LOW', "'//3WT-0001-LAL001/DI1/PV_D'", 0)
+  add(fb({ tag: '3WT-0001-AT1OR1', fbType: 'OR', description: 'AT1: CONDITION 1 OR 2', area: 'PWASTE',
+    in1: { kind: 'ref', value: 0, tag: '3WT-0001-AT1C1' }, in2: { kind: 'ref', value: 0, tag: '3WT-0001-AT1C2' }, out: 1 }))
+  add(fb({ tag: '3WT-0001-AT1OR2', fbType: 'OR', description: 'AT1: T_OUT_D (ANY CONDITION)', area: 'PWASTE',
+    in1: { kind: 'ref', value: 0, tag: '3WT-0001-AT1OR1' }, in2: { kind: 'ref', value: 0, tag: '3WT-0001-AT1C3' }, out: 1 }))
+  add(fb({ tag: '3WT-0001-CIPDLY', fbType: 'OND', description: 'XV01 INTERLOCK 1: 5s CIP RETURN DELAY', area: 'PWASTE',
+    in1: { kind: 'ref', value: 0, tag: '3CIP-3200-XV025' }, delaySec: 5 }))
+
+  const pwCond = (source: string, description: string, invert = false): { source: string; description: string; invert?: boolean } =>
+    invert ? { source, description, invert } : { source, description }
   add(motor({
     tag: '3WT-0001-P01',
     description: 'EQUALIZATION TRANSFER PUMP',
     area: 'PWASTE',
-    running: true,
-    commanded: true,
-    interlockConditions: [pwCond('3WT-0001-LAHH002', 'NEUT TANK HI-HI'), pwCond('3WT-0001-LALL001', 'EQ TANK LOW-LOW')]
+    interlockConditions: [pwCond('3WT-0001-LALL001', 'EQ TANK LOW-LOW')]
   }))
   add(motor({
     tag: '3WT-0001-P02',
-    description: 'NEUTRALIZATION RECIRCULATION PUMP',
+    description: 'NEUTRALIZATION TANK PUMP (TREATMENT)',
     area: 'PWASTE',
-    running: true,
-    commanded: true,
     interlockConditions: [pwCond('3WT-0001-LALL002', 'NEUT TANK LOW-LOW')]
   }))
-  add(valve({
-    tag: '3CIP-3200-XV025',
-    description: 'CIP RETURN TO EQUALIZATION TANK VALVE',
-    area: 'PWASTE',
-    resetRequired: false,
-    interlockConditions: [pwCond('3WT-0001-LAHH001', 'EQ TANK HI-HI')]
-  }))
-  add(valve({
-    tag: '3WT-0001-XV010',
-    description: 'PROCESS WASTE TO EQUALIZATION TANK VALVE',
-    area: 'PWASTE',
-    open: true,
-    commandedOpen: true,
-    resetRequired: false,
-    interlockConditions: [pwCond('3WT-0001-LAHH001', 'EQ TANK HI-HI')]
-  }))
+  for (const [tag, description] of [
+    ['3CIP-3200-XV025', 'CIP RETURN TO EQUALIZATION TANK VALVE'],
+    ['3WT-0001-XV010', 'PROCESS WASTE TO EQUALIZATION TANK VALVE']
+  ]) {
+    add(valve({
+      tag, description, area: 'PWASTE', resetRequired: false,
+      interlockConditions: [pwCond('3WT-0001-LAHH001', 'EQ TANK HI-HI')]
+    }))
+  }
+  // XV01 diverter: passive = RECIRC (back to the equalization tank), active = TRANSFER (to the neutralization tank).
   add(valve({
     tag: '3WT-0001-XV01',
-    description: 'EQUALIZATION PUMP DISCHARGE VALVE',
+    description: 'EQUALIZATION TRANSFER VALVE',
     area: 'PWASTE',
-    open: true,
-    commandedOpen: true,
+    equipmentModule: '3WT-0001-NEUT',
+    stateNames: { passive: 'RECIRC', active: 'TRANSFER' },
     resetRequired: false,
-    interlockConditions: [pwCond('3WT-0001-LAHH002', 'NEUT TANK HI-HI')]
+    permissiveRequired: true,
+    interlockConditions: [pwCond('3WT-0001-CIPDLY', '3CIP3200 RETURNING'), pwCond('3WT-0001-LAHH002', 'TREATMENT TANK HI LEVEL')],
+    permissiveConditions: [pwCond('3WT-0001-LALL001', 'EQUALIZATION LEVEL OK', true), pwCond('3WT-0001-LAHH002', 'TREATMENT LEVEL OK', true)]
   }))
+  // XV05 diverter: passive = RECIRC (back to the neutralization tank), active = DRAIN. Names inferred from the piping.
   add(valve({
     tag: '3WT-0001-XV05',
-    description: 'NEUTRALIZATION DISCHARGE TO DRAIN VALVE',
+    description: 'NEUTRALIZATION DISCHARGE VALVE',
     area: 'PWASTE',
-    open: true,
-    commandedOpen: true,
+    equipmentModule: '3WT-0001-NEUT',
+    stateNames: { passive: 'RECIRC', active: 'DRAIN' },
     resetRequired: false,
     interlockConditions: [
       pwCond('3WT-0001-PHLO', 'TANK pH LOW'),

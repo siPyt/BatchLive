@@ -167,13 +167,20 @@ function stepPidWithStrategy(m: PidModule, modules: Record<string, AnyModule>, d
       m._integral = m.out
     }
   }
-  if (m.actualMode === 'RCAS') m.sp = clamp(remoteHostOf(m).rcasIn.value, m.pvMin, m.pvMax)
-  if (m.actualMode === 'ROUT') m.out = clamp(remoteHostOf(m).routIn.value, 0, 100)
-  if (m.actualMode === 'CAS' && m.casSource) {
-    const src = modules[m.casSource]
-    if (src) m.sp = clamp(src.type === 'PID' || src.type === 'AO'
-      ? m.pvMin + (src.out / 100) * (m.pvMax - m.pvMin) : readModuleValue(src), m.pvMin, m.pvMax)
+  const spLow = m.spLow ?? m.pvMin
+  const spHigh = m.spHigh ?? m.pvMax
+  const applyRemoteSetpoints = (): void => {
+    if (m.actualMode === 'RCAS') m.sp = clamp(remoteHostOf(m).rcasIn.value, spLow, spHigh)
+    if (m.actualMode === 'CAS' && m.casSource) {
+      const src = modules[m.casSource]
+      if (src) m.sp = clamp(src.type === 'PID' || src.type === 'AO'
+        ? m.pvMin + (src.out / 100) * (m.pvMax - m.pvMin) : readModuleValue(src), spLow, spHigh)
+    }
   }
+  // Local override (tracking) outranks the remote setpoint, so the SP is only taken from RCAS/CAS when not tracking.
+  const tracking = m.trackEnable && resolveFbInput(modules, { kind: 'ref', tag: m.trackSource, value: 0 }).value !== 0
+  if (!tracking) applyRemoteSetpoints()
+  if (m.actualMode === 'ROUT') m.out = clamp(remoteHostOf(m).routIn.value, 0, 100)
   if (m.trackEnable) {
     const trigger = resolveFbInput(modules, { kind: 'ref', tag: m.trackSource, value: 0 })
     if (trigger.bad) {

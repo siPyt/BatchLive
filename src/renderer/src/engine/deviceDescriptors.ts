@@ -43,6 +43,7 @@ export function parseDeviceDescriptors(value: unknown): DeviceStateDescriptors {
 export function deviceDescriptorLabel(m: MotorModule | ValveModule, sets: NamedSetState,
   role: 'command' | 'feedback', active: boolean): { label: string; error: string | null } {
   const d = m.descriptors
+  if (!d && m.type === 'VALVE' && m.stateNames) return { label: active ? m.stateNames.active : m.stateNames.passive, error: null }
   if (!d) return { label: role === 'command' ?
     m.type === 'MOTOR' ? active ? 'START' : 'STOP' : active ? 'OPEN' : 'CLOSE' :
     m.type === 'MOTOR' ? active ? 'Running' : 'Stopped' : active ? 'Open' : 'Closed', error: null }

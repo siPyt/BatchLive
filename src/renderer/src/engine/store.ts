@@ -871,7 +871,7 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateModule(set, get, tag, (m) => {
       if (m.type === 'PID') {
         const p = m as PidModule
-        p.sp = Math.max(p.pvMin, Math.min(p.pvMax, sp))
+        p.sp = Math.max(p.spLow ?? p.pvMin, Math.min(p.spHigh ?? p.pvMax, sp))
       }
     })
     get().logEvent('OPERATOR', tag, `SP set to ${sp}`)

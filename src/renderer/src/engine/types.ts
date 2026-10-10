@@ -154,6 +154,11 @@ export interface PidModule extends ModuleDisplayProperties {
   trackValueSource?: string
   trackValue: number
   direct: boolean // true = direct acting (PV up -> OUT up)
+  /** SP_LO_LIM / SP_HI_LIM: operator, CAS and RCAS setpoints are limited to this range (defaults to the PV range). */
+  spLow?: number
+  spHigh?: number
+  /** RMP_MOD: tag of the ramp module that ramps this loop's setpoint or output. Display reference only; ramping is not simulated. */
+  rampModule?: string
   // internal integrator term
   _integral: number
   // derivative-on-measurement state (DeltaV default STRUCTURE: D acts on PV)
@@ -442,6 +447,9 @@ export interface MotorModule extends ModuleDisplayProperties {
 
 export interface ValveModule extends ModuleDisplayProperties {
   descriptors?: DeviceStateDescriptors
+  /** State names for a two-position device whose positions are not Open/Closed (for example a RECIRC/TRANSFER diverter).
+   * Used for command buttons and state words when no deployed Named Set descriptors are mapped. */
+  stateNames?: { passive: string; active: string }
   downloaded?: boolean
   controllerTag?: string
   interlockInverted?: boolean

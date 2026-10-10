@@ -32,7 +32,7 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
   return (
     <div className="fp-body">
       <div className="fp-state-word" style={{ color: m.open ? 'var(--dv-run)' : 'var(--dv-text)' }}>
-        {m.open ? 'OPEN' : 'CLOSED'}
+        {m.stateNames ? feedbackLabel : m.open ? 'OPEN' : 'CLOSED'}
       </div>
 
       <div className="fp-row">
@@ -77,7 +77,7 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
 
       <div className="fp-row">
         <span className="fp-label">Command (SP_D)</span>
-        <span style={{ color: 'var(--dv-text-dim)' }}>{m.descriptors ? m.commandedOpen ? activeLabel : passiveLabel : m.commandedOpen ? 'ACTIVE' : 'PASSIVE'}</span>
+        <span style={{ color: 'var(--dv-text-dim)' }}>{m.descriptors || m.stateNames ? m.commandedOpen ? activeLabel : passiveLabel : m.commandedOpen ? 'ACTIVE' : 'PASSIVE'}</span>
       </div>
       {descriptorError && <div className="fp-row" style={{ color: 'var(--dv-critical)', overflowWrap: 'anywhere' }}>Descriptor setup Bad: {descriptorError}</div>}
       {binding && <>

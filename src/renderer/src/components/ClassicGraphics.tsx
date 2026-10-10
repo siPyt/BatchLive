@@ -142,8 +142,10 @@ export function ClassicPump({
   )
 }
 
-export function ClassicControlValve({ x, y, position, tag, label = tag, labelPosition = 'below', animationColor, actuatorAnimationColor }: {
+export function ClassicControlValve({ x, y, position, tag, label = tag, labelPosition = 'below', animationColor, actuatorAnimationColor, stateLabel }: {
   x: number; y: number; position: number; tag: string; label?: string; labelPosition?: 'above' | 'below'
+  /** Replaces the percent-output tooltip for a two-position device (for example RECIRC / TRANSFER). */
+  stateLabel?: string
   animationColor?: string
   actuatorAnimationColor?: string
 }): JSX.Element {
@@ -152,7 +154,7 @@ export function ClassicControlValve({ x, y, position, tag, label = tag, labelPos
   const color = animationColor ?? (pct > 0 ? PALE_GREEN : DEVICE_OFF)
   return (
     <g data-equipment-tag={tag} data-state={pct > 0 ? 'open' : 'closed'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
-      <title>{`${label} (${tag}): ${pct.toFixed(1)}% output`}</title>
+      <title>{`${label} (${tag}): ${stateLabel ?? `${pct.toFixed(1)}% output`}`}</title>
       <g transform={`translate(${x} ${y})`}>
         <ValveBody color={color} actuatorColor={actuatorAnimationColor} actuator="pneumatic" />
         <rect x={-10} y={10} width={20} height={3} fill="#eef1f3" stroke={PALE_BORDER} strokeWidth={0.5} />
@@ -393,7 +395,7 @@ export function ClassicPidBox({ tag, x, y, label }: { tag: string; x: number; y:
   if (!m || !isPid(m)) return null
   const w = 120
   const h = 46
-  const mode = m.mode === 'MAN' ? 'MA' : m.mode === 'CAS' ? 'CA' : m.mode === 'AUTO' ? 'AU' : m.mode
+  const mode = m.actualMode === 'LO' ? 'LO' : m.mode === 'MAN' ? 'MA' : m.mode === 'CAS' ? 'CA' : m.mode === 'AUTO' ? 'AU' : m.mode
   const outFrac = Math.max(0, Math.min(1, m.out / 100))
   return (
     <g style={{ cursor: 'pointer' }} onClick={() => openFaceplate(tag)}>

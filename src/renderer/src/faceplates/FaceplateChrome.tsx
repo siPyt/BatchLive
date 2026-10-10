@@ -68,7 +68,11 @@ export function deviceStatusBlock(
     operationState = 'Permissive Not Met'
     opColor = 'var(--dv-bypass)'
   }
-  const failureState = fault ? 'Faulted' : 'Clear'
+  // A valve that did not confirm its commanded position reports which travel time was exceeded.
+  const travelFailure = fault && activeWord === 'Open'
+    ? dcState === 'FAILED_ACTIVE' ? 'Open travel time exceeded' : dcState === 'FAILED_PASSIVE' ? 'Close travel time exceeded' : null
+    : null
+  const failureState = travelFailure ?? (fault ? 'Faulted' : 'Clear')
   const failColor = fault ? 'var(--dv-critical)' : 'var(--dv-text-dim)'
   return { deviceState, deviceColor, operationState, opColor, failureState, failColor }
 }

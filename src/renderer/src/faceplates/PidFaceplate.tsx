@@ -5,9 +5,11 @@ import { pidExecutionBad } from '../engine/pidModes'
 import { fmt, fmtQ, modeColor, priorityRank } from '../utils/format'
 import { appliedPidOutput, pidIo } from '../engine/analogStrategy'
 import { alarmFieldPath } from '../engine/alarmFields'
+import { hostSignalStatus, remoteHostOf } from '../engine/remoteHost'
 import { ModeBoxRow, ModelockOverrideRow, OwnedByRow } from './FaceplateChrome'
 
 const MODES: PidTargetMode[] = ['MAN', 'AUTO', 'CAS', 'OOS']
+const REMOTE_MODES: PidTargetMode[] = ['MAN', 'AUTO', 'CAS', 'RCAS', 'ROUT', 'OOS']
 type Tab = 'operate' | 'tune' | 'alarm' | 'trend'
 
 export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
@@ -118,7 +120,7 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
           {(m.trackError || m.ffError) && <div role="alert" style={{ color: 'var(--dv-bad)' }}>{m.trackError || m.ffError}</div>}
 
           <div className="fp-modes">
-            {MODES.map((mode) => (
+            {(m.remote ? REMOTE_MODES : MODES).map((mode) => (
               <button
                 key={mode}
                 data-mode={mode}
@@ -157,6 +159,27 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
             <div className="fp-row">
               <span className="fp-label">Cascade src</span>
               <span style={{ color: 'var(--mode-cas)', fontWeight: 700 }}>{m.casSource}</span>
+            </div>
+          )}
+          {m.remote && (() => {
+            const host = remoteHostOf(m)
+            return (
+              <>
+                <div className="fp-row" title={`RCAS_IN: ${hostSignalStatus(host.rcasIn, host.timeoutSec)}`}>
+                  <span className="fp-label">RCAS SP</span>
+                  <b>{fmt(host.rcasIn.value, m.decimals)} {m.unit}</b>
+                </div>
+                <div className="fp-row" title={`ROUT_IN: ${hostSignalStatus(host.routIn, host.timeoutSec)}`}>
+                  <span className="fp-label">ROUT OUT</span>
+                  <b>{fmt(host.routIn.value, 1)} %</b>
+                </div>
+              </>
+            )
+          })()}
+          {m.rampModule && (
+            <div className="fp-row" title="RMP_MOD is wired to this ramp module; ramping itself is not simulated">
+              <span className="fp-label">Ramp Mod</span>
+              <span>{m.rampModule}</span>
             </div>
           )}
           <OwnedByRow equipmentModule={m.equipmentModule} />
