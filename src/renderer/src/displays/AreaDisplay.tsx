@@ -3,6 +3,7 @@ import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt, isPid } from '../utils/format'
 import type { AnyModule } from '../engine/types'
 import { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } from './PharmaDiagrams'
+import { ProcessWasteDiagram } from './ProcessWasteDiagram'
 import { OverviewDisplay } from './OverviewDisplay'
 import { FeedReactorPicture } from './FeedReactorPicture'
 
@@ -14,7 +15,8 @@ const AREA_TITLE: Record<string, string> = {
   AUTOCLAVE: 'STERILIZATION (AUTOCLAVES)',
   LYO: 'LYOPHILIZATION',
   CIP: 'CLEAN-IN-PLACE (CIP) SKIDS',
-  TCU: 'TEMPERATURE CONTROL UNITS (TCUs)'
+  TCU: 'TEMPERATURE CONTROL UNITS (TCUs)',
+  PWASTE: 'PROCESS WASTE NEUTRALIZATION'
 }
 
 const AREA_DIAGRAM: Partial<Record<string, () => JSX.Element | null>> = {
@@ -22,8 +24,12 @@ const AREA_DIAGRAM: Partial<Record<string, () => JSX.Element | null>> = {
   AUTOCLAVE: AutoclaveDiagram,
   LYO: LyoDiagram,
   CIP: CipDiagram,
-  TCU: TcuDiagram
+  TCU: TcuDiagram,
+  PWASTE: ProcessWasteDiagram
 }
+
+/** Areas whose diagram renders its own in-canvas title; suppress the duplicate h1. */
+const SELF_TITLED_AREAS = new Set(['WFI', 'PWASTE'])
 
 export function AreaDisplay({ area }: { area: string }): JSX.Element {
   const modules = useStore((s) => s.modules)
@@ -43,7 +49,7 @@ export function AreaDisplay({ area }: { area: string }): JSX.Element {
 
   return (
     <div className="display graphic-display">
-      {area !== 'WFI' && <h1 className="graphic-display-title">{AREA_TITLE[area] ?? area}</h1>}
+      {!SELF_TITLED_AREAS.has(area) && <h1 className="graphic-display-title">{AREA_TITLE[area] ?? area}</h1>}
       {list.length > 0 && Diagram && <Diagram />}
       {!list.length && <div className="graphic-empty" role="status">No modules configured in this area. Use DeltaV Explorer to create modules.</div>}
       <ModuleDirectory modules={list} />

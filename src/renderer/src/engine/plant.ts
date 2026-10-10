@@ -130,7 +130,18 @@ export const BUILTIN_TAGS = new Set([
   'TIC-821',
   'FIC-821',
   'P-821',
-  'HS-821'
+  'HS-821',
+  // Process Waste Neutralization (3WT-0001) — equalization + pH treatment skid
+  '3WT-0001-AIC002',
+  '3WT-0001-LI001',
+  '3WT-0001-LI002',
+  '3WT-0001-AI001',
+  '3WT-0001-AI02AVG',
+  '3WT-0001-TI001',
+  '3WT-0001-P01',
+  '3WT-0001-P02',
+  '3WT-0001-XV01',
+  '3WT-0001-XV05'
 ])
 function pid(
   p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>,
@@ -939,6 +950,103 @@ export function buildInitialPlant(): PlantState {
       delaySec: 3
     })
   )
+
+  // --- Process Waste Neutralization (3WT-0001) -----------------------------
+  // Equalization tank buffers plant waste + CIP returns, a transfer pump feeds
+  // the Neutralization (treatment) tank where a split-range pH controller doses
+  // acid or base to hold the batch at pH 6, then discharges to drain once the
+  // effluent pH is in the permit window. Runs on the generic closed-loop /
+  // device-control engine (no bespoke physics), like the GMP pharma areas.
+  // Partial reference build — remaining tags to be added once documented.
+  add(
+    pid({
+      tag: '3WT-0001-AIC002',
+      description: 'TREATMENT TANK pH CONTROL',
+      area: 'PWASTE',
+      equipmentModule: '3WT-0001-NEUT',
+      unit: 'pH',
+      pvMin: 0,
+      pvMax: 14,
+      decimals: 1,
+      sp: 6.0,
+      out: 50,
+      mode: 'AUTO',
+      normalMode: 'RCAS',
+      gain: 1.2,
+      reset: 25,
+      direct: false,
+      alarms: [
+        { type: 'HI', label: 'HI', priority: 'ADVISORY', limit: 8.5, enabled: true },
+        { type: 'LO', label: 'LO', priority: 'ADVISORY', limit: 5.5, enabled: true }
+      ]
+    }, true)
+  )
+  add(
+    ai({
+      tag: '3WT-0001-LI001',
+      description: 'EQUALIZATION TANK LEVEL',
+      area: 'PWASTE',
+      unit: '%',
+      pv: 69.3,
+      pvMax: 100,
+      alarms: [{ type: 'HI_HI', label: 'LAHH', priority: 'WARNING', limit: 90, enabled: true }]
+    })
+  )
+  add(
+    ai({
+      tag: '3WT-0001-LI002',
+      description: 'NEUTRALIZATION TANK LEVEL',
+      area: 'PWASTE',
+      unit: '%',
+      pv: 79.5,
+      pvMax: 100,
+      alarms: [{ type: 'HI_HI', label: 'LAHH', priority: 'WARNING', limit: 90, enabled: true }]
+    })
+  )
+  add(
+    ai({
+      tag: '3WT-0001-AI02AVG',
+      description: 'NEUTRALIZATION TANK pH (10-MIN AVG)',
+      area: 'PWASTE',
+      unit: 'pH',
+      pv: 6.1,
+      pvMin: 0,
+      pvMax: 14,
+      decimals: 1
+    })
+  )
+  add(
+    ai({
+      tag: '3WT-0001-AI001',
+      description: 'TREATED EFFLUENT pH (TO DRAIN)',
+      area: 'PWASTE',
+      unit: 'pH',
+      pv: 7.5,
+      pvMin: 0,
+      pvMax: 14,
+      decimals: 1,
+      alarms: [
+        { type: 'HI', label: 'HI (PERMIT)', priority: 'WARNING', limit: 9.0, enabled: true },
+        { type: 'LO', label: 'LO (PERMIT)', priority: 'WARNING', limit: 6.0, enabled: true }
+      ]
+    })
+  )
+  add(
+    ai({
+      tag: '3WT-0001-TI001',
+      description: 'TREATED EFFLUENT TEMPERATURE',
+      area: 'PWASTE',
+      unit: 'degF',
+      pv: 68.9,
+      pvMin: 32,
+      pvMax: 104,
+      decimals: 1
+    })
+  )
+  add(motor({ tag: '3WT-0001-P01', description: 'EQUALIZATION TRANSFER PUMP', area: 'PWASTE', running: true, commanded: true }))
+  add(motor({ tag: '3WT-0001-P02', description: 'NEUTRALIZATION RECIRCULATION PUMP', area: 'PWASTE', running: true, commanded: true }))
+  add(valve({ tag: '3WT-0001-XV01', description: 'EQUALIZATION PUMP DISCHARGE VALVE', area: 'PWASTE', open: true, commandedOpen: true }))
+  add(valve({ tag: '3WT-0001-XV05', description: 'NEUTRALIZATION DISCHARGE TO DRAIN VALVE', area: 'PWASTE', open: true, commandedOpen: true }))
 
   // --- Autoclave 1 (steam sterilizer) — cycle run from SFC STERILIZE-AC1 --
   add(

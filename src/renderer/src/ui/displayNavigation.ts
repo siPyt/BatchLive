@@ -16,6 +16,7 @@ export const DISPLAY_NAVIGATION: { id: DisplayId; label: string; operator: boole
   { id: 'lyo', label: 'Lyophilizers', operator: true },
   { id: 'cip', label: 'CIP Skids', operator: true },
   { id: 'tcu', label: 'Temperature Control Units', operator: true },
+  { id: 'pwaste', label: 'Process Waste Neutralization', operator: true },
   { id: 'alarms', label: 'Alarm List', operator: false },
   { id: 'trend', label: 'Historian Trends', operator: false },
   { id: 'journal', label: 'Event Journal', operator: false },

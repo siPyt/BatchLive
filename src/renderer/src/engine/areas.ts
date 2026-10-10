@@ -1,4 +1,4 @@
-export const DEFAULT_PLANT_AREAS = ['FEED', 'REACTOR', 'PRODUCT', 'WFI', 'AUTOCLAVE', 'LYO', 'CIP', 'TCU']
+export const DEFAULT_PLANT_AREAS = ['FEED', 'REACTOR', 'PRODUCT', 'WFI', 'AUTOCLAVE', 'LYO', 'CIP', 'TCU', 'PWASTE']
 
 export function areaNameError(name: string): string | null {
   return /^[A-Z][A-Z0-9_-]*$/.test(name)

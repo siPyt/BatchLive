@@ -20,6 +20,7 @@ import { DeltaVCanvas, type DeltaVCanvasHandle } from '../components/DeltaVCanva
 import { durationString } from '../utils/format'
 import type { PidModule, MotorModule, ValveModule } from '../engine/types'
 import { WfiDiagram, AutoclaveDiagram, LyoDiagram, CipDiagram, TcuDiagram } from './PharmaDiagrams'
+import { ProcessWasteDiagram } from './ProcessWasteDiagram'
 import { PlantNavigationOverview } from './PlantNavigationOverview'
 
 /** World-space origins for each plant area on the one shared coordinate
@@ -31,6 +32,7 @@ const AREAS = {
   LYO: { x: 1150, y: 320, cx: 1670, cy: 435, scale: 1 },
   CIP: { x: 1150, y: 600, cx: 1670, cy: 740, scale: 0.9 },
   TCU: { x: 1150, y: 920, cx: 1670, cy: 1035, scale: 1 },
+  PWASTE: { x: 0, y: 1360, cx: 520, cy: 1640, scale: 0.85 },
   OVERVIEW: { x: 0, y: 0, cx: 1100, cy: 600, scale: 0.34 }
 } as const
 
@@ -208,6 +210,11 @@ export function SpatialProcessDisplay({ focusArea }: { focusArea?: 'FEED' | 'REA
         <AreaLabel x={AREAS.TCU.x} y={AREAS.TCU.y} text="TEMPERATURE CONTROL UNITS (TCUs)" />
         <g transform={`translate(${AREAS.TCU.x}, ${AREAS.TCU.y})`}>
           <TcuDiagram embedded />
+        </g>
+
+        <AreaLabel x={AREAS.PWASTE.x} y={AREAS.PWASTE.y} text="PROCESS WASTE NEUTRALIZATION" />
+        <g transform={`translate(${AREAS.PWASTE.x}, ${AREAS.PWASTE.y})`}>
+          <ProcessWasteDiagram embedded />
         </g>
       </DeltaVCanvas>
     </div>

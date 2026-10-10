@@ -32,6 +32,7 @@ export type DisplayId =
   | 'lyo'
   | 'cip'
   | 'tcu'
+  | 'pwaste'
 
 export interface OpenFaceplate {
   tag: string

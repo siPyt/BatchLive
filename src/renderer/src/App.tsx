@@ -93,6 +93,7 @@ export function App(): JSX.Element {
           {display === 'lyo' && <AreaDisplay key={`lyo-${processViewRevision}`} area="LYO" />}
           {display === 'cip' && <AreaDisplay key={`cip-${processViewRevision}`} area="CIP" />}
           {display === 'tcu' && <AreaDisplay key={`tcu-${processViewRevision}`} area="TCU" />}
+          {display === 'pwaste' && <AreaDisplay key={`pwaste-${processViewRevision}`} area="PWASTE" />}
           {display === 'alarms' && <AlarmSummary />}
           {display === 'journal' && <EventJournalDisplay />}
           {display === 'trend' && <TrendDisplay />}

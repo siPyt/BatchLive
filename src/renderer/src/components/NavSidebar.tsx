@@ -13,7 +13,8 @@ const DISPLAYS: NavNode[] = [
   { id: 'photo-overview', label: 'Photographed WFI Plant', ico: '▣' },
   { id: 'feed', label: 'Feed System', ico: '◉' },
   { id: 'reactor', label: 'Reactor', ico: '⬡' },
-  { id: 'product', label: 'Product / Header', ico: '◈' }
+  { id: 'product', label: 'Product / Header', ico: '◈' },
+  { id: 'pwaste', label: 'Process Waste Neut.', ico: '♻' }
 ]
 
 const PHARMA: NavNode[] = [
