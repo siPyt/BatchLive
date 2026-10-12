@@ -107,11 +107,11 @@ export function App(): JSX.Element {
           {display === 'system' && <SystemPreferencesDisplay />}
           {display === 'applications' && <ApplicationsDisplay />}
           {display === 'hardware' && <PhysicalNetworkDisplay />}
-          <FaceplateHost />
         </div>
       </div>
       <AlarmBanner />
       <StatusBar />
+      <FaceplateHost />
       <AccessDeniedToast />
       <FlexLockOverlay />
       <SignatureDialog />

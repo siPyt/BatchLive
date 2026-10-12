@@ -27,6 +27,7 @@ import {
 import type { AnyModule, PlantState } from '../engine/types'
 import { useUi } from '../ui/uiStore'
 import { NewControlModuleDialog } from './ExplorerDisplay'
+import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 
 const STATUS_COLOR: Record<SfcDef['status'], string> = {
   READY: '#9aa0a7',
@@ -47,6 +48,7 @@ export function SfcDisplay(): JSX.Element {
   const [newName, setNewName] = useState('')
   const [newArea, setNewArea] = useState('FEED')
   const [showNew, setShowNew] = useState(false)
+  const [listWidth, setListWidth] = usePersistentSize('sfc.listWidth', 230)
 
   const runtime = sfcs[selected]
   const sfc = runtime ? sfcEditorDefinition(runtime, lifecycles[selected]) : undefined
@@ -54,7 +56,7 @@ export function SfcDisplay(): JSX.Element {
   return (
     <div className="display sfc">
       {showNew && <NewControlModuleDialog initialArea={sfc?.area ?? areas[0] ?? ''} onClose={() => setShowNew(false)} />}
-      <div className="sfc-list">
+      <div className="sfc-list" style={{ width: listWidth, minWidth: listWidth, flex: `0 0 ${listWidth}px` }}>
         <div className="exp-toolbar"><button className="tbtn sm" onClick={() => setShowNew(true)}>New Control Module...</button></div>
         <div className="exp-toolbar" style={{ display: 'flex', gap: 6 }}>
           <input
@@ -92,6 +94,8 @@ export function SfcDisplay(): JSX.Element {
         ))}
       </div>
 
+      <PaneResizer axis="x" sign={1} value={listWidth} min={170} max={460}
+        onChange={setListWidth} label="Resize SFC list" />
       <div className="sfc-detail">
         {!sfc ? <div className="exp-empty">Select or create an SFC.</div> : <SfcEditor key={sfc.name} sfc={sfc} />}
       </div>
@@ -111,6 +115,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
   const [properties, setProperties] = useState<SfcPropertiesTarget | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; target: SfcPropertiesTarget } | null>(null)
   const [check, setCheck] = useState<{ steps: SfcStep[]; error: string | null } | null>(null)
+  const [propsHeight, setPropsHeight] = usePersistentSize('sfc.propsHeight', 220)
   useEffect(() => {
     const close = (event: MouseEvent): void => {
       if (!(event.target instanceof Element) || !event.target.closest('.ctx-menu')) setMenu(null)
@@ -217,8 +222,13 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
       </div>}
 
       {editable && selected !== null && sfc.steps[selected] && (
+        <PaneResizer axis="y" sign={-1} value={propsHeight} min={120} max={520}
+          onChange={setPropsHeight} label="Resize step properties panel" />
+      )}
+      {editable && selected !== null && sfc.steps[selected] && (
         <StepPropertiesPanel
           step={sfc.steps[selected]}
+          height={propsHeight}
           modules={modules}
           onClose={() => setSelected(null)}
           onDelete={() => {
@@ -476,6 +486,7 @@ function durationHHMMSS(seconds: number): string {
  * tucked away until a step is actually selected for configuration. */
 function StepPropertiesPanel({
   step,
+  height,
   modules,
   onClose,
   onDelete,
@@ -485,6 +496,7 @@ function StepPropertiesPanel({
   onContext
 }: {
   step: SfcStep
+  height: number
   modules: Record<string, AnyModule>
   onClose: () => void
   onDelete: () => void
@@ -494,7 +506,7 @@ function StepPropertiesPanel({
   onContext: (index: number | null, x: number, y: number) => void
 }): JSX.Element {
   return (
-    <div className="sfc-props">
+    <div className="sfc-props" style={{ height, maxHeight: 'none' }}>
       <div className="sfc-props-head">
         <input className="sfc-stepname" value={step.name} onChange={(e) => onChange({ name: e.target.value })} />
         <span style={{ flex: 1 }} />

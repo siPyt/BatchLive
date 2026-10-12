@@ -6,6 +6,7 @@ import { alarmFieldPath } from '../engine/alarmFields'
 import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
 import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engine/types'
 import { ModuleIcon } from '../components/EngineeringIcons'
+import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { ModuleDisplayControls } from '../components/ModuleDisplayControls'
 import { ModuleScanControls } from '../components/ModuleScanControls'
 import { RemoteHostPanel } from '../components/RemoteHostPanel'
@@ -108,6 +109,7 @@ export function ExplorerDisplay(): JSX.Element {
     REACTOR: true,
     PRODUCT: true
   })
+  const [treeWidth, setTreeWidth] = usePersistentSize('explorer.treeWidth', 560)
   const [createArea, setCreateArea] = useState<string | null>(null)
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
@@ -206,7 +208,7 @@ export function ExplorerDisplay(): JSX.Element {
 
   return (
     <div className="display explorer">
-      <div className="explorer-tree">
+      <div className="explorer-tree" style={{ width: treeWidth, minWidth: treeWidth, flex: `0 0 ${treeWidth}px` }}>
         <div className="exp-toolbar">
           <button className="tbtn sm" onClick={() => setCreateArea((v) => (v ? null : areas[0]))}>
             {createArea ? '✕ Cancel' : '＋ New Module'}
@@ -422,6 +424,8 @@ export function ExplorerDisplay(): JSX.Element {
           })}
       </div>
 
+      <PaneResizer axis="x" sign={1} value={treeWidth} min={300} max={960}
+        onChange={setTreeWidth} label="Resize explorer tree" />
       <div className="explorer-detail">
         {setupView === 'alarmPriorities' ? <AlarmPrioritiesPanel /> : setupView === 'hierarchy' ? <HierarchyPanel /> : setupView === 'licensing' ? <LicensingProperties /> : setupView === 'export' ? (
           <ExportImportPanel initialNamedSet={selectedNamedSet} />

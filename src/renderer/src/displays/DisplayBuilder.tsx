@@ -15,6 +15,7 @@ import { pictureFlowColor } from '../engine/pictureFlow'
 import { useFlowColors } from '../engine/flowColorStore'
 import { FlowAnimationControls, FlowTablesDialog } from '../components/PictureFlowControls'
 import { CourseDynamo } from '../components/CourseDynamos'
+import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { DYNAMO_SETS, FONT_FAMILIES, TITLE_GROUP, clampPosition, formatLayout, historicalValue, pictureDiscretePath,
   pictureDiscreteSignal, pictureSourcePaths, refreshedSample, type DynamoSetName } from '../engine/pictureObjects'
 
@@ -55,6 +56,7 @@ export function DisplayBuilder(): JSX.Element {
   const [selEl, setSelEl] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [pictureProperties, setPictureProperties] = useState(false)
+  const [propsWidth, setPropsWidth] = usePersistentSize('builder.propsWidth', 240)
   const [flowTablesOpen, setFlowTablesOpen] = useState(false)
   const navigate = useUi(s => s.navigate)
   const requestedPicture = useUi(s => s.builderPicture)
@@ -210,8 +212,18 @@ export function DisplayBuilder(): JSX.Element {
           <>
             <Canvas key={selected} picture={selected} edit={edit} selEl={selEl} setSelEl={setSelEl} />
             {edit && pictureProperties ? (
-              <PictureProperties key={selected} picture={selected} onClose={() => setPictureProperties(false)} />
-            ) : edit && selEl ? <PropsPanel picture={selected} id={selEl} /> : null}
+              <>
+                <PaneResizer axis="x" sign={-1} value={propsWidth} min={180} max={560}
+                  onChange={setPropsWidth} label="Resize properties panel" />
+                <PictureProperties key={selected} picture={selected} width={propsWidth} onClose={() => setPictureProperties(false)} />
+              </>
+            ) : edit && selEl ? (
+              <>
+                <PaneResizer axis="x" sign={-1} value={propsWidth} min={180} max={560}
+                  onChange={setPropsWidth} label="Resize properties panel" />
+                <PropsPanel picture={selected} id={selEl} width={propsWidth} />
+              </>
+            ) : null}
           </>
         )}
       </div>
@@ -219,7 +231,7 @@ export function DisplayBuilder(): JSX.Element {
   )
 }
 
-function PictureProperties({ picture, onClose }: { picture: string; onClose: () => void }): JSX.Element {
+function PictureProperties({ picture, width, onClose }: { picture: string; width: number; onClose: () => void }): JSX.Element {
   const pic = usePictures(s => s.pictures[picture])
   const setPictureLinks = usePictures(s => s.setPictureLinks)
   const setBackground = usePictures(s => s.setPictureBackground)
@@ -229,7 +241,7 @@ function PictureProperties({ picture, onClose }: { picture: string; onClose: () 
   const [next, setNext] = useState(pic.nextPicture ?? '')
   const [error, setError] = useState('')
   return (
-    <div className="bld-props">
+    <div className="bld-props" style={{ width, minWidth: width, flex: `0 0 ${width}px` }}>
       <div className="bld-props-head"><b>Picture</b></div>
       <div className="bld-f" data-picture-template={pic.template}>Template: {pic.template ? 'Main template' : 'none (blank picture)'}</div>
       <label className="bld-f">Background
@@ -508,7 +520,7 @@ function HeldText({ text, seconds }: { text: string; seconds?: number }): JSX.El
   return <>{held.current.value}</>
 }
 
-function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Element | null {
+function PropsPanel({ picture, id, width }: { picture: string; id: string; width: number }): JSX.Element | null {
   const el = usePictures((s) => s.pictures[picture]?.elements.find((e) => e.id === id))
   const updateElement = usePictures((s) => s.updateElement)
   const removeElement = usePictures((s) => s.removeElement)
@@ -518,7 +530,7 @@ function PropsPanel({ picture, id }: { picture: string; id: string }): JSX.Eleme
   if (!el) return null
 
   return (
-    <div className="bld-props">
+    <div className="bld-props" style={{ width, minWidth: width, flex: `0 0 ${width}px` }}>
       <div className="bld-props-head">
         <b>{el.type.toUpperCase()}</b>
         <button className="tbtn sm danger" onClick={() => removeElement(picture, id)}>

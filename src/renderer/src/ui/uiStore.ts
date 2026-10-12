@@ -38,6 +38,8 @@ export interface OpenFaceplate {
   tag: string
   x: number
   y: number
+  /** Monotonic stacking token; the highest-token faceplate renders on top. */
+  z: number
 }
 
 interface UiState {
@@ -70,6 +72,8 @@ interface UiState {
   openFaceplate: (tag: string, x?: number, y?: number) => void
   closeFaceplate: (tag: string) => void
   moveFaceplate: (tag: string, x: number, y: number) => void
+  /** Raise a faceplate to the top of the stack and select it (click-to-front). */
+  focusFaceplate: (tag: string) => void
   select: (tag: string | null) => void
   openStudio: (tag: string) => void
   openSfc: (name: string) => boolean
@@ -97,6 +101,7 @@ interface UiState {
 }
 
 let cascade = 0
+let faceTop = 0
 
 export const useUi = create<UiState>((set, get) => ({
   navigationOpen: false,
@@ -145,14 +150,14 @@ export const useUi = create<UiState>((set, get) => ({
   openFaceplate: (tag, x, y) => {
     const existing = get().faceplates.find((f) => f.tag === tag)
     if (existing) {
-      set({ selectedTag: tag })
+      get().focusFaceplate(tag)
       return
     }
     const offset = (cascade++ % 6) * 26
     const px = x ?? 120 + offset
     const py = y ?? 110 + offset
     set((s) => ({
-      faceplates: [...s.faceplates, { tag, x: px, y: py }],
+      faceplates: [...s.faceplates, { tag, x: px, y: py, z: ++faceTop }],
       selectedTag: tag
     }))
   },
@@ -164,6 +169,19 @@ export const useUi = create<UiState>((set, get) => ({
     set((s) => ({
       faceplates: s.faceplates.map((f) => (f.tag === tag ? { ...f, x, y } : f))
     })),
+
+  focusFaceplate: (tag) =>
+    set((s) => {
+      const target = s.faceplates.find((f) => f.tag === tag)
+      // Already on top: just select, avoid a needless token bump/re-render.
+      if (target && target.z === Math.max(...s.faceplates.map((f) => f.z))) {
+        return { selectedTag: tag }
+      }
+      return {
+        selectedTag: tag,
+        faceplates: s.faceplates.map((f) => (f.tag === tag ? { ...f, z: ++faceTop } : f))
+      }
+    }),
 
   select: (selectedTag) => set({ selectedTag }),
 

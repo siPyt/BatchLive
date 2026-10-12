@@ -15,14 +15,14 @@ const PANELS = [
     readings: ['AT-402', 'AT-401', 'TIC-401'], device: 'P-401' }
 ] satisfies { display: DisplayId; title: string; vessel: string; level: string; readings: string[]; device: string }[]
 
-const OTHER_AREAS: DisplayId[] = ['plant-map', 'photo-overview', 'photo-still', 'product', 'autoclave', 'lyo', 'cip', 'tcu']
+const OTHER_AREAS: DisplayId[] = ['plant-map', 'photo-overview', 'photo-still', 'product', 'autoclave', 'lyo', 'cip', 'tcu', 'pwaste']
 const ROOMS = [
   { title: 'Room 1040', tanks: ['3T-5370', '3T-5440', '3T-5460', '3T-8030'], wide: true },
   { title: 'Room 1040A', tanks: ['3T-5420'], wide: false },
   { title: 'Room 1042', tanks: ['3T-5110'], wide: false }
 ]
 const REFERENCE_ONLY = ['NGS-808', 'Scrubber 3S-8050', 'CIP-804', 'WFI Pretr Skid', '3TCU-8010', '3TCU-8020',
-  'Glycol 3T-8150', 'Process Waste', '3UF-8201', 'HCL Totes', 'PW Neutr.', '3SUR-3300', '3SUR-3200',
+  'Glycol 3T-8150', '3UF-8201', 'HCL Totes', '3SUR-3300', '3SUR-3200',
   'Buffer Prep', '3CIP-3200', '3T-3300', '3T-3350']
 
 export function PlantNavigationOverview(): JSX.Element {

@@ -156,9 +156,12 @@ test('IMG_0616 overview is a fixed three-panel navigation screen, while area det
   }
   for (const label of ['Room 1040', 'Room 1040A', 'Room 1042', 'WFI Still']) assert.ok(html.includes(label), label)
   for (const label of ['NGS-808', 'Scrubber 3S-8050', 'CIP-804', 'WFI Pretr Skid', '3TCU-8010', '3TCU-8020', 'Glycol 3T-8150',
-    'Process Waste', '3UF-8201', 'HCL Totes', 'PW Neutr.', '3SUR-3300', '3SUR-3200', 'Buffer Prep', '3CIP-3200', '3T-3300', '3T-3350']) {
+    '3UF-8201', 'HCL Totes', '3SUR-3300', '3SUR-3200', 'Buffer Prep', '3CIP-3200', '3T-3300', '3T-3350']) {
     assert.match(html, new RegExp(`aria-disabled="true"[^>]*>${label.replace(/[.]/g, '\\.')}</button>`), label)
   }
+  // Process Waste Neutralization is now a modeled area: it appears as a working navigation button, not a disabled reference tile.
+  assert.match(html, /class="overview-navigation-button"[^>]*>Process Waste Neutralization<\/button>/)
+  assert.ok(!/aria-disabled="true"[^>]*>(Process Waste|PW Neutr\.)</.test(html))
   assert.equal((html.match(/not modeled/g) || []).length >= 6, true)
   assert.match(render(OverviewDisplay, { focusArea: 'REACTOR' }), /dv-area-jumpbar/)
 })

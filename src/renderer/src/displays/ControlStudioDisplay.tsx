@@ -5,6 +5,7 @@ import { isPidTargetMode, PID_TARGET_MODES, pidExecutionBad, pidModeFieldsError,
 import { useUi } from '../ui/uiStore'
 import { fmt } from '../utils/format'
 import { FbdCanvas } from '../components/FbdCanvas'
+import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { StandaloneAoControls } from '../components/StandaloneAoControls'
 import { ModuleDownloadDialog, ModuleLifecycleRows } from '../components/ModuleLifecycleControls'
 import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
@@ -54,6 +55,9 @@ export function ControlStudioDisplay(): JSX.Element {
   const [showHierarchy, setShowHierarchy] = useState(true)
   const [bottomTab, setBottomTab] = useState<'parameters' | 'alarms'>('parameters')
   const [showPalette, setShowPalette] = useState(true)
+  const [hierWidth, setHierWidth] = usePersistentSize('studio.hierWidth', 190)
+  const [paletteWidth, setPaletteWidth] = usePersistentSize('studio.paletteWidth', 184)
+  const [bottomHeight, setBottomHeight] = usePersistentSize('studio.bottomHeight', 200)
   const [blockSelection, setBlockSelection] = useState<{ tag: string; block: PidBlockName } | null>(null)
   const [showNew, setShowNew] = useState(false)
   const areas = useStore(s => s.areas)
@@ -92,8 +96,10 @@ export function ControlStudioDisplay(): JSX.Element {
       />
       {showNew && <NewControlModuleDialog initialArea={m.area} onClose={() => setShowNew(false)} />}
       <div className="studio-main">
-        {showHierarchy && <HierarchyView module={m} selectedBlock={selectedBlock}
+        {showHierarchy && <HierarchyView module={m} selectedBlock={selectedBlock} width={hierWidth}
           onSelect={(block) => setBlockSelection({ tag: m.tag, block })} />}
+        {showHierarchy && <PaneResizer axis="x" sign={1} value={hierWidth} min={140} max={520}
+          onChange={setHierWidth} label="Resize hierarchy panel" />}
         <div className="studio-center">
           <div className="studio-page" role="document" aria-label={`${m.tag} diagram and logic explanation`}>
             {isDevice ? <DeviceLogicView module={m as MotorModule | ValveModule} zoom={zoom} /> : <>
@@ -116,7 +122,9 @@ export function ControlStudioDisplay(): JSX.Element {
             {m.type === 'FB' && m.tag.includes('/') && modules[m.tag.split('/')[0]]?.type === 'MOTOR' &&
               <button className="tbtn sm" onClick={() => openStudio(m.tag.split('/')[0])}>Owning motor: {m.tag.split('/')[0]} - Save / Download</button>}
           </div>
-          <div className="studio-bottom">
+          <PaneResizer axis="y" sign={-1} value={bottomHeight} min={96} max={600}
+            onChange={setBottomHeight} label="Resize parameter and alarm panel" />
+          <div className="studio-bottom" style={{ height: bottomHeight }}>
             <div className="studio-bottom-tabs" role="tablist" aria-label="Bottom panel">
               <button type="button" role="tab" aria-selected={bottomTab === 'parameters'} className={bottomTab === 'parameters' ? 'active' : ''} onClick={() => setBottomTab('parameters')}>Parameter View</button>
               <button type="button" role="tab" aria-selected={bottomTab === 'alarms'} className={bottomTab === 'alarms' ? 'active' : ''} onClick={() => setBottomTab('alarms')}>Alarm View</button>
@@ -125,7 +133,9 @@ export function ControlStudioDisplay(): JSX.Element {
             {bottomTab === 'alarms' && <AlarmView module={m} />}
           </div>
         </div>
-        {showPalette && !isDevice && <PaletteView area={m.area} />}
+        {showPalette && !isDevice && <PaneResizer axis="x" sign={-1} value={paletteWidth} min={140} max={420}
+          onChange={setPaletteWidth} label="Resize palette panel" />}
+        {showPalette && !isDevice && <PaletteView area={m.area} width={paletteWidth} />}
       </div>
       <div className="studio-statusbar">
         <span>Assigned to: {assigned ?? 'Not assigned'}</span>
@@ -140,11 +150,11 @@ export function ControlStudioDisplay(): JSX.Element {
   )
 }
 
-function HierarchyView({ module: m, selectedBlock, onSelect }: {
-  module: AnyModule; selectedBlock: PidBlockName; onSelect: (block: PidBlockName) => void
+function HierarchyView({ module: m, selectedBlock, onSelect, width }: {
+  module: AnyModule; selectedBlock: PidBlockName; onSelect: (block: PidBlockName) => void; width: number
 }): JSX.Element {
   return (
-    <div className="studio-pane studio-hier">
+    <div className="studio-pane studio-hier" style={{ width, minWidth: width, flex: `0 0 ${width}px` }}>
       <div className="studio-tree">
         <div className="studio-tree-root">
           <ModuleIcon kind="control" /> {m.tag}
@@ -1311,7 +1321,7 @@ const PALETTE: { group: string; items: PaletteItem[] }[] = [
   }
 ]
 
-function PaletteView({ area }: { area: string }): JSX.Element {
+function PaletteView({ area, width }: { area: string; width: number }): JSX.Element {
   const createModule = useStore((s) => s.createModule)
   const modules = useStore((s) => s.modules)
   const sfcs = useStore(s => s.sfcs)
@@ -1336,7 +1346,7 @@ function PaletteView({ area }: { area: string }): JSX.Element {
   }
 
   return (
-    <div className="studio-pane studio-palette">
+    <div className="studio-pane studio-palette" style={{ width, minWidth: width, flex: `0 0 ${width}px` }}>
       <div className="studio-palette-body">
         {PALETTE.map((g) => (
           <div key={g.group} className="studio-pal-group">

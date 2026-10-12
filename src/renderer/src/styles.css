@@ -1099,7 +1099,7 @@ button {
 /* Faceplate                                                           */
 /* ------------------------------------------------------------------ */
 .faceplate {
-  position: absolute;
+  position: fixed;
   width: 292px;
   background: var(--dv-panel);
   border: 1px solid var(--dv-border-light);
@@ -1108,6 +1108,13 @@ button {
   z-index: 50;
   display: flex;
   flex-direction: column;
+}
+.faceplate.minimized {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.faceplate.minimized .fp-header {
+  border-bottom: none;
+  border-radius: 4px;
 }
 .fp-header {
   display: flex;
@@ -3335,6 +3342,28 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+.pane-resizer {
+  flex: 0 0 auto;
+  background: transparent;
+  transition: background 0.12s ease;
+  z-index: 5;
+}
+.pane-resizer-x {
+  width: 6px;
+  cursor: col-resize;
+  align-self: stretch;
+}
+.pane-resizer-y {
+  height: 6px;
+  cursor: row-resize;
+  align-self: stretch;
+}
+.pane-resizer:hover,
+.pane-resizer.dragging,
+.pane-resizer:focus-visible {
+  background: #1f6fbf;
+  outline: none;
 }
 .studio-pane {
   display: flex;

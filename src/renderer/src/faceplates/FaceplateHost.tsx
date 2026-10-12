@@ -20,25 +20,27 @@ export function FaceplateHost(): JSX.Element {
   const closeDetail = useUi(state => state.closePidDetail)
   const modules = useStore((s) => s.modules)
   const hardware = useStore((s) => s.hardware)
+  const order = [...faceplates].sort((a, b) => a.z - b.z)
+  const zIndexFor = (tag: string): number => 50 + order.findIndex((f) => f.tag === tag)
   return (
     <>
       {faceplates.map((f) => (
         !modules[f.tag] && findFfDevice(hardware, f.tag)
-          ? <FfDeviceFaceplate key={f.tag} tag={f.tag} x={f.x} y={f.y} />
-          : <FaceplateWindow key={f.tag} tag={f.tag} x={f.x} y={f.y} />
+          ? <FfDeviceFaceplate key={f.tag} tag={f.tag} x={f.x} y={f.y} zIndex={zIndexFor(f.tag)} />
+          : <FaceplateWindow key={f.tag} tag={f.tag} x={f.x} y={f.y} zIndex={zIndexFor(f.tag)} />
       ))}
       {detailTag && <PidDetailDialog tag={detailTag} onClose={closeDetail} />}
     </>
   )
 }
 
-function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): JSX.Element | null {
+function FaceplateWindow({ tag, x, y, zIndex }: { tag: string; x: number; y: number; zIndex: number }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag])
   const alarms = useStore((s) => s.alarms)
   const ackAlarm = useStore((s) => s.ackAlarm)
   const close = useUi((s) => s.closeFaceplate)
   const move = useUi((s) => s.moveFaceplate)
-  const select = useUi((s) => s.select)
+  const focusFaceplate = useUi((s) => s.focusFaceplate)
   const openStudio = useUi((s) => s.openStudio)
   const focusExplorer = useUi((s) => s.focusExplorer)
   const focusTrend = useUi((s) => s.focusTrend)
@@ -46,6 +48,7 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
   const openModuleDisplay = useUi(s => s.openModuleDisplay)
   const drag = useRef<{ dx: number; dy: number } | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [minimized, setMinimized] = useState(false)
 
   useEffect(() => {
     function onMove(e: MouseEvent): void {
@@ -93,19 +96,27 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
   }
 
   return (
-    <div className="faceplate" style={{ left: x, top: y, maxHeight: `calc(100% - ${Math.max(0, y)}px - 12px)` }} onMouseDown={() => select(tag)}>
+    <div className={'faceplate' + (minimized ? ' minimized' : '')}
+      style={{ left: x, top: y, zIndex, maxHeight: minimized ? 'none' : `calc(100% - ${Math.max(0, y)}px - 12px)` }}
+      onMouseDown={() => focusFaceplate(tag)}>
       <div
         className="fp-header"
         onMouseDown={(e) => {
           drag.current = { dx: e.clientX - x, dy: e.clientY - y }
         }}
+        onDoubleClick={() => setMinimized((v) => !v)}
+        title="Double-click to minimize / restore"
       >
         <span className="fp-tag">{tag}</span>
         <span className="fp-desc">{m.description}</span>
+        <button className="fp-close" onClick={() => setMinimized((v) => !v)} title={minimized ? 'Restore' : 'Minimize'}>
+          {minimized ? '▢' : '—'}
+        </button>
         <button className="fp-close" onClick={() => close(tag)} title="Close">
           ×
         </button>
       </div>
+      {!minimized && <>
       {body}
       {(m.primaryDisplay || m.detailDisplay || m.type === 'PID') && <div className="fp-links">
         {m.primaryDisplay && <button className="fp-link-btn" onClick={() => openModuleDisplay(tag, 'primary')}
@@ -153,6 +164,7 @@ function FaceplateWindow({ tag, x, y }: { tag: string; x: number; y: number }): 
           </button>
         )}
       </div>
+      </>}
     </div>
   )
 }

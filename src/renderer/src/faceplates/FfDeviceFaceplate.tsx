@@ -4,18 +4,37 @@ import { useSecurity } from '../engine/security'
 import * as act from '../engine/fieldbusActions'
 import { DEVICE_ALARM_KINDS, catalogEntry, deviceComm, type DeviceAlarmKind } from '../engine/fieldbus'
 import { DEVICE_ALARM_LABEL, deviceAlarmArea, deviceAlarmCondition, deviceAlarmId, findFfDevice } from '../engine/deviceAlarms'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 /** FFDEV_FP: the faceplate of a FOUNDATION fieldbus device with its device alarms and settings. */
-export function FfDeviceFaceplate({ tag, x, y }: { tag: string; x: number; y: number }): JSX.Element | null {
+export function FfDeviceFaceplate({ tag, x, y, zIndex }: { tag: string; x: number; y: number; zIndex: number }): JSX.Element | null {
   const hardware = useStore((s) => s.hardware)
   const modules = useStore((s) => s.modules)
   const alarms = useStore((s) => s.alarms)
   const ackAlarm = useStore((s) => s.ackAlarm)
   const close = useUi((s) => s.closeFaceplate)
+  const move = useUi((s) => s.moveFaceplate)
+  const focusFaceplate = useUi((s) => s.focusFaceplate)
   const found = findFfDevice(hardware, tag)
   const canConfigure = useSecurity((s) => s.hasLock('CAN_CONFIGURE'))
   const [message, setMessage] = useState<string | null>(null)
+  const [minimized, setMinimized] = useState(false)
+  const drag = useRef<{ dx: number; dy: number } | null>(null)
+  useEffect(() => {
+    function onMove(e: MouseEvent): void {
+      if (!drag.current) return
+      move(tag, e.clientX - drag.current.dx, e.clientY - drag.current.dy)
+    }
+    function onUp(): void {
+      drag.current = null
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [tag, move])
   if (!found) return null
   const { card, device } = found
   const entry = catalogEntry(device.catalogId)
@@ -23,11 +42,18 @@ export function FfDeviceFaceplate({ tag, x, y }: { tag: string; x: number; y: nu
   const area = deviceAlarmArea(hardware, modules, tag)
   const report = (result: string | null): void => setMessage(result)
   return (
-    <div className="faceplate" style={{ left: x, top: y, position: 'absolute', zIndex: 30 }} role="dialog" aria-label={`FFDEV_FP ${tag}`} data-ffdev-faceplate={tag}>
-      <div className="fp-title">
+    <div className={'faceplate' + (minimized ? ' minimized' : '')}
+      style={{ left: x, top: y, position: 'fixed', zIndex, maxHeight: minimized ? 'none' : 'calc(100vh - 90px)', overflow: minimized ? 'visible' : 'auto' }}
+      role="dialog" aria-label={`FFDEV_FP ${tag}`} data-ffdev-faceplate={tag} onMouseDown={() => focusFaceplate(tag)}>
+      <div className="fp-title" style={{ cursor: 'move' }}
+        onMouseDown={(e) => { drag.current = { dx: e.clientX - x, dy: e.clientY - y } }}
+        onDoubleClick={() => setMinimized((v) => !v)}
+        title="Double-click to minimize / restore">
         <b>{tag}</b> <span>FFDEV_FP</span>
+        <button className="tbtn sm" onClick={() => setMinimized((v) => !v)} aria-label={minimized ? 'Restore faceplate' : 'Minimize faceplate'}>{minimized ? '▢' : '—'}</button>
         <button className="tbtn sm" onClick={() => close(tag)} aria-label="Close faceplate">✕</button>
       </div>
+      {!minimized && <>
       <div className="fp-row">{entry?.model} · {device.state} · address {device.address} · {deviceComm(card, device.port, device) ? 'communicating' : 'not communicating'}</div>
       <div className="fp-row">Alarm area: {area ?? 'none'} · Device alarms {card.deviceAlarms ? 'enabled' : 'disabled'}</div>
       {device.alarms.primaryDisplay && <div className="fp-row">Primary display: {device.alarms.primaryDisplay}</div>}
@@ -81,6 +107,7 @@ export function FfDeviceFaceplate({ tag, x, y }: { tag: string; x: number; y: nu
         )}
         {message && <p role="alert">{message}</p>}
       </div>
+      </>}
     </div>
   )
 }
