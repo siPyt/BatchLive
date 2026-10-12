@@ -1151,7 +1151,13 @@ Evidence: Pass32/33 and device-descriptors regressions implement Named Set
   byte-for-byte unchanged, verified by dedicated regressions contrasting both
   branches on real MOTOR/VALVE modules for both the internal and downloaded
   paths, including the Reset-Required latch and reset recovery.
-Gaps: SP tracking behavior remains unimplemented; arbitrary
+  Pass100 also adds the SP Track DEVICE_OPTS option: while the command is
+  overridden (interlock/locked/tripped) SP_D tracks PV_D, so control returns
+  bumpless and the operator must explicitly re-command Active, instead of the
+  held command re-asserting on clear. Threaded through the full device
+  draft/save/download lifecycle and both step paths, default off -> unchanged,
+  verified by a dedicated regression contrasting both branches.
+Gaps: arbitrary
   independent bit0/bit1 state masks and the native property/workshop sequence
   also remain open (see DV09-048).
 Acceptance: Verify stored name/value mappings and each enabled option with

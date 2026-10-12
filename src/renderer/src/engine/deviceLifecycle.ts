@@ -25,6 +25,7 @@ export interface DeviceConfiguration {
   feedbackUnavailable?: boolean
   passiveOnTimeout?: boolean
   tripEnabled?: boolean
+  spTrack?: boolean
   strategy?: MotorStrategyConfiguration
   descriptors?: DeviceStateDescriptors
 }
@@ -64,7 +65,7 @@ export function captureDevice(m: MotorModule | ValveModule, hw: HardwareState): 
   permissiveRequired: m.permissiveRequired, resetRequired: m.resetRequired,
   confirmTimeSec: m.confirmTimeSec, interlockInverted: m.interlockInverted,
   feedbackInverted: m.feedbackInverted, feedbackUnavailable: m.feedbackUnavailable, passiveOnTimeout: m.passiveOnTimeout,
-  tripEnabled: m.tripEnabled,
+  tripEnabled: m.tripEnabled, spTrack: m.spTrack,
   strategy: m.type === 'MOTOR' ? captureMotorStrategy(m) : undefined, interlockSource: m.interlockSource,
   permissiveSource: m.permissiveSource, commandSource: m.commandSource,
   descriptors: m.descriptors ? { ...m.descriptors } : undefined }
@@ -82,6 +83,7 @@ export function deviceConfigurationError(c: DeviceConfiguration, modules: Record
     c.feedbackUnavailable !== undefined && typeof c.feedbackUnavailable !== 'boolean' ? 'Feedback availability must be Boolean' :
     c.passiveOnTimeout !== undefined && typeof c.passiveOnTimeout !== 'boolean' ? 'Passive on Timeout must be Boolean' :
     c.tripEnabled !== undefined && typeof c.tripEnabled !== 'boolean' ? 'Trip option must be Boolean' :
+    c.spTrack !== undefined && typeof c.spTrack !== 'boolean' ? 'SP Track option must be Boolean' :
     (c.descriptors ? descriptorMappingError(c.descriptors) ??
       (namedSets ? descriptorDefinitionError(c.descriptors, namedSets[c.descriptors.namedSet]) : null) : null) ??
     (c.strategy ? c.type !== 'MOTOR' ? 'Only motor modules can own this strategy' :
@@ -120,7 +122,7 @@ export function prepareDeviceTransfer(record: DeviceLifecycle | undefined, tag: 
   const module = { ...m, permissiveRequired: c.permissiveRequired,
     interlockInverted: c.interlockInverted, feedbackInverted: c.feedbackInverted, feedbackUnavailable: c.feedbackUnavailable,
     passiveOnTimeout: c.passiveOnTimeout, descriptors: c.descriptors ? { ...c.descriptors } : undefined,
-    tripEnabled: c.tripEnabled,
+    tripEnabled: c.tripEnabled, spTrack: c.spTrack,
     resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec, interlockSource: c.interlockSource,
     permissiveSource: c.permissiveSource, commandSource: c.commandSource, controllerTag: c.controllerTag,
     downloaded: true, ioInputBad: true, ioOutputBad: true, outputCommand: false, travelTimer: 0,
@@ -157,6 +159,7 @@ export function parseDevice(text: string, tag: string): DeviceConfiguration {
   if ('feedbackUnavailable' in c && typeof c.feedbackUnavailable !== 'boolean') throw new Error('Invalid saved feedback availability')
   if ('passiveOnTimeout' in c && typeof c.passiveOnTimeout !== 'boolean') throw new Error('Invalid saved Passive on Timeout option')
   if ('tripEnabled' in c && typeof c.tripEnabled !== 'boolean') throw new Error('Invalid saved Trip option')
+  if ('spTrack' in c && typeof c.spTrack !== 'boolean') throw new Error('Invalid saved SP Track option')
   return { tag, type: c.type, controllerTag: c.controllerTag, inputDst: c.inputDst, outputDst: c.outputDst,
     permissiveRequired: c.permissiveRequired, resetRequired: c.resetRequired, confirmTimeSec: c.confirmTimeSec,
     interlockSource: 'interlockSource' in c && typeof c.interlockSource === 'string' ? c.interlockSource : undefined,
@@ -167,6 +170,7 @@ export function parseDevice(text: string, tag: string): DeviceConfiguration {
     feedbackUnavailable: 'feedbackUnavailable' in c && typeof c.feedbackUnavailable === 'boolean' ? c.feedbackUnavailable : undefined,
     passiveOnTimeout: 'passiveOnTimeout' in c && typeof c.passiveOnTimeout === 'boolean' ? c.passiveOnTimeout : undefined,
     tripEnabled: 'tripEnabled' in c && typeof c.tripEnabled === 'boolean' ? c.tripEnabled : undefined,
+    spTrack: 'spTrack' in c && typeof c.spTrack === 'boolean' ? c.spTrack : undefined,
     descriptors: 'descriptors' in c ? parseDeviceDescriptors(c.descriptors) : undefined,
     strategy: 'strategy' in c ? parseMotorStrategy(c.strategy) : undefined }
 }

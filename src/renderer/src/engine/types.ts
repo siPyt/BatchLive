@@ -405,6 +405,10 @@ export interface MotorModule extends ModuleDisplayProperties {
   tripEnabled?: boolean
   /** Runtime latch: true while the device is tripped by a lost permissive. */
   tripped?: boolean
+  /** DV09-049 SP Track device option (DEVICE_OPTS): when set, SP_D tracks PV_D
+   * while the command is overridden (interlock/locked/tripped), so control
+   * returns bumpless and the operator must re-command Active. Default off. */
+  spTrack?: boolean
   tag: string
   type: 'MOTOR'
   /** Up to 16 interlock conditions; any true (or Bad) condition trips the device to Passive. */
@@ -476,6 +480,10 @@ export interface ValveModule extends ModuleDisplayProperties {
   tripEnabled?: boolean
   /** Runtime latch: true while the device is tripped by a lost permissive. */
   tripped?: boolean
+  /** DV09-049 SP Track device option (DEVICE_OPTS): when set, SP_D tracks PV_D
+   * while the command is overridden (interlock/locked/tripped), so control
+   * returns bumpless and the operator must re-command Active. Default off. */
+  spTrack?: boolean
   tag: string
   type: 'VALVE'
   interlockConditions?: DeviceCondition[]

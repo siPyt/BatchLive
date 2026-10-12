@@ -250,6 +250,44 @@ test('DV09-049 Trip device option trips a downloaded (hardware-bound) Active dev
   assert.equal(m().outputCommand, false)
   assert.equal(findDst(useStore.getState().hardware, 'CTLR-OUT').channel.value, 0, 'the physical DO command drops on trip')
 }))
+test('DV09-049 SP Track device option tracks SP_D to PV_D while the command is overridden (bumpless, re-command required)', () => fixture((s, _alerts, database) => {
+  // Unmanaged motor commanded Active, then an interlock overrides it with SP Track ON.
+  useStore.setState(state => ({ modules: { ...state.modules, MTR: { ...state.modules.MTR,
+    spTrack: true, resetRequired: false, confirmTimeSec: 1 } } }))
+  s.startMotor('MTR')
+  for (let i = 0; i < 15; i++) s.tick(.1)
+  assert.equal(m().dcState, 'CONFIRMED_ACTIVE')
+  assert.equal(m().commanded, true)
+  // Force an interlock: the device is held Passive and SP_D tracks PV_D down to Passive.
+  useStore.setState(state => ({ modules: { ...state.modules, MTR: { ...m(), interlock: true } } }))
+  for (let i = 0; i < 3; i++) s.tick(.1)
+  assert.equal(m().running, false)
+  assert.equal(m().commanded, false, 'SP Track drives the operator command to match the overridden feedback')
+  // Clear the interlock: the device stays Passive (bumpless) until re-commanded.
+  useStore.setState(state => ({ modules: { ...state.modules, MTR: { ...m(), interlock: false } } }))
+  for (let i = 0; i < 5; i++) s.tick(.1)
+  assert.equal(m().running, false, 'control returns bumpless; the device must be explicitly re-commanded')
+  assert.equal(m().dcState, 'CONFIRMED_PASSIVE')
+
+  // SP Track OFF (default): the operator command survives an override and re-asserts on clear.
+  useStore.setState(state => ({ modules: { ...state.modules, OTHER: { ...state.modules.OTHER,
+    spTrack: false, resetRequired: false, confirmTimeSec: 1 } } }))
+  s.startMotor('OTHER')
+  for (let i = 0; i < 15; i++) s.tick(.1)
+  assert.equal(m('OTHER').dcState, 'CONFIRMED_ACTIVE')
+  useStore.setState(state => ({ modules: { ...state.modules, OTHER: { ...m('OTHER'), interlock: true } } }))
+  for (let i = 0; i < 3; i++) s.tick(.1)
+  assert.equal(m('OTHER').commanded, true, 'without SP Track the command is held through the override')
+  useStore.setState(state => ({ modules: { ...state.modules, OTHER: { ...m('OTHER'), interlock: false } } }))
+  for (let i = 0; i < 15; i++) s.tick(.1)
+  assert.equal(m('OTHER').running, true, 'without SP Track the held command re-asserts Active on clear')
+
+  prepare(s, 'XV', 'CTLR')
+  s.editDeviceDraft('XV', { spTrack: true })
+  assert.match(deviceConfigurationError({ ...record('XV').draft, spTrack: 'yes' }, useStore.getState().modules), /SP Track option must be Boolean/)
+  s.saveDeviceConfiguration('XV')
+  assert.equal(parseDevice(database.get(savedDeviceKey('XV')), 'XV').spTrack, true)
+}))
 test('an existing passive live binding can enter saved lifecycle without poisoning healthy physical channel quality', () => fixture(s => {
   assert.equal(s.bindDeviceDst('MTR', 'input', 'CTLR-IN'), true)
   assert.equal(s.bindDeviceDst('MTR', 'output', 'CTLR-OUT'), true)

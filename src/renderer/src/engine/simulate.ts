@@ -484,6 +484,12 @@ function applyExternalDevice(m: MotorModule | ValveModule, hw: HardwareState, dt
       m.dcState = target ? 'GOING_ACTIVE' : 'GOING_PASSIVE'
     }
   }
+  // DV09-049 SP Track: while the command is overridden, SP_D tracks PV_D so
+  // control returns bumpless and the operator must re-command Active.
+  if ((m.spTrack ?? false) && (m.interlock || m.locked || m.tripped)) {
+    if (m.type === 'MOTOR') m.commanded = m.running
+    else m.commandedOpen = m.open
+  }
   if (m.type === 'MOTOR' && (unavailable || !inputBad) && m.running) m.runtimeHrs += dt / 3600
   return true
 }
@@ -515,6 +521,9 @@ function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyMod
   m.locked = io.locked
   m.tripped = io.tripped
   if (io.tripped) m.commanded = false
+  // DV09-049 SP Track: while the command is overridden, SP_D tracks PV_D so
+  // control returns bumpless and the operator must re-command Active.
+  if ((m.spTrack ?? false) && (m.interlock || io.locked || io.tripped)) m.commanded = m.running
   m.travelTimer = io.travelTimer
   m.dcState = io.dcState
   if (m.running) m.runtimeHrs += dt / 3600
@@ -547,6 +556,9 @@ function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyMod
   m.locked = io.locked
   m.tripped = io.tripped
   if (io.tripped) m.commandedOpen = false
+  // DV09-049 SP Track: while the command is overridden, SP_D tracks PV_D so
+  // control returns bumpless and the operator must re-command Active.
+  if ((m.spTrack ?? false) && (m.interlock || io.locked || io.tripped)) m.commandedOpen = m.open
   m.travelTimer = io.travelTimer
   m.dcState = io.dcState
 }

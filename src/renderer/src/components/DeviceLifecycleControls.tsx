@@ -60,6 +60,8 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
     <td>DV09-049: behavior when a commanded Active transition does not confirm in time</td></tr>
     <tr><td>DEPLOYED TRIP ON LOST PERMISSIVE</td><td>{record.deployed?.tripEnabled ? 'Trips Active device to Passive' : 'Blocks start only'}</td>
     <td>DV09-049 DEVICE_OPTS Trip: a lost permissive trips an already-Active device, not just a new start</td></tr>
+    <tr><td>DEPLOYED SP TRACK</td><td>{record.deployed?.spTrack ? 'SP_D tracks PV_D while overridden' : 'SP_D holds the operator command'}</td>
+    <td>DV09-049 DEVICE_OPTS SP Track: command tracks feedback while overridden (interlock/locked/tripped) for bumpless return</td></tr>
     {!record.online && <>
       <DeviceDescriptorDraftRows key={`${tag}:${JSON.stringify(c.descriptors)}`} tag={tag} descriptors={c.descriptors} />
       <tr><td>DRAFT CONTROLLER</td><td><select aria-label={`${tag} device controller`} value={c.controllerTag}
@@ -96,6 +98,9 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
       <tr><td>DRAFT TRIP ON LOST PERMISSIVE</td><td><input type="checkbox" aria-label={`${tag} draft trip`}
         checked={c.tripEnabled ?? false} onChange={e => edit(tag, { tripEnabled: e.target.checked })} /></td>
         <td>Selected: a lost permissive trips an already-Active device to Passive (TRIPPED). Unselected: permissive only blocks a new start.</td></tr>
+      <tr><td>DRAFT SP TRACK</td><td><input type="checkbox" aria-label={`${tag} draft sp track`}
+        checked={c.spTrack ?? false} onChange={e => edit(tag, { spTrack: e.target.checked })} /></td>
+        <td>Selected: SP_D tracks PV_D while the command is overridden (interlock/locked/tripped), so control returns bumpless and must be re-commanded. Unselected: SP_D holds the operator command.</td></tr>
       {(['interlockSource', 'permissiveSource', 'commandSource'] as const).map(source => <tr key={source}><td>DRAFT {source}</td><td>
         <select aria-label={`${tag} draft ${source}`} value={c[source] ?? ''} onChange={e => edit(tag, { [source]: e.target.value || undefined })}>
           <option value="">(manual/operator)</option>

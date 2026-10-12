@@ -119,7 +119,9 @@ function explainDevice(m: Device, modules: Record<string, AnyModule>): LogicExpl
       m.passiveOnTimeout ? 'If an Active command is not confirmed in time the command reverts to Passive (Passive on timeout).'
         : 'If the command is not confirmed in time the device reports FAILED_ACTIVE or FAILED_PASSIVE.',
       m.tripEnabled ? 'Trip device option is set: losing the permissive trips an already-Active device to Passive (DC_STATE = TRIPPED), not just blocking a new start.'
-        : 'Trip device option is off: losing the permissive only blocks a new Passive -> Active start.'
+        : 'Trip device option is off: losing the permissive only blocks a new Passive -> Active start.',
+      m.spTrack ? 'SP Track device option is set: while the command is overridden (interlock/locked/tripped) SP_D tracks PV_D, so control returns bumpless and the operator must re-command Active.'
+        : 'SP Track device option is off: SP_D holds the operator command through an override.'
     ] },
     { heading: '6. Failure (CND1 -> FAILURE)', lines: [
       'FAILURE is True when any of these is true: device fault, Bad feedback quality, Bad output quality, or a FAILED DC_STATE. It raises the FAIL alarm.',
