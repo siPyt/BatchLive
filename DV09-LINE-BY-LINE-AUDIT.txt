@@ -1138,8 +1138,20 @@ Evidence: Pass32/33 and device-descriptors regressions implement Named Set
   instead of reporting Failed-Active; disabled (default) behavior is
   byte-for-byte unchanged, verified by a dedicated regression contrasting
   both branches on real MOTOR/VALVE modules.
-Gaps: DC "trip" (a distinct tripped-and-latched state separate from
-  Interlock/Shutdown) and SP tracking behavior remain unimplemented; arbitrary
+  Pass100 adds the DC "Trip" DEVICE_OPTS option (DV09-049 remaining gap): when
+  enabled on a MOTOR/VALVE, losing the permissive trips an already-Active (or
+  commanded-Active) device to Passive and reports a distinct TRIPPED DC_STATE,
+  rather than only blocking a new Passive->Active start. The trip drives the
+  command Passive (fail-safe, de-energizing the DO on the hardware-bound path);
+  a non-latching trip self-clears when the permissive returns, while Reset
+  Required latches it Locked until RESET_D. The option is threaded through the
+  full device draft/save/download lifecycle (config/parse validation, deployed
+  and draft editor rows, operator reset) and both device step paths (internal
+  DC1 block and external hardware-bound state machine). Default off → behavior
+  byte-for-byte unchanged, verified by dedicated regressions contrasting both
+  branches on real MOTOR/VALVE modules for both the internal and downloaded
+  paths, including the Reset-Required latch and reset recovery.
+Gaps: SP tracking behavior remains unimplemented; arbitrary
   independent bit0/bit1 state masks and the native property/workshop sequence
   also remain open (see DV09-048).
 Acceptance: Verify stored name/value mappings and each enabled option with

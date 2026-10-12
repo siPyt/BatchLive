@@ -354,6 +354,7 @@ export type DcState =
   | 'FAILED_PASSIVE'
   | 'FAILED_ACTIVE'
   | 'SHUTDOWN'
+  | 'TRIPPED'
   | 'LOCKED'
 
 /** One evaluated device condition: a live reference whose (optionally inverted) value decides an interlock, permissive or force setpoint. */
@@ -398,6 +399,12 @@ export interface MotorModule extends ModuleDisplayProperties {
    * Passive (fail-safe) instead of reporting Failed-Active when a commanded
    * Active transition does not confirm within confirmTimeSec. */
   passiveOnTimeout?: boolean
+  /** DV09-049 Trip device option (DEVICE_OPTS): when set, a lost permissive
+   * trips an already-Active device to Passive (TRIPPED), instead of only
+   * blocking a new Passive->Active start. Default off → behavior unchanged. */
+  tripEnabled?: boolean
+  /** Runtime latch: true while the device is tripped by a lost permissive. */
+  tripped?: boolean
   tag: string
   type: 'MOTOR'
   /** Up to 16 interlock conditions; any true (or Bad) condition trips the device to Passive. */
@@ -463,6 +470,12 @@ export interface ValveModule extends ModuleDisplayProperties {
    * Passive (fail-safe) instead of reporting Failed-Active when a commanded
    * Active transition does not confirm within confirmTimeSec. */
   passiveOnTimeout?: boolean
+  /** DV09-049 Trip device option (DEVICE_OPTS): when set, a lost permissive
+   * trips an already-Active device to Passive (TRIPPED), instead of only
+   * blocking a new Passive->Active start. Default off → behavior unchanged. */
+  tripEnabled?: boolean
+  /** Runtime latch: true while the device is tripped by a lost permissive. */
+  tripped?: boolean
   tag: string
   type: 'VALVE'
   interlockConditions?: DeviceCondition[]

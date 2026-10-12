@@ -54,6 +54,10 @@ function deviceDecision(m: Device, modules: Record<string, AnyModule>): string {
       `${m.resetRequired ? ' Reset Required is set, so it stays Locked after the trip clears until the operator resets it.' : ''}`
   }
   if (m.locked) return `${m.tag} is Locked ${passive}: it tripped earlier and Reset Required is set, so it will not move until the operator resets it.`
+  if (m.dcState === 'TRIPPED' || m.tripped) {
+    return `${m.tag} is TRIPPED ${passive}: the Trip device option is set and the permissive was lost while it was Active, so it was tripped to Passive` +
+      `${m.resetRequired ? ' and stays Locked until the operator resets it.' : ' (it self-clears when the permissive returns).'}`
+  }
   const permissive = devicePermissiveSignal(m, modules)
   if (requested && !feedback && m.permissiveRequired && permissive.value === 0) {
     const missing = devicePermissiveConditions(m, modules).filter(c => c.effective).map(c => `#${c.index} "${c.description || c.source}"`)
@@ -102,7 +106,7 @@ function explainDevice(m: Device, modules: Record<string, AnyModule>): LogicExpl
       `BYPASSED = ${yn(!!m.bypassed)}. Reset Required = ${yn(m.resetRequired)}${m.resetRequired ? ' (a trip latches until RESET_D)' : ''}.`
     ] },
     { heading: `4. Permissives (${permissives.length} of 8${m.permissiveSource ? ', plus permissive source' : ''})`, lines: [
-      m.permissiveRequired ? 'Permissive is required: every condition must be true before the device may leave Passive. A device already Active is not stopped by a lost permissive.'
+      m.permissiveRequired ? `Permissive is required: every condition must be true before the device may leave Passive. ${m.tripEnabled ? 'The Trip option is set, so a lost permissive also trips an already-Active device to Passive (TRIPPED).' : 'A device already Active is not stopped by a lost permissive.'}`
         : 'Permissive is not required, so these conditions are not enforced.',
       ...(m.permissiveSource ? [`Permissive source ${m.permissiveSource} = ${valueOf(modules, m.permissiveSource)}`] : []),
       ...permissives.map(c => `#${c.index} "${c.description || c.source}": ${c.source}${c.invert ? ' (inverted)' : ''} = ${yn(c.value)}${c.bad ? ' (Bad)' : ''}${c.effective ? '  [MISSING]' : '  [met]'}`),
@@ -113,7 +117,9 @@ function explainDevice(m: Device, modules: Record<string, AnyModule>): LogicExpl
       m.feedbackUnavailable ? 'No feedback signal is wired: the state is confirmed by elapsed time only.'
         : `The confirmed state (PV_D) comes from the ${valve ? 'open' : 'run'} feedback${m.feedbackInverted ? ' (polarity inverted)' : ''}: currently ${feedback ? active : passive}.`,
       m.passiveOnTimeout ? 'If an Active command is not confirmed in time the command reverts to Passive (Passive on timeout).'
-        : 'If the command is not confirmed in time the device reports FAILED_ACTIVE or FAILED_PASSIVE.'
+        : 'If the command is not confirmed in time the device reports FAILED_ACTIVE or FAILED_PASSIVE.',
+      m.tripEnabled ? 'Trip device option is set: losing the permissive trips an already-Active device to Passive (DC_STATE = TRIPPED), not just blocking a new start.'
+        : 'Trip device option is off: losing the permissive only blocks a new Passive -> Active start.'
     ] },
     { heading: '6. Failure (CND1 -> FAILURE)', lines: [
       'FAILURE is True when any of these is true: device fault, Bad feedback quality, Bad output quality, or a FAILED DC_STATE. It raises the FAIL alarm.',

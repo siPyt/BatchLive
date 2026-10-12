@@ -173,6 +173,83 @@ test('DV09-049 Passive on Timeout reverts an unconfirmed Active command to Passi
   assert.match(deviceConfigurationError({ ...record('XV').draft, passiveOnTimeout: 'yes' }, useStore.getState().modules), /Passive on Timeout must be Boolean/)
   assert.equal(parseDevice(database.get(savedDeviceKey('XV')), 'XV').passiveOnTimeout, true)
 }))
+test('DV09-049 Trip device option trips an Active device to Passive when the permissive is lost; default off leaves it running', () => fixture((s, _alerts, database) => {
+  // Unmanaged motor, permissive required and currently satisfied, Trip option ON, Reset Required OFF.
+  useStore.setState(state => ({ modules: { ...state.modules, MTR: { ...state.modules.MTR,
+    permissiveRequired: true, permissiveOk: true, tripEnabled: true, resetRequired: false, confirmTimeSec: 1 } } }))
+  s.startMotor('MTR')
+  for (let i = 0; i < 15; i++) s.tick(.1)
+  assert.equal(m().running, true)
+  assert.equal(m().dcState, 'CONFIRMED_ACTIVE')
+  // Lose the permissive -> the Trip option trips the already-Active device to Passive.
+  useStore.setState(state => ({ modules: { ...state.modules, MTR: { ...m(), permissiveOk: false } } }))
+  s.tick(.1)
+  assert.equal(m().dcState, 'TRIPPED')
+  assert.equal(m().tripped, true)
+  assert.equal(m().running, false)
+  assert.equal(m().commanded, false, 'the trip drives the command Passive')
+  // Permissive returns: a non-latching trip (Reset Required off) self-clears back to Passive.
+  useStore.setState(state => ({ modules: { ...state.modules, MTR: { ...m(), permissiveOk: true } } }))
+  s.tick(.1)
+  assert.equal(m().tripped, false)
+  assert.equal(m().dcState, 'CONFIRMED_PASSIVE')
+
+  // Reset Required latches the trip until an explicit reset.
+  useStore.setState(state => ({ modules: { ...state.modules, MTR: { ...m(),
+    permissiveOk: true, tripEnabled: true, resetRequired: true } } }))
+  s.startMotor('MTR')
+  for (let i = 0; i < 15; i++) s.tick(.1)
+  assert.equal(m().dcState, 'CONFIRMED_ACTIVE')
+  useStore.setState(state => ({ modules: { ...state.modules, MTR: { ...m(), permissiveOk: false } } }))
+  s.tick(.1)
+  assert.equal(m().dcState, 'TRIPPED')
+  useStore.setState(state => ({ modules: { ...state.modules, MTR: { ...m(), permissiveOk: true } } }))
+  for (let i = 0; i < 5; i++) s.tick(.1)
+  assert.equal(m().dcState, 'TRIPPED', 'Reset Required keeps it tripped even after the permissive returns')
+  assert.equal(m().locked, true)
+  s.resetDevice('MTR')
+  s.tick(.1)
+  assert.equal(m().tripped, false)
+  assert.equal(m().locked, false)
+
+  // Trip OFF (default): losing the permissive does NOT stop a confirmed Active device.
+  useStore.setState(state => ({ modules: { ...state.modules, OTHER: { ...state.modules.OTHER,
+    permissiveRequired: true, permissiveOk: true, tripEnabled: false, confirmTimeSec: 1 } } }))
+  s.startMotor('OTHER')
+  for (let i = 0; i < 15; i++) s.tick(.1)
+  assert.equal(m('OTHER').dcState, 'CONFIRMED_ACTIVE')
+  useStore.setState(state => ({ modules: { ...state.modules, OTHER: { ...m('OTHER'), permissiveOk: false } } }))
+  for (let i = 0; i < 5; i++) s.tick(.1)
+  assert.equal(m('OTHER').dcState, 'CONFIRMED_ACTIVE', 'without Trip, a lost permissive does not stop a confirmed Active device')
+  assert.equal(m('OTHER').running, true)
+  assert.equal(m('OTHER').commanded, true)
+
+  prepare(s, 'XV', 'CTLR')
+  s.editDeviceDraft('XV', { tripEnabled: true })
+  assert.match(deviceConfigurationError({ ...record('XV').draft, tripEnabled: 'yes' }, useStore.getState().modules), /Trip option must be Boolean/)
+  s.saveDeviceConfiguration('XV')
+  assert.equal(parseDevice(database.get(savedDeviceKey('XV')), 'XV').tripEnabled, true)
+}))
+test('DV09-049 Trip device option trips a downloaded (hardware-bound) Active device when the permissive is lost', () => fixture(s => {
+  prepare(s, 'MTR', 'CTLR')
+  s.editDeviceDraft('MTR', { permissiveRequired: true, tripEnabled: true, resetRequired: false })
+  s.saveDeviceConfiguration('MTR')
+  assert.equal(s.downloadDeviceConfiguration('MTR'), true)
+  s.tick(.1)
+  s.setPermissive('MTR', true)
+  s.startMotor('MTR')
+  s.setTraditionalInput('CTLR-IN', 1)
+  for (let i = 0; i < 10; i++) s.tick(.1)
+  assert.equal(m().dcState, 'CONFIRMED_ACTIVE')
+  assert.equal(m().running, true)
+  // Lose the permissive -> the Trip option trips the device: command de-energizes the DO.
+  s.setPermissive('MTR', false)
+  s.tick(.1)
+  assert.equal(m().dcState, 'TRIPPED')
+  assert.equal(m().commanded, false, 'the trip drives the command Passive')
+  assert.equal(m().outputCommand, false)
+  assert.equal(findDst(useStore.getState().hardware, 'CTLR-OUT').channel.value, 0, 'the physical DO command drops on trip')
+}))
 test('an existing passive live binding can enter saved lifecycle without poisoning healthy physical channel quality', () => fixture(s => {
   assert.equal(s.bindDeviceDst('MTR', 'input', 'CTLR-IN'), true)
   assert.equal(s.bindDeviceDst('MTR', 'output', 'CTLR-OUT'), true)

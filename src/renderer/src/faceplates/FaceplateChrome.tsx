@@ -52,6 +52,10 @@ export function deviceStatusBlock(
       deviceState = 'Shutdown'
       deviceColor = 'var(--dv-critical)'
       break
+    case 'TRIPPED':
+      deviceState = 'Tripped'
+      deviceColor = 'var(--dv-critical)'
+      break
     case 'LOCKED':
       deviceState = 'Locked'
       deviceColor = 'var(--dv-critical)'

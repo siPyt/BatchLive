@@ -329,6 +329,8 @@ interface DcIo {
   permissiveRequired: boolean
   resetRequired: boolean
   locked: boolean
+  tripEnabled: boolean // DV09-049 Trip device option
+  tripped: boolean // runtime trip latch
   fault: boolean // simulated stuck/failed field device (manual "Inject Fault")
   confirmTimeSec: number
   travelTimer: number
@@ -337,6 +339,7 @@ interface DcIo {
 
 export function resetDeviceLock(module: MotorModule | ValveModule): void {
   module.locked = false
+  module.tripped = false
 }
 
 function stepDeviceControl(io: DcIo, dt: number): void {
@@ -344,6 +347,21 @@ function stepDeviceControl(io: DcIo, dt: number): void {
   if (io.interlock) {
     io.confirmed = false
     io.dcState = 'SHUTDOWN'
+    io.travelTimer = 0
+    if (io.resetRequired) io.locked = true
+    io.tripped = false
+    return
+  }
+  // DV09-049 Trip device option: a lost permissive trips an already-Active
+  // device (or one commanded Active) to Passive, not just a new start. When
+  // the Trip option is off this block is inert and behavior is unchanged.
+  const permissiveLost = io.permissiveRequired && !io.permissiveOk
+  if (io.tripEnabled && permissiveLost && (io.confirmed || io.desired)) io.tripped = true
+  // Non-latching trip (no Reset Required) self-clears once the permissive returns.
+  if (io.tripped && !io.resetRequired && !permissiveLost) io.tripped = false
+  if (io.tripped) {
+    io.confirmed = false
+    io.dcState = 'TRIPPED'
     io.travelTimer = 0
     if (io.resetRequired) io.locked = true
     return
@@ -410,12 +428,24 @@ function applyExternalDevice(m: MotorModule | ValveModule, hw: HardwareState, dt
   }
   const confirmed = m.type === 'MOTOR' ? m.running : m.open
   const desired = m.type === 'MOTOR' ? m.commanded : m.commandedOpen
+  // DV09-049 Trip device option: a lost permissive trips an already-Active
+  // (or commanded-Active) device to Passive. Default off → inert.
+  const permissiveLost = m.permissiveRequired && !m.permissiveOk
+  if ((m.tripEnabled ?? false) && permissiveLost && (confirmed || desired)) m.tripped = true
+  if (m.tripped && !m.resetRequired && !permissiveLost) m.tripped = false
   if (m.interlock && m.resetRequired) m.locked = true
-  const target = desired && !inputBad && !m.interlock && !m.locked &&
+  if (m.tripped && m.resetRequired) m.locked = true
+  // A trip drives the command Passive (fail-safe), like an interlock shutdown.
+  if (m.tripped) {
+    if (m.type === 'MOTOR') m.commanded = false
+    else m.commandedOpen = false
+  }
+  const target = desired && !inputBad && !m.interlock && !m.locked && !m.tripped &&
     (!m.permissiveRequired || m.permissiveOk || (!inputBad && confirmed))
   m.outputCommand = target
   m.appliedCommand = output.value
   if (m.interlock) { m.dcState = 'SHUTDOWN'; m.travelTimer = 0 }
+  else if (m.tripped) { m.dcState = 'TRIPPED'; m.travelTimer = 0 }
   else if (m.locked) { m.dcState = 'LOCKED'; m.travelTimer = 0 }
   else if (inputBad || output.bad || m.fault) {
     m.dcState = target ? 'FAILED_ACTIVE' : 'FAILED_PASSIVE'
@@ -473,6 +503,8 @@ function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyMod
     permissiveRequired: m.permissiveRequired,
     resetRequired: m.resetRequired,
     locked: m.locked,
+    tripEnabled: m.tripEnabled ?? false,
+    tripped: m.tripped ?? false,
     fault: m.fault,
     confirmTimeSec: m.confirmTimeSec,
     travelTimer: m.travelTimer,
@@ -481,6 +513,8 @@ function applyMotorDC(m: MotorModule, dt: number, modules: Record<string, AnyMod
   stepDeviceControl(io, dt)
   m.running = io.confirmed
   m.locked = io.locked
+  m.tripped = io.tripped
+  if (io.tripped) m.commanded = false
   m.travelTimer = io.travelTimer
   m.dcState = io.dcState
   if (m.running) m.runtimeHrs += dt / 3600
@@ -501,6 +535,8 @@ function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyMod
     permissiveRequired: m.permissiveRequired,
     resetRequired: m.resetRequired,
     locked: m.locked,
+    tripEnabled: m.tripEnabled ?? false,
+    tripped: m.tripped ?? false,
     fault: m.fault,
     confirmTimeSec: m.confirmTimeSec,
     travelTimer: m.travelTimer,
@@ -509,6 +545,8 @@ function applyValveDC(m: ValveModule, dt: number, modules: Record<string, AnyMod
   stepDeviceControl(io, dt)
   m.open = io.confirmed
   m.locked = io.locked
+  m.tripped = io.tripped
+  if (io.tripped) m.commandedOpen = false
   m.travelTimer = io.travelTimer
   m.dcState = io.dcState
 }

@@ -264,6 +264,8 @@ export function dcStateInfo(state: DcState): { label: string; color: string } {
       return { label: 'FAILED PASSIVE', color: 'var(--dv-critical)' }
     case 'SHUTDOWN':
       return { label: 'SHUTDOWN/INTERLOCKED', color: 'var(--dv-critical)' }
+    case 'TRIPPED':
+      return { label: 'TRIPPED', color: 'var(--dv-critical)' }
     case 'LOCKED':
       return { label: 'LOCKED', color: 'var(--dv-critical)' }
     default:
