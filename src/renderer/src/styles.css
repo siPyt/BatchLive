@@ -3434,6 +3434,40 @@ button {
   color: var(--dv-text);
   white-space: normal;
 }
+.sim-dialog-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -16px -16px 12px;
+  padding: 5px 6px 5px 10px;
+  background: linear-gradient(#2f6fbe, #255a9e);
+  color: #fff;
+  position: sticky;
+  top: -16px;
+  z-index: 2;
+}
+.sim-dialog-title {
+  font-weight: 700;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sim-dialog-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  padding: 1px 7px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.sim-dialog-close:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
 .module-download-dialog select,
 .bld-entry-dialog input {
   max-width: 100%;

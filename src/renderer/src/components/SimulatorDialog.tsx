@@ -21,6 +21,10 @@ export function SimulatorDialog({ label, className, onClose, children }: {
   return <dialog ref={dialog} className={className} aria-label={label}
     onCancel={e => { e.preventDefault(); e.stopPropagation(); onClose() }}
     onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose() } }}>
+    <div className="sim-dialog-titlebar">
+      <span className="sim-dialog-title">{label}</span>
+      <button type="button" className="sim-dialog-close" onClick={onClose} aria-label="Close" title="Close">×</button>
+    </div>
     {children}
   </dialog>
 }
