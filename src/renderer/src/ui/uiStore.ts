@@ -155,7 +155,7 @@ export const useUi = create<UiState>((set, get) => ({
     }
     const offset = (cascade++ % 6) * 26
     const px = x ?? 120 + offset
-    const py = y ?? 110 + offset
+    const py = y ?? 56 + Math.round(offset / 2)
     set((s) => ({
       faceplates: [...s.faceplates, { tag, x: px, y: py, z: ++faceTop }],
       selectedTag: tag

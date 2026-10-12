@@ -4,7 +4,7 @@ import { useSecurity } from '../engine/security'
 import * as act from '../engine/fieldbusActions'
 import { DEVICE_ALARM_KINDS, catalogEntry, deviceComm, type DeviceAlarmKind } from '../engine/fieldbus'
 import { DEVICE_ALARM_LABEL, deviceAlarmArea, deviceAlarmCondition, deviceAlarmId, findFfDevice } from '../engine/deviceAlarms'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 
 /** FFDEV_FP: the faceplate of a FOUNDATION fieldbus device with its device alarms and settings. */
 export function FfDeviceFaceplate({ tag, x, y, zIndex }: { tag: string; x: number; y: number; zIndex: number }): JSX.Element | null {
@@ -19,7 +19,25 @@ export function FfDeviceFaceplate({ tag, x, y, zIndex }: { tag: string; x: numbe
   const canConfigure = useSecurity((s) => s.hasLock('CAN_CONFIGURE'))
   const [message, setMessage] = useState<string | null>(null)
   const [minimized, setMinimized] = useState(false)
+  const [scale, setScale] = useState(1)
+  const rootRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ dx: number; dy: number } | null>(null)
+  useLayoutEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    if (minimized) { setScale(1); return }
+    const recompute = (): void => {
+      const naturalH = el.offsetHeight
+      if (!naturalH) return
+      const avail = window.innerHeight - y - 12
+      setScale(Math.max(0.4, Math.min(1, avail / naturalH)))
+    }
+    recompute()
+    const ro = new ResizeObserver(recompute)
+    ro.observe(el)
+    window.addEventListener('resize', recompute)
+    return () => { ro.disconnect(); window.removeEventListener('resize', recompute) }
+  }, [y, minimized, tag])
   useEffect(() => {
     function onMove(e: MouseEvent): void {
       if (!drag.current) return
@@ -42,8 +60,8 @@ export function FfDeviceFaceplate({ tag, x, y, zIndex }: { tag: string; x: numbe
   const area = deviceAlarmArea(hardware, modules, tag)
   const report = (result: string | null): void => setMessage(result)
   return (
-    <div className={'faceplate' + (minimized ? ' minimized' : '')}
-      style={{ left: x, top: y, position: 'fixed', zIndex, maxHeight: minimized ? 'none' : 'calc(100vh - 90px)', overflow: minimized ? 'visible' : 'auto' }}
+    <div ref={rootRef} className={'faceplate' + (minimized ? ' minimized' : '')}
+      style={{ left: x, top: y, position: 'fixed', zIndex, transform: minimized ? undefined : `scale(${scale})`, transformOrigin: 'top left' }}
       role="dialog" aria-label={`FFDEV_FP ${tag}`} data-ffdev-faceplate={tag} onMouseDown={() => focusFaceplate(tag)}>
       <div className="fp-title" style={{ cursor: 'move' }}
         onMouseDown={(e) => { drag.current = { dx: e.clientX - x, dy: e.clientY - y } }}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useUi } from '../ui/uiStore'
 import { useStore } from '../engine/store'
 import { PidFaceplate } from './PidFaceplate'
@@ -47,8 +47,29 @@ function FaceplateWindow({ tag, x, y, zIndex }: { tag: string; x: number; y: num
   const focusAlarms = useUi((s) => s.focusAlarms)
   const openModuleDisplay = useUi(s => s.openModuleDisplay)
   const drag = useRef<{ dx: number; dy: number } | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const [showHelp, setShowHelp] = useState(false)
   const [minimized, setMinimized] = useState(false)
+  const [scale, setScale] = useState(1)
+
+  // Keep the whole faceplate on screen: if it is taller than the space below its
+  // top edge, shrink it uniformly so every control stays visible (never clipped).
+  useLayoutEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    if (minimized) { setScale(1); return }
+    const recompute = (): void => {
+      const naturalH = el.offsetHeight
+      if (!naturalH) return
+      const avail = window.innerHeight - y - 12
+      setScale(Math.max(0.4, Math.min(1, avail / naturalH)))
+    }
+    recompute()
+    const ro = new ResizeObserver(recompute)
+    ro.observe(el)
+    window.addEventListener('resize', recompute)
+    return () => { ro.disconnect(); window.removeEventListener('resize', recompute) }
+  }, [y, minimized, tag, showHelp])
 
   useEffect(() => {
     function onMove(e: MouseEvent): void {
@@ -96,8 +117,8 @@ function FaceplateWindow({ tag, x, y, zIndex }: { tag: string; x: number; y: num
   }
 
   return (
-    <div className={'faceplate' + (minimized ? ' minimized' : '')}
-      style={{ left: x, top: y, zIndex, maxHeight: minimized ? 'none' : `calc(100% - ${Math.max(0, y)}px - 12px)` }}
+    <div ref={rootRef} className={'faceplate' + (minimized ? ' minimized' : '')}
+      style={{ left: x, top: y, zIndex, transform: minimized ? undefined : `scale(${scale})`, transformOrigin: 'top left' }}
       onMouseDown={() => focusFaceplate(tag)}>
       <div
         className="fp-header"

@@ -1441,7 +1441,7 @@ function Btn({ glyph, label, size = 'large', active, onClick, unavailable }: Btn
   return (
     <button type="button" className={`rb-btn rb-${size}` + (active ? ' active' : '')} onClick={onClick} disabled={!!unavailable}
       title={unavailable ?? label} aria-label={label} aria-pressed={active === undefined ? undefined : active}>
-      <RibbonGlyph name={glyph} size={size === 'large' ? 34 : 16} />
+      <RibbonGlyph name={glyph} size={size === 'large' ? 20 : 13} />
       {size !== 'tiny' && <span className="rb-label">{label}</span>}
     </button>
   )
