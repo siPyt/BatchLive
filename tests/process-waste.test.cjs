@@ -379,6 +379,8 @@ test('the process waste picture renders live module state and degrades cleanly w
   assert.match(html, /3WT-0001-XV010: Closed/)
   assert.match(html, /3WT-0001-XV01\)?: RECIRC/)
   assert.match(html, /data-equipment-tag="3WT-0001-P01" data-state="stopped"/)
+  // Both acid/base metering pumps are clickable to the AIC002 loop faceplate, tagged as on the plant screen.
+  assert.equal((html.match(/data-equipment-tag="3WT-0001-AIC002" data-state="idle"/g) || []).length, 2)
   const started = startArea(fresh())
   store.useStore.setState({ modules: run(started, 60).modules })
   const live = render(AreaDisplay, { area: 'PWASTE' })

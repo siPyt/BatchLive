@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useStore } from '../engine/store'
+import { useUi } from '../ui/uiStore'
 import {
   ClassicBackground,
   ClassicPipe,
@@ -39,12 +40,16 @@ function Wrap({ children, embedded }: { children: ReactNode; embedded?: boolean 
   )
 }
 
-/** Chemical metering device on a drum line: green while the pH loop is dosing through it. */
-function DosingDevice({ x, y, label, dosing }: { x: number; y: number; label: string; dosing: boolean }): JSX.Element {
+/** Chemical metering pump on a drum line, driven by the AIC002 split-range output (AO1 acid / AO2 base).
+ * Clickable to the AIC002 loop faceplate and tagged 3WT-0001-AIC002, exactly as the plant screen shows both
+ * metering pumps. Green while the pH loop is dosing through it. */
+function DosingDevice({ x, y, tag, label, dosing }: { x: number; y: number; tag: string; label: string; dosing: boolean }): JSX.Element {
+  const openFp = useUi((s) => s.openFaceplate)
   return (
-    <g>
-      <title>{`${label} dosing: ${dosing ? 'dosing' : 'not dosing'}`}</title>
+    <g data-equipment-tag={tag} data-state={dosing ? 'dosing' : 'idle'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
+      <title>{`${label} metering pump (${tag}): ${dosing ? 'dosing' : 'not dosing'}`}</title>
       <circle cx={x} cy={y} r={7} fill={dosing ? '#3f8f32' : '#2b3137'} stroke={PALE_BORDER} strokeWidth={1.2} />
+      <ClassicLabel x={x} y={y - 16} text={tag} />
     </g>
   )
 }
@@ -143,8 +148,8 @@ export function ProcessWasteDiagram({ embedded }: { embedded?: boolean } = {}): 
       {/* ===== pH loop AIC002 and the acid / base metering lines into the neutralization tank ===== */}
       <ClassicPipe d="M772,396 V232 H609 V343" width={1.1} />
       <ClassicPipe d="M863,396 V218 H602 V343" width={1.1} />
-      <DosingDevice x={772} y={346} label="Base" dosing={dosingBase} />
-      <DosingDevice x={863} y={346} label="Acid" dosing={dosingAcid} />
+      <DosingDevice x={772} y={346} tag={PW.pid} label="Base" dosing={dosingBase} />
+      <DosingDevice x={863} y={346} tag={PW.pid} label="Acid" dosing={dosingAcid} />
       <ClassicPidBox tag={PW.pid} x={640} y={240} label="3WT-0001-AIC002" />
       <ClassicNamedValue x={640} y={296} tag="Ramp Mod" value={aic.rampModule ?? ''} w={120} />
       <path d="M700,286 V314 H863 V339 M772,314 V339" fill="none" stroke={PALE_PIPE} strokeWidth={1} strokeDasharray="4 3" />
